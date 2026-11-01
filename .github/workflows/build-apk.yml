@@ -1,0 +1,64 @@
+
+name: Build SAMANVAY Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Flutter Android project
+        run: |
+          flutter create \
+            --project-name samanvay \
+            --org in.samanvay \
+            --platforms android \
+            /tmp/samanvay_scaffold
+
+          cp -R /tmp/samanvay_scaffold/android .
+          cp /tmp/samanvay_scaffold/pubspec.yaml .
+          cp /tmp/samanvay_scaffold/analysis_options.yaml .
+          cp /tmp/samanvay_scaffold/.metadata .
+
+          mkdir -p lib
+          cp app/main.dart lib/main.dart
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check Dart code
+        run: flutter analyze
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAMANVAY-Alpha-0.1-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
