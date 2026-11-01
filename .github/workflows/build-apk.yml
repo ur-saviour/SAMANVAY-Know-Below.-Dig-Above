@@ -41,9 +41,26 @@ jobs:
 
           cp -R /tmp/samanvay_scaffold/android .
 
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          grep -q 'android.permission.INTERNET' "$MANIFEST" || sed -i '/<application/i\    
-<uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text()
+
+          permission = '    <uses-permission android:name="android.permission.INTERNET" />'
+
+          if "android.permission.INTERNET" not in content:
+              if "<application" not in content:
+                  raise SystemExit("Android application tag not found")
+
+              content = content.replace(
+                  "<application",
+                  permission + "\n    <application",
+                  1,
+              )
+
+          manifest.write_text(content)
+          PY
 
           cp /tmp/samanvay_scaffold/pubspec.yaml .
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
