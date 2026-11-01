@@ -40,9 +40,11 @@ jobs:
             /tmp/samanvay_scaffold
 
           cp -R /tmp/samanvay_scaffold/android .
+
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           grep -q 'android.permission.INTERNET' "$MANIFEST" || sed -i '/<application/i\    
 <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+
           cp /tmp/samanvay_scaffold/pubspec.yaml .
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
