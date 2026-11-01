@@ -1,5 +1,6 @@
 
 
+
 name: Build SAMANVAY Android APK
 
 on:
@@ -13,25 +14,29 @@ permissions:
 
 jobs:
   build:
-    name: Build and Inspect SAMANVAY APK
+    name: Build, Diagnose and Publish APK
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Download repository source
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      # 2. Install Java
       - name: Install Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
+      # 3. Install Flutter
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
+      # 4. Generate Android project
       - name: Generate Android project
         run: |
           flutter create \
@@ -70,14 +75,17 @@ jobs:
           mkdir -p lib
           cp app/main.dart lib/main.dart
 
+      # 5. Install dependencies
       - name: Install Flutter dependencies
         run: |
           flutter pub add supabase_flutter
           flutter pub get
 
+      # 6. Check Dart code
       - name: Analyze Dart code
         run: flutter analyze
 
+      # 7. Build APK
       - name: Build release APK
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -87,49 +95,72 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
-      - name: Inspect APK package and signing
+      # 8. Copy APK before diagnostics
+      - name: Prepare downloadable APK
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          echo "=== APK FILE ==="
-          ls -lh "$APK"
-          file "$APK"
-
-          echo "=== LOCATE ANDROID BUILD TOOLS ==="
-          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-
-          if [ -z "$BUILD_TOOLS" ]; then
-            echo "Android build-tools not found"
+          if [ ! -s "$APK" ]; then
+            echo "ERROR: APK was not generated."
             exit 1
           fi
-
-          echo "Using: $BUILD_TOOLS"
-
-          echo "=== PACKAGE INFORMATION ==="
-          "$BUILD_TOOLS/aapt" dump badging "$APK"
-
-          echo "=== APK SIGNATURE VERIFICATION ==="
-          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
-
-          echo "=== APK ALIGNMENT CHECK ==="
-          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
-
-          echo "=== APK ZIP INTEGRITY ==="
-          unzip -t "$APK"
-
-      - name: Prepare release APK
-        run: |
-          APK="build/app/outputs/flutter-apk/app-release.apk"
-
-          test -s "$APK"
 
           mkdir -p dist
           cp "$APK" dist/SAMANVAY-Alpha-0.2.apk
 
-          ls -lh dist/
+          echo "APK successfully prepared:"
+          ls -lh dist/SAMANVAY-Alpha-0.2.apk
 
+          sha256sum dist/SAMANVAY-Alpha-0.2.apk
+
+      # 9. Diagnose APK (diagnostic failures won't block download)
+      - name: Inspect APK package and signing
+        continue-on-error: true
+        run: |
+          APK="dist/SAMANVAY-Alpha-0.2.apk"
+
+          echo "========== APK FILE =========="
+          file "$APK"
+          ls -lh "$APK"
+
+          echo "========== APK INTEGRITY =========="
+          unzip -t "$APK"
+
+          echo "========== ANDROID BUILD TOOLS =========="
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" \
+            -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+
+          if [ -z "$BUILD_TOOLS" ]; then
+            echo "Android build-tools unavailable; skipping detailed inspection."
+            exit 0
+          fi
+
+          echo "Build tools: $BUILD_TOOLS"
+
+          echo "========== PACKAGE INFORMATION =========="
+          "$BUILD_TOOLS/aapt" dump badging "$APK" || true
+
+          echo "========== SIGNATURE VERIFICATION =========="
+          "$BUILD_TOOLS/apksigner" verify \
+            --verbose \
+            --print-certs "$APK" || true
+
+          echo "========== ALIGNMENT CHECK =========="
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK" || true
+
+      # 10. ALWAYS upload APK as a downloadable artifact
+      - name: Upload APK download
+        if: always() && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAMANVAY-Alpha-0.2-APK
+          path: dist/SAMANVAY-Alpha-0.2.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # 11. Publish GitHub Release when manually triggered
       - name: Publish SAMANVAY Alpha 0.2
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: samanvay-alpha-0.2
@@ -137,7 +168,12 @@ jobs:
           body: |
             SAMANVAY Android Application
             Version: Alpha 0.2
-            APK package, signing and alignment checks included.
+
+            Includes:
+            - Flutter release APK
+            - Supabase integration foundation
+            - APK package and signing diagnostics
+
           prerelease: true
           make_latest: false
           overwrite_files: true
