@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build and Validate SAMANVAY APK
+    name: Build SAMANVAY Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -47,43 +47,46 @@ jobs:
           mkdir -p lib
           cp app/main.dart lib/main.dart
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Install Flutter dependencies
+        run: |
+          flutter pub add supabase_flutter
+          flutter pub get
 
       - name: Analyze Dart code
         run: flutter analyze
 
       - name: Build release APK
-        run: flutter build apk --release
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
       - name: Validate APK
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
           test -s "$APK"
-          file "$APK"
           unzip -t "$APK"
 
           mkdir -p dist
-          cp "$APK" dist/SAMANVAY-Alpha-0.1.apk
+          cp "$APK" dist/SAMANVAY-Alpha-0.2.apk
 
-          echo "APK successfully built and validated."
           ls -lh dist/
 
-      - name: Publish direct APK download
+      - name: Publish SAMANVAY Alpha 0.2
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: samanvay-alpha-0.1
-          name: SAMANVAY Alpha 0.1
+          tag_name: samanvay-alpha-0.2
+          name: SAMANVAY Alpha 0.2
           body: |
-            SAMANVAY Android application.
-            
-            Version: Alpha 0.1
-            Build: Release APK
-            
-            This is an early UI prototype.
+            SAMANVAY Android Application
+            Version: Alpha 0.2
+            Includes Supabase integration foundation.
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: dist/SAMANVAY-Alpha-0.1.apk
+          files: dist/SAMANVAY-Alpha-0.2.apk
