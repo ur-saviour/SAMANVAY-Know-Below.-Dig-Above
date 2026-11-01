@@ -1,13 +1,36 @@
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+const String supabaseUrl =
+    String.fromEnvironment('SUPABASE_URL');
+
+const String supabasePublishableKey =
+    String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (supabaseUrl.isEmpty || supabasePublishableKey.isEmpty) {
+    throw StateError(
+      'Supabase configuration is missing. '
+      'Check your GitHub Actions secrets.',
+    );
+  }
+
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabasePublishableKey,
+  );
+
   runApp(const SamanvayApp());
 }
 
+final supabase = Supabase.instance.client;
+
 const Color navy = Color(0xFF10243A);
-const Color teal = Color(0xFF087E8B);
-const Color background = Color(0xFFF3F6F9);
+const Color teal = Color(0xFF13A89E);
+const Color background = Color(0xFFF4F7FA);
 
 class SamanvayApp extends StatelessWidget {
   const SamanvayApp({super.key});
@@ -24,12 +47,325 @@ class SamanvayApp extends StatelessWidget {
           seedColor: teal,
           primary: teal,
         ),
-        fontFamily: 'Roboto',
+        appBarTheme: const AppBarTheme(
+          backgroundColor: navy,
+          foregroundColor: Colors.white,
+        ),
       ),
-      home: const MainScreen(),
+      home: const AuthGate(),
     );
   }
 }
+
+// ==========================================
+// AUTHENTICATION GATE
+// ==========================================
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: supabase.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        final session = snapshot.hasData
+            ? snapshot.data!.session
+            : supabase.auth.currentSession;
+
+        if (session == null) {
+          return const AuthPage();
+        }
+
+        return const MainScreen();
+      },
+    );
+  }
+}
+
+// ==========================================
+// LOGIN AND REGISTRATION
+// ==========================================
+
+class AuthPage extends StatefulWidget {
+  const AuthPage({super.key});
+
+  @override
+  State<AuthPage> createState() => _AuthPageState();
+}
+
+class _AuthPageState extends State<AuthPage> {
+  final _formKey = GlobalKey<FormState>();
+
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  bool isLogin = true;
+  bool loading = false;
+  bool hidePassword = true;
+
+  String message = '';
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      loading = true;
+      message = '';
+    });
+
+    try {
+      if (isLogin) {
+        await supabase.auth.signInWithPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          message = 'Login successful.';
+        });
+      } else {
+        final response = await supabase.auth.signUp(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          data: {
+            'display_name': _nameController.text.trim(),
+          },
+        );
+
+        if (!mounted) return;
+
+        if (response.session == null) {
+          setState(() {
+            message =
+                'Registration successful. Please check your email '
+                'and confirm your account before logging in.';
+          });
+        } else {
+          setState(() {
+            message = 'Account created successfully.';
+          });
+        }
+      }
+    } on AuthException catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        message = error.message;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        message = 'Something went wrong. Please try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(
+                    Icons.location_city_rounded,
+                    size: 68,
+                    color: teal,
+                  ),
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'SAMANVAY',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: navy,
+                      letterSpacing: 2,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  const Text(
+                    'Municipal Infrastructure Coordination',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.blueGrey),
+                  ),
+
+                  const SizedBox(height: 36),
+
+                  Text(
+                    isLogin ? 'Welcome back' : 'Create your account',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: navy,
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  if (!isLogin) ...[
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full name',
+                        prefixIcon: Icon(Icons.person_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter your name';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email address',
+                      prefixIcon: Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null ||
+                          !value.contains('@') ||
+                          !value.contains('.')) {
+                        return 'Enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: hidePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            hidePassword = !hidePassword;
+                          });
+                        },
+                        icon: Icon(
+                          hidePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.length < 8) {
+                        return 'Password must contain at least 8 characters';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  if (message.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: message.toLowerCase().contains('success') ||
+                                message.toLowerCase().contains('check your email')
+                            ? Colors.green.shade50
+                            : Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        message,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  FilledButton(
+                    onPressed: loading ? null : submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: navy,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: loading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            isLogin ? 'LOGIN' : 'CREATE ACCOUNT',
+                          ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  TextButton(
+                    onPressed: loading
+                        ? null
+                        : () {
+                            setState(() {
+                              isLogin = !isLogin;
+                              message = '';
+                            });
+                          },
+                    child: Text(
+                      isLogin
+                          ? "Don't have an account? Register"
+                          : 'Already registered? Login',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// MAIN APPLICATION
+// ==========================================
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -41,54 +377,19 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int selectedIndex = 0;
 
-  final List<Widget> pages = const [
+  final pages = const [
     DashboardPage(),
     RequestsPage(),
     MapPage(),
     ProfilePage(),
   ];
 
-  final List<String> titles = [
-    'Dashboard',
-    'Excavation Requests',
-    'Infrastructure Map',
-    'Profile',
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: navy,
-        foregroundColor: Colors.white,
-        title: Row(
-          children: [
-            const Icon(Icons.account_tree_rounded, size: 27),
-            const SizedBox(width: 10),
-            const Text(
-              'SAMANVAY',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications will be added later.'),
-                ),
-              );
-            },
-            icon: const Icon(Icons.notifications_outlined),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: pages[selectedIndex],
+      body: IndexedStack(
+        index: selectedIndex,
+        children: pages,
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
@@ -101,7 +402,7 @@ class _MainScreenState extends State<MainScreen> {
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
-            label: 'Home',
+            label: 'Dashboard',
           ),
           NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
@@ -124,185 +425,134 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
+// ==========================================
 // DASHBOARD
+// ==========================================
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        const Text(
-          'Welcome to SAMANVAY',
-          style: TextStyle(
-            fontSize: 23,
-            fontWeight: FontWeight.bold,
-            color: navy,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Municipal Infrastructure Coordination Platform',
-          style: TextStyle(color: Colors.blueGrey),
-        ),
-        const SizedBox(height: 22),
+    final user = supabase.auth.currentUser;
+    final name = user?.userMetadata?['display_name'] ?? 'User';
 
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: navy,
-            borderRadius: BorderRadius.circular(18),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('SAMANVAY'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: navy,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'WELCOME',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  name.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Connected infrastructure. Coordinated development.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
           ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 24),
+          const Text(
+            'Platform Overview',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Row(
             children: [
-              Icon(
-                Icons.account_tree_rounded,
-                color: Colors.white,
-                size: 35,
-              ),
-              SizedBox(height: 15),
-              Text(
-                'Coordinate before you excavate.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: StatCard(
+                  title: 'Database',
+                  value: 'Connected',
+                  icon: Icons.cloud_done,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Connecting utility departments for smarter '
-                'infrastructure planning.',
-                style: TextStyle(
-                  color: Colors.white70,
-                  height: 1.5,
+              SizedBox(width: 12),
+              Expanded(
+                child: StatCard(
+                  title: 'Account',
+                  value: 'Active',
+                  icon: Icons.verified_user,
                 ),
               ),
             ],
           ),
-        ),
-
-        const SizedBox(height: 22),
-
-        const Text(
-          'Project Overview',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: navy,
+          const SizedBox(height: 24),
+          const Text(
+            'Departments',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-
-        const Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                title: 'Requests',
-                value: '12',
-                icon: Icons.assignment,
-                color: teal,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: StatCard(
-                title: 'Under Review',
-                value: '04',
-                icon: Icons.hourglass_top,
-                color: Colors.orange,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        const Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                title: 'Approved',
-                value: '06',
-                icon: Icons.verified,
-                color: Colors.green,
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: StatCard(
-                title: 'Conflicts',
-                value: '02',
-                icon: Icons.warning_amber,
-                color: Colors.red,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 24),
-
-        const Text(
-          'Infrastructure Departments',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: navy,
+          const SizedBox(height: 12),
+          const DepartmentTile(
+            title: 'Water Supply',
+            icon: Icons.water_drop,
           ),
-        ),
-        const SizedBox(height: 12),
-
-        const DepartmentTile(
-          name: 'Water Supply',
-          icon: Icons.water_drop,
-        ),
-        const DepartmentTile(
-          name: 'Electricity',
-          icon: Icons.electric_bolt,
-        ),
-        const DepartmentTile(
-          name: 'Sewage and Drainage',
-          icon: Icons.water,
-        ),
-        const DepartmentTile(
-          name: 'Telecommunications',
-          icon: Icons.cell_tower,
-        ),
-        const DepartmentTile(
-          name: 'Gas Pipeline',
-          icon: Icons.local_fire_department,
-        ),
-
-        const SizedBox(height: 20),
-        const Text(
-          'DEMO DATA — NOT LIVE MUNICIPAL RECORDS',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            letterSpacing: 1,
-            color: Colors.blueGrey,
+          const DepartmentTile(
+            title: 'Electricity',
+            icon: Icons.bolt,
           ),
-        ),
-      ],
+          const DepartmentTile(
+            title: 'Sewage and Drainage',
+            icon: Icons.water,
+          ),
+          const DepartmentTile(
+            title: 'Telecommunications',
+            icon: Icons.cell_tower,
+          ),
+          const DepartmentTile(
+            title: 'Gas Infrastructure',
+            icon: Icons.local_fire_department,
+          ),
+        ],
+      ),
     );
   }
 }
+
+// ==========================================
+// STAT CARD
+// ==========================================
 
 class StatCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-  final Color color;
 
   const StatCard({
     super.key,
     required this.title,
     required this.value,
     required this.icon,
-    required this.color,
   });
 
   @override
@@ -311,27 +561,24 @@ class StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 25),
+          Icon(icon, color: teal, size: 28),
           const SizedBox(height: 12),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 25,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
               color: navy,
             ),
           ),
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.blueGrey,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.blueGrey),
           ),
         ],
       ),
@@ -339,278 +586,197 @@ class StatCard extends StatelessWidget {
   }
 }
 
+// ==========================================
+// DEPARTMENT TILE
+// ==========================================
+
 class DepartmentTile extends StatelessWidget {
-  final String name;
+  final String title;
   final IconData icon;
 
   const DepartmentTile({
     super.key,
-    required this.name,
+    required this.title,
     required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Colors.white,
       elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE5F3F4),
+          backgroundColor: teal.withValues(alpha: 0.12),
           child: Icon(icon, color: teal),
         ),
-        title: Text(
-          name,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: Text(title),
         trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
 }
 
-// EXCAVATION REQUESTS
+// ==========================================
+// REQUESTS
+// ==========================================
 
 class RequestsPage extends StatelessWidget {
   const RequestsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final requests = [
-      {
-        'id': 'SAM-001',
-        'department': 'Water Supply',
-        'location': 'Sample Road A',
-        'status': 'Under Review',
-      },
-      {
-        'id': 'SAM-002',
-        'department': 'Electricity',
-        'location': 'Sample Road B',
-        'status': 'Approved',
-      },
-      {
-        'id': 'SAM-003',
-        'department': 'Sewage',
-        'location': 'Sample Road C',
-        'status': 'Conflict Detected',
-      },
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(18),
-      children: [
-        const Text(
-          'Excavation Requests',
-          style: TextStyle(
-            fontSize: 23,
-            fontWeight: FontWeight.bold,
-            color: navy,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Illustrative requests for the prototype.',
-          style: TextStyle(color: Colors.blueGrey),
-        ),
-        const SizedBox(height: 16),
-
-        ...requests.map((request) {
-          final status = request['status']!;
-
-          final Color statusColor = status == 'Approved'
-              ? Colors.green
-              : status == 'Conflict Detected'
-                  ? Colors.red
-                  : Colors.orange;
-
-          return Card(
-            color: Colors.white,
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(15),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        request['id']!,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: navy,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withAlpha(25),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: statusColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(request['department']!),
-                  const SizedBox(height: 5),
-                  Text(
-                    request['location']!,
-                    style: const TextStyle(
-                      color: Colors.blueGrey,
-                    ),
-                  ),
-                ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Excavation Requests'),
+      ),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.assignment_outlined,
+                size: 65,
+                color: teal,
               ),
-            ),
-          );
-        }),
-
-        const SizedBox(height: 10),
-        const Text(
-          'These sample requests are not connected to an approval system.',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.blueGrey,
+              SizedBox(height: 16),
+              Text(
+                'Your requests will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Live excavation request management '
+                'will be added in the next development phase.',
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-// INFRASTRUCTURE MAP
+// ==========================================
+// MAP
+// ==========================================
 
 class MapPage extends StatelessWidget {
   const MapPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.map_outlined,
-            size: 85,
-            color: teal,
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Infrastructure GIS Map',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: navy,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Infrastructure Map'),
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.map_outlined,
+              size: 75,
+              color: teal,
             ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'The live map will be introduced in the next '
-            'development phase. It will display registered '
-            'underground utility assets and proposed excavation '
-            'locations.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.blueGrey,
-              height: 1.6,
+            SizedBox(height: 16),
+            Text(
+              'GIS integration',
+              style: TextStyle(
+                fontSize: 21,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'GIS integration is planned for Phase 2.',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.layers),
-            label: const Text('GIS integration coming next'),
-          ),
-        ],
+            SizedBox(height: 8),
+            Text('Geographic infrastructure mapping is planned.'),
+          ],
+        ),
       ),
     );
   }
 }
 
+// ==========================================
 // PROFILE
+// ==========================================
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
+  Future<void> logout(BuildContext context) async {
+    try {
+      await supabase.auth.signOut();
+    } on AuthException catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const SizedBox(height: 20),
-        const CircleAvatar(
-          radius: 42,
-          backgroundColor: navy,
-          child: Icon(
-            Icons.account_circle,
-            size: 65,
-            color: Colors.white,
+    final user = supabase.auth.currentUser;
+    final name = user?.userMetadata?['display_name'] ?? 'User';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Profile'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(22),
+        children: [
+          const CircleAvatar(
+            radius: 42,
+            backgroundColor: teal,
+            child: Icon(
+              Icons.person,
+              size: 45,
+              color: Colors.white,
+            ),
           ),
-        ),
-        const SizedBox(height: 15),
-        const Text(
-          'SAMANVAY User',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 21,
-            fontWeight: FontWeight.bold,
-            color: navy,
+          const SizedBox(height: 18),
+          Text(
+            name.toString(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
           ),
-        ),
-        const SizedBox(height: 5),
-        const Text(
-          'Demo Account',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.blueGrey),
-        ),
-        const SizedBox(height: 30),
-        const ListTile(
-          leading: Icon(Icons.business, color: teal),
-          title: Text('Department'),
-          subtitle: Text('Not assigned'),
-        ),
-        const Divider(),
-        const ListTile(
-          leading: Icon(Icons.security, color: teal),
-          title: Text('Account permissions'),
-          subtitle: Text('Demo mode — no authentication'),
-        ),
-        const Divider(),
-        const ListTile(
-          leading: Icon(Icons.info_outline, color: teal),
-          title: Text('Application version'),
-          subtitle: Text('SAMANVAY Alpha 0.1'),
-        ),
-        const Divider(),
-        const SizedBox(height: 20),
-        const Text(
-          'A municipal infrastructure coordination concept.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.blueGrey),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            user?.email ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 30),
+          const ListTile(
+            leading: Icon(Icons.verified_user, color: teal),
+            title: Text('Authentication'),
+            subtitle: Text('Supabase'),
+          ),
+          const SizedBox(height: 25),
+          FilledButton.icon(
+            onPressed: () => logout(context),
+            icon: const Icon(Icons.logout),
+            label: const Text('LOG OUT'),
+            style: FilledButton.styleFrom(
+              backgroundColor: navy,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
