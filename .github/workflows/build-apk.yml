@@ -64,7 +64,23 @@ jobs:
                   permission + "\n    <application",
                   1,
               )
+          deep_link_filter = """
+                  <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data
+                          android:scheme="in.samanvay"
+                          android:host="login-callback" />
+                  </intent-filter>
+          """
 
+          if "android:host=\"login-callback\"" not in content:
+              content = content.replace(
+                  "</activity>",
+                  deep_link_filter + "\n        </activity>",
+                  1,
+              )
           manifest.write_text(content)
           PY
 
