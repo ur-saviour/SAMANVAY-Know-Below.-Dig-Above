@@ -84,7 +84,7 @@ class AuthGate extends StatelessWidget {
 }
 
 // ==========================================
-// LOGIN AND REGISTRATION
+// LOGIN, REGISTRATION AND EMAIL CONFIRMATION
 // ==========================================
 
 class AuthPage extends StatefulWidget {
@@ -95,6 +95,9 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
+  static const String redirectUrl =
+      'in.samanvay://login-callback/';
+
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
@@ -106,6 +109,7 @@ class _AuthPageState extends State<AuthPage> {
   bool hidePassword = true;
 
   String message = '';
+  bool messageIsSuccess = false;
 
   @override
   void dispose() {
@@ -115,62 +119,120 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
+  void showMessage(String text, {bool success = false}) {
+    if (!mounted) return;
+
+    setState(() {
+      message = text;
+      messageIsSuccess = success;
+    });
+  }
+
   Future<void> submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       loading = true;
       message = '';
+      messageIsSuccess = false;
     });
 
     try {
+      final email = _emailController.text.trim();
+
       if (isLogin) {
         await supabase.auth.signInWithPassword(
-          email: _emailController.text.trim(),
+          email: email,
           password: _passwordController.text,
         );
 
-        if (!mounted) return;
-
-        setState(() {
-          message = 'Login successful.';
-        });
+        showMessage(
+          'Login successful.',
+          success: true,
+        );
       } else {
         final response = await supabase.auth.signUp(
-          email: _emailController.text.trim(),
+          email: email,
           password: _passwordController.text,
-          emailRedirectTo: 'in.samanvay://login-callback/',
+          emailRedirectTo: redirectUrl,
           data: {
             'display_name': _nameController.text.trim(),
           },
         );
 
-        if (!mounted) return;
-
         if (response.session == null) {
-          setState(() {
-            message =
-                'Registration successful. Please check your email '
-                'and confirm your account before logging in.';
-          });
+          showMessage(
+            'Registration request submitted. '
+            'Check your inbox and spam folder for '
+            'the confirmation email. '
+            'After confirming, return here and log in.',
+            success: true,
+          );
         } else {
-          setState(() {
-            message = 'Account created successfully.';
-          });
+          showMessage(
+            'Your account has been created successfully.',
+            success: true,
+          );
         }
       }
     } on AuthException catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        message = error.message;
-      });
+      showMessage(error.message);
     } catch (error) {
-      if (!mounted) return;
+      showMessage(
+        'Unable to complete the request. '
+        'Check your internet connection and try again.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
 
-      setState(() {
-        message = 'Something went wrong. Please try again.';
-      });
+  // Resend the confirmation email to an existing
+  // unconfirmed Supabase signup.
+
+  Future<void> resendConfirmationEmail() async {
+    final email = _emailController.text.trim();
+
+    if (!email.contains('@') || !email.contains('.')) {
+      showMessage(
+        'Enter your registered email address first.',
+      );
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      message = '';
+      messageIsSuccess = false;
+    });
+
+    try {
+      await supabase.auth.resend(
+        type: OtpType.signup,
+        email: email,
+        emailRedirectTo: redirectUrl,
+      );
+
+      showMessage(
+        'Supabase accepted the confirmation email request. '
+        'Check your inbox, spam and promotions folders. '
+        'Open the newest confirmation email.',
+        success: true,
+      );
+    } on AuthException catch (error) {
+      showMessage(
+        'Confirmation email could not be requested: '
+        '${error.message}',
+      );
+    } catch (error) {
+      showMessage(
+        'Unable to request the confirmation email. '
+        'Check your internet connection and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -197,6 +259,7 @@ class _AuthPageState extends State<AuthPage> {
                     size: 68,
                     color: teal,
                   ),
+
                   const SizedBox(height: 12),
 
                   const Text(
@@ -215,13 +278,17 @@ class _AuthPageState extends State<AuthPage> {
                   const Text(
                     'Municipal Infrastructure Coordination',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.blueGrey),
+                    style: TextStyle(
+                      color: Colors.blueGrey,
+                    ),
                   ),
 
                   const SizedBox(height: 36),
 
                   Text(
-                    isLogin ? 'Welcome back' : 'Create your account',
+                    isLogin
+                        ? 'Welcome back'
+                        : 'Create your account',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -234,27 +301,36 @@ class _AuthPageState extends State<AuthPage> {
                   if (!isLogin) ...[
                     TextFormField(
                       controller: _nameController,
+                      textCapitalization:
+                          TextCapitalization.words,
                       decoration: const InputDecoration(
                         labelText: 'Full name',
-                        prefixIcon: Icon(Icons.person_outline),
+                        prefixIcon:
+                            Icon(Icons.person_outline),
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
+                        if (value == null ||
+                            value.trim().isEmpty) {
                           return 'Enter your name';
                         }
+
                         return null;
                       },
                     ),
+
                     const SizedBox(height: 16),
                   ],
 
                   TextFormField(
                     controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    keyboardType:
+                        TextInputType.emailAddress,
+                    autocorrect: false,
                     decoration: const InputDecoration(
                       labelText: 'Email address',
-                      prefixIcon: Icon(Icons.email_outlined),
+                      prefixIcon:
+                          Icon(Icons.email_outlined),
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
@@ -263,6 +339,7 @@ class _AuthPageState extends State<AuthPage> {
                           !value.contains('.')) {
                         return 'Enter a valid email address';
                       }
+
                       return null;
                     },
                   ),
@@ -274,7 +351,8 @@ class _AuthPageState extends State<AuthPage> {
                     obscureText: hidePassword,
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
+                      prefixIcon:
+                          const Icon(Icons.lock_outline),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         onPressed: () {
@@ -290,9 +368,12 @@ class _AuthPageState extends State<AuthPage> {
                       ),
                     ),
                     validator: (value) {
-                      if (value == null || value.length < 8) {
-                        return 'Password must contain at least 8 characters';
+                      if (value == null ||
+                          value.length < 8) {
+                        return 'Password must contain '
+                            'at least 8 characters';
                       }
+
                       return null;
                     },
                   ),
@@ -303,15 +384,25 @@ class _AuthPageState extends State<AuthPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: message.toLowerCase().contains('success') ||
-                                message.toLowerCase().contains('check your email')
+                        color: messageIsSuccess
                             ? Colors.green.shade50
                             : Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius:
+                            BorderRadius.circular(10),
+                        border: Border.all(
+                          color: messageIsSuccess
+                              ? Colors.green.shade200
+                              : Colors.red.shade200,
+                        ),
                       ),
                       child: Text(
                         message,
-                        style: const TextStyle(fontSize: 13),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: messageIsSuccess
+                              ? Colors.green.shade900
+                              : Colors.red.shade900,
+                        ),
                       ),
                     ),
 
@@ -321,21 +412,50 @@ class _AuthPageState extends State<AuthPage> {
                     onPressed: loading ? null : submit,
                     style: FilledButton.styleFrom(
                       backgroundColor: navy,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding:
+                          const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
                     ),
                     child: loading
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(
+                            child:
+                                CircularProgressIndicator(
                               color: Colors.white,
                               strokeWidth: 2,
                             ),
                           )
                         : Text(
-                            isLogin ? 'LOGIN' : 'CREATE ACCOUNT',
+                            isLogin
+                                ? 'LOGIN'
+                                : 'CREATE ACCOUNT',
                           ),
                   ),
+
+                  if (isLogin) ...[
+                    const SizedBox(height: 8),
+
+                    OutlinedButton.icon(
+                      onPressed: loading
+                          ? null
+                          : resendConfirmationEmail,
+                      icon: const Icon(
+                        Icons.mark_email_unread_outlined,
+                      ),
+                      label: const Text(
+                        'RESEND CONFIRMATION EMAIL',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: navy,
+                        padding:
+                            const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 12),
 
@@ -346,6 +466,7 @@ class _AuthPageState extends State<AuthPage> {
                             setState(() {
                               isLogin = !isLogin;
                               message = '';
+                              messageIsSuccess = false;
                             });
                           },
                     child: Text(
