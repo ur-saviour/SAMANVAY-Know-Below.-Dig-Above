@@ -1,0 +1,101 @@
+
+name: Secure SAMANVAY Database Backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Dump and encrypt SAMANVAY public database
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Validate required secrets
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -eu
+          test -n "$SUPABASE_DB_URL" || {
+            echo "Missing secret: SUPABASE_DB_URL"
+            exit 1
+          }
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || {
+            echo "Missing secret: BACKUP_ENCRYPTION_PASSPHRASE"
+            exit 1
+          }
+          echo "Required secrets are configured."
+
+      - name: Create PostgreSQL custom-format dump
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -eu
+          BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
+          mkdir -p "$BACKUP_DIR"
+
+          docker run --rm \
+            -e SUPABASE_DB_URL \
+            -v "$BACKUP_DIR:/backup" \
+            postgres:18-alpine \
+            sh -ec 'pg_dump "$SUPABASE_DB_URL" --schema=public --format=custom --no-owner --no-acl --file=/backup/samanvay-public.dump'
+
+          test -s "$BACKUP_DIR/samanvay-public.dump"
+          echo "PostgreSQL dump created successfully."
+
+      - name: Encrypt dump
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -eu
+          python -m pip install --quiet cryptography
+
+          export BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
+          trap 'rm -f "$BACKUP_DIR/samanvay-public.dump"' EXIT
+
+          python - <<'PY'
+          import base64
+          import hashlib
+          import os
+          from pathlib import Path
+
+          from cryptography.fernet import Fernet
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+          backup_dir = Path(os.environ["BACKUP_DIR"])
+          source = backup_dir / "samanvay-public.dump"
+          output = backup_dir / "SAMANVAY-public-backup.dump.fernet"
+          passphrase = os.environ["BACKUP_ENCRYPTION_PASSPHRASE"]
+
+          if len(passphrase) < 20:
+              raise SystemExit("Passphrase must contain at least 20 characters.")
+
+          salt = os.urandom(16)
+          kdf = PBKDF2HMAC(
+              algorithm=hashes.SHA256(),
+              length=32,
+              salt=salt,
+              iterations=600000,
+          )
+          key = base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
+          encrypted = Fernet(key).encrypt(source.read_bytes())
+
+          output.write_bytes(b"SAM1" + salt + encrypted)
+
+          digest = hashlib.sha256(output.read_bytes()).hexdigest()
+          print("Encrypted backup created:", output.name)
+          print("SHA-256:", digest)
+          PY
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAMANVAY-Encrypted-Database-Backup
+          path: ${{ runner.temp }}/samanvay-backup/SAMANVAY-public-backup.dump.fernet
+          if-no-files-found: error
+          retention-days: 30
