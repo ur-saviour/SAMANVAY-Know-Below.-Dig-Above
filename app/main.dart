@@ -139,6 +139,7 @@ class _AuthPageState extends State<AuthPage> {
         final response = await supabase.auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text,
+          emailRedirectTo: 'in.samanvay://login-callback/',
           data: {
             'display_name': _nameController.text.trim(),
           },
