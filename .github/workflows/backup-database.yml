@@ -1,4 +1,5 @@
 
+
 name: Secure SAMANVAY Database Backup
 
 on:
@@ -9,55 +10,127 @@ permissions:
 
 jobs:
   backup:
-    name: Dump and encrypt SAMANVAY public database
+    name: Create and encrypt SAMANVAY database backup
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
-      - name: Validate required secrets
+      - name: Validate backup configuration
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
-          set -eu
-          test -n "$SUPABASE_DB_URL" || {
-            echo "Missing secret: SUPABASE_DB_URL"
+          set -euo pipefail
+
+          test -n "$SUPABASE_DB_HOST" || {
+            echo "Missing SUPABASE_DB_HOST secret."
             exit 1
           }
+
+          test -n "$SUPABASE_PROJECT_REF" || {
+            echo "Missing SUPABASE_PROJECT_REF secret."
+            exit 1
+          }
+
+          test -n "$SUPABASE_DB_PASSWORD" || {
+            echo "Missing SUPABASE_DB_PASSWORD secret."
+            exit 1
+          }
+
           test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || {
-            echo "Missing secret: BACKUP_ENCRYPTION_PASSPHRASE"
+            echo "Missing BACKUP_ENCRYPTION_PASSPHRASE secret."
             exit 1
           }
-          echo "Required secrets are configured."
+
+          python - <<'PY'
+          import os
+          import re
+          import sys
+
+          host = os.environ["SUPABASE_DB_HOST"]
+          project_ref = os.environ["SUPABASE_PROJECT_REF"]
+
+          if not re.fullmatch(r"[A-Za-z0-9.-]+", host):
+              sys.exit("Invalid database hostname format.")
+
+          if not re.fullmatch(r"[a-z0-9-]+", project_ref):
+              sys.exit("Invalid Supabase project reference format.")
+
+          if len(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"]) < 32:
+              sys.exit("Encryption passphrase must contain at least 32 characters.")
+
+          print("Required secrets and configuration checks passed.")
+          PY
 
       - name: Create PostgreSQL custom-format dump
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          set -eu
+          set -euo pipefail
+
           BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
           mkdir -p "$BACKUP_DIR"
 
+          export PGHOST="$SUPABASE_DB_HOST"
+          export PGPORT="5432"
+          export PGDATABASE="postgres"
+          export PGUSER="postgres.${SUPABASE_PROJECT_REF}"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE="require"
+          export PGCONNECT_TIMEOUT="30"
+
+          echo "Connecting through the Supabase Session Pooler."
+          echo "Using the project-scoped PostgreSQL username."
+
           docker run --rm \
-            -e SUPABASE_DB_URL \
+            -e PGHOST \
+            -e PGPORT \
+            -e PGDATABASE \
+            -e PGUSER \
+            -e PGPASSWORD \
+            -e PGSSLMODE \
+            -e PGCONNECT_TIMEOUT \
             -v "$BACKUP_DIR:/backup" \
             postgres:18-alpine \
-            sh -ec 'pg_dump "$SUPABASE_DB_URL" --schema=public --format=custom --no-owner --no-acl --file=/backup/samanvay-public.dump'
+            pg_dump \
+              --schema=public \
+              --format=custom \
+              --no-owner \
+              --no-acl \
+              --file=/backup/samanvay-public.dump
 
           test -s "$BACKUP_DIR/samanvay-public.dump"
-          echo "PostgreSQL dump created successfully."
 
-      - name: Encrypt dump
+          echo "Validating PostgreSQL backup."
+
+          docker run --rm \
+            -v "$BACKUP_DIR:/backup" \
+            postgres:18-alpine \
+            pg_restore --list /backup/samanvay-public.dump > /dev/null
+
+          echo "PostgreSQL dump created and validated."
+
+      - name: Encrypt database backup
         env:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
-          set -eu
-          python -m pip install --quiet cryptography
+          set -euo pipefail
 
-          export BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
-          trap 'rm -f "$BACKUP_DIR/samanvay-public.dump"' EXIT
+          BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
+          export BACKUP_DIR
 
-          python - <<'PY'
+          python -m venv "$RUNNER_TEMP/backup-venv"
+
+          "$RUNNER_TEMP/backup-venv/bin/python" -m pip install \
+            --quiet \
+            --disable-pip-version-check \
+            cryptography
+
+          "$RUNNER_TEMP/backup-venv/bin/python" - <<'PY'
           import base64
           import hashlib
           import os
@@ -70,26 +143,47 @@ jobs:
           backup_dir = Path(os.environ["BACKUP_DIR"])
           source = backup_dir / "samanvay-public.dump"
           output = backup_dir / "SAMANVAY-public-backup.dump.fernet"
+          temporary = backup_dir / "backup-encrypted.tmp"
+
           passphrase = os.environ["BACKUP_ENCRYPTION_PASSPHRASE"]
 
-          if len(passphrase) < 20:
-              raise SystemExit("Passphrase must contain at least 20 characters.")
+          try:
+              if not source.is_file() or source.stat().st_size == 0:
+                  raise SystemExit("Database dump is missing or empty.")
 
-          salt = os.urandom(16)
-          kdf = PBKDF2HMAC(
-              algorithm=hashes.SHA256(),
-              length=32,
-              salt=salt,
-              iterations=600000,
-          )
-          key = base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
-          encrypted = Fernet(key).encrypt(source.read_bytes())
+              if len(passphrase) < 32:
+                  raise SystemExit("Encryption passphrase must contain at least 32 characters.")
 
-          output.write_bytes(b"SAM1" + salt + encrypted)
+              salt = os.urandom(16)
 
-          digest = hashlib.sha256(output.read_bytes()).hexdigest()
-          print("Encrypted backup created:", output.name)
-          print("SHA-256:", digest)
+              kdf = PBKDF2HMAC(
+                  algorithm=hashes.SHA256(),
+                  length=32,
+                  salt=salt,
+                  iterations=600000,
+              )
+
+              key = base64.urlsafe_b64encode(
+                  kdf.derive(passphrase.encode("utf-8"))
+              )
+
+              encrypted = Fernet(key).encrypt(source.read_bytes())
+
+              temporary.write_bytes(b"SAM1" + salt + encrypted)
+              temporary.replace(output)
+
+              if not output.is_file() or output.stat().st_size == 0:
+                  raise SystemExit("Encrypted backup validation failed.")
+
+              digest = hashlib.sha256(output.read_bytes()).hexdigest()
+
+              print("Encrypted backup created and checked.")
+              print("File:", output.name)
+              print("SHA-256:", digest)
+
+          finally:
+              source.unlink(missing_ok=True)
+              temporary.unlink(missing_ok=True)
           PY
 
       - name: Upload encrypted backup
