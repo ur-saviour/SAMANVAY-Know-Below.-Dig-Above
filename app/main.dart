@@ -77,7 +77,7 @@ class AuthGate extends StatelessWidget {
           return const AuthPage();
         }
 
-        return const MainScreen();
+        return const RoleGate();
       },
     );
   }
@@ -87,6 +87,266 @@ class AuthGate extends StatelessWidget {
 // LOGIN, REGISTRATION AND EMAIL CONFIRMATION
 // ==========================================
 
+class RoleGate extends StatelessWidget {
+  const RoleGate({super.key});
+
+  Future<Map<String, dynamic>> _loadProfile() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      throw StateError('Session expired. Please log in again.');
+    }
+
+    final row = await supabase
+        .from('profiles')
+        .select('role, department_id, display_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (row == null) {
+      throw StateError('Profile not found. Contact an administrator.');
+    }
+
+    return Map<String, dynamic>.from(row);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _loadProfile(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return _PortalError(
+            message: snapshot.error.toString(),
+          );
+        }
+
+        final profile = snapshot.data!;
+        final role = (profile['role'] ?? '').toString().toLowerCase();
+        final departmentId = profile['department_id']?.toString();
+
+        switch (role) {
+          case 'requester':
+            return const MainScreen();
+
+          case 'department':
+            if (departmentId == null || departmentId.isEmpty) {
+              return const _PortalError(
+                message: 'No department assigned. Contact an administrator.',
+              );
+            }
+            return DepartmentPortal(departmentId: departmentId);
+
+          case 'coordinator':
+            return const CoordinatorPortal();
+
+          case 'admin':
+            return const AdminPortal();
+
+          default:
+            return _PortalError(
+              message: 'Unrecognized account role: $role',
+            );
+        }
+      },
+    );
+  }
+}
+
+class _PortalError extends StatelessWidget {
+  final String message;
+
+  const _PortalError({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('SAMANVAY access')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.admin_panel_settings_outlined, size: 56),
+              const SizedBox(height: 16),
+              const Text(
+                'Unable to open your portal',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () async {
+                  await supabase.auth.signOut();
+                },
+                child: const Text('LOG OUT'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DepartmentPortal extends StatelessWidget {
+  final String departmentId;
+
+  const DepartmentPortal({super.key, required this.departmentId});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _PortalShell(
+      title: 'Department Officer',
+      subtitle: 'Review requests assigned to your department.',
+      icon: Icons.account_tree_outlined,
+      sections: [
+        'Assigned requests',
+        'Project and location details',
+        'Department review and remarks',
+        'Conflict reporting',
+      ],
+    );
+  }
+}
+
+class CoordinatorPortal extends StatelessWidget {
+  const CoordinatorPortal({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _PortalShell(
+      title: 'Coordinator',
+      subtitle: 'Coordinate departments and monitor infrastructure projects.',
+      icon: Icons.hub_outlined,
+      sections: [
+        'Infrastructure project overview',
+        'Department assignment',
+        'Review and response tracking',
+        'Conflict coordination',
+        'Project status oversight',
+      ],
+    );
+  }
+}
+
+class AdminPortal extends StatelessWidget {
+  const AdminPortal({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _PortalShell(
+      title: 'Platform Administrator',
+      subtitle: 'Manage platform access and organizational configuration.',
+      icon: Icons.admin_panel_settings_outlined,
+      sections: [
+        'User and role administration',
+        'Department directory',
+        'Account access oversight',
+      ],
+    );
+  }
+}
+
+class _PortalShell extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<String> sections;
+
+  const _PortalShell({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.sections,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final user = supabase.auth.currentUser;
+    final displayName =
+        user?.userMetadata?['display_name']?.toString() ?? 'User';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('SAMANVAY'),
+        actions: [
+          IconButton(
+            tooltip: 'Log out',
+            onPressed: () async {
+              await supabase.auth.signOut();
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: navy,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: Colors.white, size: 38),
+                const SizedBox(height: 14),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 23,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Welcome, $displayName',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          const Text(
+            'Your workspace',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...sections.map(
+            (item) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.arrow_forward_ios, size: 16),
+                title: Text(item),
+                subtitle: const Text('Feature module pending implementation'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
