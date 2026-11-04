@@ -589,7 +589,7 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 16),
                   ],
                   DropdownButtonFormField<String>(
-                    initialvalue: selectedRole,
+                    initialValue: selectedRole,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Select account type',
