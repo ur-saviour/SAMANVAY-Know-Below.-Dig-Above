@@ -197,23 +197,23 @@ class _PortalError extends StatelessWidget {
   }
 }
 
+
 class DepartmentPortal extends StatelessWidget {
   final String departmentId;
 
-  const DepartmentPortal({super.key, required this.departmentId});
+  const DepartmentPortal({
+    super.key,
+    required this.departmentId,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const _PortalShell(
+    return _OperationalPortal(
       title: 'Department Officer',
-      subtitle: 'Review requests assigned to your department.',
+      subtitle: 'Department request monitoring and review workspace.',
       icon: Icons.account_tree_outlined,
-      sections: [
-        'Assigned requests',
-        'Project and location details',
-        'Department review and remarks',
-        'Conflict reporting',
-      ],
+      departmentId: departmentId,
+      isRestricted: true,
     );
   }
 }
@@ -223,17 +223,10 @@ class CoordinatorPortal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _PortalShell(
-      title: 'Coordinator',
-      subtitle: 'Coordinate departments and monitor infrastructure projects.',
+    return const _OperationalPortal(
+      title: 'Coordination Centre',
+      subtitle: 'Cross-department infrastructure monitoring.',
       icon: Icons.hub_outlined,
-      sections: [
-        'Infrastructure project overview',
-        'Department assignment',
-        'Review and response tracking',
-        'Conflict coordination',
-        'Project status oversight',
-      ],
     );
   }
 }
@@ -243,42 +236,289 @@ class AdminPortal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _PortalShell(
-      title: 'Platform Administrator',
-      subtitle: 'Manage platform access and organizational configuration.',
+    return const _OperationalPortal(
+      title: 'Administration',
+      subtitle: 'Platform-wide infrastructure oversight.',
       icon: Icons.admin_panel_settings_outlined,
-      sections: [
-        'User and role administration',
-        'Department directory',
-        'Account access oversight',
-      ],
     );
   }
 }
 
-class _PortalShell extends StatelessWidget {
+class _OperationalPortal extends StatefulWidget {
   final String title;
   final String subtitle;
   final IconData icon;
-  final List<String> sections;
+  final String? departmentId;
+  final bool isRestricted;
 
-  const _PortalShell({
+  const _OperationalPortal({
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.sections,
+    this.departmentId,
+    this.isRestricted = false,
   });
+
+  @override
+  State<_OperationalPortal> createState() =>
+      _OperationalPortalState();
+}
+
+class _OperationalPortalState extends State<_OperationalPortal> {
+  List<Map<String, dynamic>> requests = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadRequests();
+  }
+
+  Future<void> loadRequests() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+        errorMessage = '';
+      });
+    }
+
+    try {
+      var query = supabase
+          .from('excavation_requests')
+          .select();
+
+      if (widget.isRestricted &&
+          widget.departmentId != null) {
+        query = query.eq(
+          'department_id',
+          widget.departmentId!,
+        );
+      }
+
+      final result = await query
+          .order('created_at', ascending: false)
+          .limit(100);
+
+      if (!mounted) return;
+
+      setState(() {
+        requests = List<Map<String, dynamic>>.from(
+          result,
+        );
+        loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        errorMessage =
+            'Could not load requests. Check your connection and access permissions.';
+      });
+    }
+  }
+
+  String valueOf(
+    Map<String, dynamic> item,
+    String key, {
+    String fallback = 'Not provided',
+  }) {
+    final value = item[key];
+    if (value == null || value.toString().trim().isEmpty) {
+      return fallback;
+    }
+    return value.toString();
+  }
+
+  int countStatus(String status) {
+    return requests.where((item) {
+      return (item['status'] ?? '')
+          .toString()
+          .toLowerCase() == status.toLowerCase();
+    }).length;
+  }
+
+  Color statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'completed':
+        return Colors.green;
+      case 'rejected':
+      case 'cancelled':
+        return Colors.red;
+      case 'in_progress':
+      case 'under_review':
+        return Colors.orange;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  Widget metric(
+    String label,
+    int value,
+    IconData icon,
+  ) {
+    return Expanded(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: navy, size: 23),
+              const SizedBox(height: 10),
+              Text(
+                value.toString(),
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.bold,
+                  color: navy,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget requestCard(Map<String, dynamic> item) {
+    final status = valueOf(
+      item,
+      'status',
+      fallback: 'submitted',
+    );
+
+    final requestNumber = valueOf(
+      item,
+      'request_number',
+      fallback: valueOf(item, 'id', fallback: 'New request'),
+    );
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Request #$requestNumber',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: navy,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor(status).withValues(
+                      alpha: 0.12,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    status.replaceAll('_', ' ').toUpperCase(),
+                    style: TextStyle(
+                      color: statusColor(status),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              valueOf(item, 'title', fallback: 'Untitled request'),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              valueOf(item, 'description'),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Divider(height: 22),
+            _detailRow(
+              Icons.location_on_outlined,
+              valueOf(item, 'road_name'),
+            ),
+            _detailRow(
+              Icons.location_city_outlined,
+              valueOf(item, 'city'),
+            ),
+            _detailRow(
+              Icons.calendar_today_outlined,
+              valueOf(item, 'created_at'),
+            ),
+            if (item['latitude'] != null &&
+                item['longitude'] != null)
+              _detailRow(
+                Icons.map_outlined,
+                '${item['latitude']}, ${item['longitude']}',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.blueGrey),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.blueGrey,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
     final displayName =
-        user?.userMetadata?['display_name']?.toString() ?? 'User';
+        user?.userMetadata?['display_name']?.toString() ??
+        user?.email ??
+        'Authorised user';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('SAMANVAY'),
         actions: [
+          IconButton(
+            tooltip: 'Refresh data',
+            onPressed: loading ? null : loadRequests,
+            icon: const Icon(Icons.refresh),
+          ),
           IconButton(
             tooltip: 'Log out',
             onPressed: () async {
@@ -288,65 +528,207 @@ class _PortalShell extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: navy,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: Colors.white, size: 38),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: const TextStyle(
+      body: RefreshIndicator(
+        onRefresh: loadRequests,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    widget.icon,
                     color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.bold,
+                    size: 34,
                   ),
+                  const SizedBox(height: 13),
+                  Text(
+                    widget.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Welcome, $displayName',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    widget.subtitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Infrastructure overview',
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                metric(
+                  'Total cases',
+                  requests.length,
+                  Icons.folder_open,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Welcome, $displayName',
-                  style: const TextStyle(color: Colors.white70),
+                metric(
+                  'Submitted',
+                  countStatus('submitted'),
+                  Icons.inbox_outlined,
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.white70),
+                metric(
+                  'In progress',
+                  countStatus('in_progress'),
+                  Icons.engineering_outlined,
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 22),
-          const Text(
-            'Your workspace',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-              color: navy,
+            Row(
+              children: [
+                metric(
+                  'Approved',
+                  countStatus('approved'),
+                  Icons.verified_outlined,
+                ),
+                metric(
+                  'Completed',
+                  countStatus('completed'),
+                  Icons.task_alt,
+                ),
+                metric(
+                  'Rejected',
+                  countStatus('rejected'),
+                  Icons.cancel_outlined,
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          ...sections.map(
-            (item) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.arrow_forward_ios, size: 16),
-                title: Text(item),
-                subtitle: const Text('Feature module pending implementation'),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Infrastructure requests',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      color: navy,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${requests.length} records',
+                  style: const TextStyle(
+                    color: Colors.blueGrey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.all(35),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (errorMessage.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.cloud_off_outlined,
+                        size: 35,
+                        color: Colors.orange,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        errorMessage,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: loadRequests,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (requests.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(22),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 40,
+                        color: Colors.blueGrey,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'No requests are currently visible to this account.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...requests.map(requestCard),
+            const SizedBox(height: 18),
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.security_outlined,
+                      color: Colors.teal,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Access is controlled by Supabase authentication and row-level security. This dashboard displays records only; official approvals and status changes remain restricted to authorised server-side workflows.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
