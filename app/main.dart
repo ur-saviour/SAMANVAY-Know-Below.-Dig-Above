@@ -367,7 +367,14 @@ class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
+  String selectedRole = 'requester';
 
+  final List<Map<String, String>> availableRoles = [
+    {'value': 'requester', 'label': 'Requester'},
+    {'value': 'department', 'label': 'Department Officer'},
+    {'value': 'coordinator', 'label': 'Coordinator'},
+    {'value': 'admin', 'label': 'Administrator'},
+  ];
   String message = '';
   bool messageIsSuccess = false;
 
@@ -581,7 +588,44 @@ class _AuthPageState extends State<AuthPage> {
 
                     const SizedBox(height: 16),
                   ],
+                  DropdownButtonFormField<String>(
+                    value: selectedRole,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Select account type',
+                      prefixIcon: Icon(
+                        Icons.admin_panel_settings_outlined,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: availableRoles.map((role) {
+                      return DropdownMenuItem<String>(
+                        value: role['value'],
+                        child: Text(role['label']!),
+                      );
+                    }).toList(),
+                    onChanged: loading
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() {
+                                selectedRole = value;
+                              });
+                            }
+                          },
+                  ),
 
+                  const SizedBox(height: 8),
+
+                  const Text(
+                    'Privileged roles require administrator authorization.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _emailController,
                     keyboardType:
