@@ -198,6 +198,7 @@ class _PortalError extends StatelessWidget {
 }
 
 
+
 class DepartmentPortal extends StatelessWidget {
   final String departmentId;
 
@@ -210,10 +211,10 @@ class DepartmentPortal extends StatelessWidget {
   Widget build(BuildContext context) {
     return _OperationalPortal(
       title: 'Department Officer',
-      subtitle: 'Department request monitoring and review workspace.',
+      subtitle: 'Review and respond to infrastructure cases assigned to your department.',
       icon: Icons.account_tree_outlined,
       departmentId: departmentId,
-      isRestricted: true,
+      isDepartment: true,
     );
   }
 }
@@ -225,7 +226,7 @@ class CoordinatorPortal extends StatelessWidget {
   Widget build(BuildContext context) {
     return const _OperationalPortal(
       title: 'Coordination Centre',
-      subtitle: 'Cross-department infrastructure monitoring.',
+      subtitle: 'Coordinate infrastructure cases across departments.',
       icon: Icons.hub_outlined,
     );
   }
@@ -237,8 +238,8 @@ class AdminPortal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _OperationalPortal(
-      title: 'Administration',
-      subtitle: 'Platform-wide infrastructure oversight.',
+      title: 'Platform Administration',
+      subtitle: 'Monitor cases and manage department coordination.',
       icon: Icons.admin_panel_settings_outlined,
     );
   }
@@ -249,14 +250,14 @@ class _OperationalPortal extends StatefulWidget {
   final String subtitle;
   final IconData icon;
   final String? departmentId;
-  final bool isRestricted;
+  final bool isDepartment;
 
   const _OperationalPortal({
     required this.title,
     required this.subtitle,
     required this.icon,
     this.departmentId,
-    this.isRestricted = false,
+    this.isDepartment = false,
   });
 
   @override
@@ -266,6 +267,9 @@ class _OperationalPortal extends StatefulWidget {
 
 class _OperationalPortalState extends State<_OperationalPortal> {
   List<Map<String, dynamic>> requests = [];
+  List<Map<String, dynamic>> departments = [];
+  Map<String, List<Map<String, dynamic>>> reviewsByRequest = {};
+
   bool loading = true;
   String errorMessage = '';
 
@@ -275,37 +279,103 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     loadRequests();
   }
 
+  void notify(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> loadRequests() async {
-    if (mounted) {
-      setState(() {
-        loading = true;
-        errorMessage = '';
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      loading = true;
+      errorMessage = '';
+    });
 
     try {
-      var query = supabase
-          .from('excavation_requests')
-          .select();
+      final Map<String, List<Map<String, dynamic>>> groupedReviews = {};
+      List<Map<String, dynamic>> loadedRequests = [];
+      List<Map<String, dynamic>> loadedDepartments = [];
 
-      if (widget.isRestricted &&
-          widget.departmentId != null) {
-        query = query.eq(
-          'department_id',
-          widget.departmentId!,
-        );
+      if (widget.isDepartment) {
+        final rawReviews = await supabase
+            .from('request_department_reviews')
+            .select(
+              'id,request_id,department_id,review_status,remarks,assigned_at,reviewed_at',
+            )
+            .eq('department_id', widget.departmentId!)
+            .order('assigned_at', ascending: false)
+            .limit(200);
+
+        final reviewRows =
+            List<Map<String, dynamic>>.from(rawReviews);
+
+        for (final review in reviewRows) {
+          final requestId = review['request_id'].toString();
+          groupedReviews.putIfAbsent(requestId, () => []);
+          groupedReviews[requestId]!.add(review);
+        }
+
+        final requestIds = reviewRows
+            .map((review) => review['request_id'].toString())
+            .toSet()
+            .toList();
+
+        if (requestIds.isNotEmpty) {
+          final rawRequests = await supabase
+              .from('excavation_requests')
+              .select()
+              .inFilter('id', requestIds)
+              .order('created_at', ascending: false)
+              .limit(200);
+
+          loadedRequests =
+              List<Map<String, dynamic>>.from(rawRequests);
+        }
+      } else {
+        final rawRequests = await supabase
+            .from('excavation_requests')
+            .select()
+            .order('created_at', ascending: false)
+            .limit(200);
+
+        loadedRequests =
+            List<Map<String, dynamic>>.from(rawRequests);
+
+        final rawReviews = await supabase
+            .from('request_department_reviews')
+            .select(
+              'id,request_id,department_id,review_status,remarks,assigned_at,reviewed_at',
+            )
+            .order('assigned_at', ascending: false)
+            .limit(500);
+
+        final reviewRows =
+            List<Map<String, dynamic>>.from(rawReviews);
+
+        for (final review in reviewRows) {
+          final requestId = review['request_id'].toString();
+          groupedReviews.putIfAbsent(requestId, () => []);
+          groupedReviews[requestId]!.add(review);
+        }
+
+        final rawDepartments = await supabase
+            .from('departments')
+            .select('id,name')
+            .order('name');
+
+        loadedDepartments =
+            List<Map<String, dynamic>>.from(rawDepartments);
       }
-
-      final result = await query
-          .order('created_at', ascending: false)
-          .limit(100);
 
       if (!mounted) return;
 
       setState(() {
-        requests = List<Map<String, dynamic>>.from(
-          result,
-        );
+        requests = loadedRequests;
+        departments = loadedDepartments;
+        reviewsByRequest = groupedReviews;
         loading = false;
       });
     } catch (error) {
@@ -314,7 +384,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       setState(() {
         loading = false;
         errorMessage =
-            'Could not load requests. Check your connection and access permissions.';
+            'Unable to load records. Check your connection and account permissions.';
       });
     }
   }
@@ -331,11 +401,20 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     return value.toString();
   }
 
+  String departmentName(String id) {
+    for (final department in departments) {
+      if (department['id'].toString() == id) {
+        return department['name'].toString();
+      }
+    }
+    return 'Department';
+  }
+
   int countStatus(String status) {
     return requests.where((item) {
-      return (item['status'] ?? '')
-          .toString()
-          .toLowerCase() == status.toLowerCase();
+      return valueOf(item, 'status', fallback: '')
+              .toLowerCase() ==
+          status.toLowerCase();
     }).length;
   }
 
@@ -345,39 +424,35 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       case 'completed':
         return Colors.green;
       case 'rejected':
-      case 'cancelled':
         return Colors.red;
-      case 'in_progress':
+      case 'conflict_detected':
+      case 'clarification_required':
       case 'under_review':
+      case 'in_progress':
         return Colors.orange;
       default:
         return Colors.blueGrey;
     }
   }
 
-  Widget metric(
-    String label,
-    int value,
-    IconData icon,
-  ) {
+  Widget metric(String label, int value, IconData icon) {
     return Expanded(
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(13),
+          padding: const EdgeInsets.all(11),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: navy, size: 23),
-              const SizedBox(height: 10),
+              Icon(icon, color: navy, size: 22),
+              const SizedBox(height: 8),
               Text(
                 value.toString(),
                 style: const TextStyle(
-                  fontSize: 23,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: navy,
                 ),
               ),
-              const SizedBox(height: 3),
               Text(
                 label,
                 style: const TextStyle(fontSize: 11),
@@ -389,104 +464,404 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     );
   }
 
-  Widget requestCard(Map<String, dynamic> item) {
-    final status = valueOf(
-      item,
-      'status',
-      fallback: 'submitted',
-    );
+  Widget statusLabel(String status) {
+    final color = statusColor(status);
 
-    final requestNumber = valueOf(
-      item,
-      'request_number',
-      fallback: valueOf(item, 'id', fallback: 'New request'),
-    );
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Request #$requestNumber',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: navy,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor(status).withValues(
-                      alpha: 0.12,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    status.replaceAll('_', ' ').toUpperCase(),
-                    style: TextStyle(
-                      color: statusColor(status),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              valueOf(item, 'title', fallback: 'Untitled request'),
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              valueOf(item, 'description'),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const Divider(height: 22),
-            _detailRow(
-              Icons.location_on_outlined,
-              valueOf(item, 'road_name'),
-            ),
-            _detailRow(
-              Icons.location_city_outlined,
-              valueOf(item, 'city'),
-            ),
-            _detailRow(
-              Icons.calendar_today_outlined,
-              valueOf(item, 'created_at'),
-            ),
-            if (item['latitude'] != null &&
-                item['longitude'] != null)
-              _detailRow(
-                Icons.map_outlined,
-                '${item['latitude']}, ${item['longitude']}',
-              ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status.replaceAll('_', ' ').toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 
-  Widget _detailRow(IconData icon, String text) {
+  List<String> allowedTransitions(String current) {
+    switch (current.toLowerCase()) {
+      case 'draft':
+        return ['submitted'];
+      case 'submitted':
+        return [
+          'under_review',
+          'rejected',
+          'conflict_detected',
+        ];
+      case 'under_review':
+        return [
+          'approved',
+          'rejected',
+          'conflict_detected',
+        ];
+      case 'conflict_detected':
+        return [
+          'under_review',
+          'approved',
+          'rejected',
+        ];
+      case 'approved':
+        return [
+          'completed',
+          'conflict_detected',
+        ];
+      default:
+        return [];
+    }
+  }
+
+  Future<void> showDepartmentReview(
+    Map<String, dynamic> review,
+  ) async {
+    final current = valueOf(
+      review,
+      'review_status',
+      fallback: 'pending',
+    );
+
+    if (current == 'approved' || current == 'rejected') {
+      notify('This review is already finalised.');
+      return;
+    }
+
+    final remarksController = TextEditingController(
+      text: review['remarks']?.toString() ?? '',
+    );
+
+    String selectedStatus = 'under_review';
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Department review'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select your department response.',
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStatus,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Review decision',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'under_review',
+                          child: Text('Under review'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'approved',
+                          child: Text('Approved'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'rejected',
+                          child: Text('Rejected'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'conflict_detected',
+                          child: Text('Conflict detected'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'clarification_required',
+                          child: Text('Clarification required'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            selectedStatus = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: remarksController,
+                      maxLines: 4,
+                      maxLength: 1000,
+                      decoration: const InputDecoration(
+                        labelText: 'Technical remarks',
+                        hintText:
+                            'Enter findings, observations or required clarification.',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      dialogContext,
+                      {
+                        'status': selectedStatus,
+                        'remarks': remarksController.text.trim(),
+                      },
+                    );
+                  },
+                  child: const Text('Submit review'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    remarksController.dispose();
+
+    if (result == null) return;
+
+    try {
+      await supabase.rpc(
+        'submit_department_review',
+        params: {
+          'p_review_id': review['id'].toString(),
+          'p_review_status': result['status'],
+          'p_remarks': result['remarks'],
+        },
+      );
+
+      await loadRequests();
+      notify('Department review submitted.');
+    } catch (error) {
+      notify('Review was not submitted: $error');
+    }
+  }
+
+  Future<void> showDepartmentAssignment(
+    Map<String, dynamic> request,
+  ) async {
+    if (departments.isEmpty) {
+      notify('No departments are available.');
+      return;
+    }
+
+    String? selectedDepartment =
+        departments.first['id'].toString();
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Assign department'),
+              content: DropdownButtonFormField<String>(
+                initialValue: selectedDepartment,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Select department',
+                  border: OutlineInputBorder(),
+                ),
+                items: departments.map((department) {
+                  return DropdownMenuItem<String>(
+                    value: department['id'].toString(),
+                    child: Text(
+                      department['name'].toString(),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setDialogState(() {
+                    selectedDepartment = value;
+                  });
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: selectedDepartment == null
+                      ? null
+                      : () => Navigator.pop(
+                            dialogContext,
+                            selectedDepartment,
+                          ),
+                  child: const Text('Assign'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (selected == null) return;
+
+    try {
+      await supabase.rpc(
+        'assign_request_department',
+        params: {
+          'p_request_id': request['id'].toString(),
+          'p_department_id': selected,
+        },
+      );
+
+      await loadRequests();
+      notify('Department assigned successfully.');
+    } catch (error) {
+      notify('Assignment failed: $error');
+    }
+  }
+
+  Future<void> showOverallStatusDialog(
+    Map<String, dynamic> request,
+  ) async {
+    final current = valueOf(
+      request,
+      'status',
+      fallback: 'submitted',
+    );
+
+    final allowed = allowedTransitions(current);
+
+    if (allowed.isEmpty) {
+      notify('No further status transition is available.');
+      return;
+    }
+
+    String selectedStatus = allowed.first;
+    final remarksController = TextEditingController();
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Update overall status'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Current status: $current'),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStatus,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'New status',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: allowed.map((status) {
+                        return DropdownMenuItem<String>(
+                          value: status,
+                          child: Text(
+                            status.replaceAll('_', ' ').toUpperCase(),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            selectedStatus = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: remarksController,
+                      maxLines: 3,
+                      maxLength: 1000,
+                      decoration: const InputDecoration(
+                        labelText: 'Coordinator remarks',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Approval is subject to the database rule requiring every assigned department review to be approved.',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      dialogContext,
+                      {
+                        'status': selectedStatus,
+                        'remarks': remarksController.text.trim(),
+                      },
+                    );
+                  },
+                  child: const Text('Update status'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    remarksController.dispose();
+
+    if (result == null) return;
+
+    try {
+      await supabase.rpc(
+        'change_request_status',
+        params: {
+          'p_request_id': request['id'].toString(),
+          'p_new_status': result['status'],
+          'p_remarks': result['remarks'],
+        },
+      );
+
+      await loadRequests();
+      notify('Overall request status updated.');
+    } catch (error) {
+      notify('Status update failed: $error');
+    }
+  }
+
+  Widget detailRow(IconData icon, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Colors.blueGrey),
+          Icon(
+            icon,
+            size: 16,
+            color: Colors.blueGrey,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -502,9 +877,186 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     );
   }
 
+  Widget requestCard(Map<String, dynamic> item) {
+    final requestId = item['id'].toString();
+
+    final status = valueOf(
+      item,
+      'status',
+      fallback: 'submitted',
+    );
+
+    final number = valueOf(
+      item,
+      'request_number',
+      fallback: requestId,
+    );
+
+    final assignedReviews =
+        reviewsByRequest[requestId] ?? [];
+
+    final ownReview = widget.isDepartment &&
+            assignedReviews.isNotEmpty
+        ? assignedReviews.first
+        : null;
+
+    final reviewSummary = assignedReviews.isEmpty
+        ? 'No department assignments yet.'
+        : assignedReviews.map((review) {
+            final name = departmentName(
+              review['department_id'].toString(),
+            );
+            final reviewStatus = valueOf(
+              review,
+              'review_status',
+              fallback: 'pending',
+            );
+            return '$name — ${reviewStatus.replaceAll('_', ' ')}';
+          }).join('\n');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 13),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Request #$number',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: navy,
+                    ),
+                  ),
+                ),
+                statusLabel(status),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              valueOf(
+                item,
+                'title',
+                fallback: 'Untitled request',
+              ),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              valueOf(item, 'description'),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Divider(height: 22),
+            detailRow(
+              Icons.location_on_outlined,
+              valueOf(item, 'road_name'),
+            ),
+            detailRow(
+              Icons.location_city_outlined,
+              valueOf(item, 'city'),
+            ),
+            detailRow(
+              Icons.calendar_today_outlined,
+              valueOf(item, 'created_at'),
+            ),
+            if (item['latitude'] != null &&
+                item['longitude'] != null)
+              detailRow(
+                Icons.map_outlined,
+                '${item['latitude']}, ${item['longitude']}',
+              ),
+            const SizedBox(height: 8),
+            const Text(
+              'Department coordination',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              reviewSummary,
+              style: const TextStyle(fontSize: 12),
+            ),
+            if (widget.isDepartment && ownReview != null) ...[
+              const SizedBox(height: 10),
+              statusLabel(
+                valueOf(
+                  ownReview,
+                  'review_status',
+                  fallback: 'pending',
+                ),
+              ),
+              if (valueOf(
+                    ownReview,
+                    'remarks',
+                    fallback: '',
+                  ).isNotEmpty) ...[
+                const SizedBox(height: 7),
+                Text(
+                  'Latest remarks: ${ownReview['remarks']}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (![
+                'approved',
+                'rejected',
+              ].contains(
+                valueOf(ownReview, 'review_status'),
+              ))
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        showDepartmentReview(ownReview),
+                    icon: const Icon(Icons.rate_review_outlined),
+                    label: const Text('Submit department review'),
+                  ),
+                ),
+            ],
+            if (!widget.isDepartment) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        showDepartmentAssignment(item),
+                    icon: const Icon(
+                      Icons.account_tree_outlined,
+                    ),
+                    label: const Text('Assign department'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () =>
+                        showOverallStatusDialog(item),
+                    icon: const Icon(
+                      Icons.sync_alt,
+                    ),
+                    label: const Text('Update status'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
+
     final displayName =
         user?.userMetadata?['display_name']?.toString() ??
         user?.email ??
@@ -515,7 +1067,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         title: const Text('SAMANVAY'),
         actions: [
           IconButton(
-            tooltip: 'Refresh data',
+            tooltip: 'Refresh',
             onPressed: loading ? null : loadRequests,
             icon: const Icon(Icons.refresh),
           ),
@@ -546,7 +1098,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   Icon(
                     widget.icon,
                     color: Colors.white,
-                    size: 34,
+                    size: 36,
                   ),
                   const SizedBox(height: 13),
                   Text(
@@ -597,9 +1149,9 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   Icons.inbox_outlined,
                 ),
                 metric(
-                  'In progress',
-                  countStatus('in_progress'),
-                  Icons.engineering_outlined,
+                  'Under review',
+                  countStatus('under_review'),
+                  Icons.rate_review_outlined,
                 ),
               ],
             ),
@@ -616,9 +1168,9 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   Icons.task_alt,
                 ),
                 metric(
-                  'Rejected',
-                  countStatus('rejected'),
-                  Icons.cancel_outlined,
+                  'Conflicts',
+                  countStatus('conflict_detected'),
+                  Icons.warning_amber_outlined,
                 ),
               ],
             ),
@@ -660,7 +1212,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     children: [
                       const Icon(
                         Icons.cloud_off_outlined,
-                        size: 35,
+                        size: 36,
                         color: Colors.orange,
                       ),
                       const SizedBox(height: 10),
@@ -708,13 +1260,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      Icons.security_outlined,
+                      Icons.verified_user_outlined,
                       color: Colors.teal,
                     ),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Access is controlled by Supabase authentication and row-level security. This dashboard displays records only; official approvals and status changes remain restricted to authorised server-side workflows.',
+                        'Department reviews and coordinator status changes are processed by protected database functions. Role permissions and row-level security remain enforced by Supabase.',
                         style: TextStyle(fontSize: 12),
                       ),
                     ),
