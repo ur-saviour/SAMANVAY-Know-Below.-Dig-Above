@@ -653,16 +653,32 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     }
   }
 
+  
   Future<void> showDepartmentAssignment(
     Map<String, dynamic> request,
   ) async {
-    if (departments.isEmpty) {
-      notify('No departments are available.');
+    final requestId = request['id'].toString();
+
+    // Exclude departments already assigned to this request.
+    final existingReviews = reviewsByRequest[requestId] ?? [];
+
+    final assignedDepartmentIds = existingReviews
+        .map((review) => review['department_id'].toString())
+        .toSet();
+
+    final availableDepartments = departments.where((department) {
+      return !assignedDepartmentIds.contains(
+        department['id'].toString(),
+      );
+    }).toList();
+
+    if (availableDepartments.isEmpty) {
+      notify('All available departments are already assigned.');
       return;
     }
 
     String? selectedDepartment =
-        departments.first['id'].toString();
+        availableDepartments.first['id'].toString();
 
     final selected = await showDialog<String>(
       context: context,
@@ -675,15 +691,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 initialValue: selectedDepartment,
                 isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Select department',
+                  labelText: 'Select unassigned department',
                   border: OutlineInputBorder(),
                 ),
-                items: departments.map((department) {
+                items: availableDepartments.map((department) {
                   return DropdownMenuItem<String>(
                     value: department['id'].toString(),
-                    child: Text(
-                      department['name'].toString(),
-                    ),
+                    child: Text(department['name'].toString()),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -694,8 +708,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () =>
-                      Navigator.pop(dialogContext),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
@@ -720,7 +733,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       await supabase.rpc(
         'assign_request_department',
         params: {
-          'p_request_id': request['id'].toString(),
+          'p_request_id': requestId,
           'p_department_id': selected,
         },
       );
@@ -728,9 +741,21 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       await loadRequests();
       notify('Department assigned successfully.');
     } catch (error) {
-      notify('Assignment failed: $error');
+      // Refresh in case the assignment already exists
+      // or another coordinator assigned it simultaneously.
+      await loadRequests();
+
+      final message = error.toString();
+
+      if (message.contains('request_department_reviews_unique_assignment') ||
+          message.contains('23505')) {
+        notify('This department is already assigned to this request.');
+      } else {
+        notify('Assignment failed: $error');
+      }
     }
   }
+
 
   Future<void> showOverallStatusDialog(
     Map<String, dynamic> request,
