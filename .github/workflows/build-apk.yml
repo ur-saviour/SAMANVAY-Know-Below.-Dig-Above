@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       # 3. Install Flutter
       - name: Install Flutter
@@ -53,15 +53,18 @@ jobs:
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           content = manifest.read_text()
 
-          permission = '    <uses-permission android:name="android.permission.INTERNET" />'
-
+          permissions = """
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+          """
           if "android.permission.INTERNET" not in content:
               if "<application" not in content:
                   raise SystemExit("Android application tag not found")
 
               content = content.replace(
                   "<application",
-                  permission + "\n    <application",
+                  permissions + "\n    <application",
                   1,
               )
           deep_link_filter = """
@@ -95,6 +98,7 @@ jobs:
       - name: Install Flutter dependencies
         run: |
           flutter pub add supabase_flutter
+          flutter pub add maplibre_gl:0.27.1
           flutter pub get
 
       # 6. Check Dart code
