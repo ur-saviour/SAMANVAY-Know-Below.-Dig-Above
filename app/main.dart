@@ -263,6 +263,7 @@ class AdminPortal extends StatelessWidget {
       title: 'Platform Administration',
       subtitle: 'Monitor cases and manage department coordination.',
       icon: Icons.admin_panel_settings_outlined,
+      isAdmin: true,
     );
   }
 }
@@ -273,6 +274,7 @@ class _OperationalPortal extends StatefulWidget {
   final IconData icon;
   final String? departmentId;
   final bool isDepartment;
+  final bool isAdmin;
 
   const _OperationalPortal({
     required this.title,
@@ -280,6 +282,7 @@ class _OperationalPortal extends StatefulWidget {
     required this.icon,
     this.departmentId,
     this.isDepartment = false,
+    this.isAdmin = false,
   });
 
   @override
@@ -1243,6 +1246,24 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 ),
               ],
             ),
+            if (widget.isAdmin) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AdminManagementPage()),
+                  ),
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text('OPEN ADMINISTRATION CONSOLE'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B5B67),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Row(
               children: [
@@ -5049,6 +5070,378 @@ class _NotificationsPageState extends State<NotificationsPage> {
             }),
           ]);
         },
+      ),
+    );
+  }
+}
+
+// ==========================================
+// ADMINISTRATION CONSOLE
+// ==========================================
+class AdminManagementPage extends StatefulWidget {
+  const AdminManagementPage({super.key});
+  @override
+  State<AdminManagementPage> createState() => _AdminManagementPageState();
+}
+
+class _AdminManagementPageState extends State<AdminManagementPage> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _audit = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _toast(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final results = await Future.wait([
+        supabase.rpc('admin_user_directory'),
+        supabase.from('departments').select('id,name,description').order('name'),
+        supabase.from('admin_audit_events')
+          .select('event_type,details,created_at')
+          .order('created_at', ascending: false).limit(40),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _users = List<Map<String, dynamic>>.from(results[0] as List);
+        _departments = List<Map<String, dynamic>>.from(results[1] as List);
+        _audit = List<Map<String, dynamic>>.from(results[2] as List);
+        _loading = false;
+      });
+    } on PostgrestException catch (error) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = error.message; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load administration records. Verify administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _editUser(Map<String, dynamic> user) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final userId = user['user_id'].toString();
+    if (userId == currentUserId) {
+      _toast('Your own administrator role cannot be changed here.');
+      return;
+    }
+
+    String selectedRole = (user['role'] ?? 'requester').toString();
+    String? selectedDepartment = user['department_id']?.toString();
+    if (selectedRole == 'department' && selectedDepartment == null && _departments.isNotEmpty) {
+      selectedDepartment = _departments.first['id'].toString();
+    }
+
+    final result = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Update account access'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((user['display_name'] ?? 'SAMANVAY user').toString(),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(
+                  'Account reference: ' + userId.substring(0, userId.length > 8 ? 8 : userId.length),
+                  style: const TextStyle(fontSize: 10, color: mutedInk),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Platform role', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'requester', child: Text('Requester')),
+                    DropdownMenuItem(value: 'department', child: Text('Department officer')),
+                    DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                    DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() {
+                      selectedRole = value;
+                      if (value != 'department') selectedDepartment = null;
+                      if (value == 'department' && _departments.isNotEmpty) {
+                        selectedDepartment ??= _departments.first['id'].toString();
+                      }
+                    });
+                  },
+                ),
+                if (selectedRole == 'department') ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedDepartment,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Assigned department', border: OutlineInputBorder()),
+                    items: _departments.map((item) => DropdownMenuItem<String>(
+                      value: item['id'].toString(),
+                      child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) => setDialogState(() => selectedDepartment = value),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Changes are checked and recorded by the database. Users cannot assign roles to themselves.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: selectedRole == 'department' && selectedDepartment == null
+                ? null
+                : () => Navigator.pop(dialogContext, {
+                    'role': selectedRole,
+                    'department_id': selectedDepartment,
+                  }),
+              child: const Text('Save access'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    try {
+      await supabase.rpc('admin_update_profile_role', params: {
+        'p_user_id': userId,
+        'p_role': result['role'],
+        'p_department_id': result['department_id'],
+      });
+      _toast('Account access updated and audit entry recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Access update rejected: ' + error.message);
+    } catch (_) {
+      _toast('Unable to update account access.');
+    }
+  }
+
+  Future<void> _addDepartment() async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add department / routing group'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'Department name', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(labelText: 'Description / responsibility', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Use the official department name for the relevant city/state jurisdiction. Creating a routing group does not establish statutory authority.',
+                style: TextStyle(fontSize: 11, color: mutedInk),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, nameController.text.trim().isNotEmpty),
+            child: const Text('Create department'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        await supabase.rpc('admin_create_department', params: {
+          'p_name': nameController.text.trim(),
+          'p_description': descriptionController.text.trim(),
+        });
+        _toast('Department added.');
+        await _load();
+      } on PostgrestException catch (error) {
+        _toast('Department not created: ' + error.message);
+      } catch (_) {
+        _toast('Unable to create department.');
+      }
+    }
+    nameController.dispose();
+    descriptionController.dispose();
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: navy)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: const TextStyle(fontSize: 11, color: mutedInk)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Administration'),
+        actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0B1728), Color(0xFF14515E)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 30),
+                  SizedBox(height: 10),
+                  Text('PLATFORM GOVERNANCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                  SizedBox(height: 5),
+                  Text(
+                    'Manage platform access, routing groups and audit history. Statutory authority remains with the responsible government organisation.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (_error != null)
+              Card(child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              )),
+            if (_loading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(28), child: CircularProgressIndicator(),
+              ))
+            else ...[
+              _sectionTitle('User and access directory', _users.length.toString() + ' account(s)'),
+              ..._users.map((user) {
+                final isSelf = user['user_id']?.toString() == currentUserId;
+                final role = (user['role'] ?? 'requester').toString();
+                final name = (user['display_name'] ?? 'SAMANVAY user').toString();
+                final dept = user['department_name']?.toString();
+                final subtitle = role.toUpperCase() +
+                  (dept == null ? '' : ' · ' + dept) +
+                  (isSelf ? ' · CURRENT ACCOUNT' : '');
+                final icon = role == 'admin' ? Icons.admin_panel_settings_outlined :
+                  role == 'coordinator' ? Icons.hub_outlined :
+                  role == 'department' ? Icons.account_tree_outlined : Icons.person_outline;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFE7F8F6),
+                      child: Icon(icon, color: const Color(0xFF087F83)),
+                    ),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(subtitle, style: const TextStyle(fontSize: 10)),
+                    trailing: IconButton(
+                      tooltip: isSelf ? 'Own role is locked' : 'Edit role and department',
+                      onPressed: isSelf ? null : () => _editUser(user),
+                      icon: Icon(isSelf ? Icons.lock_outline : Icons.edit_outlined),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Departments and routing groups', _departments.length.toString() + ' group(s)')),
+                  FilledButton.icon(
+                    onPressed: _addDepartment,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                  ),
+                ],
+              ),
+              ..._departments.map((department) => Card(
+                margin: const EdgeInsets.only(bottom: 7),
+                child: ListTile(
+                  leading: const Icon(Icons.account_tree_outlined, color: Color(0xFF087F83)),
+                  title: Text(department['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(
+                    (department['description'] ?? 'No description recorded').toString(),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )),
+              const SizedBox(height: 18),
+              _sectionTitle('Administrative audit trail', _audit.length.toString() + ' recent event(s)'),
+              if (_audit.isEmpty)
+                const Card(child: Padding(
+                  padding: EdgeInsets.all(15),
+                  child: Text('No administrative changes have been recorded yet.'),
+                ))
+              else
+                ..._audit.map((event) {
+                  final details = event['details'] is Map
+                    ? Map<String, dynamic>.from(event['details'] as Map)
+                    : <String, dynamic>{};
+                  final when = DateTime.tryParse(event['created_at']?.toString() ?? '');
+                  final dateText = when == null ? '' :
+                    when.day.toString().padLeft(2, '0') + '/' +
+                    when.month.toString().padLeft(2, '0') + '/' +
+                    when.year.toString();
+                  final type = (event['event_type'] ?? '').toString();
+                  final label = type == 'profile_role_changed'
+                    ? 'Account role / department updated'
+                    : 'Department routing group created';
+                  final detail = (details['department_name'] ?? details['new_role'] ?? '').toString();
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.history, color: mutedInk),
+                      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(detail + (dateText.isEmpty ? '' : ' · ' + dateText)),
+                    ),
+                  );
+                }),
+            ],
+          ],
+        ),
       ),
     );
   }
