@@ -3665,12 +3665,6 @@ class _MapPageState extends State<MapPage> {
   MapLibreMapController? _controller;
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _openingMapCases = <String>{};
-  late final OnFeatureInteractionCallback _mapFeatureTapHandler =
-      (point, coordinates, id, layerId, annotation) {
-    if (layerId == 'samanvay-work-request-points') {
-      unawaited(_openCaseFromMap(id));
-    }
-  };
   Timer? _viewportRefreshTimer;
   List<Map<String, dynamic>> _placeResults = [];
   bool _searching = false;
@@ -3700,7 +3694,19 @@ class _MapPageState extends State<MapPage> {
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
-    controller.onFeatureTapped.add(_mapFeatureTapHandler);
+    controller.onFeatureTapped.add(_onMapFeatureTapped);
+  }
+
+  void _onMapFeatureTapped(
+    math.Point<double> point,
+    LatLng coordinates,
+    String id,
+    String layerId,
+    Annotation? annotation,
+  ) {
+    if (layerId == 'samanvay-work-request-points') {
+      unawaited(_openCaseFromMap(id));
+    }
   }
 
   Future<void> _openCaseFromMap(String requestId) async {
@@ -3742,7 +3748,7 @@ class _MapPageState extends State<MapPage> {
   void dispose() {
     _viewportRefreshTimer?.cancel();
     try {
-      _controller?.onFeatureTapped.remove(_mapFeatureTapHandler);
+      _controller?.onFeatureTapped.remove(_onMapFeatureTapped);
     } catch (_) {}
     _searchController.dispose();
     super.dispose();
