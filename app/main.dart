@@ -1973,7 +1973,7 @@ class _DashboardPageState extends State<DashboardPage> {
       final user = supabase.auth.currentUser;
       if (user == null) throw StateError('Session expired');
       final result = await Future.wait([
-        supabase.from('excavation_requests').select('id,status,created_at')
+        supabase.from('excavation_requests').select('id,status,created_at,case_category')
           .eq('requester_id', user.id)
           .order('created_at', ascending: false).limit(100),
         supabase.from('departments').select('id,name').order('name').limit(12),
@@ -1992,6 +1992,57 @@ class _DashboardPageState extends State<DashboardPage> {
 
   int count(String status) => requests.where((r) =>
     (r['status'] ?? '').toString().toLowerCase() == status).length;
+
+  Widget _categoryOverview() {
+    final grouped = <String, int>{};
+    for (final request in requests) {
+      final category = (request['case_category'] ?? 'legacy_excavation').toString();
+      grouped[category] = (grouped[category] ?? 0) + 1;
+    }
+    final entries = grouped.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isEmpty) {
+      return const Text(
+        'Your infrastructure-domain breakdown will appear after your first case is submitted.',
+        style: TextStyle(fontSize: 11, color: mutedInk),
+      );
+    }
+    final maxCount = entries.first.value;
+    return Column(
+      children: entries.take(6).map((entry) {
+        final label = entry.key.replaceAll('_', ' ').toUpperCase();
+        final ratio = maxCount == 0 ? 0.0 : entry.value / maxCount;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(label,
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: ink)),
+                  ),
+                  Text(entry.value.toString(),
+                    style: GoogleFonts.robotoMono(fontSize: 11, fontWeight: FontWeight.w700, color: ink)),
+                ],
+              ),
+              const SizedBox(height: 5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 7,
+                  backgroundColor: const Color(0xFFE7EDF2),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF20AFA5)),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
 
   Widget metric(String title, String value, IconData icon, Color color) =>
     Expanded(child: Container(
@@ -2074,6 +2125,24 @@ class _DashboardPageState extends State<DashboardPage> {
             metric('COMPLETED', loading ? '—' : '${count('completed')}',
               Icons.task_alt, const Color(0xFF25845C)),
           ]),
+          const SizedBox(height: 22),
+          Text('Cases by infrastructure domain', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('Distribution of your submitted cases', style: GoogleFonts.inter(
+            color: mutedInk, fontSize: 12)),
+          const SizedBox(height: 13),
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE3EAF1)),
+            ),
+            child: loading && requests.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _categoryOverview(),
+          ),
           const SizedBox(height: 24),
           Text('Department network', style: GoogleFonts.spaceGrotesk(
             color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
