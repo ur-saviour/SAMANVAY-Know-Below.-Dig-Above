@@ -444,6 +444,72 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     }).length;
   }
 
+  Widget domainBreakdown() {
+    final counts = <String, int>{};
+    for (final request in requests) {
+      final category = valueOf(
+        request,
+        'case_category',
+        fallback: 'legacy_excavation',
+      );
+      counts[category] = (counts[category] ?? 0) + 1;
+    }
+    final entries = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(15),
+          child: Text('Domain analytics will appear as cases are registered.'),
+        ),
+      );
+    }
+    final maxCount = entries.first.value;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Cases by infrastructure domain',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy)),
+            const SizedBox(height: 12),
+            ...entries.take(6).map((entry) {
+              final value = maxCount == 0 ? 0.0 : entry.value / maxCount;
+              final label = entry.key.replaceAll('_', ' ').toUpperCase();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 11),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(label,
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700))),
+                        Text(entry.value.toString(),
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(5),
+                      child: LinearProgressIndicator(
+                        value: value,
+                        minHeight: 7,
+                        backgroundColor: const Color(0xFFE7EDF2),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF20AFA5)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
   Color statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -1312,6 +1378,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            domainBreakdown(),
             if (widget.isAdmin) ...[
               const SizedBox(height: 16),
               SizedBox(
