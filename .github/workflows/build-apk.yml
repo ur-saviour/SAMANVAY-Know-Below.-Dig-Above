@@ -99,6 +99,7 @@ jobs:
         run: |
           flutter pub add supabase_flutter
           flutter pub add maplibre_gl:0.27.1
+          flutter pub add latlong2
           flutter pub get
 
       # 6. Check Dart code
