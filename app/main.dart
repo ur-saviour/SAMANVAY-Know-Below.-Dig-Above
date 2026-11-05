@@ -3288,22 +3288,39 @@ class _MapPageState extends State<MapPage> {
         });
       }
 
-      await controller.addGeoJsonSource(
-        'samanvay-work-requests',
-        {'type': 'FeatureCollection', 'features': features},
-      );
-      await controller.addCircleLayer(
-        'samanvay-work-requests',
-        'samanvay-work-request-points',
-        const CircleLayerProperties(
-          circleRadius: 6,
-          circleColor: '#20D6C2',
-          circleOpacity: 0.96,
-          circleStrokeColor: '#082033',
-          circleStrokeWidth: 1.6,
-        ),
-        enableInteraction: false,
-      );
+      final sourceIds = await controller.getSourceIds();
+      if (sourceIds.contains('samanvay-work-requests')) {
+        await controller.setGeoJsonSource(
+          'samanvay-work-requests',
+          {'type': 'FeatureCollection', 'features': features},
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-work-requests',
+          {'type': 'FeatureCollection', 'features': features},
+        );
+      }
+
+      final layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-work-request-points')) {
+        await controller.addCircleLayer(
+          'samanvay-work-requests',
+          'samanvay-work-request-points',
+          const CircleLayerProperties(
+            circleRadius: 6,
+            circleColor: '#20D6C2',
+            circleOpacity: 0.96,
+            circleStrokeColor: '#082033',
+            circleStrokeWidth: 1.6,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-work-request-points',
+          _showRequests,
+        );
+      }
 
       if (mounted) {
         setState(() {
@@ -3360,19 +3377,36 @@ class _MapPageState extends State<MapPage> {
       final featureList = geojson['features'];
       final count = featureList is List ? featureList.length : 0;
 
-      await controller.addGeoJsonSource(
-        'samanvay-utility-overview',
-        geojson,
-      );
-      await controller.addFillLayer(
-        'samanvay-utility-overview',
-        'samanvay-utility-overview-cells',
-        const FillLayerProperties(
-          fillColor: '#F59E0B',
-          fillOpacity: 0.30,
-          fillOutlineColor: '#FDE68A',
-        ),
-      );
+      final sourceIds = await controller.getSourceIds();
+      if (sourceIds.contains('samanvay-utility-overview')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      }
+
+      final layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.addFillLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-cells',
+          const FillLayerProperties(
+            fillColor: '#F59E0B',
+            fillOpacity: 0.30,
+            fillOutlineColor: '#FDE68A',
+          ),
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones,
+        );
+      }
 
       if (mounted) {
         setState(() {
