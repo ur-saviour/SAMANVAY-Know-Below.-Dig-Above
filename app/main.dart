@@ -3618,7 +3618,7 @@ class _MapPageState extends State<MapPage> {
                     const SizedBox(height: 12),
                     SwitchListTile(
                       value: _showRequests,
-                      activeColor: const Color(0xFF20D6C2),
+                      activeThumbColor: const Color(0xFF20D6C2),
                       title: const Text('Work request locations',
                           style: TextStyle(color: Colors.white)),
                       subtitle: Text(
@@ -3633,7 +3633,7 @@ class _MapPageState extends State<MapPage> {
                     if (_canViewUtilityOverview)
                       SwitchListTile(
                         value: _showUtilityZones,
-                        activeColor: const Color(0xFFF59E0B),
+                        activeThumbColor: const Color(0xFFF59E0B),
                         title: const Text('Generalised utility coverage',
                             style: TextStyle(color: Colors.white)),
                         subtitle: Text(
