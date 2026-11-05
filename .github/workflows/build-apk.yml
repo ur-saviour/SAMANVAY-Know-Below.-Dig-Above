@@ -102,6 +102,7 @@ jobs:
           flutter pub add maplibre_gl:0.27.1
           flutter pub add latlong2
           flutter pub add google_fonts
+          flutter pub add url_launcher
           flutter pub get
 
       # 6. Check Dart code
@@ -113,10 +114,12 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
         run: |
           flutter build apk --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=MAPTILER_API_KEY="$MAPTILER_API_KEY"
 
       # 8. Copy APK before diagnostics
       - name: Prepare downloadable APK
