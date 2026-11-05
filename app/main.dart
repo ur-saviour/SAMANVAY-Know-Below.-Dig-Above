@@ -3196,7 +3196,7 @@ class _MapPageState extends State<MapPage> {
   bool _styleReady = false;
 
   static const LatLng _initialPosition =
-      LatLng(13.0827, 80.2707);
+      LatLng(0, 0);
 
   static const String _mapStyle =
       'https://tiles.openfreemap.org/styles/liberty';
@@ -3213,6 +3213,9 @@ class _MapPageState extends State<MapPage> {
     });
 
     _controller?.setMapLanguage('en');
+    // Centre the operational map on the device's real location.
+    // The neutral world view remains if location permission is unavailable.
+    await _goToMyLocation();
   }
 
   Future<void> _changePerspective(bool use3D) async {
@@ -3362,9 +3365,9 @@ class _MapPageState extends State<MapPage> {
               styleString: _mapStyle,
               initialCameraPosition: const CameraPosition(
                 target: _initialPosition,
-                zoom: 12.5,
-                tilt: 58,
-                bearing: -22,
+                zoom: 2.5,
+                tilt: 0,
+                bearing: 0,
               ),
               onMapCreated: _onMapCreated,
               onStyleLoadedCallback: _onStyleLoaded,
