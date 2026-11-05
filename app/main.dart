@@ -543,6 +543,144 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     );
   }
 
+  Widget _executiveMetricCard({
+    required String title,
+    required String value,
+    required String note,
+    required IconData icon,
+    required Color accent,
+    required double width,
+  }) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFFE1EAF1)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0D0B1728), blurRadius: 12, offset: Offset(0, 5)),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, color: accent, size: 20),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title.toUpperCase(), style: const TextStyle(
+                    color: mutedInk, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.65)),
+                  const SizedBox(height: 7),
+                  Text(value, style: GoogleFonts.robotoMono(
+                    color: navy, fontSize: value.length > 11 ? 14 : 22, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 5),
+                  Text(note, style: const TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget executiveSnapshot() {
+    final activeCases = requests.where((item) {
+      final status = valueOf(item, 'status', fallback: '').toLowerCase();
+      return ['approved', 'in_progress', 'active'].contains(status);
+    }).length;
+
+    final allReviews = reviewsByRequest.values.expand((rows) => rows);
+    final pendingResponses = allReviews.where((review) {
+      final status = valueOf(review, 'review_status', fallback: 'pending').toLowerCase();
+      return ['pending', 'submitted', 'under_review', 'clarification_required'].contains(status);
+    }).length;
+
+    final multiDepartmentCases = requests.where((request) {
+      final id = request['id'].toString();
+      final assigned = (reviewsByRequest[id] ?? [])
+          .map((review) => review['department_id'].toString())
+          .toSet();
+      return assigned.length >= 2;
+    }).length;
+
+    final conflictRequestIds = <String>{};
+    for (final request in requests) {
+      if (valueOf(request, 'status', fallback: '').toLowerCase() == 'conflict_detected') {
+        conflictRequestIds.add(request['id'].toString());
+      }
+    }
+    for (final rows in reviewsByRequest.values) {
+      for (final review in rows) {
+        if (valueOf(review, 'review_status', fallback: '').toLowerCase() == 'conflict_detected') {
+          conflictRequestIds.add(review['request_id'].toString());
+        }
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Executive operations snapshot',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(height: 4),
+        const Text('Calculated from cases and department reviews visible to this account.',
+          style: TextStyle(color: mutedInk, fontSize: 11)),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const spacing = 10.0;
+            final columns = constraints.maxWidth >= 1050
+                ? 4
+                : constraints.maxWidth >= 560
+                    ? 2
+                    : 1;
+            final cardWidth = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: [
+                _executiveMetricCard(
+                  title: 'Active works / cases', value: activeCases.toString(),
+                  note: 'Approved or currently in progress',
+                  icon: Icons.engineering_outlined, accent: const Color(0xFF087F83), width: cardWidth),
+                _executiveMetricCard(
+                  title: 'Pending department responses', value: pendingResponses.toString(),
+                  note: 'Pending, under review or clarification',
+                  icon: Icons.hourglass_top_rounded, accent: const Color(0xFFD28A28), width: cardWidth),
+                _executiveMetricCard(
+                  title: 'Multi-department cases', value: multiDepartmentCases.toString(),
+                  note: 'Two or more departments assigned',
+                  icon: Icons.account_tree_outlined, accent: const Color(0xFF3978B8), width: cardWidth),
+                _executiveMetricCard(
+                  title: 'Officer-flagged conflicts', value: conflictRequestIds.length.toString(),
+                  note: 'Recorded case or review status flags',
+                  icon: Icons.warning_amber_rounded, accent: const Color(0xFFC34C4C), width: cardWidth),
+                _executiveMetricCard(
+                  title: 'Avoided excavation / public savings', value: 'Not measured',
+                  note: 'Requires verified joint-work outcomes and approved cost baselines; no estimate is inferred.',
+                  icon: Icons.savings_outlined, accent: const Color(0xFF64748B), width: cardWidth),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
   Color statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -1413,6 +1551,26 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             ),
             const SizedBox(height: 10),
             domainBreakdown(),
+            if (!widget.isDepartment) ...[
+              const SizedBox(height: 18),
+              executiveSnapshot(),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MapPage()),
+                ),
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('OPEN GIS OPERATIONS WORKSPACE'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0B5B67),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+              ),
+            ),
             if (widget.isAdmin) ...[
               const SizedBox(height: 16),
               SizedBox(
