@@ -1,3 +1,8 @@
+import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:async';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -2464,21 +2469,35 @@ class NewRequestPage extends StatefulWidget {
 }
 
 class _NewRequestPageState extends State<NewRequestPage> {
+    LatLng? selectedWorkPoint;
   final _formKey = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _roadController = TextEditingController();
-  final _cityController = TextEditingController(
-    text: 'Coimbatore',
-  );
+  final _cityController = TextEditingController();
 
   DateTime? startDate;
   DateTime? endDate;
 
   bool submitting = false;
   String? formError;
+  Future<void> pickWorkLocation() async {
+  final LatLng? picked = await Navigator.push<LatLng>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MapLocationPickerPage(
+        initialPoint: selectedWorkPoint,
+      ),
+    ),
+  );
 
+  if (picked == null || !mounted) return;
+
+  setState(() {
+    selectedWorkPoint = picked;
+  });
+  }
   @override
   void dispose() {
     _titleController.dispose();
@@ -2556,6 +2575,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
         'description': _descriptionController.text.trim(),
         'road_name': _roadController.text.trim(),
         'city': _cityController.text.trim(),
+          
+        'latitude': selectedWorkPoint?.latitude,
+        'longitude': selectedWorkPoint?.longitude,
       };
 
       if (startDate != null) {
@@ -2661,7 +2683,26 @@ class _NewRequestPageState extends State<NewRequestPage> {
               icon: Icons.location_city,
               required: true,
             ),
+            const SizedBox(height: 14),
 
+            OutlinedButton.icon(
+              onPressed: pickWorkLocation,
+              icon: const Icon(Icons.location_on),
+              label: Text(
+                selectedWorkPoint == null
+                    ? 'Select work location on map'
+                    : 'Change selected location',
+              ),
+             ),
+
+             if (selectedWorkPoint != null) ...[
+               const SizedBox(height: 8),
+               Text(
+                  'Latitude: ${selectedWorkPoint!.latitude.toStringAsFixed(6)}\n'
+                  'Longitude: ${selectedWorkPoint!.longitude.toStringAsFixed(6)}',
+                  style: const TextStyle(fontSize: 13),
+               ),
+              ],
             const SizedBox(height: 22),
 
             const Text(
@@ -2828,35 +2869,446 @@ class _NewRequestPageState extends State<NewRequestPage> {
 // MAP
 // ==========================================
 
-class MapPage extends StatelessWidget {
+
+class MapPage extends StatefulWidget {
   const MapPage({super.key});
+
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  MapLibreMapController? _controller;
+
+  bool _is3D = true;
+  bool _styleReady = false;
+
+  static const LatLng _initialPosition =
+      LatLng(13.0827, 80.2707);
+
+  static const String _mapStyle =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+  }
+
+  void _onStyleLoaded() {
+    if (!mounted) return;
+
+    setState(() {
+      _styleReady = true;
+    });
+
+    _controller?.setMapLanguage('en');
+  }
+
+  Future<void> _changePerspective(bool use3D) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    final current = await controller.queryCameraPosition();
+    final target = current?.target ?? _initialPosition;
+    final zoom = current?.zoom ?? 13.0;
+
+    setState(() {
+      _is3D = use3D;
+    });
+
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: target,
+          zoom: zoom < 14 ? 14 : zoom,
+          tilt: use3D ? 58 : 0,
+          bearing: use3D ? -22 : 0,
+        ),
+      ),
+      duration: const Duration(milliseconds: 1100),
+    );
+  }
+
+  Future<void> _zoom(bool zoomIn) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    await controller.animateCamera(
+      zoomIn
+          ? CameraUpdate.zoomIn()
+          : CameraUpdate.zoomOut(),
+      duration: const Duration(milliseconds: 450),
+    );
+  }
+
+  Future<void> _goToMyLocation() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final location =
+          await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _showMessage(
+          'Current location is not available. Check GPS permissions.',
+        );
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 17.0,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1200),
+      );
+    } catch (_) {
+      _showMessage(
+        'Unable to access location. Enable location permission.',
+      );
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _mapButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    String? tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Material(
+        color: const Color(0xF2182638),
+        elevation: 5,
+        borderRadius: BorderRadius.circular(12),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, color: Colors.white, size: 21),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF101B29),
       appBar: AppBar(
-        title: const Text('Infrastructure Map'),
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        titleSpacing: 16,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.map_outlined,
-              size: 75,
-              color: teal,
-            ),
-            SizedBox(height: 16),
             Text(
-              'GIS integration',
+              'SAMANVAY GIS',
               style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
               ),
             ),
-            SizedBox(height: 8),
-            Text('Geographic infrastructure mapping is planned.'),
+            SizedBox(height: 2),
+            Text(
+              'GEOSPATIAL INFRASTRUCTURE VIEW',
+              style: TextStyle(
+                fontSize: 9,
+                letterSpacing: 1.5,
+                color: Color(0xFF9FB4C8),
+              ),
+            ),
           ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'My location',
+            onPressed: _goToMyLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              styleString: _mapStyle,
+              initialCameraPosition: const CameraPosition(
+                target: _initialPosition,
+                zoom: 12.5,
+                tilt: 58,
+                bearing: -22,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              myLocationEnabled: true,
+              myLocationTrackingMode:
+                  MyLocationTrackingMode.none,
+              compassEnabled: true,
+              logoEnabled: true,
+              attributionEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              trackCameraPosition: true,
+              minMaxZoomPreference:
+                  const MinMaxZoomPreference(3, 20),
+            ),
+          ),
+
+          // Map loading indicator
+          if (!_styleReady)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        color: Color(0xFF23C5B5),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'INITIALIZING GIS ENGINE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          letterSpacing: 1.8,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Map information panel
+          Positioned(
+            left: 14,
+            top: 14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 13,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xE6102031),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0x5539BDB0),
+                ),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CITY MODEL',
+                    style: TextStyle(
+                      color: Color(0xFF9FB4C8),
+                      fontSize: 9,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '3D VECTOR MAP',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Building data where available',
+                    style: TextStyle(
+                      color: Color(0xFFB6C7D6),
+                      fontSize: 9,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Perspective and navigation controls
+          Positioned(
+            right: 13,
+            top: 14,
+            child: Column(
+              children: [
+                _mapButton(
+                  icon: Icons.add,
+                  tooltip: 'Zoom in',
+                  onPressed: () => _zoom(true),
+                ),
+                _mapButton(
+                  icon: Icons.remove,
+                  tooltip: 'Zoom out',
+                  onPressed: () => _zoom(false),
+                ),
+                _mapButton(
+                  icon: Icons.my_location,
+                  tooltip: 'Go to my location',
+                  onPressed: _goToMyLocation,
+                ),
+              ],
+            ),
+          ),
+
+          // 2D / 3D perspective switch
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 100,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xF2182638),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: const Color(0x5539BDB0),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _perspectiveOption(
+                            label: '2D',
+                            selected: !_is3D,
+                            onTap: () =>
+                                _changePerspective(false),
+                          ),
+                        ),
+                        Expanded(
+                          child: _perspectiveOption(
+                            label: '3D',
+                            selected: _is3D,
+                            onTap: () =>
+                                _changePerspective(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Data integrity status
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 18,
+            child: Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0x5539BDB0),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.layers_outlined,
+                    color: Color(0xFF35C6B5),
+                    size: 22,
+                  ),
+                  SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'UNDERGROUND GIS',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Verified utility layers require GIS records.',
+                          style: TextStyle(
+                            color: Color(0xFFB6C7D6),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.info_outline,
+                    color: Color(0xFF9FB4C8),
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _perspectiveOption({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(9),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF13A89E)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: selected
+                  ? FontWeight.w900
+                  : FontWeight.w600,
+              letterSpacing: 1,
+            ),
+          ),
         ),
       ),
     );
