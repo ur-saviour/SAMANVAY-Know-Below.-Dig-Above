@@ -6,6 +6,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -1068,6 +1069,22 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   ),
                 ),
             ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CaseWorkspacePage(
+                      requestId: requestId,
+                      requestTitle: valueOf(item, 'title', fallback: 'Infrastructure request'),
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.forum_outlined),
+                label: const Text('Open case workspace'),
+              ),
+            ),
             if (!widget.isDepartment) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -1787,6 +1804,7 @@ class _MainScreenState extends State<MainScreen> {
     DashboardPage(),
     RequestsPage(),
     MapPage(),
+    NotificationsPage(),
     ProfilePage(),
   ];
 
@@ -1819,6 +1837,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.notifications_outlined),
+            selectedIcon: Icon(Icons.notifications),
+            label: 'Alerts',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
@@ -2435,6 +2458,22 @@ class _RequestsPageState extends State<RequestsPage> {
                 ),
               ),
             ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CaseWorkspacePage(
+                      requestId: request['id'].toString(),
+                      requestTitle: title,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.forum_outlined),
+                label: const Text('OPEN CASE WORKSPACE'),
+              ),
+            ),
           ],
         ),
       ),
