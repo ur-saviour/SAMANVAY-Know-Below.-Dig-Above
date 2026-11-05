@@ -720,6 +720,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         ? suggestedRoutes.first['department_id'].toString()
         : availableDepartments.first['id'].toString();
 
+    if (!mounted) return;
     final selected = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -5535,7 +5536,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
       _toast('Service routing updated and audit event recorded.');
       await _load();
     } on PostgrestException catch (error) {
-      _toast('Routing update rejected: ' + error.message);
+      _toast('Routing update rejected: ${error.message}');
     } catch (_) {
       _toast('Unable to update service routing.');
     }
