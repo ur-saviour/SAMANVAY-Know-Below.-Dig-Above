@@ -2577,13 +2577,16 @@ class NewRequestPage extends StatefulWidget {
 }
 
 class _NewRequestPageState extends State<NewRequestPage> {
-    LatLng? selectedWorkPoint;
+  LatLng? selectedWorkPoint;
+  String selectedCategory = 'road_reconstruction';
+  String selectedActivity = 'new_installation';
   final _formKey = GlobalKey<FormState>();
 
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _roadController = TextEditingController();
   final _cityController = TextEditingController();
+  final _workRadiusController = TextEditingController();
 
   DateTime? startDate;
   DateTime? endDate;
@@ -2612,6 +2615,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
     _descriptionController.dispose();
     _roadController.dispose();
     _cityController.dispose();
+    _workRadiusController.dispose();
     super.dispose();
   }
 
@@ -2653,6 +2657,23 @@ class _NewRequestPageState extends State<NewRequestPage> {
   Future<void> submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (selectedWorkPoint == null) {
+      setState(() {
+        formError = 'Select the work or issue location on the map to support GIS coordination.';
+      });
+      return;
+    }
+
+    final radiusText = _workRadiusController.text.trim();
+    final workRadius = radiusText.isEmpty ? null : double.tryParse(radiusText);
+    if (radiusText.isNotEmpty &&
+        (workRadius == null || workRadius < 1 || workRadius > 500)) {
+      setState(() {
+        formError = 'Work-site radius must be a number between 1 and 500 metres.';
+      });
+      return;
+    }
+
     if (startDate != null &&
         endDate != null &&
         endDate!.isBefore(startDate!)) {
@@ -2683,9 +2704,11 @@ class _NewRequestPageState extends State<NewRequestPage> {
         'description': _descriptionController.text.trim(),
         'road_name': _roadController.text.trim(),
         'city': _cityController.text.trim(),
-          
-        'latitude': selectedWorkPoint?.latitude,
-        'longitude': selectedWorkPoint?.longitude,
+        'case_category': selectedCategory,
+        'work_activity': selectedActivity,
+        'work_radius_m': workRadius,
+        'latitude': selectedWorkPoint!.latitude,
+        'longitude': selectedWorkPoint!.longitude,
       };
 
       if (startDate != null) {
@@ -2708,7 +2731,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Excavation request submitted successfully.'),
+          content: Text('Infrastructure case submitted successfully.'),
           backgroundColor: Colors.green,
         ),
       );
@@ -2733,7 +2756,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Excavation Request'),
+        title: const Text('New Infrastructure Case'),
       ),
       body: Form(
         key: _formKey,
@@ -2752,7 +2775,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
             const SizedBox(height: 8),
 
             const Text(
-              'Provide the details of the proposed excavation work.',
+              'Register a work proposal or infrastructure issue for coordinated review by the responsible departments.',
               style: TextStyle(color: Colors.blueGrey),
             ),
 
@@ -2769,9 +2792,63 @@ class _NewRequestPageState extends State<NewRequestPage> {
 
             _field(
               controller: _descriptionController,
-              label: 'Work description',
+              label: 'Work / issue description',
               icon: Icons.description_outlined,
               maxLines: 4,
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedCategory,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Infrastructure domain',
+                prefixIcon: Icon(Icons.account_tree_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'road_reconstruction', child: Text('Road reconstruction')),
+                DropdownMenuItem(value: 'water_supply', child: Text('Water supply')),
+                DropdownMenuItem(value: 'sewerage', child: Text('Sewerage')),
+                DropdownMenuItem(value: 'stormwater_drainage', child: Text('Stormwater and drainage')),
+                DropdownMenuItem(value: 'electricity', child: Text('Electricity')),
+                DropdownMenuItem(value: 'telecom', child: Text('Telecommunications')),
+                DropdownMenuItem(value: 'gas', child: Text('Gas network')),
+                DropdownMenuItem(value: 'borewell_groundwater', child: Text('Borewell and groundwater')),
+                DropdownMenuItem(value: 'building_planning', child: Text('Building planning / regulation')),
+                DropdownMenuItem(value: 'public_health_engineering', child: Text('Public health engineering')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedCategory = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedActivity,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Work / issue type',
+                prefixIcon: Icon(Icons.build_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'new_installation', child: Text('New installation / development')),
+                DropdownMenuItem(value: 'repair', child: Text('Repair')),
+                DropdownMenuItem(value: 'maintenance', child: Text('Maintenance')),
+                DropdownMenuItem(value: 'relocation', child: Text('Relocation')),
+                DropdownMenuItem(value: 'survey', child: Text('Survey')),
+                DropdownMenuItem(value: 'inspection', child: Text('Inspection')),
+                DropdownMenuItem(value: 'violation_report', child: Text('Possible violation / complaint')),
+                DropdownMenuItem(value: 'emergency_response', child: Text('Emergency response')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedActivity = value);
+              },
             ),
 
             const SizedBox(height: 16),
@@ -2811,6 +2888,29 @@ class _NewRequestPageState extends State<NewRequestPage> {
                   style: const TextStyle(fontSize: 13),
                ),
               ],
+
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _workRadiusController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Approximate work-site radius (metres)',
+                helperText: 'Optional. Enter 1–500 m to enable the recorded-utility proximity check. This is not a verified work boundary or safety clearance.',
+                prefixIcon: Icon(Icons.radar_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                final text = (value ?? '').trim();
+                if (text.isEmpty) return null;
+                final number = double.tryParse(text);
+                if (number == null || number < 1 || number > 500) {
+                  return 'Enter a radius between 1 and 500 metres.';
+                }
+                return null;
+              },
+            ),
+
             const SizedBox(height: 22),
 
             const Text(
@@ -2847,8 +2947,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'Your request number will be generated '
-                'automatically after submission.',
+                'A case number will be generated automatically. Department assignment and official decisions are completed by authorised officers.',
                 style: TextStyle(
                   color: navy,
                   fontSize: 13,
