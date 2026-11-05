@@ -1,0 +1,106 @@
+name: Build SAMANVAY Browser Operations Portal
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feature/alpha-03-integrated-platform
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-web.yml'
+
+concurrency:
+  group: samanvay-web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: Build and package browser portal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate browser project
+        run: |
+          flutter create \
+            --project-name samanvay \
+            --org in.samanvay \
+            --platforms web \
+            /tmp/samanvay_web_scaffold
+
+          cp -R /tmp/samanvay_web_scaffold/web .
+          cp /tmp/samanvay_web_scaffold/pubspec.yaml .
+          cp /tmp/samanvay_web_scaffold/analysis_options.yaml .
+          cp /tmp/samanvay_web_scaffold/.metadata .
+
+          mkdir -p lib
+          cp app/main.dart lib/main.dart
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("web/index.html")
+          html = p.read_text()
+          html = html.replace("<title>samanvay</title>", "<title>SAMANVAY | Know Below. Dig Above.</title>")
+          p.write_text(html)
+          PY
+
+      - name: Install Flutter dependencies
+        run: |
+          flutter pub add supabase_flutter
+          flutter pub add maplibre_gl:0.27.1
+          flutter pub add latlong2
+          flutter pub add google_fonts
+          flutter pub add url_launcher
+          flutter pub add file_picker
+          flutter pub add permission_handler
+          flutter pub add http
+          flutter pub get
+
+      - name: Analyze Dart code
+        run: flutter analyze
+
+      - name: Build browser portal
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Required Supabase public configuration is missing."
+            exit 1
+          fi
+
+          flutter build web --release \
+            --base-href "/" \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=MAPTILER_API_KEY="$MAPTILER_API_KEY"
+
+      - name: Package browser portal
+        run: |
+          test -s build/web/index.html
+          mkdir -p dist
+          cd build
+          zip -qr ../dist/SAMANVAY-Browser-Portal.zip web
+          cd ..
+          sha256sum dist/SAMANVAY-Browser-Portal.zip
+          ls -lh dist/SAMANVAY-Browser-Portal.zip
+
+      - name: Upload browser portal
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAMANVAY-Browser-Portal
+          path: dist/SAMANVAY-Browser-Portal.zip
+          if-no-files-found: error
+          retention-days: 30
