@@ -53,7 +53,7 @@ class SamanvayApp extends StatelessWidget {
         primary: const Color(0xFF087F83),
         surface: Colors.white,
       ),
-      textTheme: GoogleFonts.interTextTheme(),
+      fontFamily: 'Inter',
       appBarTheme: AppBarTheme(
         backgroundColor: navy,
         foregroundColor: Colors.white,
@@ -3205,7 +3205,7 @@ class _MapPageState extends State<MapPage> {
     _controller = controller;
   }
 
-  void _onStyleLoaded() {
+  Future<void> _onStyleLoaded() async {
     if (!mounted) return;
 
     setState(() {
