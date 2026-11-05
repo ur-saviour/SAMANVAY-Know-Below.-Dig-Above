@@ -3664,6 +3664,13 @@ class _MapPageState extends State<MapPage> {
 
   MapLibreMapController? _controller;
   final TextEditingController _searchController = TextEditingController();
+  final Set<String> _openingMapCases = <String>{};
+  late final OnFeatureInteractionCallback _mapFeatureTapHandler =
+      (point, coordinates, id, layerId, annotation) {
+    if (layerId == 'samanvay-work-request-points') {
+      unawaited(_openCaseFromMap(id));
+    }
+  };
   Timer? _viewportRefreshTimer;
   List<Map<String, dynamic>> _placeResults = [];
   bool _searching = false;
@@ -3693,11 +3700,50 @@ class _MapPageState extends State<MapPage> {
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
+    controller.onFeatureTapped.add(_mapFeatureTapHandler);
+  }
+
+  Future<void> _openCaseFromMap(String requestId) async {
+    final id = requestId.trim();
+    if (id.isEmpty || !_openingMapCases.add(id)) return;
+
+    try {
+      // Re-fetch through the authenticated client. RLS remains the authority
+      // for whether this account may open the selected case.
+      final row = await supabase
+          .from('excavation_requests')
+          .select('id,title,request_number')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      if (row == null) {
+        _showMessage('This case is no longer available to your account.');
+        return;
+      }
+
+      final title = (row['title'] ?? row['request_number'] ?? 'Infrastructure case').toString();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CaseWorkspacePage(
+            requestId: id,
+            requestTitle: title,
+          ),
+        ),
+      );
+    } catch (_) {
+      _showMessage('Unable to open this case. Your account may not have access.');
+    } finally {
+      _openingMapCases.remove(id);
+    }
   }
 
   @override
   void dispose() {
     _viewportRefreshTimer?.cancel();
+    try {
+      _controller?.onFeatureTapped.remove(_mapFeatureTapHandler);
+    } catch (_) {}
     _searchController.dispose();
     super.dispose();
   }
@@ -3962,6 +4008,7 @@ class _MapPageState extends State<MapPage> {
 
         features.add({
           'type': 'Feature',
+          'id': row['id'].toString(),
           'geometry': {
             'type': 'Point',
             'coordinates': [lon, lat],
@@ -4011,7 +4058,7 @@ class _MapPageState extends State<MapPage> {
             circleStrokeColor: '#082033',
             circleStrokeWidth: 1.6,
           ),
-          enableInteraction: false,
+          enableInteraction: true,
         );
       } else {
         await controller.setLayerVisibility(
