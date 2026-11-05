@@ -3,10 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
-import 'package:latlong2/latlong.dart';
 
-import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -34,30 +32,46 @@ Future<void> main() async {
 
 final supabase = Supabase.instance.client;
 
-const Color navy = Color(0xFF10243A);
-const Color teal = Color(0xFF13A89E);
-const Color background = Color(0xFFF4F7FA);
+const Color navy = Color(0xFF0B1728);
+const Color teal = Color(0xFF20D6C2);
+const Color background = Color(0xFFF2F6FA);
+const Color ink = Color(0xFF14243A);
+const Color mutedInk = Color(0xFF718096);
 
 class SamanvayApp extends StatelessWidget {
   const SamanvayApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SAMANVAY',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: background,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: teal,
-          primary: teal,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: navy,
-          foregroundColor: Colors.white,
-        ),
+    final theme = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: background,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: teal,
+        brightness: Brightness.light,
+        primary: const Color(0xFF087F83),
+        surface: Colors.white,
       ),
+      textTheme: GoogleFonts.interTextTheme(),
+      appBarTheme: AppBarTheme(
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        titleTextStyle: GoogleFonts.spaceGrotesk(
+          color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
+      ),
+      cardTheme: CardThemeData(
+        color: Colors.white, elevation: 0, margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFFE4EAF1))),
+      ),
+    );
+    return MaterialApp(
+      title: 'SAMANVAY — Know Below. Dig Above.',
+      debugShowCheckedModeBanner: false,
+      theme: theme,
       home: const AuthGate(),
     );
   }
@@ -1820,119 +1834,172 @@ class _MainScreenState extends State<MainScreen> {
 // DASHBOARD
 // ==========================================
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  bool loading = true;
+  String? error;
+  List<Map<String, dynamic>> requests = [];
+  List<Map<String, dynamic>> departments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw StateError('Session expired');
+      final result = await Future.wait([
+        supabase.from('excavation_requests').select('id,status,created_at')
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false).limit(100),
+        supabase.from('departments').select('id,name').order('name').limit(12),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        requests = List<Map<String, dynamic>>.from(result[0]);
+        departments = List<Map<String, dynamic>>.from(result[1]);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; error = 'Live data unavailable. Pull down to retry.'; });
+    }
+  }
+
+  int count(String status) => requests.where((r) =>
+    (r['status'] ?? '').toString().toLowerCase() == status).length;
+
+  Widget metric(String title, String value, IconData icon, Color color) =>
+    Expanded(child: Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3EAF1))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 10),
+        Text(value, style: GoogleFonts.robotoMono(
+          color: ink, fontSize: 21, fontWeight: FontWeight.w700)),
+        Text(title, style: GoogleFonts.inter(
+          color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
+      ]),
+    ));
 
   @override
   Widget build(BuildContext context) {
-    final user = supabase.auth.currentUser;
-    final name = user?.userMetadata?['display_name'] ?? 'User';
+    final rawName = supabase.auth.currentUser?.userMetadata?['display_name'];
+    final name = rawName == null || rawName.toString().trim().isEmpty
+      ? 'there' : rawName.toString().trim();
+    final active = requests.length - count('completed') - count('rejected');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('SAMANVAY'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
+      appBar: AppBar(title: const Text('SAMANVAY'),
+        actions: [IconButton(onPressed: loading ? null : refresh,
+          tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded))]),
+      body: RefreshIndicator(
+        onRefresh: refresh,
+        child: ListView(padding: const EdgeInsets.all(16), children: [
           Container(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.all(21),
             decoration: BoxDecoration(
-              color: navy,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'WELCOME',
-                  style: TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  name.toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Connected infrastructure. Coordinated development.',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              ],
-            ),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0B1728), Color(0xFF173B55), Color(0xFF075E67)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0x5534E5D1)),
+              boxShadow: const [BoxShadow(color: Color(0x180B1728),
+                blurRadius: 20, offset: Offset(0, 9))]),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('KNOW BELOW. DIG ABOVE.',
+                style: GoogleFonts.inter(color: const Color(0xFFB7D8E0),
+                  fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+              const SizedBox(height: 15),
+              Text('Good day, $name',
+                style: GoogleFonts.spaceGrotesk(color: Colors.white,
+                  fontSize: 25, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 7),
+              Text('Connected infrastructure. Coordinated development.',
+                style: GoogleFonts.inter(color: const Color(0xFFD1E0EA), fontSize: 12)),
+              const SizedBox(height: 18),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MapPage())),
+                icon: const Icon(Icons.layers_rounded),
+                label: const Text('OPEN GIS WORKSPACE'),
+                style: FilledButton.styleFrom(backgroundColor: teal,
+                  foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+              )),
+            ]),
           ),
+          const SizedBox(height: 23),
+          Text('Operational overview', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('Your submitted infrastructure cases',
+            style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
+          const SizedBox(height: 13),
+          if (error != null) Padding(padding: const EdgeInsets.only(bottom: 10),
+            child: Text(error!, style: const TextStyle(color: Colors.deepOrange))),
+          Row(children: [
+            metric('TOTAL CASES', loading ? '—' : '${requests.length}',
+              Icons.assignment_outlined, const Color(0xFF087F83)),
+            const SizedBox(width: 9),
+            metric('ACTIVE', loading ? '—' : '$active',
+              Icons.pending_actions, const Color(0xFFD28A28)),
+            const SizedBox(width: 9),
+            metric('COMPLETED', loading ? '—' : '${count('completed')}',
+              Icons.task_alt, const Color(0xFF25845C)),
+          ]),
           const SizedBox(height: 24),
-          const Text(
-            'Platform Overview',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: navy,
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Row(
-            children: [
-              Expanded(
-                child: StatCard(
-                  title: 'Database',
-                  value: 'Connected',
-                  icon: Icons.cloud_done,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: StatCard(
-                  title: 'Account',
-                  value: 'Active',
-                  icon: Icons.verified_user,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Departments',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: navy,
-            ),
-          ),
+          Text('Department network', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('Live directory from the SAMANVAY database',
+            style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
           const SizedBox(height: 12),
-          const DepartmentTile(
-            title: 'Water Supply',
-            icon: Icons.water_drop,
-          ),
-          const DepartmentTile(
-            title: 'Electricity',
-            icon: Icons.bolt,
-          ),
-          const DepartmentTile(
-            title: 'Sewage and Drainage',
-            icon: Icons.water,
-          ),
-          const DepartmentTile(
-            title: 'Telecommunications',
-            icon: Icons.cell_tower,
-          ),
-          const DepartmentTile(
-            title: 'Gas Infrastructure',
-            icon: Icons.local_fire_department,
-          ),
-        ],
+          if (loading && departments.isEmpty)
+            const Center(child: Padding(padding: EdgeInsets.all(18),
+              child: CircularProgressIndicator()))
+          else if (departments.isEmpty)
+            const Text('No department directory records available.',
+              style: TextStyle(color: mutedInk))
+          else
+            ...departments.map((d) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE3EAF1))),
+              child: ListTile(dense: true,
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE7F8F6),
+                  child: Icon(Icons.account_tree_outlined, color: Color(0xFF087F83))),
+                title: Text((d['name'] ?? 'Department').toString(),
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                trailing: const Icon(Icons.chevron_right, color: mutedInk),
+              ),
+            )),
+          const SizedBox(height: 14),
+          Container(padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: const Color(0xFFEAF2F8),
+              borderRadius: BorderRadius.circular(14)),
+            child: Text(
+              'Underground visibility depends on verified survey records and access permissions. An empty layer does not prove that no utility exists.',
+              style: GoogleFonts.inter(color: const Color(0xFF42627E),
+                fontSize: 11, height: 1.45))),
+        ]),
       ),
     );
   }
 }
-
-// ==========================================
-// STAT CARD
-// ==========================================
 
 class StatCard extends StatelessWidget {
   final String title;
