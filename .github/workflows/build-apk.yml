@@ -9,6 +9,16 @@ on:
     branches:
       - main
       - feature/alpha-03-integrated-platform
+    paths:
+      - 'app/**'
+      - 'lib/**'
+      - 'android/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/build-apk.yml'
+
+concurrency:
+  group: samanvay-android-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
