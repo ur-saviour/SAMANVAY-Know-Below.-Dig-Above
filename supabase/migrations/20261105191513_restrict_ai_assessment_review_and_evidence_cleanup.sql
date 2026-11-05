@@ -34,7 +34,8 @@ create policy "SAMANVAY evidence delete by uploader"
     bucket_id = 'samanvay-case-evidence'
     and (storage.foldername(name))[2] = (select auth.uid())::text
     and exists (
-      select 1 from public.excavation_requests r
-      where r.id::text = (storage.foldername(name))[1]
+      select 1 from public.case_attachments a
+      where a.storage_path = storage.objects.name
+        and a.uploaded_by = (select auth.uid())
     )
   );
