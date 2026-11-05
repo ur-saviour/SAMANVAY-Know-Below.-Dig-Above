@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -3660,9 +3662,12 @@ class _MapPageState extends State<MapPage> {
       'https://tiles.openfreemap.org/styles/liberty';
 
   MapLibreMapController? _controller;
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _placeResults = [];
+  bool _searching = false;
   bool _is3D = true;
   bool _styleReady = false;
-  bool _satellite = false;
+  bool _satellite = _mapTilerKey.isNotEmpty;
   bool _showRequests = true;
   bool _showUtilityZones = false;
   bool _canViewUtilityOverview = false;
@@ -3685,6 +3690,167 @@ class _MapPageState extends State<MapPage> {
     _controller = controller;
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Extrude basemap building polygons only where the active provider style
+  // supplies OpenMapTiles building attributes. This is city context, not
+  // underground utility geometry.
+  Future<void> _ensure3DBuildings() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      final sources = await controller.getSourceIds();
+      if (!sources.contains('openmaptiles')) return;
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-3d-buildings')) {
+        await controller.addFillExtrusionLayer(
+          'openmaptiles',
+          'samanvay-3d-buildings',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#66849A',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              14,
+              0,
+              16,
+              ['coalesce', ['get', 'render_height'], ['get', 'height'], 0],
+            ],
+            fillExtrusionBase: [
+              'coalesce',
+              ['get', 'render_min_height'],
+              ['get', 'min_height'],
+              0,
+            ],
+            fillExtrusionOpacity: 0.84,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      await controller.setLayerVisibility('samanvay-3d-buildings', _is3D);
+    } catch (_) {
+      // If a provider style lacks the expected source/attributes, the
+      // basemap remains usable. No illustrative buildings are substituted.
+    }
+  }
+
+  Future<void> _searchPlaces(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.isEmpty) {
+      _showMessage('Enter a place, area, ward or road name to search.');
+      return;
+    }
+    if (query.length > 120) {
+      _showMessage('Search text is too long. Use a shorter place name.');
+      return;
+    }
+    if (_mapTilerKey.isEmpty) {
+      _showMessage('Place search needs the MAPTILER_API_KEY GitHub secret. GPS and manual map navigation still work.');
+      return;
+    }
+
+    setState(() {
+      _searching = true;
+      _placeResults = [];
+    });
+
+    try {
+      final uri = Uri.https(
+        'api.maptiler.com',
+        '/geocoding/${Uri.encodeComponent(query)}.json',
+        {
+          'key': _mapTilerKey,
+          'limit': '6',
+          'country': 'IN',
+          'language': 'en',
+          'autocomplete': 'false',
+        },
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) {
+        throw StateError('Place search provider returned HTTP ${response.statusCode}.');
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['features'] is! List) {
+        throw const FormatException('Unexpected place search response.');
+      }
+
+      final results = <Map<String, dynamic>>[];
+      for (final rawFeature in decoded['features'] as List) {
+        if (rawFeature is! Map) continue;
+        final feature = Map<String, dynamic>.from(rawFeature);
+        final center = feature['center'];
+        if (center is List &&
+            center.length >= 2 &&
+            center[0] is num &&
+            center[1] is num) {
+          results.add(feature);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _placeResults = results);
+      if (results.isEmpty) {
+        _showMessage('No matching place was found. Try a nearby landmark or shorter query.');
+      }
+    } catch (_) {
+      _showMessage('Place search failed. Check the MapTiler key, connection and usage quota.');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _selectPlace(Map<String, dynamic> feature) async {
+    final center = feature['center'];
+    if (center is! List ||
+        center.length < 2 ||
+        center[0] is! num ||
+        center[1] is! num) {
+      _showMessage('The selected place has no usable map coordinates.');
+      return;
+    }
+
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    final longitude = (center[0] as num).toDouble();
+    final latitude = (center[1] as num).toDouble();
+    final name = (feature['place_name'] ?? feature['text'] ?? 'Selected place').toString();
+
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(latitude, longitude),
+            zoom: 16,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchController.text = name;
+        _placeResults = [];
+      });
+      FocusScope.of(context).unfocus();
+    } catch (_) {
+      _showMessage('Unable to move the map to that search result.');
+    }
+  }
+
   Future<void> _onStyleLoaded() async {
     if (!mounted) return;
 
@@ -3695,6 +3861,7 @@ class _MapPageState extends State<MapPage> {
 
     try {
       await controller.setMapLanguage('en');
+      await _ensure3DBuildings();
       await _loadMapLayers();
       await _goToMyLocation();
     } catch (_) {
@@ -3770,9 +3937,20 @@ class _MapPageState extends State<MapPage> {
         await controller.addCircleLayer(
           'samanvay-work-requests',
           'samanvay-work-request-points',
-          const CircleLayerProperties(
+          CircleLayerProperties(
             circleRadius: 6,
-            circleColor: '#20D6C2',
+            circleColor: [
+              'match',
+              ['get', 'status'],
+              'submitted', '#38BDF8',
+              'under_review', '#F59E0B',
+              'approved', '#22C55E',
+              'in_progress', '#F97316',
+              'completed', '#64748B',
+              'resolved', '#64748B',
+              'rejected', '#EF4444',
+              '#20D6C2',
+            ],
             circleOpacity: 0.96,
             circleStrokeColor: '#082033',
             circleStrokeWidth: 1.6,
@@ -3978,6 +4156,10 @@ class _MapPageState extends State<MapPage> {
         ),
         duration: const Duration(milliseconds: 1100),
       );
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-3d-buildings')) {
+        await controller.setLayerVisibility('samanvay-3d-buildings', use3D);
+      }
     } catch (_) {
       _showMessage('Unable to change map perspective.');
     }
@@ -4365,6 +4547,103 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
           ),
+
+          Positioned(
+            left: 12,
+            right: 62,
+            top: 116,
+            child: Container(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x6639BDB0)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded, color: Color(0xFF55D9CE), size: 20),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _searchPlaces,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      decoration: const InputDecoration(
+                        hintText: 'Search area / ward / road',
+                        hintStyle: TextStyle(color: Color(0xFF9FB4C8), fontSize: 11),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Search place',
+                    onPressed: _searching ? null : () => _searchPlaces(_searchController.text),
+                    icon: _searching
+                        ? const SizedBox(
+                            width: 17,
+                            height: 17,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF55D9CE),
+                            ),
+                          )
+                        : const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 19),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_placeResults.isNotEmpty)
+            Positioned(
+              left: 12,
+              right: 62,
+              top: 172,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 240),
+                decoration: BoxDecoration(
+                  color: const Color(0xF2182638),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0x6639BDB0)),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  itemCount: _placeResults.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0x334B647C)),
+                  itemBuilder: (context, index) {
+                    final feature = _placeResults[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.location_on_outlined, color: Color(0xFF55D9CE), size: 20),
+                      title: Text(
+                        (feature['text'] ?? 'Place').toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        (feature['place_name'] ?? '').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 9),
+                      ),
+                      onTap: () => _selectPlace(feature),
+                    );
+                  },
+                ),
+              ),
+            ),
 
           Positioned(
             right: 11,
