@@ -702,8 +702,23 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       return;
     }
 
-    String? selectedDepartment =
-        availableDepartments.first['id'].toString();
+    final category = (request['case_category'] ?? 'legacy_excavation').toString();
+    List<Map<String, dynamic>> suggestedRoutes = [];
+    try {
+      final rawSuggestions = await supabase.rpc(
+        'get_case_department_suggestions',
+        params: {'p_case_category': category},
+      );
+      suggestedRoutes = List<Map<String, dynamic>>.from(rawSuggestions as List)
+          .where((item) => !assignedDepartmentIds.contains(item['department_id'].toString()))
+          .toList();
+    } catch (_) {
+      // Manual department assignment remains available if the routing directory is unavailable.
+    }
+
+    String? selectedDepartment = suggestedRoutes.isNotEmpty
+        ? suggestedRoutes.first['department_id'].toString()
+        : availableDepartments.first['id'].toString();
 
     final selected = await showDialog<String>(
       context: context,
@@ -712,24 +727,73 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Assign department'),
-              content: DropdownButtonFormField<String>(
-                initialValue: selectedDepartment,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Select unassigned department',
-                  border: OutlineInputBorder(),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedDepartment,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Select unassigned department',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: availableDepartments.map((department) {
+                        return DropdownMenuItem<String>(
+                          value: department['id'].toString(),
+                          child: Text(department['name'].toString()),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedDepartment = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'SUGGESTED ROUTING',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Suggestions are based on the case domain and must be confirmed by the coordinator.',
+                      style: TextStyle(fontSize: 10, color: mutedInk),
+                    ),
+                    const SizedBox(height: 8),
+                    if (suggestedRoutes.isEmpty)
+                      const Text('No routing suggestions are configured. Use manual assignment.',
+                        style: TextStyle(fontSize: 11, color: mutedInk))
+                    else
+                      ...suggestedRoutes.map((route) {
+                        final departmentId = route['department_id'].toString();
+                        final department = availableDepartments.firstWhere(
+                          (item) => item['id'].toString() == departmentId,
+                          orElse: () => {'name': route['department_name'] ?? 'Department'},
+                        );
+                        final isPrimary = route['route_priority'] == 'primary';
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            isPrimary ? Icons.star_outline : Icons.hub_outlined,
+                            color: isPrimary ? const Color(0xFF087F83) : mutedInk,
+                          ),
+                          title: Text(department['name'].toString(),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          subtitle: Text(isPrimary ? 'Primary suggested department' : 'Supporting department',
+                            style: const TextStyle(fontSize: 10)),
+                          trailing: selectedDepartment == departmentId
+                              ? const Icon(Icons.check_circle, color: Color(0xFF087F83))
+                              : TextButton(
+                                  onPressed: () => setDialogState(() => selectedDepartment = departmentId),
+                                  child: const Text('Select'),
+                                ),
+                        );
+                      }),
+                  ],
                 ),
-                items: availableDepartments.map((department) {
-                  return DropdownMenuItem<String>(
-                    value: department['id'].toString(),
-                    child: Text(department['name'].toString()),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setDialogState(() {
-                    selectedDepartment = value;
-                  });
-                },
               ),
               actions: [
                 TextButton(
