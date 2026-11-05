@@ -116,3 +116,11 @@
 - [ ] The app is not called production-complete until all required items above are signed off.
 
 **Current note:** This project remains an Alpha build. Items marked complete are implementation foundations, not production certification. The supplied UI images are design references; their sample counts, locations, clashes, dates and savings are not SAMANVAY production data.
+
+## Additional browser-portal target
+
+- [x] Dedicated GitHub Actions workflow to compile the Flutter app for the browser and package a static deployment artifact.
+- [ ] Browser build must pass analysis and production compilation.
+- [ ] Validate role-based login, GIS interaction, responsive layout, file upload and redirect URLs in a real WebGL2 browser.
+- [ ] Deploy the static bundle to an approved HTTPS host and configure Supabase Auth redirect allow-lists for the production domain.
+- [ ] Browser portal is the desktop operations target; MapLibre Flutter does not provide native Windows/macOS/Linux desktop targets.
