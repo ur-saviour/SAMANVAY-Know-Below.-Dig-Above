@@ -5154,6 +5154,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _departments = [];
   List<Map<String, dynamic>> _audit = [];
+  List<Map<String, dynamic>> _routes = [];
 
   @override
   void initState() {
@@ -5177,11 +5178,15 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
       final auditRows = await supabase.from('admin_audit_events')
           .select('event_type,details,created_at')
           .order('created_at', ascending: false).limit(40);
+      final routeRows = await supabase.from('department_service_domains')
+          .select('department_id,case_category,route_priority')
+          .order('case_category');
       if (!mounted) return;
       setState(() {
         _users = List<Map<String, dynamic>>.from(userRows as List);
         _departments = List<Map<String, dynamic>>.from(departmentRows);
         _audit = List<Map<String, dynamic>>.from(auditRows);
+        _routes = List<Map<String, dynamic>>.from(routeRows);
         _loading = false;
       });
     } on PostgrestException catch (error) {
@@ -5361,6 +5366,112 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
     descriptionController.dispose();
   }
 
+
+  Future<void> _manageServiceRoute() async {
+    if (_departments.isEmpty) {
+      _toast('Create a department before configuring a service route.');
+      return;
+    }
+    const categories = <String, String>{
+      'road_reconstruction': 'Road reconstruction',
+      'water_supply': 'Water supply',
+      'sewerage': 'Sewerage',
+      'stormwater_drainage': 'Stormwater and drainage',
+      'electricity': 'Electricity',
+      'telecom': 'Telecommunications',
+      'gas': 'Gas network',
+      'borewell_groundwater': 'Borewell and groundwater',
+      'building_planning': 'Building planning / regulation',
+      'public_health_engineering': 'Public health engineering',
+      'other': 'Other infrastructure issue',
+    };
+    String category = categories.keys.first;
+    String departmentId = _departments.first['id'].toString();
+    String priority = 'primary';
+    bool enabled = true;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Configure service routing'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Infrastructure domain'),
+                  items: categories.entries.map((entry) => DropdownMenuItem<String>(
+                    value: entry.key, child: Text(entry.value),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Department / routing group'),
+                  items: _departments.map((item) => DropdownMenuItem<String>(
+                    value: item['id'].toString(),
+                    child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => departmentId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(labelText: 'Suggestion level'),
+                  items: const [
+                    DropdownMenuItem(value: 'primary', child: Text('Primary suggestion')),
+                    DropdownMenuItem(value: 'supporting', child: Text('Supporting department')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => priority = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: enabled,
+                  title: const Text('Enable this routing suggestion'),
+                  onChanged: (value) => setDialogState(() => enabled = value),
+                ),
+                const Text(
+                  'This configures a suggestion only. It does not automatically assign a case or establish statutory authority.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save routing')),
+          ],
+        ),
+      ),
+    );
+    if (save != true) return;
+    try {
+      await supabase.rpc('admin_set_service_domain_route', params: {
+        'p_department_id': departmentId,
+        'p_case_category': category,
+        'p_route_priority': priority,
+        'p_enabled': enabled,
+      });
+      _toast('Service routing updated and audit event recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Routing update rejected: ' + error.message);
+    } catch (_) {
+      _toast('Unable to update service routing.');
+    }
+  }
+
   Widget _sectionTitle(String title, String subtitle) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -5472,6 +5583,36 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                   ),
                 ),
               )),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Case-domain routing', '${_routes.length} suggestion(s)')),
+                  FilledButton.icon(
+                    onPressed: _manageServiceRoute,
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text('Configure'),
+                  ),
+                ],
+              ),
+              ..._routes.map((route) {
+                final department = _departments.firstWhere(
+                  (item) => item['id'].toString() == route['department_id'].toString(),
+                  orElse: () => {'name': 'Unknown department'},
+                );
+                final categoryName = route['case_category'].toString().replaceAll('_', ' ').toUpperCase();
+                final priorityName = route['route_priority'] == 'primary' ? 'PRIMARY' : 'SUPPORTING';
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.route_outlined, color: Color(0xFF087F83)),
+                    title: Text(department['name'].toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('$categoryName · $priorityName',
+                      style: const TextStyle(fontSize: 10)),
+                  ),
+                );
+              }),
               const SizedBox(height: 18),
               _sectionTitle('Administrative audit trail', '${_audit.length} recent event(s)'),
               if (_audit.isEmpty)
