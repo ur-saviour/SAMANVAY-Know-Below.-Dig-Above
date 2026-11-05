@@ -4524,7 +4524,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                             leading: const Icon(Icons.fact_check_outlined, color: teal),
                             title: Text((item['inspection_type'] ?? 'Inspection').toString().replaceAll('_', ' ').toUpperCase()),
                             subtitle: Text(
-                              outcome + (dateLabel.isEmpty ? '' : ' · $dateLabel') + '\\n' + notes,
+                              '$outcome${dateLabel.isEmpty ? '' : ' · $dateLabel'}\\n$notes',
                             ),
                             isThreeLine: true,
                           );
