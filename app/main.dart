@@ -946,6 +946,10 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             assignedReviews.isNotEmpty
         ? assignedReviews.first
         : null;
+    final category = valueOf(item, 'case_category', fallback: 'legacy_excavation')
+        .replaceAll('_', ' ').toUpperCase();
+    final activity = valueOf(item, 'work_activity', fallback: 'not specified')
+        .replaceAll('_', ' ');
 
     final reviewSummary = assignedReviews.isEmpty
         ? 'No department assignments yet.'
@@ -995,6 +999,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               ),
             ),
             const SizedBox(height: 7),
+            detailRow(Icons.layers_outlined, 'Domain: $category'),
+            detailRow(Icons.build_outlined, 'Activity: $activity'),
             Text(
               valueOf(item, 'description'),
               maxLines: 4,
@@ -2372,6 +2378,10 @@ class _RequestsPageState extends State<RequestsPage> {
     final title = request['title']?.toString() ?? 'Untitled';
     final road = request['road_name']?.toString() ?? '';
     final city = request['city']?.toString() ?? '';
+    final category = (request['case_category'] ?? 'legacy_excavation')
+        .toString().replaceAll('_', ' ').toUpperCase();
+    final activity = (request['work_activity'] ?? 'not specified')
+        .toString().replaceAll('_', ' ');
     final color = statusColor(status);
 
     return Card(
@@ -2432,6 +2442,8 @@ class _RequestsPageState extends State<RequestsPage> {
             const SizedBox(height: 9),
 
             _detailRow(Icons.location_on_outlined, '$road, $city'),
+            _detailRow(Icons.layers_outlined, 'Domain: $category'),
+            _detailRow(Icons.build_outlined, 'Activity: $activity'),
 
             const SizedBox(height: 7),
 
