@@ -5107,18 +5107,17 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
   Future<void> _load() async {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
-      final results = await Future.wait([
-        supabase.rpc('admin_user_directory'),
-        supabase.from('departments').select('id,name,description').order('name'),
-        supabase.from('admin_audit_events')
+      final userRows = await supabase.rpc('admin_user_directory');
+      final departmentRows = await supabase.from('departments')
+          .select('id,name,description').order('name');
+      final auditRows = await supabase.from('admin_audit_events')
           .select('event_type,details,created_at')
-          .order('created_at', ascending: false).limit(40),
-      ]);
+          .order('created_at', ascending: false).limit(40);
       if (!mounted) return;
       setState(() {
-        _users = List<Map<String, dynamic>>.from(results[0] as List);
-        _departments = List<Map<String, dynamic>>.from(results[1] as List);
-        _audit = List<Map<String, dynamic>>.from(results[2] as List);
+        _users = List<Map<String, dynamic>>.from(userRows as List);
+        _departments = List<Map<String, dynamic>>.from(departmentRows);
+        _audit = List<Map<String, dynamic>>.from(auditRows);
         _loading = false;
       });
     } on PostgrestException catch (error) {
@@ -5161,7 +5160,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                   style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
-                  'Account reference: ' + userId.substring(0, userId.length > 8 ? 8 : userId.length),
+                  'Account reference: ${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
                   style: const TextStyle(fontSize: 10, color: mutedInk),
                 ),
                 const SizedBox(height: 14),
@@ -5233,7 +5232,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
       _toast('Account access updated and audit entry recorded.');
       await _load();
     } on PostgrestException catch (error) {
-      _toast('Access update rejected: ' + error.message);
+      _toast('Access update rejected: ${error.message}');
     } catch (_) {
       _toast('Unable to update account access.');
     }
@@ -5289,7 +5288,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
         _toast('Department added.');
         await _load();
       } on PostgrestException catch (error) {
-        _toast('Department not created: ' + error.message);
+        _toast('Department not created: ${error.message}');
       } catch (_) {
         _toast('Unable to create department.');
       }
@@ -5358,15 +5357,15 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                 padding: EdgeInsets.all(28), child: CircularProgressIndicator(),
               ))
             else ...[
-              _sectionTitle('User and access directory', _users.length.toString() + ' account(s)'),
+              _sectionTitle('User and access directory', '${_users.length} account(s)'),
               ..._users.map((user) {
                 final isSelf = user['user_id']?.toString() == currentUserId;
                 final role = (user['role'] ?? 'requester').toString();
                 final name = (user['display_name'] ?? 'SAMANVAY user').toString();
                 final dept = user['department_name']?.toString();
-                final subtitle = role.toUpperCase() +
-                  (dept == null ? '' : ' · ' + dept) +
-                  (isSelf ? ' · CURRENT ACCOUNT' : '');
+                final subtitle = '${role.toUpperCase()}'
+                  '${dept == null ? '' : ' · $dept'}'
+                  '${isSelf ? ' · CURRENT ACCOUNT' : ''}';
                 final icon = role == 'admin' ? Icons.admin_panel_settings_outlined :
                   role == 'coordinator' ? Icons.hub_outlined :
                   role == 'department' ? Icons.account_tree_outlined : Icons.person_outline;
@@ -5390,7 +5389,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
               const SizedBox(height: 18),
               Row(
                 children: [
-                  Expanded(child: _sectionTitle('Departments and routing groups', _departments.length.toString() + ' group(s)')),
+                  Expanded(child: _sectionTitle('Departments and routing groups', '${_departments.length} group(s)')),
                   FilledButton.icon(
                     onPressed: _addDepartment,
                     icon: const Icon(Icons.add, size: 18),
@@ -5410,7 +5409,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                 ),
               )),
               const SizedBox(height: 18),
-              _sectionTitle('Administrative audit trail', _audit.length.toString() + ' recent event(s)'),
+              _sectionTitle('Administrative audit trail', '${_audit.length} recent event(s)'),
               if (_audit.isEmpty)
                 const Card(child: Padding(
                   padding: EdgeInsets.all(15),
@@ -5423,9 +5422,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                     : <String, dynamic>{};
                   final when = DateTime.tryParse(event['created_at']?.toString() ?? '');
                   final dateText = when == null ? '' :
-                    when.day.toString().padLeft(2, '0') + '/' +
-                    when.month.toString().padLeft(2, '0') + '/' +
-                    when.year.toString();
+                    '${when.day.toString().padLeft(2, '0')}/${when.month.toString().padLeft(2, '0')}/${when.year}';
                   final type = (event['event_type'] ?? '').toString();
                   final label = type == 'profile_role_changed'
                     ? 'Account role / department updated'
@@ -5435,7 +5432,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                     child: ListTile(
                       leading: const Icon(Icons.history, color: mutedInk),
                       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(detail + (dateText.isEmpty ? '' : ' · ' + dateText)),
+                      subtitle: Text('$detail${dateText.isEmpty ? '' : ' · $dateText'}'),
                     ),
                   );
                 }),
