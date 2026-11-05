@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - feature/alpha-03-integrated-platform
 
 permissions:
   contents: write
