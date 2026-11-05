@@ -4138,3 +4138,511 @@ class ProfilePage extends StatelessWidget {
     );
   }
 }
+
+// ==========================================
+// CASE WORKSPACE
+// ==========================================
+class CaseWorkspacePage extends StatefulWidget {
+  final String requestId;
+  final String requestTitle;
+  const CaseWorkspacePage({super.key, required this.requestId, required this.requestTitle});
+  @override
+  State<CaseWorkspacePage> createState() => _CaseWorkspacePageState();
+}
+
+class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
+  final _message = TextEditingController();
+  late final Stream<List<Map<String, dynamic>>> _messages;
+  bool _sending = false, _uploading = false, _aiBusy = false, _staff = false;
+  static const _bucket = 'samanvay-case-evidence';
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = supabase.from('case_messages').stream(primaryKey: ['id'])
+      .eq('request_id', widget.requestId).order('created_at', ascending: true);
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await supabase.from('profiles').select('role')
+        .eq('id', user.id).maybeSingle();
+      final role = (row?['role'] ?? '').toString();
+      if (mounted) setState(() => _staff = ['admin','coordinator','department'].contains(role));
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  void _toast(String value) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating));
+  }
+
+  Future<void> _send() async {
+    final user = supabase.auth.currentUser;
+    final body = _message.text.trim();
+    if (user == null || body.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await supabase.from('case_messages').insert({
+        'request_id': widget.requestId, 'sender_id': user.id, 'body': body,
+      });
+      _message.clear();
+    } on PostgrestException catch (e) {
+      _toast('Message not sent: ' + e.message);
+    } catch (_) {
+      _toast('Unable to send message. Check your case access and connection.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _upload() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || _uploading) return;
+    try {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
+        withData: true, allowMultiple: false,
+      );
+      if (selection == null || selection.files.isEmpty) return;
+      final file = selection.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        _toast('Unable to read that file. Select it again.');
+        return;
+      }
+      if (bytes.length > 20 * 1024 * 1024) {
+        _toast('Evidence files must be 20 MB or smaller.');
+        return;
+      }
+      final ext = (file.extension ?? '').toLowerCase();
+      final mime = switch (ext) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'pdf' => 'application/pdf',
+        _ => '',
+      };
+      if (mime.isEmpty) {
+        _toast('Only JPG, PNG, WEBP and PDF are supported.');
+        return;
+      }
+      final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll('..', '_');
+      final path = widget.requestId + '/' + user.id + '/' +
+        DateTime.now().microsecondsSinceEpoch.toString() + '_' + safeName;
+      setState(() => _uploading = true);
+      await supabase.storage.from(_bucket).uploadBinary(
+        path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false));
+      try {
+        await supabase.from('case_attachments').insert({
+          'request_id': widget.requestId, 'storage_path': path,
+          'file_name': file.name, 'content_type': mime,
+          'file_size_bytes': bytes.length,
+          'attachment_type': mime == 'application/pdf' ? 'survey_evidence' : 'site_photo',
+          'uploaded_by': user.id,
+        });
+      } catch (_) {
+        try { await supabase.storage.from(_bucket).remove([path]); } catch (_) {}
+        rethrow;
+      }
+      _toast('Evidence uploaded to the private case record.');
+    } on PostgrestException catch (e) {
+      _toast('Evidence was not recorded: ' + e.message);
+    } catch (_) {
+      _toast('Upload failed. Check case access and supported file type.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _viewEvidence() async {
+    try {
+      final rows = await supabase.from('case_attachments')
+        .select('storage_path,file_name,content_type,file_size_bytes')
+        .eq('request_id', widget.requestId).order('created_at', ascending: false);
+      if (!mounted) return;
+      final files = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context, isScrollControlled: true, backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('PRIVATE CASE EVIDENCE', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: files.isEmpty
+                    ? const Center(child: Text('No evidence has been uploaded.'))
+                    : ListView.builder(
+                        itemCount: files.length,
+                        itemBuilder: (context, index) {
+                          final item = files[index];
+                          final kb = ((item['file_size_bytes'] as num?) ?? 0) / 1024;
+                          return ListTile(
+                            leading: Icon(item['content_type'] == 'application/pdf'
+                              ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
+                            title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(kb.toStringAsFixed(1) + ' KB · Private file'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                try {
+                                  final url = await supabase.storage.from(_bucket)
+                                    .createSignedUrl(item['storage_path'].toString(), 600);
+                                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                } catch (_) { _toast('Unable to open secure evidence link.'); }
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to list case evidence. Check your case permissions.');
+    }
+  }
+
+  Future<void> _addInspection() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !_staff) return;
+    var type = 'progress';
+    var outcome = 'pass';
+    final notes = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Record site inspection'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                value: type, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Inspection type'),
+                items: const [
+                  DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
+                  DropdownMenuItem(value: 'progress', child: Text('Work progress')),
+                  DropdownMenuItem(value: 'post_work', child: Text('Post-work')),
+                  DropdownMenuItem(value: 'utility_verification', child: Text('Utility verification')),
+                  DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) { if (v != null) setDialog(() => type = v); },
+              ),
+              DropdownButtonFormField<String>(
+                value: outcome, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Outcome'),
+                items: const [
+                  DropdownMenuItem(value: 'pass', child: Text('Pass')),
+                  DropdownMenuItem(value: 'issue_found', child: Text('Issue found')),
+                  DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
+                  DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
+                ],
+                onChanged: (v) { if (v != null) setDialog(() => outcome = v); },
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
+                decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, notes.text.trim().isNotEmpty),
+              child: const Text('Save inspection')),
+          ],
+        ),
+      ),
+    );
+    if (submit != true) { notes.dispose(); return; }
+    try {
+      await supabase.from('case_inspections').insert({
+        'request_id': widget.requestId, 'inspection_type': type,
+        'outcome': outcome, 'notes': notes.text.trim(), 'inspected_by': user.id,
+      });
+      _toast('Inspection saved.');
+    } on PostgrestException catch (e) {
+      _toast('Inspection not saved: ' + e.message);
+    } catch (_) {
+      _toast('Unable to save inspection. Confirm the case is assigned to your department.');
+    } finally {
+      notes.dispose();
+    }
+  }
+
+  Future<void> _runAi() async {
+    if (!_staff || _aiBusy) return;
+    setState(() => _aiBusy = true);
+    try {
+      final result = await supabase.functions.invoke('samanvay-case-assistant',
+        body: {'request_id': widget.requestId, 'purpose': 'triage'});
+      final data = result.data;
+      if (data is! Map || data['assessment'] is! Map) {
+        _toast(data is Map && data['error'] == 'AI_NOT_CONFIGURED'
+          ? 'AI is deployed but needs the OPENAI_API_KEY secret.'
+          : 'No valid assessment returned by the AI service.');
+        return;
+      }
+      final assessment = Map<String,dynamic>.from(data['assessment'] as Map);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('AI case-support assessment'),
+          content: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text((assessment['summary'] ?? 'No summary returned.').toString(),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Text('Category: ' + (assessment['category'] ?? 'Not provided').toString()),
+              Text('Priority suggestion: ' + (assessment['priority_band'] ?? 'Not provided').toString()),
+              Text('Confidence: ' + (assessment['confidence'] ?? 'Not provided').toString()),
+              _arrayText('Suggested departments', assessment['suggested_departments']),
+              _arrayText('Coordination flags', assessment['coordination_flags']),
+              _arrayText('Missing information', assessment['missing_information']),
+              _arrayText('Recommended checks', assessment['recommended_checks']),
+              const SizedBox(height: 10),
+              const Text('Advisory only. Authorised officers must verify information and make official decisions.',
+                style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+            ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close'))],
+        ),
+      );
+    } on FunctionException catch (e) {
+      _toast('AI service unavailable: ' + (e.reasonPhrase ?? e.status.toString()));
+    } catch (_) {
+      _toast('AI assessment failed. Check Edge Function and provider configuration.');
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  Widget _arrayText(String label, dynamic raw) {
+    final items = raw is List ? raw.map((x) => x.toString()).toList() : <String>[];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ...items.map((x) => Padding(padding: const EdgeInsets.only(left: 8, top: 3), child: Text('• ' + x))),
+      ]),
+    );
+  }
+
+  Widget _bubble(Map<String,dynamic> item, String? uid) {
+    final mine = item['sender_id']?.toString() == uid;
+    final when = DateTime.tryParse(item['created_at']?.toString() ?? '');
+    final time = when == null ? '' :
+      when.hour.toString().padLeft(2,'0') + ':' + when.minute.toString().padLeft(2,'0');
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 310),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        decoration: BoxDecoration(
+          color: mine ? const Color(0xFFDDF7F2) : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: mine ? const Color(0xFFBCEBE3) : const Color(0xFFE3EAF1)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(mine ? 'You' : 'Case participant',
+            style: const TextStyle(fontSize: 9, color: mutedInk, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(item['body']?.toString() ?? '', style: const TextStyle(color: ink)),
+          if (time.isNotEmpty) Align(alignment: Alignment.bottomRight,
+            child: Text(time, style: const TextStyle(fontSize: 9, color: mutedInk))),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = supabase.auth.currentUser?.id;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F6FA),
+      appBar: AppBar(
+        title: Text(widget.requestTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(tooltip: 'View evidence', onPressed: _viewEvidence, icon: const Icon(Icons.attach_file)),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'upload') _upload();
+              if (v == 'view') _viewEvidence();
+              if (v == 'inspection') _addInspection();
+              if (v == 'ai') _runAi();
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
+              const PopupMenuItem(value: 'view', child: Text('View evidence')),
+              if (_staff) ...[
+                const PopupMenuItem(value: 'inspection', child: Text('Record inspection')),
+                const PopupMenuItem(value: 'ai', child: Text('Run AI case assessment')),
+              ],
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(10),
+          color: const Color(0xFFE7F1F7),
+          child: Row(children: [
+            const Icon(Icons.shield_outlined, color: Color(0xFF087F83), size: 18),
+            const SizedBox(width: 8),
+            const Expanded(child: Text(
+              'Case messages and evidence are restricted to authenticated participants.',
+              style: TextStyle(fontSize: 10, color: Color(0xFF42627E)))),
+            if (_uploading || _aiBusy) const SizedBox(width: 15, height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          ]),
+        ),
+        Expanded(
+          child: StreamBuilder<List<Map<String,dynamic>>>(
+            stream: _messages,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('Discussion is unavailable for this account.'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final rows = snapshot.data!;
+              if (rows.isEmpty) return const Center(child: Text('No messages yet. Start the case discussion.'));
+              return ListView.builder(
+                padding: const EdgeInsets.all(14), itemCount: rows.length,
+                itemBuilder: (context, index) => _bubble(rows[index], uid));
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+            color: Colors.white,
+            child: Row(children: [
+              IconButton(tooltip: 'Upload evidence', onPressed: _uploading ? null : _upload,
+                icon: const Icon(Icons.attach_file, color: Color(0xFF087F83))),
+              Expanded(child: TextField(
+                controller: _message, minLines: 1, maxLines: 4, maxLength: 4000,
+                decoration: const InputDecoration(
+                  hintText: 'Write a case message…', counterText: '', isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10)),
+              )),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                onPressed: _sending ? null : _send,
+                icon: _sending
+                  ? const SizedBox(width: 17, height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded)),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// REALTIME USER NOTIFICATIONS
+// ==========================================
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key});
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  late final Stream<List<Map<String,dynamic>>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = supabase.auth.currentUser;
+    _stream = user == null
+      ? Stream.value(<Map<String,dynamic>>[])
+      : supabase.from('user_notifications').stream(primaryKey: ['id'])
+        .eq('recipient_id', user.id).order('created_at', ascending: false);
+  }
+
+  Future<void> _markRead(Map<String,dynamic> item) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || item['read_at'] != null) return;
+    try {
+      await supabase.from('user_notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', item['id'].toString()).eq('recipient_id', user.id);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to mark notification as read.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: StreamBuilder<List<Map<String,dynamic>>>(
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text('Notifications could not be loaded.'));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final rows = snapshot.data!;
+          final unread = rows.where((x) => x['read_at'] == null).length;
+          if (rows.isEmpty) return const Center(child: Text('You are all caught up.'));
+          return ListView(padding: const EdgeInsets.all(14), children: [
+            Text(unread.toString() + ' unread · ' + rows.length.toString() + ' total',
+              style: const TextStyle(color: mutedInk, fontSize: 12, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            ...rows.map((item) {
+              final fresh = item['read_at'] == null;
+              final date = DateTime.tryParse(item['created_at']?.toString() ?? '');
+              final dateText = date == null ? '' :
+                date.day.toString().padLeft(2,'0') + '/' +
+                date.month.toString().padLeft(2,'0') + '/' + date.year.toString();
+              final type = (item['notification_type'] ?? '').toString();
+              final icon = switch (type) {
+                'assignment' => Icons.account_tree_outlined,
+                'review' => Icons.rate_review_outlined,
+                'status' => Icons.sync_alt,
+                'message' => Icons.forum_outlined,
+                _ => Icons.notifications_outlined,
+              };
+              return Card(
+                color: fresh ? const Color(0xFFEAF8F6) : Colors.white,
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: fresh ? const Color(0xFFD1F0EA) : const Color(0xFFEAF0F5),
+                    child: Icon(icon, color: const Color(0xFF087F83))),
+                  title: Text(item['title']?.toString() ?? 'SAMANVAY update',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text((item['body'] ?? '').toString() + '\n' + dateText),
+                  isThreeLine: true,
+                  trailing: fresh
+                    ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
+                    : const Icon(Icons.check, color: mutedInk, size: 18),
+                  onTap: () => _markRead(item),
+                ),
+              );
+            }),
+          ]);
+        },
+      ),
+    );
+  }
+}
