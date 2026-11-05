@@ -4680,7 +4680,7 @@ class _MapPageState extends State<MapPage> {
                   shrinkWrap: true,
                   padding: const EdgeInsets.symmetric(vertical: 5),
                   itemCount: _placeResults.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0x334B647C)),
+                  separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0x334B647C)),
                   itemBuilder: (context, index) {
                     final feature = _placeResults[index];
                     return ListTile(
