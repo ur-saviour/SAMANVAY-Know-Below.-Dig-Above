@@ -4960,6 +4960,27 @@ class _NotificationsPageState extends State<NotificationsPage> {
         .eq('recipient_id', user.id).order('created_at', ascending: false);
   }
 
+  Future<void> _openNotification(Map<String,dynamic> item) async {
+    await _markRead(item);
+    final requestId = item['request_id']?.toString();
+    if (requestId == null || requestId.isEmpty || !mounted) return;
+    var title = 'Infrastructure case';
+    try {
+      final row = await supabase.from('excavation_requests')
+        .select('title').eq('id', requestId).maybeSingle();
+      title = (row?['title'] ?? title).toString();
+    } catch (_) {}
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaseWorkspacePage(
+          requestId: requestId,
+          requestTitle: title,
+        ),
+      ),
+    );
+  }
+
   Future<void> _markRead(Map<String,dynamic> item) async {
     final user = supabase.auth.currentUser;
     if (user == null || item['read_at'] != null) return;
@@ -5022,7 +5043,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   trailing: fresh
                     ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
                     : const Icon(Icons.check, color: mutedInk, size: 18),
-                  onTap: () => _markRead(item),
+                  onTap: () => _openNotification(item),
                 ),
               );
             }),
