@@ -103,6 +103,7 @@ jobs:
           flutter pub add latlong2
           flutter pub add google_fonts
           flutter pub add url_launcher
+          flutter pub add file_picker
           flutter pub get
 
       # 6. Check Dart code
