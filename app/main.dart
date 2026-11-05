@@ -1,7 +1,8 @@
-import 'package:maplibre_gl/maplibre_gl.dart';
-import 'package:geolocator/geolocator.dart';
 import 'dart:async';
-import 'package:flutter_map/flutter_map.dart';
+
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:flutter/material.dart';
@@ -2870,6 +2871,250 @@ class _NewRequestPageState extends State<NewRequestPage> {
 // ==========================================
 
 
+class MapLocationPickerPage extends StatefulWidget {
+  final LatLng? initialPoint;
+
+  const MapLocationPickerPage({
+    super.key,
+    this.initialPoint,
+  });
+
+  @override
+  State<MapLocationPickerPage> createState() =>
+      _MapLocationPickerPageState();
+}
+
+class _MapLocationPickerPageState
+    extends State<MapLocationPickerPage> {
+  MapLibreMapController? _controller;
+  bool _ready = false;
+  bool _locating = false;
+
+  static const String _style =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  LatLng get _initialPoint =>
+      widget.initialPoint ?? const LatLng(0, 0);
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _ready = true);
+
+    if (widget.initialPoint == null) {
+      await _goToCurrentLocation();
+    }
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    setState(() => _locating = true);
+
+    try {
+      final location =
+          await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _message(
+          'Current location unavailable. Check GPS permissions.',
+        );
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 18,
+            tilt: 45,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1000),
+      );
+    } catch (_) {
+      _message(
+        'Unable to access GPS. You can still move the map manually.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _locating = false);
+      }
+    }
+  }
+
+  Future<void> _confirmLocation() async {
+    final controller = _controller;
+
+    if (controller == null || !_ready) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      final selected = camera?.target;
+
+      if (selected == null) {
+        _message('Unable to read the selected map coordinates.');
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.pop(context, selected);
+    } catch (_) {
+      _message('Unable to select this location.');
+    }
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF101B29),
+      appBar: AppBar(
+        title: const Text('Select Work Location'),
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Use current GPS location',
+            onPressed: _goToCurrentLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              styleString: _style,
+              initialCameraPosition: CameraPosition(
+                target: _initialPoint,
+                zoom: widget.initialPoint == null ? 2 : 17,
+                tilt: 40,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              myLocationEnabled: true,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              minMaxZoomPreference:
+                  const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          // Fixed centre marker: selected coordinate is
+          // the map centre when the user confirms.
+          const Center(
+            child: IgnorePointer(
+              child: Icon(
+                Icons.location_on,
+                size: 46,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+
+          if (!_ready)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF23C5B5),
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 20,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xF2182638),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Move the map until the required work location '
+                    'is under the centre marker.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed:
+                        _ready ? _confirmLocation : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('CONFIRM THIS LOCATION'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFF13A89E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_locating)
+            const Positioned(
+              top: 15,
+              left: 15,
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      SizedBox(width: 9),
+                      Text('Finding GPS location...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
@@ -3061,7 +3306,6 @@ class _MapPageState extends State<MapPage> {
                   MyLocationTrackingMode.none,
               compassEnabled: true,
               logoEnabled: true,
-              attributionEnabled: true,
               rotateGesturesEnabled: true,
               tiltGesturesEnabled: true,
               zoomGesturesEnabled: true,
