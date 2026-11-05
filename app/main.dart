@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -3190,16 +3191,31 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  MapLibreMapController? _controller;
+  static const String _mapTilerKey =
+      String.fromEnvironment('MAPTILER_API_KEY');
+  static const String _vectorStyle =
+      'https://tiles.openfreemap.org/styles/liberty';
 
+  MapLibreMapController? _controller;
   bool _is3D = true;
   bool _styleReady = false;
+  bool _satellite = false;
+  bool _showRequests = true;
+  bool _showUtilityZones = false;
+  bool _canViewUtilityOverview = false;
+  bool _loadingLayers = false;
+  bool _locating = false;
+  int _requestMarkerCount = 0;
+  int _utilityCellCount = 0;
+  String _layerStatus =
+      'Underground visibility requires authorised, verified GIS records.';
 
-  static const LatLng _initialPosition =
-      LatLng(0, 0);
-
-  static const String _mapStyle =
-      'https://tiles.openfreemap.org/styles/liberty';
+  String get _mapStyle {
+    if (_satellite && _mapTilerKey.isNotEmpty) {
+      return 'https://api.maptiler.com/maps/hybrid/style.json?key=$_mapTilerKey';
+    }
+    return _vectorStyle;
+  }
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
@@ -3208,39 +3224,265 @@ class _MapPageState extends State<MapPage> {
   Future<void> _onStyleLoaded() async {
     if (!mounted) return;
 
-    setState(() {
-      _styleReady = true;
-    });
+    setState(() => _styleReady = true);
 
-    _controller?.setMapLanguage('en');
-    // Centre the operational map on the device's real location.
-    // The neutral world view remains if location permission is unavailable.
-    await _goToMyLocation();
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      await controller.setMapLanguage('en');
+      await _loadMapLayers();
+      await _goToMyLocation();
+    } catch (_) {
+      _showMessage('The map loaded, but one or more data layers could not be prepared.');
+    }
+  }
+
+  Future<void> _loadMapLayers() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (mounted) setState(() => _loadingLayers = true);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw StateError('Sign in to view operational map layers.');
+      }
+
+      final profile = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final role = (profile?['role'] ?? '').toString();
+      final authorised = ['admin', 'coordinator', 'department'].contains(role);
+
+      final requestRows = await supabase
+          .from('excavation_requests')
+          .select('id,request_number,title,status,latitude,longitude')
+          .order('created_at', ascending: false)
+          .limit(500);
+
+      final features = <Map<String, dynamic>>[];
+      for (final row in List<Map<String, dynamic>>.from(requestRows)) {
+        final lat = (row['latitude'] as num?)?.toDouble();
+        final lon = (row['longitude'] as num?)?.toDouble();
+        if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+          continue;
+        }
+
+        features.add({
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [lon, lat],
+          },
+          'properties': {
+            'request_id': row['id'].toString(),
+            'request_number': row['request_number']?.toString() ?? '',
+            'title': row['title']?.toString() ?? 'Infrastructure request',
+            'status': row['status']?.toString() ?? 'submitted',
+          },
+        });
+      }
+
+      await controller.addGeoJsonSource(
+        'samanvay-work-requests',
+        {'type': 'FeatureCollection', 'features': features},
+      );
+      await controller.addCircleLayer(
+        'samanvay-work-requests',
+        'samanvay-work-request-points',
+        const CircleLayerProperties(
+          circleRadius: 6,
+          circleColor: '#20D6C2',
+          circleOpacity: 0.96,
+          circleStrokeColor: '#082033',
+          circleStrokeWidth: 1.6,
+        ),
+        enableInteraction: false,
+      );
+
+      if (mounted) {
+        setState(() {
+          _requestMarkerCount = features.length;
+          _canViewUtilityOverview = authorised;
+          _layerStatus = authorised
+              ? 'Staff GIS view: only aggregated, permission-filtered utility coverage is available here.'
+              : 'Requester GIS view: only requests visible to your account are shown.';
+        });
+      }
+
+      if (_showUtilityZones && authorised) {
+        await _loadUtilityOverview();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _layerStatus = 'Operational layers could not be loaded. Check your connection and account access.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLayers = false);
+    }
+  }
+
+  Future<void> _loadUtilityOverview() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final minLon = bounds.southwest.longitude;
+      final minLat = bounds.southwest.latitude;
+      final maxLon = bounds.northeast.longitude;
+      final maxLat = bounds.northeast.latitude;
+
+      if (minLon >= maxLon || minLat >= maxLat) {
+        _showMessage('The current map extent cannot be queried. Adjust the view and retry.');
+        return;
+      }
+
+      // This endpoint returns generalised 250 m aggregate cells, never exact utility routes.
+      final raw = await supabase.rpc(
+        'get_underground_asset_overview',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+
+      final geojson = Map<String, dynamic>.from(raw as Map);
+      final featureList = geojson['features'];
+      final count = featureList is List ? featureList.length : 0;
+
+      await controller.addGeoJsonSource(
+        'samanvay-utility-overview',
+        geojson,
+      );
+      await controller.addFillLayer(
+        'samanvay-utility-overview',
+        'samanvay-utility-overview-cells',
+        const FillLayerProperties(
+          fillColor: '#F59E0B',
+          fillOpacity: 0.30,
+          fillOutlineColor: '#FDE68A',
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = count;
+          _layerStatus = count == 0
+              ? 'No verified aggregate records in this view. This does NOT mean underground infrastructure is absent.'
+              : '$count generalised utility coverage cell(s) returned. Exact utility geometry is not displayed in this overview.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = 0;
+          _layerStatus = 'The authorised utility overview is unavailable. No data is not proof of no utility.';
+        });
+      }
+      _showMessage('Unable to load the authorised utility overview.');
+    }
+  }
+
+  Future<void> _toggleRequests(bool enabled) async {
+    setState(() => _showRequests = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-work-request-points')) {
+        await _loadMapLayers();
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-work-request-points',
+          enabled,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the request layer.');
+    }
+  }
+
+  Future<void> _toggleUtilityZones(bool enabled) async {
+    if (!_canViewUtilityOverview) {
+      _showMessage('The utility overview is restricted to authorised infrastructure staff.');
+      return;
+    }
+
+    setState(() => _showUtilityZones = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (!enabled) {
+      try {
+        final layers = await controller.getLayerIds();
+        if (layers.contains('samanvay-utility-overview-cells')) {
+          await controller.setLayerVisibility(
+            'samanvay-utility-overview-cells',
+            false,
+          );
+        }
+      } catch (_) {}
+      return;
+    }
+
+    await _loadUtilityOverview();
+  }
+
+  Future<void> _changeBasemap(bool useSatellite) async {
+    if (useSatellite && _mapTilerKey.isEmpty) {
+      _showMessage(
+        'Satellite imagery is ready to connect, but MAPTILER_API_KEY is not configured in the release build.',
+      );
+      return;
+    }
+
+    if (_satellite == useSatellite) return;
+
+    setState(() {
+      _satellite = useSatellite;
+      _styleReady = false;
+      _controller = null;
+      _requestMarkerCount = 0;
+      _utilityCellCount = 0;
+    });
   }
 
   Future<void> _changePerspective(bool use3D) async {
     final controller = _controller;
     if (controller == null || !_styleReady) return;
 
-    final current = await controller.queryCameraPosition();
-    final target = current?.target ?? _initialPosition;
-    final zoom = current?.zoom ?? 13.0;
+    try {
+      final current = await controller.queryCameraPosition();
+      final target = current?.target ?? const LatLng(0, 0);
+      final zoom = current?.zoom ?? 13.0;
 
-    setState(() {
-      _is3D = use3D;
-    });
+      setState(() => _is3D = use3D);
 
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: target,
-          zoom: zoom < 14 ? 14 : zoom,
-          tilt: use3D ? 58 : 0,
-          bearing: use3D ? -22 : 0,
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: target,
+            zoom: zoom < 14 ? 14 : zoom,
+            tilt: use3D ? 58 : 0,
+            bearing: use3D ? -22 : 0,
+          ),
         ),
-      ),
-      duration: const Duration(milliseconds: 1100),
-    );
+        duration: const Duration(milliseconds: 1100),
+      );
+    } catch (_) {
+      _showMessage('Unable to change map perspective.');
+    }
   }
 
   Future<void> _zoom(bool zoomIn) async {
@@ -3248,25 +3490,21 @@ class _MapPageState extends State<MapPage> {
     if (controller == null || !_styleReady) return;
 
     await controller.animateCamera(
-      zoomIn
-          ? CameraUpdate.zoomIn()
-          : CameraUpdate.zoomOut(),
-      duration: const Duration(milliseconds: 450),
+      zoomIn ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut(),
+      duration: const Duration(milliseconds: 420),
     );
   }
 
   Future<void> _goToMyLocation() async {
     final controller = _controller;
-    if (controller == null || !_styleReady) return;
+    if (controller == null || !_styleReady || _locating) return;
 
+    setState(() => _locating = true);
     try {
-      final location =
-          await controller.requestMyLocationLatLng();
+      final location = await controller.requestMyLocationLatLng();
 
       if (location == null) {
-        _showMessage(
-          'Current location is not available. Check GPS permissions.',
-        );
+        _showMessage('Your device did not provide a location. Check GPS and app location permission.');
         return;
       }
 
@@ -3282,20 +3520,124 @@ class _MapPageState extends State<MapPage> {
         duration: const Duration(milliseconds: 1200),
       );
     } catch (_) {
-      _showMessage(
-        'Unable to access location. Enable location permission.',
-      );
+      _showMessage('Unable to access device location. You can still navigate the map manually.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
     }
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         behavior: SnackBarBehavior.floating,
       ),
+    );
+  }
+
+  Future<void> _openAttribution() async {
+    final uri = Uri.parse(
+      _satellite
+          ? 'https://www.maptiler.com/copyright/'
+          : 'https://openfreemap.org/',
+    );
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      _showMessage('Unable to open the map provider attribution page.');
+    }
+  }
+
+  void _openLayerPanel() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF13263A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'GIS LAYERS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Layers are drawn only from records your account is authorised to access.',
+                      style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      value: _showRequests,
+                      activeColor: const Color(0xFF20D6C2),
+                      title: const Text('Work request locations',
+                          style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_requestMarkerCount request marker(s) visible to your account',
+                        style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleRequests(value);
+                      },
+                    ),
+                    if (_canViewUtilityOverview)
+                      SwitchListTile(
+                        value: _showUtilityZones,
+                        activeColor: const Color(0xFFF59E0B),
+                        title: const Text('Generalised utility coverage',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_utilityCellCount aggregate cell(s); not individual utility routes',
+                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleUtilityZones(value);
+                        },
+                      )
+                    else
+                      const ListTile(
+                        leading: Icon(Icons.lock_outline, color: Color(0xFFF6C66B)),
+                        title: Text('Utility coverage restricted',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          'Detailed infrastructure records are not available to requester accounts.',
+                          style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                      ),
+                    const Divider(color: Color(0x334B647C)),
+                    const Text(
+                      'Data integrity',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _layerStatus,
+                      style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -3305,7 +3647,7 @@ class _MapPageState extends State<MapPage> {
     String? tooltip,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Material(
         color: const Color(0xF2182638),
         elevation: 5,
@@ -3314,6 +3656,39 @@ class _MapPageState extends State<MapPage> {
           tooltip: tooltip,
           onPressed: onPressed,
           icon: Icon(icon, color: Colors.white, size: 21),
+        ),
+      ),
+    );
+  }
+
+  Widget _pill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF13A89E) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -3340,10 +3715,10 @@ class _MapPageState extends State<MapPage> {
             ),
             SizedBox(height: 2),
             Text(
-              'GEOSPATIAL INFRASTRUCTURE VIEW',
+              'GEOSPATIAL INFRASTRUCTURE WORKSPACE',
               style: TextStyle(
                 fontSize: 9,
-                letterSpacing: 1.5,
+                letterSpacing: 1.35,
                 color: Color(0xFF9FB4C8),
               ),
             ),
@@ -3351,20 +3726,26 @@ class _MapPageState extends State<MapPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'My location',
+            tooltip: 'Layer controls',
+            onPressed: _openLayerPanel,
+            icon: const Icon(Icons.layers_outlined),
+          ),
+          IconButton(
+            tooltip: 'My device location',
             onPressed: _goToMyLocation,
             icon: const Icon(Icons.my_location),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       body: Stack(
         children: [
           Positioned.fill(
             child: MapLibreMap(
+              key: ValueKey(_satellite ? 'samanvay-satellite' : 'samanvay-vector'),
               styleString: _mapStyle,
               initialCameraPosition: const CameraPosition(
-                target: _initialPosition,
+                target: LatLng(0, 0),
                 zoom: 2.5,
                 tilt: 0,
                 bearing: 0,
@@ -3372,8 +3753,7 @@ class _MapPageState extends State<MapPage> {
               onMapCreated: _onMapCreated,
               onStyleLoadedCallback: _onStyleLoaded,
               myLocationEnabled: true,
-              myLocationTrackingMode:
-                  MyLocationTrackingMode.none,
+              myLocationTrackingMode: MyLocationTrackingMode.none,
               compassEnabled: true,
               logoEnabled: true,
               rotateGesturesEnabled: true,
@@ -3381,12 +3761,10 @@ class _MapPageState extends State<MapPage> {
               zoomGesturesEnabled: true,
               scrollGesturesEnabled: true,
               trackCameraPosition: true,
-              minMaxZoomPreference:
-                  const MinMaxZoomPreference(3, 20),
+              minMaxZoomPreference: const MinMaxZoomPreference(2, 20),
             ),
           ),
 
-          // Map loading indicator
           if (!_styleReady)
             const Positioned.fill(
               child: ColoredBox(
@@ -3395,16 +3773,14 @@ class _MapPageState extends State<MapPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(
-                        color: Color(0xFF23C5B5),
-                      ),
-                      SizedBox(height: 16),
+                      CircularProgressIndicator(color: Color(0xFF23C5B5)),
+                      SizedBox(height: 14),
                       Text(
-                        'INITIALIZING GIS ENGINE',
+                        'INITIALISING GIS ENGINE',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 11,
-                          letterSpacing: 1.8,
+                          letterSpacing: 1.7,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -3414,49 +3790,47 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
 
-          // Map information panel
           Positioned(
-            left: 14,
-            top: 14,
+            left: 12,
+            top: 12,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 13,
-                vertical: 10,
-              ),
+              constraints: const BoxConstraints(maxWidth: 218),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: const Color(0xE6102031),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0x5539BDB0),
-                ),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'CITY MODEL',
-                    style: TextStyle(
+                    _satellite ? 'SATELLITE HYBRID' : 'VECTOR BASEMAP',
+                    style: const TextStyle(
                       color: Color(0xFF9FB4C8),
                       fontSize: 9,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.3,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '3D VECTOR MAP',
-                    style: TextStyle(
+                    _satellite ? 'AERIAL IMAGERY' : '2D / 3D CAMERA',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
-                    'Building data where available',
-                    style: TextStyle(
+                    _satellite
+                        ? 'Imagery date and resolution vary by location.'
+                        : '3D perspective depends on available building data.',
+                    style: const TextStyle(
                       color: Color(0xFFB6C7D6),
                       fontSize: 9,
+                      height: 1.3,
                     ),
                   ),
                 ],
@@ -3464,10 +3838,9 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
-          // Perspective and navigation controls
           Positioned(
-            right: 13,
-            top: 14,
+            right: 11,
+            top: 12,
             child: Column(
               children: [
                 _mapButton(
@@ -3481,149 +3854,135 @@ class _MapPageState extends State<MapPage> {
                   onPressed: () => _zoom(false),
                 ),
                 _mapButton(
-                  icon: Icons.my_location,
-                  tooltip: 'Go to my location',
-                  onPressed: _goToMyLocation,
+                  icon: Icons.layers_outlined,
+                  tooltip: 'Map layers',
+                  onPressed: _openLayerPanel,
                 ),
               ],
             ),
           ),
 
-          // 2D / 3D perspective switch
           Positioned(
-            left: 14,
-            right: 14,
-            bottom: 100,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xF2182638),
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        color: const Color(0x5539BDB0),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _perspectiveOption(
-                            label: '2D',
-                            selected: !_is3D,
-                            onTap: () =>
-                                _changePerspective(false),
-                          ),
-                        ),
-                        Expanded(
-                          child: _perspectiveOption(
-                            label: '3D',
-                            selected: _is3D,
-                            onTap: () =>
-                                _changePerspective(true),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Data integrity status
-          Positioned(
-            left: 14,
-            right: 14,
-            bottom: 18,
+            left: 12,
+            right: 12,
+            bottom: 118,
             child: Container(
-              padding: const EdgeInsets.all(13),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: const Color(0xF2182638),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0x5539BDB0),
-                ),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x5539BDB0)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.layers_outlined,
-                    color: Color(0xFF35C6B5),
-                    size: 22,
+                  _pill(
+                    label: 'VECTOR',
+                    selected: !_satellite,
+                    onTap: () => _changeBasemap(false),
                   ),
-                  SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'UNDERGROUND GIS',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Verified utility layers require GIS records.',
-                          style: TextStyle(
-                            color: Color(0xFFB6C7D6),
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
+                  _pill(
+                    label: 'SATELLITE',
+                    selected: _satellite,
+                    onTap: () => _changeBasemap(true),
                   ),
-                  Icon(
-                    Icons.info_outline,
-                    color: Color(0xFF9FB4C8),
-                    size: 18,
+                  const SizedBox(width: 4),
+                  Container(width: 1, height: 24, color: const Color(0x554B647C)),
+                  const SizedBox(width: 4),
+                  _pill(
+                    label: '2D',
+                    selected: !_is3D,
+                    onTap: () => _changePerspective(false),
+                  ),
+                  _pill(
+                    label: '3D',
+                    selected: _is3D,
+                    onTap: () => _changePerspective(true),
                   ),
                 ],
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _perspectiveOption({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(9),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF13A89E)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: selected
-                  ? FontWeight.w900
-                  : FontWeight.w600,
-              letterSpacing: 1,
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 54,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.hub_outlined, color: Color(0xFF35C6B5), size: 19),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _loadingLayers
+                          ? 'SYNCING AUTHORISED GIS LAYERS...'
+                          : _layerStatus,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFD4E1EA),
+                        fontSize: 9,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  if (_loadingLayers)
+                    const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF35C6B5),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Refresh layers',
+                      onPressed: _loadMapLayers,
+                      icon: const Icon(Icons.refresh, color: Colors.white, size: 19),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _openAttribution,
+                    child: Text(
+                      _satellite
+                          ? '© MapTiler · © OpenStreetMap contributors'
+                          : '© OpenFreeMap · © OpenStreetMap contributors',
+                      style: const TextStyle(
+                        color: Color(0xFFE1EAF1),
+                        fontSize: 8,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_locating)
+                  const Text(
+                    'LOCATING',
+                    style: TextStyle(color: Color(0xFF35C6B5), fontSize: 8),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
