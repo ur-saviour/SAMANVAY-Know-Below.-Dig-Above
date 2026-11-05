@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -3663,8 +3664,12 @@ class _MapPageState extends State<MapPage> {
 
   MapLibreMapController? _controller;
   final TextEditingController _searchController = TextEditingController();
+  Timer? _viewportRefreshTimer;
   List<Map<String, dynamic>> _placeResults = [];
   bool _searching = false;
+  bool _utilityQueryInFlight = false;
+  String _scaleLabel = '';
+  double _scaleWidth = 80;
   bool _is3D = true;
   bool _styleReady = false;
   bool _satellite = _mapTilerKey.isNotEmpty;
@@ -3692,6 +3697,7 @@ class _MapPageState extends State<MapPage> {
 
   @override
   void dispose() {
+    _viewportRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -3699,6 +3705,56 @@ class _MapPageState extends State<MapPage> {
   // Extrude basemap building polygons only where the active provider style
   // supplies OpenMapTiles building attributes. This is city context, not
   // underground utility geometry.
+  void _handleCameraIdle() {
+    if (!_styleReady) return;
+    _viewportRefreshTimer?.cancel();
+    _viewportRefreshTimer = Timer(const Duration(milliseconds: 420), () async {
+      if (!mounted) return;
+      await _refreshMapScale();
+      if (!mounted) return;
+      if (_showUtilityZones && _canViewUtilityOverview) {
+        await _loadUtilityOverview();
+      }
+    });
+  }
+
+  Future<void> _refreshMapScale() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      if (camera == null) return;
+      final latitude = camera.target.latitude.clamp(-85.0, 85.0);
+      final metersPerPixel = (
+        156543.03392 *
+        math.cos(latitude * math.pi / 180) /
+        math.pow(2, camera.zoom)
+      ).toDouble();
+
+      if (!metersPerPixel.isFinite || metersPerPixel <= 0) return;
+      final targetMeters = metersPerPixel * 82;
+      final magnitude = math.pow(
+        10,
+        (math.log(targetMeters) / math.ln10).floor(),
+      ).toDouble();
+      final fraction = targetMeters / magnitude;
+      final niceMeters = (fraction >= 5 ? 5 : (fraction >= 2 ? 2 : 1)) * magnitude;
+      final width = (niceMeters / metersPerPixel).clamp(42.0, 112.0).toDouble();
+      final label = niceMeters >= 1000
+          ? '${(niceMeters / 1000).toStringAsFixed(niceMeters >= 10000 ? 0 : 1)} km'
+          : '${niceMeters.toStringAsFixed(niceMeters < 10 ? 1 : 0)} m';
+
+      if (!mounted) return;
+      setState(() {
+        _scaleLabel = label;
+        _scaleWidth = width;
+      });
+    } catch (_) {
+      // A missing camera reading does not block map navigation.
+    }
+  }
+
   Future<void> _ensure3DBuildings() async {
     final controller = _controller;
     if (controller == null) return;
@@ -3990,7 +4046,8 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _loadUtilityOverview() async {
     final controller = _controller;
-    if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview || _utilityQueryInFlight) return;
+    _utilityQueryInFlight = true;
 
     try {
       final bounds = await controller.getVisibleRegion();
@@ -4066,6 +4123,8 @@ class _MapPageState extends State<MapPage> {
         });
       }
       _showMessage('Unable to load the authorised utility overview.');
+    } finally {
+      _utilityQueryInFlight = false;
     }
   }
 
@@ -4462,6 +4521,7 @@ class _MapPageState extends State<MapPage> {
               ),
               onMapCreated: _onMapCreated,
               onStyleLoadedCallback: _onStyleLoaded,
+              onCameraIdle: _handleCameraIdle,
               myLocationEnabled: _hasLocationPermission,
               myLocationTrackingMode: MyLocationTrackingMode.none,
               compassEnabled: true,
@@ -4668,6 +4728,43 @@ class _MapPageState extends State<MapPage> {
               ],
             ),
           ),
+
+          if (_scaleLabel.isNotEmpty)
+            Positioned(
+              left: 14,
+              bottom: 183,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xE6102031),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: const Color(0x5539BDB0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _scaleLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: _scaleWidth,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF55D9CE),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           Positioned(
             left: 12,
