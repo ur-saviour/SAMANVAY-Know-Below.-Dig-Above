@@ -4725,12 +4725,12 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
     }
   }
 
-  Future<void> _runAi() async {
+  Future<void> _runAi(String purpose) async {
     if (!_staff || _aiBusy) return;
     setState(() => _aiBusy = true);
     try {
       final result = await supabase.functions.invoke('samanvay-case-assistant',
-        body: {'request_id': widget.requestId, 'purpose': 'triage'});
+        body: {'request_id': widget.requestId, 'purpose': purpose});
       final data = result.data;
       if (data is! Map || data['assessment'] is! Map) {
         _toast(data is Map && data['error'] == 'AI_NOT_CONFIGURED'
@@ -4743,11 +4743,16 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       final category = (assessment['category'] ?? 'Not provided').toString();
       final priority = (assessment['priority_band'] ?? 'Not provided').toString();
       final confidence = (assessment['confidence'] ?? 'Not provided').toString();
+      final assessmentTitle = switch (purpose) {
+        'summary' => 'AI case summary',
+        'coordination' => 'AI coordination analysis',
+        _ => 'AI case triage',
+      };
       if (!mounted) return;
       await showDialog<void>(
         context: context,
         builder: (dialog) => AlertDialog(
-          title: const Text('AI case-support assessment'),
+          title: Text(assessmentTitle),
           content: SingleChildScrollView(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Text((assessment['summary'] ?? 'No summary returned.').toString(),
@@ -5081,7 +5086,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
               if (v == 'inspection') _addInspection();
               if (v == 'inspections') _viewInspections();
               if (v == 'timeline') _viewTimeline();
-              if (v == 'ai') _runAi();
+              if (v == 'ai_triage') _runAi('triage');
+              if (v == 'ai_summary') _runAi('summary');
+              if (v == 'ai_coordination') _runAi('coordination');
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
@@ -5092,7 +5099,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
               const PopupMenuItem(value: 'timeline', child: Text('Case activity history')),
               if (_staff) ...[
                 const PopupMenuItem(value: 'inspection', child: Text('Record inspection')),
-                const PopupMenuItem(value: 'ai', child: Text('Run AI case assessment')),
+                const PopupMenuItem(value: 'ai_triage', child: Text('AI: classify and prioritise case')),
+                const PopupMenuItem(value: 'ai_summary', child: Text('AI: summarise case')),
+                const PopupMenuItem(value: 'ai_coordination', child: Text('AI: coordination risks and missing information')),
               ],
             ],
           ),
