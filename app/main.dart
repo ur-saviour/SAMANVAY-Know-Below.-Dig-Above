@@ -4154,6 +4154,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
   final _message = TextEditingController();
   late final Stream<List<Map<String, dynamic>>> _messages;
   bool _sending = false, _uploading = false, _aiBusy = false, _staff = false;
+  String _role = '';
   static const _bucket = 'samanvay-case-evidence';
 
   @override
@@ -4172,7 +4173,10 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         .eq('id', user.id).maybeSingle();
       final role = (row?['role'] ?? '').toString();
       if (mounted) {
-        setState(() => _staff = ['admin','coordinator','department'].contains(role));
+        setState(() {
+          _role = role;
+          _staff = ['admin','coordinator','department'].contains(role);
+        });
       }
     } catch (_) {}
   }
@@ -4406,6 +4410,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         return;
       }
       final assessment = Map<String,dynamic>.from(data['assessment'] as Map);
+      final assessmentId = data['assessment_id']?.toString();
       final category = (assessment['category'] ?? 'Not provided').toString();
       final priority = (assessment['priority_band'] ?? 'Not provided').toString();
       final confidence = (assessment['confidence'] ?? 'Not provided').toString();
@@ -4431,7 +4436,25 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                 style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
             ]),
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close'))],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close')),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'dismissed');
+                },
+                child: const Text('Dismiss suggestion'),
+              ),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'accepted');
+                },
+                child: const Text('Accept suggestion'),
+              ),
+          ],
         ),
       );
     } on FunctionException catch (e) {
@@ -4440,6 +4463,122 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       _toast('AI assessment failed. Check Edge Function and provider configuration.');
     } finally {
       if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  Future<void> _reviewAiAssessment(String assessmentId, String decision) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !['admin', 'coordinator'].contains(_role)) return;
+    try {
+      await supabase.from('case_ai_assessments').update({
+        'review_status': decision,
+        'reviewed_by': user.id,
+        'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', assessmentId).eq('review_status', 'suggested');
+      _toast(decision == 'accepted'
+        ? 'AI suggestion marked as reviewed and accepted.'
+        : 'AI suggestion dismissed.');
+    } on PostgrestException catch (e) {
+      _toast('Unable to save the review decision: ${e.message}');
+    } catch (_) {
+      _toast('Unable to save the AI review decision.');
+    }
+  }
+
+  Future<void> _viewInspections() async {
+    try {
+      final rows = await supabase.from('case_inspections')
+        .select('inspection_type,outcome,notes,inspected_at')
+        .eq('request_id', widget.requestId)
+        .order('inspected_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .62,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('INSPECTION RECORDS', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: items.isEmpty
+                    ? const Center(child: Text('No inspection records are available.'))
+                    : ListView.builder(
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final date = DateTime.tryParse(item['inspected_at']?.toString() ?? '');
+                          final day = date?.day.toString().padLeft(2, '0') ?? '';
+                          final month = date?.month.toString().padLeft(2, '0') ?? '';
+                          final year = date?.year.toString() ?? '';
+                          final dateLabel = date == null ? '' : '$day/$month/$year';
+                          final outcome = (item['outcome'] ?? '').toString().replaceAll('_', ' ');
+                          final notes = (item['notes'] ?? '').toString();
+                          return ListTile(
+                            leading: const Icon(Icons.fact_check_outlined, color: teal),
+                            title: Text((item['inspection_type'] ?? 'Inspection').toString().replaceAll('_', ' ').toUpperCase()),
+                            subtitle: Text(
+                              outcome + (dateLabel.isEmpty ? '' : ' · $dateLabel') + '\\n' + notes,
+                            ),
+                            isThreeLine: true,
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load inspections for this case.');
+    }
+  }
+
+  Future<void> _viewTimeline() async {
+    try {
+      final rows = await supabase.from('request_status_history')
+        .select('old_status,new_status,remarks,created_at')
+        .eq('request_id', widget.requestId)
+        .order('created_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: items.isEmpty
+              ? const Center(child: Text('No status history has been recorded yet.'))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text('CASE ACTIVITY', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ...items.map((item) {
+                      final oldStatus = (item['old_status'] ?? 'Created').toString().replaceAll('_', ' ');
+                      final newStatus = (item['new_status'] ?? '').toString().replaceAll('_', ' ');
+                      return ListTile(
+                        leading: const Icon(Icons.timeline, color: teal),
+                        title: Text('$oldStatus → $newStatus'),
+                        subtitle: Text((item['remarks'] ?? 'No remarks').toString()),
+                      );
+                    }),
+                  ],
+                ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load case activity history.');
     }
   }
 
@@ -4498,11 +4637,15 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
               if (v == 'upload') _upload();
               if (v == 'view') _viewEvidence();
               if (v == 'inspection') _addInspection();
+              if (v == 'inspections') _viewInspections();
+              if (v == 'timeline') _viewTimeline();
               if (v == 'ai') _runAi();
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
               const PopupMenuItem(value: 'view', child: Text('View evidence')),
+              const PopupMenuItem(value: 'inspections', child: Text('View inspections')),
+              const PopupMenuItem(value: 'timeline', child: Text('Case activity history')),
               if (_staff) ...[
                 const PopupMenuItem(value: 'inspection', child: Text('Record inspection')),
                 const PopupMenuItem(value: 'ai', child: Text('Run AI case assessment')),
