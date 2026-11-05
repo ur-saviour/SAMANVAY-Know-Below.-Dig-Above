@@ -3821,6 +3821,7 @@ class _MapPageState extends State<MapPage> {
       'https://tiles.openfreemap.org/styles/liberty';
 
   MapLibreMapController? _controller;
+  CameraPosition? _pendingBasemapCamera;
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _openingMapCases = <String>{};
   Timer? _viewportRefreshTimer;
@@ -4127,9 +4128,23 @@ class _MapPageState extends State<MapPage> {
 
     try {
       await controller.setMapLanguage('en');
+
+      // Preserve the exact camera when switching between vector and
+      // satellite styles. Only use device GPS on the first map load.
+      final restoreCamera = _pendingBasemapCamera;
+      if (restoreCamera != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(restoreCamera),
+          duration: const Duration(milliseconds: 900),
+        );
+        _pendingBasemapCamera = null;
+      } else {
+        await _goToMyLocation();
+      }
+
       await _ensure3DBuildings();
       await _loadMapLayers();
-      await _goToMyLocation();
+      await _refreshMapScale();
     } catch (_) {
       _showMessage('The map loaded, but one or more data layers could not be prepared.');
     }
@@ -4394,6 +4409,13 @@ class _MapPageState extends State<MapPage> {
     }
 
     if (_satellite == useSatellite) return;
+
+    try {
+      _pendingBasemapCamera = await _controller?.queryCameraPosition();
+    } catch (_) {
+      _pendingBasemapCamera = null;
+    }
+    if (!mounted) return;
 
     setState(() {
       _satellite = useSatellite;
