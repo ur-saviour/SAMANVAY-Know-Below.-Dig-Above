@@ -4184,8 +4184,11 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
   }
 
   void _toast(String value) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+      );
+    }
   }
 
   Future<void> _send() async {
@@ -4596,8 +4599,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
         .update({'read_at': DateTime.now().toUtc().toIso8601String()})
         .eq('id', item['id'].toString()).eq('recipient_id', user.id);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to mark notification as read.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to mark notification as read.')),
+        );
+      }
     }
   }
 
