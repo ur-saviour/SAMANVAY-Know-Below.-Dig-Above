@@ -193,6 +193,55 @@ Deno.serve(async (request: Request) => {
         input: JSON.stringify(caseContext),
         max_output_tokens: 900,
         store: false,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "samanvay_case_assessment",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                summary: { type: "string" },
+                category: {
+                  type: "string",
+                  enum: [
+                    "road_reconstruction", "water_supply", "sewerage",
+                    "stormwater_drainage", "electricity", "telecom", "gas",
+                    "borewell_groundwater", "building_planning",
+                    "public_health_engineering", "other"
+                  ]
+                },
+                priority_band: {
+                  type: "string",
+                  enum: ["routine", "elevated", "urgent_human_review"]
+                },
+                suggested_departments: {
+                  type: "array",
+                  items: { type: "string" }
+                },
+                coordination_flags: {
+                  type: "array",
+                  items: { type: "string" }
+                },
+                missing_information: {
+                  type: "array",
+                  items: { type: "string" }
+                },
+                recommended_checks: {
+                  type: "array",
+                  items: { type: "string" }
+                },
+                confidence: { type: "number" }
+              },
+              required: [
+                "summary", "category", "priority_band", "suggested_departments",
+                "coordination_flags", "missing_information", "recommended_checks",
+                "confidence"
+              ]
+            }
+          }
+        },
       }),
     });
 
