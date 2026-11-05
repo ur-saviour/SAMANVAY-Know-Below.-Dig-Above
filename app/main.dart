@@ -3317,7 +3317,7 @@ class _MapLocationPickerPageState
     final controller = _controller;
     if (controller == null || _locating) return;
     final granted = await _ensureLocationPermission();
-    if (!granted) return;
+    if (!mounted || !granted) return;
 
     setState(() => _locating = true);
 
@@ -3878,7 +3878,17 @@ class _MapPageState extends State<MapPage> {
     }
 
     if (permission.isPermanentlyDenied || permission.isRestricted) {
-      _showMessage('Location permission is blocked. Enable it in Android app settings to use GPS.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
     } else {
       _showMessage('Location permission is required to centre the map on your device. You can continue browsing without GPS.');
     }
