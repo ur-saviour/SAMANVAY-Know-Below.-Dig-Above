@@ -4565,6 +4565,117 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
     }
   }
 
+  Future<void> _runCoordinationCheck() async {
+    try {
+      final raw = await supabase.rpc(
+        'run_request_coordination_check',
+        params: {'p_request_id': widget.requestId},
+      );
+      final result = Map<String, dynamic>.from(raw as Map);
+      final possibleOverlap = result['possible_overlap'] == true;
+      final status = (result['assessment_status'] ?? '').toString();
+      final advisory = (result['advisory'] ?? 'No assessment details returned.').toString();
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            possibleOverlap ? Icons.warning_amber_rounded : Icons.info_outline,
+            color: possibleOverlap ? Colors.deepOrange : const Color(0xFF087F83),
+            size: 34,
+          ),
+          title: Text(
+            possibleOverlap
+                ? 'Possible recorded utility proximity'
+                : status == 'completed'
+                    ? 'No recorded overlap detected'
+                    : 'Coordination check incomplete',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(advisory),
+                const SizedBox(height: 12),
+                const Text(
+                  'This check uses only the records currently available to SAMANVAY. It is not a utility-location certificate, permit, site clearance or guarantee of safety. Obtain clearance from utility owners and complete required field verification before work.',
+                  style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Understood'),
+            ),
+          ],
+        ),
+      );
+    } on PostgrestException catch (e) {
+      _toast('Coordination check unavailable: ${e.message}');
+    } catch (_) {
+      _toast('Unable to run the coordination check. Confirm the case location, work radius and access permissions.');
+    }
+  }
+
+  Future<void> _viewCoordinationChecks() async {
+    try {
+      final raw = await supabase.from('case_coordination_checks')
+          .select('assessment_status,possible_overlap,advisory,checked_at')
+          .eq('request_id', widget.requestId)
+          .order('checked_at', ascending: false);
+      if (!mounted) return;
+      final checks = List<Map<String, dynamic>>.from(raw);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * 0.62,
+            child: checks.isEmpty
+                ? const Center(child: Text('No coordination checks have been run for this case.'))
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const Text('COORDINATION CHECK HISTORY',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      ...checks.map((item) {
+                        final overlap = item['possible_overlap'] == true;
+                        final date = DateTime.tryParse(item['checked_at']?.toString() ?? '');
+                        final dateLabel = date == null
+                            ? ''
+                            : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+                        return Card(
+                          child: ListTile(
+                            leading: Icon(
+                              overlap ? Icons.warning_amber_rounded : Icons.fact_check_outlined,
+                              color: overlap ? Colors.deepOrange : const Color(0xFF087F83),
+                            ),
+                            title: Text(overlap
+                                ? 'Possible recorded overlap'
+                                : (item['assessment_status'] == 'completed'
+                                    ? 'No recorded overlap detected'
+                                    : 'Check incomplete')),
+                            subtitle: Text('${item['advisory'] ?? ''}\n$dateLabel'),
+                            isThreeLine: true,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load coordination-check history.');
+    }
+  }
+
   Future<void> _reviewAiAssessment(String assessmentId, String decision) async {
     final user = supabase.auth.currentUser;
     if (user == null || !['admin', 'coordinator'].contains(_role)) return;
@@ -4735,6 +4846,8 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
             onSelected: (v) {
               if (v == 'upload') _upload();
               if (v == 'view') _viewEvidence();
+              if (v == 'run_check') _runCoordinationCheck();
+              if (v == 'check_history') _viewCoordinationChecks();
               if (v == 'inspection') _addInspection();
               if (v == 'inspections') _viewInspections();
               if (v == 'timeline') _viewTimeline();
@@ -4743,6 +4856,8 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
               const PopupMenuItem(value: 'view', child: Text('View evidence')),
+              const PopupMenuItem(value: 'run_check', child: Text('Run utility coordination check')),
+              const PopupMenuItem(value: 'check_history', child: Text('View coordination-check history')),
               const PopupMenuItem(value: 'inspections', child: Text('View inspections')),
               const PopupMenuItem(value: 'timeline', child: Text('Case activity history')),
               if (_staff) ...[
