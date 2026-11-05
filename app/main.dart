@@ -4171,7 +4171,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       final row = await supabase.from('profiles').select('role')
         .eq('id', user.id).maybeSingle();
       final role = (row?['role'] ?? '').toString();
-      if (mounted) setState(() => _staff = ['admin','coordinator','department'].contains(role));
+      if (mounted) {
+        setState(() => _staff = ['admin','coordinator','department'].contains(role));
+      }
     } catch (_) {}
   }
 
@@ -4197,7 +4199,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       });
       _message.clear();
     } on PostgrestException catch (e) {
-      _toast('Message not sent: ' + e.message);
+      _toast('Message not sent: ${e.message}');
     } catch (_) {
       _toast('Unable to send message. Check your case access and connection.');
     } finally {
@@ -4209,21 +4211,21 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
     final user = supabase.auth.currentUser;
     if (user == null || _uploading) return;
     try {
-      final selection = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
-        withData: true, allowMultiple: false,
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
       );
-      if (selection == null || selection.files.isEmpty) return;
-      final file = selection.files.single;
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty) {
+      if (file == null) return;
+      final fileSize = file.lengthSync() ?? await file.length();
+      if (fileSize == null || fileSize <= 0) {
         _toast('Unable to read that file. Select it again.');
         return;
       }
-      if (bytes.length > 20 * 1024 * 1024) {
+      if (fileSize > 20 * 1024 * 1024) {
         _toast('Evidence files must be 20 MB or smaller.');
         return;
       }
+      final bytes = await file.readAsBytes();
       final ext = (file.extension ?? '').toLowerCase();
       final mime = switch (ext) {
         'jpg' || 'jpeg' => 'image/jpeg',
@@ -4237,8 +4239,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         return;
       }
       final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll('..', '_');
-      final path = widget.requestId + '/' + user.id + '/' +
-        DateTime.now().microsecondsSinceEpoch.toString() + '_' + safeName;
+      final path = '${widget.requestId}/${user.id}/${DateTime.now().microsecondsSinceEpoch}_$safeName';
       setState(() => _uploading = true);
       await supabase.storage.from(_bucket).uploadBinary(
         path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false));
@@ -4246,7 +4247,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         await supabase.from('case_attachments').insert({
           'request_id': widget.requestId, 'storage_path': path,
           'file_name': file.name, 'content_type': mime,
-          'file_size_bytes': bytes.length,
+          'file_size_bytes': fileSize, 
           'attachment_type': mime == 'application/pdf' ? 'survey_evidence' : 'site_photo',
           'uploaded_by': user.id,
         });
@@ -4256,7 +4257,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       }
       _toast('Evidence uploaded to the private case record.');
     } on PostgrestException catch (e) {
-      _toast('Evidence was not recorded: ' + e.message);
+      _toast('Evidence was not recorded: ${e.message}');
     } catch (_) {
       _toast('Upload failed. Check case access and supported file type.');
     } finally {
@@ -4294,7 +4295,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                             leading: Icon(item['content_type'] == 'application/pdf'
                               ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
                             title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(kb.toStringAsFixed(1) + ' KB · Private file'),
+                            subtitle: Text('$kb KB · Private file'),
                             trailing: IconButton(
                               icon: const Icon(Icons.open_in_new),
                               onPressed: () async {
@@ -4333,7 +4334,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               DropdownButtonFormField<String>(
-                value: type, isExpanded: true,
+                initialValue: type, isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Inspection type'),
                 items: const [
                   DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
@@ -4343,10 +4344,10 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                   DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
                   DropdownMenuItem(value: 'other', child: Text('Other')),
                 ],
-                onChanged: (v) { if (v != null) setDialog(() => type = v); },
+                onChanged: (v) { if (v != null) { setDialog(() => type = v); } },
               ),
               DropdownButtonFormField<String>(
-                value: outcome, isExpanded: true,
+                initialValue: outcome, isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Outcome'),
                 items: const [
                   DropdownMenuItem(value: 'pass', child: Text('Pass')),
@@ -4354,7 +4355,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                   DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
                   DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
                 ],
-                onChanged: (v) { if (v != null) setDialog(() => outcome = v); },
+                onChanged: (v) { if (v != null) { setDialog(() => outcome = v); } },
               ),
               const SizedBox(height: 10),
               TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
@@ -4369,7 +4370,10 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         ),
       ),
     );
-    if (submit != true) { notes.dispose(); return; }
+    if (submit != true) {
+      notes.dispose();
+      return;
+    }
     try {
       await supabase.from('case_inspections').insert({
         'request_id': widget.requestId, 'inspection_type': type,
@@ -4377,7 +4381,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       });
       _toast('Inspection saved.');
     } on PostgrestException catch (e) {
-      _toast('Inspection not saved: ' + e.message);
+      _toast('Inspection not saved: ${e.message}');
     } catch (_) {
       _toast('Unable to save inspection. Confirm the case is assigned to your department.');
     } finally {
@@ -4399,6 +4403,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         return;
       }
       final assessment = Map<String,dynamic>.from(data['assessment'] as Map);
+      final category = (assessment['category'] ?? 'Not provided').toString();
+      final priority = (assessment['priority_band'] ?? 'Not provided').toString();
+      final confidence = (assessment['confidence'] ?? 'Not provided').toString();
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -4409,9 +4416,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
               Text((assessment['summary'] ?? 'No summary returned.').toString(),
                 style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
-              Text('Category: ' + (assessment['category'] ?? 'Not provided').toString()),
-              Text('Priority suggestion: ' + (assessment['priority_band'] ?? 'Not provided').toString()),
-              Text('Confidence: ' + (assessment['confidence'] ?? 'Not provided').toString()),
+              Text('Category: $category'),
+              Text('Priority suggestion: $priority'),
+              Text('Confidence: $confidence'),
               _arrayText('Suggested departments', assessment['suggested_departments']),
               _arrayText('Coordination flags', assessment['coordination_flags']),
               _arrayText('Missing information', assessment['missing_information']),
@@ -4425,7 +4432,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         ),
       );
     } on FunctionException catch (e) {
-      _toast('AI service unavailable: ' + (e.reasonPhrase ?? e.status.toString()));
+      _toast('AI service unavailable: ${e.reasonPhrase ?? e.status.toString()}');
     } catch (_) {
       _toast('AI assessment failed. Check Edge Function and provider configuration.');
     } finally {
@@ -4440,7 +4447,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       padding: const EdgeInsets.only(top: 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ...items.map((x) => Padding(padding: const EdgeInsets.only(left: 8, top: 3), child: Text('• ' + x))),
+        ...items.map((x) => Padding(padding: const EdgeInsets.only(left: 8, top: 3), child: Text('• $x'))),
       ]),
     );
   }
@@ -4448,8 +4455,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
   Widget _bubble(Map<String,dynamic> item, String? uid) {
     final mine = item['sender_id']?.toString() == uid;
     final when = DateTime.tryParse(item['created_at']?.toString() ?? '');
-    final time = when == null ? '' :
-      when.hour.toString().padLeft(2,'0') + ':' + when.minute.toString().padLeft(2,'0');
+    final hour = when?.hour.toString().padLeft(2,'0') ?? '';
+    final minute = when?.minute.toString().padLeft(2,'0') ?? '';
+    final time = when == null ? '' : '$hour:$minute';
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -4605,16 +4613,19 @@ class _NotificationsPageState extends State<NotificationsPage> {
           final rows = snapshot.data!;
           final unread = rows.where((x) => x['read_at'] == null).length;
           if (rows.isEmpty) return const Center(child: Text('You are all caught up.'));
+          final total = rows.length;
           return ListView(padding: const EdgeInsets.all(14), children: [
-            Text(unread.toString() + ' unread · ' + rows.length.toString() + ' total',
+            Text('$unread unread · $total total',
               style: const TextStyle(color: mutedInk, fontSize: 12, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             ...rows.map((item) {
               final fresh = item['read_at'] == null;
               final date = DateTime.tryParse(item['created_at']?.toString() ?? '');
-              final dateText = date == null ? '' :
-                date.day.toString().padLeft(2,'0') + '/' +
-                date.month.toString().padLeft(2,'0') + '/' + date.year.toString();
+              final day = date?.day.toString().padLeft(2,'0') ?? '';
+              final month = date?.month.toString().padLeft(2,'0') ?? '';
+              final year = date?.year.toString() ?? '';
+              final dateText = date == null ? '' : '$day/$month/$year';
+              final notificationBody = (item['body'] ?? '').toString();
               final type = (item['notification_type'] ?? '').toString();
               final icon = switch (type) {
                 'assignment' => Icons.account_tree_outlined,
@@ -4631,7 +4642,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     child: Icon(icon, color: const Color(0xFF087F83))),
                   title: Text(item['title']?.toString() ?? 'SAMANVAY update',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text((item['body'] ?? '').toString() + '\n' + dateText),
+                  subtitle: Text('$notificationBody\n$dateText'),
                   isThreeLine: true,
                   trailing: fresh
                     ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
