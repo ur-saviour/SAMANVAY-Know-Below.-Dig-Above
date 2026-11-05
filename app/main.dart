@@ -7,6 +7,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -3262,6 +3263,7 @@ class _MapLocationPickerPageState
   MapLibreMapController? _controller;
   bool _ready = false;
   bool _locating = false;
+  bool _hasLocationPermission = false;
 
   static const String _style =
       'https://tiles.openfreemap.org/styles/liberty';
@@ -3283,9 +3285,39 @@ class _MapLocationPickerPageState
     }
   }
 
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _message('Location permission is needed only to centre the map on your device. You can still select a location manually.');
+    }
+    return false;
+  }
+
   Future<void> _goToCurrentLocation() async {
     final controller = _controller;
-    if (controller == null) return;
+    if (controller == null || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!granted) return;
 
     setState(() => _locating = true);
 
@@ -3379,7 +3411,7 @@ class _MapLocationPickerPageState
               ),
               onMapCreated: _onMapCreated,
               onStyleLoadedCallback: _onStyleLoaded,
-              myLocationEnabled: true,
+              myLocationEnabled: _hasLocationPermission,
               compassEnabled: true,
               logoEnabled: true,
               rotateGesturesEnabled: true,
@@ -3510,6 +3542,7 @@ class _MapPageState extends State<MapPage> {
   bool _canViewUtilityOverview = false;
   bool _loadingLayers = false;
   bool _locating = false;
+  bool _hasLocationPermission = false;
   int _requestMarkerCount = 0;
   int _utilityCellCount = 0;
   String _layerStatus =
@@ -3834,9 +3867,29 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      _showMessage('Location permission is blocked. Enable it in Android app settings to use GPS.');
+    } else {
+      _showMessage('Location permission is required to centre the map on your device. You can continue browsing without GPS.');
+    }
+    return false;
+  }
+
   Future<void> _goToMyLocation() async {
     final controller = _controller;
     if (controller == null || !_styleReady || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!granted) return;
 
     setState(() => _locating = true);
     try {
@@ -4091,7 +4144,7 @@ class _MapPageState extends State<MapPage> {
               ),
               onMapCreated: _onMapCreated,
               onStyleLoadedCallback: _onStyleLoaded,
-              myLocationEnabled: true,
+              myLocationEnabled: _hasLocationPermission,
               myLocationTrackingMode: MyLocationTrackingMode.none,
               compassEnabled: true,
               logoEnabled: true,
