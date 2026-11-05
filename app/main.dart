@@ -3767,7 +3767,7 @@ class _MapPageState extends State<MapPage> {
     try {
       final uri = Uri.https(
         'api.maptiler.com',
-        '/geocoding/${Uri.encodeComponent(query)}.json',
+        '/geocoding/$query.json',
         {
           'key': _mapTilerKey,
           'limit': '6',
