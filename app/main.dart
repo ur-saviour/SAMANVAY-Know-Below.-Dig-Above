@@ -292,6 +292,8 @@ class _OperationalPortal extends StatefulWidget {
 }
 
 class _OperationalPortalState extends State<_OperationalPortal> {
+  StreamSubscription<List<Map<String, dynamic>>>? _requestEvents;
+  StreamSubscription<List<Map<String, dynamic>>>? _reviewEvents;
   List<Map<String, dynamic>> requests = [];
   List<Map<String, dynamic>> departments = [];
   Map<String, List<Map<String, dynamic>>> reviewsByRequest = {};
@@ -303,6 +305,34 @@ class _OperationalPortalState extends State<_OperationalPortal> {
   void initState() {
     super.initState();
     loadRequests();
+    _startRealtimeUpdates();
+  }
+
+  void _startRealtimeUpdates() {
+    _requestEvents = supabase
+        .from('excavation_requests')
+        .stream(primaryKey: ['id'])
+        .listen((_) {
+      if (mounted) loadRequests();
+    }, onError: (_) {
+      if (mounted) notify('Live case updates are temporarily unavailable.');
+    });
+
+    _reviewEvents = supabase
+        .from('request_department_reviews')
+        .stream(primaryKey: ['id'])
+        .listen((_) {
+      if (mounted) loadRequests();
+    }, onError: (_) {
+      if (mounted) notify('Live department-review updates are temporarily unavailable.');
+    });
+  }
+
+  @override
+  void dispose() {
+    _requestEvents?.cancel();
+    _reviewEvents?.cancel();
+    super.dispose();
   }
 
   void notify(String message) {
@@ -2342,6 +2372,7 @@ class RequestsPage extends StatefulWidget {
 }
 
 class _RequestsPageState extends State<RequestsPage> {
+  StreamSubscription<List<Map<String, dynamic>>>? _requestEvents;
   List<Map<String, dynamic>> requests = [];
   bool loading = true;
   String? errorMessage;
@@ -2351,6 +2382,33 @@ class _RequestsPageState extends State<RequestsPage> {
   void initState() {
     super.initState();
     loadRequests();
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      _requestEvents = supabase
+          .from('excavation_requests')
+          .stream(primaryKey: ['id'])
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false)
+          .listen((rows) {
+        if (!mounted) return;
+        setState(() {
+          requests = List<Map<String, dynamic>>.from(rows);
+          loading = false;
+          errorMessage = null;
+        });
+      }, onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          errorMessage = 'Live updates are unavailable. Use refresh to retry.';
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _requestEvents?.cancel();
+    super.dispose();
   }
 
   Future<void> loadRequests() async {
