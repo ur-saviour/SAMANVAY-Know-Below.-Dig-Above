@@ -115,6 +115,7 @@ jobs:
           flutter pub add url_launcher
           flutter pub add file_picker
           flutter pub add permission_handler
+          flutter pub add http
           flutter pub get
 
       # 6. Check Dart code
