@@ -12,7 +12,7 @@
 | Tamil Nadu groundwater telemetry (2026–2030) | NWDP / NWIC dataset produced by Tamil Nadu Surface Water and Ground Water Departments; resource metadata says “Other (Open)” | 21 Coimbatore district station points with latest available observation and timestamp | Separate switchable GIS point layer | Monitoring stations and measurements only; not borewell register, pipes or cables |
 
 Existing assets:
-- `app/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`
+- `assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`
 - `assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson`
 
 ## New source index committed in this change
