@@ -12,7 +12,7 @@ This feature is intended to reduce incomplete reinstatement, repeated road failu
 2. The officer links a restoration record to an accessible infrastructure case and identifies the responsible department.
 3. The record captures surface type, optional cut/restored dimensions, method, planned date and quality notes.
 4. The officer progresses the record through planned, in progress and awaiting inspection.
-5. The authorised inspection outcome is recorded as accepted or rework required. The app also writes the inspection outcome to `public.case_inspections` as a post-work inspection event.
+5. The authorised inspection outcome is recorded as accepted or rework required. `public.save_road_restoration_record` writes the restoration record and any changed post-work inspection event to `public.case_inspections` atomically in one transaction.
 6. The restoration record remains visible to the requester and authorised staff. Rework can be recorded and tracked rather than silently marked complete. The save path uses a single `SECURITY INVOKER` RPC so the restoration upsert and any changed post-work inspection event commit atomically.
 
 ## Acceptance controls
@@ -55,7 +55,7 @@ The database remains the authority for permissions. The Flutter UI only presents
 
 A restoration board appears on the department, coordinator and admin operational dashboards. It loads the latest 100 records, supports refresh, and provides a record/update form. Department users are limited to their assigned department; coordinator/admin users can select from departments and cases returned by their permissions.
 
-A changed inspection outcome is additionally logged in `public.case_inspections` using the existing post-work inspection workflow.
+The atomic save RPC records a changed inspection outcome in `public.case_inspections`; the client no longer performs a second, separate write.
 
 ## Validation and current data status
 
