@@ -13,7 +13,7 @@ This feature is intended to reduce incomplete reinstatement, repeated road failu
 3. The record captures surface type, optional cut/restored dimensions, method, planned date and quality notes.
 4. The officer progresses the record through planned, in progress and awaiting inspection.
 5. The authorised inspection outcome is recorded as accepted or rework required. The app also writes the inspection outcome to `public.case_inspections` as a post-work inspection event.
-6. The restoration record remains visible to the requester and authorised staff. Rework can be recorded and tracked rather than silently marked complete.
+6. The restoration record remains visible to the requester and authorised staff. Rework can be recorded and tracked rather than silently marked complete. The save path uses a single `SECURITY INVOKER` RPC so the restoration upsert and any changed post-work inspection event commit atomically.
 
 ## Acceptance controls
 
@@ -61,7 +61,8 @@ A changed inspection outcome is additionally logged in `public.case_inspections`
 
 - Supabase confirms the table exists with RLS enabled and the three intended SELECT, INSERT and UPDATE policies.
 - Database check constraints enforce acceptance gates and inspection/status consistency.
-- The acceptance gate was tested inside a transaction using an existing assigned request/department pair; the test transaction is rolled back and creates no permanent case data.
+- The acceptance gate and atomic save RPC were tested as an authenticated admin inside a transaction: a planned record was saved, advanced to accepted, then saved again; exactly one post-work inspection event and a completion timestamp were observed. The test transaction was rolled back and creates no permanent case data.
+- The RPC is `SECURITY INVOKER`, uses the caller's RLS permissions, revokes execution from `PUBLIC` and `anon`, and grants execution only to `authenticated`.
 - The live restoration table currently contains zero rows. Records appear only after authorised staff enter real work information.
 - The current v1 form does not generate engineering certification and does not automatically infer road dimensions or surface condition from imagery.
 - Photos and reports can use the existing case evidence workflow; dedicated evidence controls are not yet embedded inside this restoration panel.
