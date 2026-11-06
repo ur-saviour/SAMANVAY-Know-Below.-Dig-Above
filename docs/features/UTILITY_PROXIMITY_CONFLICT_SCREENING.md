@@ -47,6 +47,7 @@ A transaction-based QA test inserted one temporary verified asset and one tempor
 - A department user could screen a request assigned directly to its department; a request assigned to another department was rejected.
 - A requester-role call was rejected.
 - All temporary test rows were rolled back.
+- A separate empty-registry test returned `unavailable_no_verified_assets` from the map advisory RPC and `unavailable` from the existing coordination-check RPC; no test assets or request rows were retained.
 
 ## Release checklist
 
