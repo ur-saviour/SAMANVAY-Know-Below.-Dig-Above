@@ -2329,6 +2329,7 @@ class _MainScreenState extends State<MainScreen> {
     RequestsPage(),
     MapPage(),
     NotificationsPage(),
+    IndiaCoverageExplorerPage(),
     ProfilePage(),
   ];
 
@@ -2366,6 +2367,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.notifications_outlined),
             selectedIcon: Icon(Icons.notifications),
             label: 'Alerts',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.public_outlined),
+            selectedIcon: Icon(Icons.public),
+            label: 'India',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
@@ -4269,6 +4275,7 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
   }
 }
 
+
 class NationalDataCoverageBoard extends StatefulWidget {
   const NationalDataCoverageBoard({super.key});
   @override
@@ -4288,7 +4295,8 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
     setState(() { loading = true; errorMessage = ''; });
     try {
       final rows = await supabase.from('india_data_coverage')
-          .select('data_domain,coverage_status,operational_use_allowed,telemetry_records_imported,telemetry_status').limit(200);
+          .select('state_ut_id,data_domain,coverage_status,operational_use_allowed,telemetry_records_imported,telemetry_status')
+          .limit(1000);
       if (!mounted) return;
       setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
     } catch (_) {
@@ -4299,6 +4307,7 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
 
   Widget _domainSummary(String domain, String label) {
     final items = records.where((r) => r['data_domain']?.toString() == domain).toList();
+    final jurisdictions = items.map((r) => r['state_ut_id']?.toString()).whereType<String>().toSet().length;
     final operational = items.where((r) => r['operational_use_allowed'] == true).length;
     final statuses = <String, int>{};
     for (final row in items) {
@@ -4314,8 +4323,10 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy)),
         const SizedBox(height: 5),
-        Text('${items.length} of 36 jurisdictions mapped · $operational enabled for operational use', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
-        if (domain == 'groundwater') Text('State-level telemetry records attributed in coverage matrix: $imported', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        Text(jurisdictions.toString() + ' of 36 jurisdictions have a coverage row · ' +
+          operational.toString() + ' operationally authorised', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        if (domain == 'groundwater') Text('State-level telemetry records attributed in coverage matrix: ' + imported.toString(),
+          style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
         const SizedBox(height: 5),
         ...statuses.entries.map((e) => Padding(padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(children: [
@@ -4333,20 +4344,403 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
         const Expanded(child: Text('India-wide data readiness', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
         IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh national coverage matrix'),
       ]),
-      const Text('36 States / UTs · three national data domains', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+      const Text('36 States / UTs · 10 infrastructure domains · authority verification tracked', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
       if (loading) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
       else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
       else ...[
         _domainSummary('groundwater', 'Groundwater'),
         _domainSummary('utility_gis', 'Underground utility GIS'),
         _domainSummary('building_approvals', 'Building approvals'),
+        _domainSummary('road_right_of_way', 'Roads and right-of-way'),
+        _domainSummary('water_supply', 'Drinking-water supply'),
+        _domainSummary('sewerage_wastewater', 'Sewerage and wastewater'),
+        _domainSummary('stormwater_drainage', 'Stormwater drainage'),
+        _domainSummary('electricity_distribution', 'Electricity distribution'),
+        _domainSummary('telecom_fibre', 'Telecom and fibre'),
+        _domainSummary('city_gas', 'City gas distribution'),
         const SizedBox(height: 8),
-        const Text('A mapped portal is not an imported dataset. Operational use remains disabled until the responsible authority supplies and validates the underlying records.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        const Text('A portal reference or imported public record does not establish a complete or current asset inventory. Operational use remains disabled until the responsible authority validates the relevant records.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const IndiaCoverageExplorerPage(),
+          )),
+          icon: const Icon(Icons.public),
+          label: const Text('OPEN INDIA-WIDE COVERAGE EXPLORER'),
+        )),
       ],
     ])));
 }
 
+class IndiaCoverageExplorerPage extends StatefulWidget {
+  const IndiaCoverageExplorerPage({super.key});
+  @override
+  State<IndiaCoverageExplorerPage> createState() => _IndiaCoverageExplorerPageState();
+}
 
+class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
+  List<Map<String, dynamic>> states = [];
+  List<Map<String, dynamic>> coverage = [];
+  bool loading = true;
+  String errorMessage = '';
+  String searchText = '';
+  String? selectedStateId;
+  String selectedDomain = 'all';
+
+  static const Map<String, String> domainLabels = {
+    'all': 'All infrastructure domains',
+    'groundwater': 'Groundwater',
+    'utility_gis': 'Underground utility GIS',
+    'building_approvals': 'Building approvals',
+    'road_right_of_way': 'Roads and right-of-way',
+    'water_supply': 'Drinking-water supply',
+    'sewerage_wastewater': 'Sewerage and wastewater',
+    'stormwater_drainage': 'Stormwater drainage',
+    'electricity_distribution': 'Electricity distribution',
+    'telecom_fibre': 'Telecom and fibre',
+    'city_gas': 'City gas distribution',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rawStates = await supabase.from('india_state_uts')
+          .select('id,name,jurisdiction_type').order('name').limit(100);
+      final rawCoverage = await supabase.from('india_data_coverage')
+          .select('state_ut_id,data_domain,responsible_authority,official_portal_url,national_source_url,coverage_status,data_granularity,operational_use_allowed,last_checked_at,notes,telemetry_resource_count,telemetry_records_imported,telemetry_source_records,telemetry_status')
+          .limit(1000);
+      if (!mounted) return;
+      setState(() {
+        states = List<Map<String, dynamic>>.from(rawStates);
+        coverage = List<Map<String, dynamic>>.from(rawCoverage);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Coverage records could not be loaded for this account. Refresh or check the account permissions.';
+      });
+    }
+  }
+
+  String _domainLabel(String domain) => domainLabels[domain] ?? domain.replaceAll('_', ' ');
+
+  List<Map<String, dynamic>> _rowsFor(String stateId) {
+    final rows = coverage.where((row) {
+      final sameState = row['state_ut_id']?.toString() == stateId;
+      final sameDomain = selectedDomain == 'all' || row['data_domain']?.toString() == selectedDomain;
+      return sameState && sameDomain;
+    }).toList();
+    rows.sort((a, b) => _domainLabel(a['data_domain'].toString())
+        .compareTo(_domainLabel(b['data_domain'].toString())));
+    return rows;
+  }
+
+  String _statusLabel(Map<String, dynamic> row) {
+    if (row['operational_use_allowed'] == true) return 'OPERATIONAL AUTHORISED';
+    final status = (row['coverage_status'] ?? '').toString().toLowerCase();
+    if (status.contains('partial')) return 'PARTIAL REGISTER';
+    if (status.contains('imported')) return 'IMPORTED · REVIEW REQUIRED';
+    if (status.contains('identified')) return 'PORTAL IDENTIFIED';
+    return 'AUTHORITY DATA PENDING';
+  }
+
+  Color _statusBackground(Map<String, dynamic> row) {
+    if (row['operational_use_allowed'] == true) return const Color(0xFFE4F4E9);
+    final status = (row['coverage_status'] ?? '').toString().toLowerCase();
+    if (status.contains('partial')) return const Color(0xFFFFF0D7);
+    if (status.contains('imported')) return const Color(0xFFE6F0FB);
+    if (status.contains('identified')) return const Color(0xFFEAF4F4);
+    return const Color(0xFFF0F2F5);
+  }
+
+  Color _statusForeground(Map<String, dynamic> row) {
+    if (row['operational_use_allowed'] == true) return const Color(0xFF216B3B);
+    final status = (row['coverage_status'] ?? '').toString().toLowerCase();
+    if (status.contains('partial')) return const Color(0xFF8A5A00);
+    if (status.contains('imported')) return const Color(0xFF285B8F);
+    if (status.contains('identified')) return const Color(0xFF176B6D);
+    return const Color(0xFF526071);
+  }
+
+  Future<void> _openSource(String? value) async {
+    final raw = value?.trim() ?? '';
+    final uri = Uri.tryParse(raw);
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+      _message('No verified source link is recorded for this item.');
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) _message('The source portal could not be opened.');
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE4EAF1)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: const Color(0xFF087F83)),
+        const SizedBox(width: 7),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 10, color: mutedInk)),
+      ]),
+    );
+  }
+
+  Widget _coverageRow(Map<String, dynamic> row) {
+    final domain = (row['data_domain'] ?? '').toString();
+    final status = _statusLabel(row);
+    final authority = (row['responsible_authority'] ?? 'Authority not yet confirmed').toString();
+    final granularity = (row['data_granularity'] ?? '').toString();
+    final notes = (row['notes'] ?? '').toString();
+    final nationalUrl = row['national_source_url']?.toString();
+    final portalUrl = row['official_portal_url']?.toString();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7EDF2)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Text(_domainLabel(domain),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(color: _statusBackground(row), borderRadius: BorderRadius.circular(8)),
+            child: Text(status, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: _statusForeground(row))),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        const Text('RESPONSIBLE AUTHORITY / CUSTODIAN',
+          style: TextStyle(fontSize: 8, letterSpacing: .6, fontWeight: FontWeight.w900, color: mutedInk)),
+        const SizedBox(height: 3),
+        Text(authority, style: const TextStyle(fontSize: 11, color: ink, height: 1.35)),
+        if (granularity.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text('DATA EXPECTED',
+            style: TextStyle(fontSize: 8, letterSpacing: .6, fontWeight: FontWeight.w900, color: mutedInk)),
+          const SizedBox(height: 3),
+          Text(granularity, style: const TextStyle(fontSize: 10, color: mutedInk, height: 1.35)),
+        ],
+        if (notes.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(notes, style: const TextStyle(fontSize: 10, color: mutedInk, height: 1.35)),
+        ],
+        if ((nationalUrl != null && nationalUrl.isNotEmpty) || (portalUrl != null && portalUrl.isNotEmpty)) ...[
+          const SizedBox(height: 5),
+          Wrap(spacing: 4, children: [
+            if (nationalUrl != null && nationalUrl.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => _openSource(nationalUrl),
+                icon: const Icon(Icons.public, size: 14),
+                label: const Text('National source', style: TextStyle(fontSize: 10)),
+              ),
+            if (portalUrl != null && portalUrl.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => _openSource(portalUrl),
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: const Text('State / local portal', style: TextStyle(fontSize: 10)),
+              ),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  Widget _jurisdictionCard(Map<String, dynamic> state) {
+    final stateId = state['id'].toString();
+    final rows = _rowsFor(stateId);
+    final authorised = rows.where((row) => row['operational_use_allowed'] == true).length;
+    final kind = (state['jurisdiction_type'] ?? 'jurisdiction').toString() == 'state'
+        ? 'STATE' : 'UNION TERRITORY';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: ExpansionTile(
+        initiallyExpanded: selectedStateId == stateId,
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFE7F8F6),
+          child: Icon(kind == 'STATE' ? Icons.map_outlined : Icons.location_city_outlined,
+            color: const Color(0xFF087F83), size: 19),
+        ),
+        title: Text(state['name'].toString(),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
+        subtitle: Text(kind + ' · ' + rows.length.toString() + ' domain record(s) · ' +
+          authorised.toString() + ' operationally authorised',
+          style: const TextStyle(fontSize: 10, color: mutedInk)),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(children: rows.map(_coverageRow).toList()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredStates = states.where((state) {
+      final name = state['name'].toString().toLowerCase();
+      final matchesSearch = searchText.isEmpty || name.contains(searchText.toLowerCase());
+      final matchesSelected = selectedStateId == null || state['id'].toString() == selectedStateId;
+      return matchesSearch && matchesSelected;
+    }).toList();
+
+    final uniqueDomains = coverage.map((row) => row['data_domain']?.toString())
+        .whereType<String>().toSet().length;
+    final authorisedRows = coverage.where((row) => row['operational_use_allowed'] == true).length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('India-wide coverage'),
+        actions: [
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh coverage'),
+        ],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage.isNotEmpty
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.cloud_off_outlined, size: 42, color: Colors.blueGrey),
+                    const SizedBox(height: 12),
+                    Text(errorMessage, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+                  ]),
+                ))
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(15),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF0B1728), Color(0xFF14515E)],
+                            begin: Alignment.topLeft, end: Alignment.bottomRight),
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Icon(Icons.public, color: Colors.white, size: 28),
+                          SizedBox(height: 9),
+                          Text('NATIONAL INFRASTRUCTURE COVERAGE',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                          SizedBox(height: 6),
+                          Text('Explore official source coverage and data-readiness across every Indian State and Union Territory.',
+                            style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4)),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(spacing: 7, runSpacing: 7, children: [
+                        _metric('JURISDICTIONS', states.length.toString(), Icons.location_on_outlined),
+                        _metric('DATA DOMAINS', uniqueDomains.toString(), Icons.layers_outlined),
+                        _metric('OPERATIONAL', authorisedRows.toString(), Icons.verified_outlined),
+                        _metric('COVERAGE ROWS', coverage.length.toString(), Icons.storage_outlined),
+                      ]),
+                      const SizedBox(height: 15),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(13),
+                          child: Column(children: [
+                            TextField(
+                              onChanged: (value) => setState(() => searchText = value),
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.search),
+                                hintText: 'Search a State or Union Territory',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String?>(
+                              initialValue: selectedStateId,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Jurisdiction',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(value: null, child: Text('All India')),
+                                ...states.map((state) => DropdownMenuItem<String?>(
+                                  value: state['id'].toString(),
+                                  child: Text(state['name'].toString(), overflow: TextOverflow.ellipsis),
+                                )),
+                              ],
+                              onChanged: (value) => setState(() => selectedStateId = value),
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedDomain,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Infrastructure domain',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: domainLabels.entries.map((entry) => DropdownMenuItem<String>(
+                                value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                              )).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => selectedDomain = value);
+                              },
+                            ),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Showing ' + filteredStates.length.toString() + ' of ' + states.length.toString() + ' jurisdictions',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: mutedInk)),
+                      const SizedBox(height: 8),
+                      if (filteredStates.isEmpty)
+                        const Card(child: Padding(
+                          padding: EdgeInsets.all(18),
+                          child: Text('No State or Union Territory matches this search.'),
+                        ))
+                      else
+                        ...filteredStates.map(_jurisdictionCard),
+                      const SizedBox(height: 10),
+                      const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(13),
+                          child: Text(
+                            'DATA GOVERNANCE: This explorer records source discovery, coverage and verification status. It does not publish exact underground utility routes, depths or asset-point locations. Public-source presence is not an excavation permit or safety clearance; the responsible authority must confirm current records before field work.',
+                            style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
 
 class GroundwaterObservationBoard extends StatefulWidget {
   final List<Map<String, dynamic>> requests;
