@@ -3,91 +3,184 @@
 Last verified: 2026-11-06
 Scope: all 28 States and 8 Union Territories. National coverage is tracked separately from the completeness of local authority records.
 
-## 1. Groundwater — national aggregate coverage
+## Executive status
 
-### 2025 national assessment
-The existing SAMANVAY national assessment model contains 36 State/UT rows for assessment year 2025, linked to `public.india_state_uts`. A national summary row has also been recorded in `public.groundwater_national_summary`.
+- National jurisdiction master: all 36 States/UTs.
+- CGWB 2025 groundwater resource assessment: 36/36 State/UT aggregate records imported.
+- NWDP/CGWB 2021-2025 telemetry: 675,209 observations currently stored; 10 resource feeds complete, 21 partial, 31 catalogue resources not yet imported. The 14,249,309 advertised source rows are summed across 62 resources and are not a deduplicated national count.
+- Additional 199 district-level groundwater rows from seven State/UT CSV mirrors are stored in a separate reconciliation staging table; they are not cleared for official aggregation.
+- Utility GIS: 108 State/UT layer contracts plus 8 original Coimbatore pilot records (116 total); 115 are authority-data-pending and zero are enabled for operational excavation use.
+- Building approvals: 25 State/UT jurisdictions have an official portal or service-directory URL mapped; 11 still need an authority/ULB portal mapping. The approvals table contains zero imported approval records.
 
-National values (2025):
-- Total annual groundwater recharge: 448.52 BCM
-- Annual extractable groundwater resource: 407.75 BCM
-- Annual groundwater extraction: 247.22 BCM
-- Stage of groundwater extraction: 60.63%
-- Assessment units: 6,762
-- Over-exploited: 730; Critical: 201; Semi-critical: 758; Safe: 4,946; Saline: 127
+## 1. Groundwater
 
-Sources:
-- Ministry of Jal Shakti PIB PRID 2204095: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2204095&lang=1&reg=3
-- Official 2025 national compilation: https://www.jalshakti-dowr.gov.in/static/uploads/2025/11/711d8d476bbf498cd90f8038e7371227.pdf
+### National resource assessment — complete at State/UT aggregate level
+
+Source: Central Ground Water Board (CGWB), Ministry of Jal Shakti, National Compilation on Dynamic Ground Water Resources of India, 2025.
+
+- Official report: https://www.jalshakti-dowr.gov.in/static/uploads/2025/11/711d8d476bbf498cd90f8038e7371227.pdf
 - CGWB publication page: https://cgwb.gov.in/en/national-compilation-dynamic-ground-water-resources-india-2025
+- Ministry of Jal Shakti PIB release: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2204095&lang=1&reg=3
 
-The assessment table already held detailed state/UT rows. Duplicate rows created during source normalization were removed; existing rows and their more detailed fields were preserved. The new national summary is stored separately.
+The database contains 36 State/UT rows for assessment year 2025 in public.groundwater_state_assessments, linked to public.india_state_uts. The report's national summary is separately represented in public.groundwater_national_summary.
 
-### Monitoring station time series — partial national coverage
-Database verification found:
-- 304,123 groundwater station observations.
-- 30 distinct States/UTs represented.
-- 70 districts and 137 distinct station names.
-- Observation dates range from 2022-08-28 to 2025-12-31.
-- Source records point to NWIC/CGWB hourly telemetry resource pages.
+National report values:
+- Total annual groundwater recharge: 448.52 BCM.
+- Annual extractable groundwater resource: 407.75 BCM.
+- Annual groundwater extraction: 247.22 BCM.
+- Stage of extraction: 60.63%.
+- Assessment units: 6,762.
+- Over-exploited: 730; Critical: 201; Semi-critical: 758; Safe: 4,946; Saline: 127.
 
-Important completeness caveat: six jurisdictions currently have no station observations in the table: Andaman and Nicobar Islands, Dadra and Nagar Haveli and Daman and Diu, Ladakh, Lakshadweep, Puducherry and Sikkim. Several resource groups contain exactly 5,000 rows, indicating likely resource/page import caps; 304,123 rows must not be represented as the complete national telemetry archive. The import-run audit table currently has no corresponding completed run records. The existing observations are retained, but resource-by-resource reconciliation and audit logging remain necessary.
+The assessment was prepared jointly by CGWB and State/UT agencies. State/UT aggregate records are suitable for national comparative context; they are not live groundwater-level readings and do not replace block/assessment-unit classification or station time series.
 
-Official source catalogue:
-- Hourly telemetry: https://nwdp.nwic.gov.in/en/dataset/ground-water-level-telemetry-hourly-central-ground-water-board-cgwb
-- Six-hourly telemetry and quarterly manual measurements: https://nwdp.nwic.gov.in/dataset/?groups=water-quantity&organization=cgwb
-- Groundwater quality datasets: https://nwdp.nwic.gov.in/
+### NWDP/CGWB station telemetry — real nationwide data, partial import
 
-## 2. Utility GIS — national layer contracts and source programmes registered
+Official NWDP CKAN API and dataset pages:
+- Hourly telemetry: https://www.nwdp.nwic.gov.in/dataset/ground-water-level-telemetry-hourly-central-ground-water-board-cgwb
+- Six-hourly telemetry and manual quarterly groundwater monitoring: https://nwdp.nwic.gov.in/
 
-National GIS reference programmes:
-- NRSC/ISRO AMRUT urban GIS: base maps prepared for 238 cities across 20 States/UTs; NRSC reports 181 GIS databases finalized/delivered to ULBs.
-- National Urban Information System (NUIS): 1:10,000 urban geospatial databases for 152 towns.
-- Source: https://www.nrsc.gov.in/nrscnew/Apps_Urban_Apps.php?lang_code=en
+Current-period (2021-2025) resources catalogued:
+- 62 resource records.
+- Sum of advertised source row counts: 14,249,309 across those resource records. Some are alternative/agency feeds for a jurisdiction; this is not a deduplicated unique-observation count.
+- 10 resources completed, 21 partially imported, 31 discovered/not yet imported.
+- 675,209 station observations currently stored in public.groundwater_station_observations.
+- Observations currently represent 31 State/UT labels, 266 distinct station-name labels and 104 district-name labels.
 
-National layer contracts are registered in `gis.utility_layer_catalog` for:
-- City water distribution networks
-- Sewerage/underground drainage networks
-- Stormwater drainage networks
-- Urban base maps
+The ten resources currently complete are:
+- Assam — 160,859 rows.
+- Bihar — 52,998.
+- Jharkhand — 39,519.
+- Meghalaya — 36,117.
+- Manipur — 35,797.
+- Uttarakhand — 30,422.
+- Himachal Pradesh — 28,353.
+- Tripura — 19,465.
+- Arunachal Pradesh — 13,415.
+- Nagaland — 3,264.
 
-The national contracts do not prove that asset data has been received. Urban base maps are not utility pipe alignments. Operational-use flags remain disabled until the relevant authority provides asset-level geometry and required attributes.
+All other current-period resources retain their next_offset and import state in public.groundwater_source_resources. Five jurisdictions have no 2021-2025 resource identified in the current public NWDP search: Andaman and Nicobar Islands, Dadra and Nagar Haveli and Daman and Diu, Ladakh, Lakshadweep and Sikkim. This is a catalogue search result, not evidence that no groundwater monitoring is performed there.
 
-Still required from state water boards, sewerage boards, development authorities and ULBs: pipe alignments, manholes, diameters, depths, invert levels, asset IDs, commissioning/status fields, positional accuracy, metadata and written permission for operational use. Coverage will vary by jurisdiction.
+### Resumable ingestion implementation
 
-## 3. Building approvals — national framework registered; local records pending
+- Database function: public.import_nwdp_telemetry_page(resource_id, offset, limit).
+- It obtains records from the public NWDP CKAN API, maps station, State/District LGD codes, coordinates, acquisition time and water-level columns, then performs an idempotent upsert with a source-resource checkpoint.
+- GitHub runner: scripts/import_nwdp_telemetry.py.
+- GitHub Actions workflow: .github/workflows/import-nwdp-groundwater.yml.
+- The runner reuses the existing GitHub secrets SUPABASE_DB_HOST, SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD; it commits after each page so interrupted runs can resume.
+- The workflow is on feature/alpha-03-integrated-platform. It must be merged into the repository's default branch before standard workflow-dispatch access is available there.
 
-National integration references:
-- MoHUA / National Urban Digital Mission UPYOG Building Plan Approval reference application: https://www.nudm.mohua.gov.in/building-plan-approval/
+### District groundwater source extracts — staged, not aggregate-reconciled
+
+A public OpenCity CKAN mirror of CGWB-attributed 2025 district CSV extracts was identified for Delhi, Goa, Gujarat, Karnataka, Maharashtra, Tamil Nadu and Telangana:
+https://data.opencity.in/dataset/3e28a58b-22d4-4f6a-89ac-9738693eb745
+
+- 199 rows stored in public.groundwater_district_assessments across seven jurisdictions and 189 distinct district labels.
+- Resource identifiers, mirror URLs, official CGWB report URL and source-record identifiers are retained.
+- The source row values are held in a separate staging table with row_crosschecked_not_aggregated validation.
+- Sample rows were compared with the corresponding CGWB report annexure. However, district sums do not reconcile to the State/UT Annexure I totals and the mirror's numeric unit labelling is inconsistent. The rows are therefore marked source_report_scale_unreconciled and must not be summed into or presented as validated official State totals.
+- Full district/block classification imports from the CGWB report remain pending for the other jurisdictions and require reconciliation.
+
+## 2. Utility GIS — India-wide schema and authority coverage
+
+National geospatial coordination reference:
+- PM GatiShakti National Master Plan: https://staging1.pmgatishakti.gov.in/pmgatishakti/about_pmgati
+
+PM GatiShakti is a controlled, whole-of-government integration programme; it is not treated as a public downloadable national underground-pipe database.
+
+Current schema:
+- public.india_data_coverage: one utility GIS coverage record for every State/UT.
+- gis.utility_layer_catalog: 116 layer contracts in total, including 108 State/UT-specific contracts (water distribution, sewerage and stormwater for each of 36 jurisdictions) and the original Coimbatore pilot catalogue.
+- 115 entries are marked authority-data-pending; zero entries are enabled for operational use.
+
+Each layer contract defines expected feature geometry and fields such as asset ID, owner authority, material/type, diameter, depth, invert level, manhole/outfall reference, operational state, commissioning date and horizontal/vertical survey accuracy.
+
+No claim of national asset geometry completion is made. No authoritative all-India State/UT/ULB utility network export has been obtained. State water boards, municipal corporations, sewerage boards and local bodies hold different network datasets. For live excavation safety, require the owning authority's data, coordinate reference system, survey accuracy, depth datum, revision date and permission to use it. Roads, wards, waterbodies, schematic lines and satellite imagery are not substitutes for underground asset geometry.
+
+CCMC's public UGD source provides departmental/project context but not the complete current pipe/manhole GIS required for operational clearance.
+
+## 3. Building approvals — national portal mapping, authority records pending
+
+National reference:
+- MoHUA / National Urban Digital Mission UPYOG Building Plan Approval: https://www.nudm.mohua.gov.in/building-plan-approval/
 - National Government Services Portal: https://services.india.gov.in/
-- State/ULB portals such as CCMC AutoDCR are registered as jurisdiction-specific sources.
 
-UPYOG is a shared urban governance platform/reference application, not a single consolidated nationwide public approval register. Actual deployments, APIs, access rights and record publication vary by state and ULB.
+The 36-jurisdiction coverage matrix currently has 25 State/UT rows with a mapped official portal or service-directory entrypoint. Eleven jurisdictions still have no portal URL mapped: Arunachal Pradesh, Chandigarh, Himachal Pradesh, Lakshadweep, Manipur, Meghalaya, Mizoram, Nagaland, Puducherry, Tripura and Uttarakhand.
 
-The table `public.building_approval_records` is prepared for state, district and ULB-scoped approvals, including approval number/date/status, locality/ward/survey reference, approved floors/height, portal and verification status. Current imported record count is zero. No approval numbers, property identifiers or permitted floors have been fabricated.
+Examples of official portal references registered:
+- Andhra Pradesh — APDPMS 2.0: https://portal.apdpms.ap.gov.in/
+- Assam — OBPS: https://eservices.assam.gov.in/resources/homePage/18/obps/index.html
+- Bihar — UPYOG building plan service: https://upyog.bihar.gov.in/c/services/building-plan
+- Goa — BPAMS: https://www.bpams.goa.gov.in/
+- Gujarat — GIDC plan approval (GIDC estates only): https://www.gidc.gujarat.gov.in/Pages/Contents/application-for-plan-approval
+- Haryana — ULB OBPAS: https://obpas.ulbharyana.gov.in/
+- Jammu and Kashmir — OBPS: https://obps.jk.gov.in/BPAMSClient/Home.aspx
+- Jharkhand — JIADA building plan service (JIADA industrial areas only): https://jiada.jharkhand.gov.in/
+- Karnataka — Government Services Portal listing: https://services.india.gov.in/service/detail/land-and-building-plan-approval-system-karnataka
+- Kerala — K-SMART / LSGD building permits: https://lsgd.kerala.gov.in/en/apply-for-building-permits/
+- Ladakh — building plan approval: https://eodb.ladakh.gov.in/approvals/building-plan-approval
+- Madhya Pradesh — ABPAS 3.0: https://abpas.mpurban.gov.in/
+- Maharashtra — AutoDCR (participating authorities; not assumed statewide): https://maha.autodcr.com/BPAMSClient/Default.aspx
+- Odisha — GO SWIFT: https://investodisha.gov.in/GOSWIFT/
+- Punjab — eNaksha: https://enaksha.lgpunjab.gov.in/
+- Rajasthan — UDH online services: https://lsg.urban.rajasthan.gov.in/content/raj/udh/udh-department/en/udh-online-services.html
+- Sikkim — SSO service directory lists Online Building Permission System: https://sso.sikkim.gov.in/services
+- Tamil Nadu — Single Window Planning Permission: https://onlineppa.tn.gov.in/
+- Telangana — BuildNow: https://buildnow.telangana.gov.in/
+- Uttar Pradesh — UPOBPAS: https://upobpas.in/BPAMSClient/Home.aspx (the source portal records suspension of new submissions in 2026; do not assume it is the current active new-application channel)
+- West Bengal — e-Grihanaksha/OBPAS: https://obpsudma.wb.gov.in/
+- Andaman and Nicobar — ANI e-Seva listing: https://anieseva.andamannicobar.gov.in/services_list_depart1.php?id=MjE%3D
+- Dadra and Nagar Haveli — DNH Planning and Development Authority: https://www.dnhpda.in/wf/
+- Daman and Diu — UT single window (Diu construction-permission scope): https://swp.dddgov.in/
 
-## 4. Data provenance and operational rules
+Important limitations: portal URLs do not imply statewide municipal coverage, public bulk downloads, or API access. Some entries are a service directory or apply only to an industrial authority/participating ULB. The 25 is a portal-mapping count, not a count of complete State/UT approval registers.
 
-- Each record must carry source agency, source URL/reference, jurisdiction and observation/approval date where available.
-- Distinguish national/state aggregate data from district/block/ward/asset-level data.
-- Distinguish reference base maps from verified utility network geometry.
-- Distinguish a building application from an issued approval and an issued approval from a field-verified building.
-- Restricted departmental data must not be scraped, bypassed or treated as public. Use formal authority exports/API access or authorized portal access.
-- Do not use inferred underground routes for excavation clearance.
+Database:
+- public.building_approval_records stores State, district, ULB, approval reference, date/status, ward, survey/plot reference, sanctioned floors/height, source document and verification state.
+- Verified imported approval rows: 0. No approval numbers, applicant records, parcel IDs or permitted floors have been invented.
+- Actual approvals must be imported from authority-provided exports/API or individually accessible, public records with their provenance. Application status is not equivalent to approval; an approval is not equivalent to an occupancy certificate or field verification.
 
-## 5. Database state verified in this run
+## 4. Database objects and security
 
-- `public.india_state_uts`: 36 jurisdiction master records.
-- `public.groundwater_state_assessments`: 36 existing 2025 State/UT aggregate rows (duplicates from source normalization removed).
-- `public.groundwater_national_summary`: 1 imported 2025 national summary.
-- `public.groundwater_station_observations`: 304,123 existing records across 30 States/UTs, 70 districts and 137 station names; partial, not a complete national archive.
-- `public.groundwater_data_import_runs`: 0 audit records.
-- `public.official_data_sources`: 30 source records.
-- `gis.utility_layer_catalog`: 116 rows total in the existing catalog, including national utility layer contracts; row count does not imply received or verified geometries.
-- `public.building_approval_records`: 0 imported approval records.
+- public.india_state_uts: 36 States/UTs.
+- public.india_data_coverage: 108 rows (36 jurisdictions × 3 data domains), including telemetry progress fields.
+- public.official_data_sources: 49 source entries.
+- public.groundwater_state_assessments: 36 official 2025 State/UT aggregate records.
+- public.groundwater_national_summary: one national summary row.
+- public.groundwater_source_resources: 62 current-period telemetry resources plus other historical/forward resources.
+- public.groundwater_station_observations: 675,209 imported telemetry rows.
+- public.groundwater_district_source_resources: seven mirrored district CSV resources and provenance.
+- public.groundwater_district_assessments: 199 district rows, reconciliation pending.
+- gis.utility_layer_catalog: 116 utility layer contracts; zero operationally enabled.
+- public.building_approval_records: India-ready approval register; zero imported approvals.
 
-## 6. Completion status
+Row-level security is enabled for new exposed tables. Read access is authenticated where appropriate; administrative changes are limited to admin/coordinator profiles. The telemetry page importer and district staging importer are revoked from public, anon and authenticated roles; they are invoked through privileged ingestion.
 
-Completed: national jurisdiction master coverage, 2025 national groundwater summary, all 36 State/UT groundwater aggregate records verified, existing partial telemetry archive quantified, national official-source registry expansion, national utility layer contracts, and database security/provenance structure.
+## 5. Verified national data state at 2026-11-06
 
-Not completed: reconciliation and completion of groundwater station time series for all jurisdictions, asset-level utility GIS from participating authorities, and jurisdiction-specific building approval records. These require resource-level ingestion and/or authorized state/ULB data access. Do not label these operational datasets complete until records are actually imported and validated.
+| Dataset | Rows | Meaning |
+|---|---:|---|
+| State/UT jurisdiction master | 36 | 28 States + 8 UTs |
+| 2025 CGWB State/UT resource assessments | 36 | Imported aggregate assessment rows |
+| 2025 CGWB national summary | 1 | National summary |
+| NWDP/CGWB telemetry observations | 675,209 | Real records; partial across 31 State/UT labels |
+| Current-period telemetry resources | 62 | 10 complete, 21 partial, 31 not yet imported |
+| Advertised source rows across 62 resources | 14,249,309 | Sum across resources; not a unique/deduplicated national count |
+| 2025 district groundwater staging rows | 199 | Seven jurisdictions; reconciliation pending |
+| National coverage matrix | 108 | 36 × groundwater, utility GIS, building approvals |
+| Utility layer contracts | 116 | 115 pending authority data; zero operational |
+| Building approval portal/service URLs | 25 | 11 jurisdictions still need portal mapping |
+| Verified building approval records | 0 | Authority records not imported |
+| Registered data source entries | 49 | National/State/UT/ULB and reference sources |
+
+## 6. Remaining completion work
+
+1. Run the GitHub Actions NWDP importer from the repository's default branch and continue until all source resources have reached their recorded total. Investigate the five State/UTs with no matching 2021-2025 telemetry resource in the current public search; add other official groundwater department feeds where available.
+2. Import CGWB district/assessment-unit data nationally from the official report tables or official files; reconcile units and State totals before promoting district rows to trusted analytical tables.
+3. Obtain State/UT/ULB utility GIS files and the related rights/metadata from each network owner. Validate coordinate reference system, depth/invert datum, positional accuracy and update date before enabling a layer.
+4. Finish mapping all 36 jurisdictions' municipal/development authority building approval portals. Obtain authority exports/API/data-sharing permission and import verified approval records with provenance.
+5. Maintain a distinction in the app UI between: source registered, file retrieved, rows imported, row-level validated, aggregate reconciled, and authority/field verified.
+
+## Operational rule
+
+National source discovery, schema coverage and partial data ingestion are not the same as a fully populated operational national registry. Only source-proven, appropriately validated records may be described as authoritative. Pending utility layers must not be used for excavation clearance. Never infer underground route, depth, manhole position, permit status or permitted building floors from unrelated public maps or imagery.
