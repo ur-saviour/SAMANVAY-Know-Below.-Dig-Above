@@ -5022,13 +5022,24 @@ class _MapPageState extends State<MapPage> {
 
     try {
       final bounds = await controller.getVisibleRegion();
-      final minLon = bounds.southwest.longitude;
-      final minLat = bounds.southwest.latitude;
-      final maxLon = bounds.northeast.longitude;
-      final maxLat = bounds.northeast.latitude;
+      final centerLatitude =
+          (bounds.southwest.latitude + bounds.northeast.latitude) / 2;
+      final latitudeBuffer = 1000 / 110540;
+      final longitudeScale =
+          (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+      final longitudeBuffer = 1000 / (111320 * longitudeScale);
+      final minLon =
+          (bounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+      final minLat =
+          (bounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+      final maxLon =
+          (bounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+      final maxLat =
+          (bounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
       if (minLon >= maxLon || minLat >= maxLat) return;
 
-      // This RPC is scoped by auth.uid() to the signed-in department's own assets.
+      // The 1 km query buffer covers maximum work radius plus survey uncertainty.
+      // This RPC remains scoped by auth.uid() to the signed-in department's own assets.
       // Only verified features are drawn; unverified records are counted, not mapped.
       final raw = await supabase.rpc(
         'get_my_department_verified_assets_geojson',
