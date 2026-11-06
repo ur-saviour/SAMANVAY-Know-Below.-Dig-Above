@@ -3966,6 +3966,8 @@ class _MapPageState extends State<MapPage> {
   int _utilityCellCount = 0;
   int _verifiedAssetCount = 0;
   int _unverifiedAssetCount = 0;
+  int _utilityConflictCount = 0;
+  String _utilityConflictStatus = 'Conflict screening has not run.';
   List<Map<String, dynamic>> _visibleRequests = [];
   final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
   bool _canViewDepartmentAssets = false;
@@ -4839,6 +4841,8 @@ class _MapPageState extends State<MapPage> {
 
     final features = <Map<String, dynamic>>[];
     final detailsById = <String, Map<String, dynamic>>{};
+    var eligibleRequestCount = 0;
+    var candidateSequence = 0;
     for (final request in _visibleRequests) {
       final status = (request['status'] ?? '').toString().toLowerCase();
       if (['completed', 'resolved', 'rejected', 'cancelled'].contains(status)) {
@@ -4849,8 +4853,12 @@ class _MapPageState extends State<MapPage> {
       if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
         continue;
       }
+      // No radius means screening was not requested on the optional form field.
+      // Preserve the full 1–500 m range accepted by that form.
       final rawRadius = double.tryParse((request['work_radius_m'] ?? '').toString());
-      final threshold = (rawRadius ?? 15).clamp(15.0, 100.0);
+      if (rawRadius == null || !rawRadius.isFinite || rawRadius <= 0) continue;
+      eligibleRequestCount++;
+      final threshold = rawRadius.clamp(1.0, 500.0).toDouble();
 
       for (final assetFeature in verifiedAssets) {
         final geometry = assetFeature['geometry'];
@@ -4863,7 +4871,8 @@ class _MapPageState extends State<MapPage> {
 
         final assetCode = (props['asset_code'] ?? props['id'] ?? 'verified-asset').toString();
         final requestId = (request['id'] ?? '').toString();
-        final id = '${requestId}_${assetCode}'.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+        candidateSequence++;
+        final id = '${requestId}_${assetCode}_$candidateSequence'.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
         final requestNumber = (request['request_number'] ?? requestId).toString();
         final assetType = (props['asset_type'] ?? 'unknown').toString();
         final detail = {
@@ -4930,7 +4939,16 @@ class _MapPageState extends State<MapPage> {
       }
 
       if (!mounted) return;
+      final status = verifiedAssets.isEmpty
+          ? 'No verified assets are available in this map extent. Screening is unavailable; an empty registry does not mean the site is clear.'
+          : eligibleRequestCount == 0
+              ? 'No active request in the loaded set has an entered work-site radius. Add a 1–500 m radius to enable proximity screening.'
+              : features.isEmpty
+                  ? 'No proximity warnings found within the entered work-site radii against verified assets visible in this map extent. This is not an excavation clearance.'
+                  : '${features.length} potential proximity warning(s). Department review and field verification are required; this is not a confirmed clash or clearance.';
       setState(() {
+        _utilityConflictCount = features.length;
+        _utilityConflictStatus = status;
         _utilityConflictDetails
           ..clear()
           ..addAll(detailsById);
@@ -4943,6 +4961,8 @@ class _MapPageState extends State<MapPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Conflict screening could not be completed. Check department access and GIS connectivity; do not treat this as a clear site.';
           _utilityConflictDetails.clear();
         });
       }
@@ -5083,6 +5103,9 @@ class _MapPageState extends State<MapPage> {
       if (mounted) {
         setState(() {
           _verifiedAssetCount = 0;
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Conflict screening unavailable because verified department assets could not be loaded. Do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
           _layerStatus = 'Department asset layer unavailable. No unverified or estimated geometry is substituted.';
         });
       }
@@ -5469,7 +5492,34 @@ class _MapPageState extends State<MapPage> {
                         },
                       ),
                     if (_canViewUtilityOverview)
-                      SwitchListTile(
+                      if (_canViewDepartmentAssets) ...[
+                       const Divider(color: Color(0x334B647C)),
+                       Row(
+                         children: [
+                           const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 18),
+                           const SizedBox(width: 8),
+                           const Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
+                           Text('$_utilityConflictCount warning(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
+                         ],
+                       ),
+                       const SizedBox(height: 6),
+                       Text(_utilityConflictStatus, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4)),
+                       ..._utilityConflictDetails.values.take(5).map((detail) {
+                         final distance = (detail['distance_m'] as num).toDouble();
+                         return ListTile(
+                           dense: true,
+                           contentPadding: EdgeInsets.zero,
+                           leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
+                           title: Text('${detail['request_number']} · ${detail['asset_type']}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                           subtitle: Text('${detail['asset_code']} · ${distance.toStringAsFixed(1)} m', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                         );
+                       }),
+                       if (_utilityConflictDetails.length > 5)
+                         Text('And ${_utilityConflictDetails.length - 5} more. Tap red map markers for details.', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                       const SizedBox(height: 8),
+                       const Text('Scope: verified assets owned by your department only. Other departments’ exact utility geometry is not exposed to this mobile view. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
+                     ],
+                     SwitchListTile(
                         value: _showUtilityZones,
                         activeThumbColor: const Color(0xFFF59E0B),
                         title: const Text('Generalised utility coverage',
