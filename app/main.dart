@@ -6568,10 +6568,10 @@ class _MapPageState extends State<MapPage> {
     try {
       final rows = await supabase
           .from('latest_groundwater_station_observations')
-          .select('id,station_name,agency,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
-          .eq('district_name', 'Coimbatore')
-          .order('observed_at_local', ascending: false)
-          .limit(300);
+          .select('id,station_name,agency,state_name,district_name,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
+          .order('state_name')
+          .order('district_name')
+          .limit(1000);
 
       final features = <Map<String, dynamic>>[];
       final stationDetails = <Map<String, dynamic>>[];
@@ -7459,11 +7459,11 @@ class _MapPageState extends State<MapPage> {
                       value: _showGroundwaterTelemetry,
                       activeThumbColor: const Color(0xFFA78BFA),
                       title: const Text(
-                        'Groundwater telemetry stations (2026–2030)',
+                        'National groundwater monitoring stations (2021–2025)',
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '$_groundwaterStationCount Coimbatore district stations · tap a marker for its latest reading and timestamp · not a borewell register',
+                        '$_groundwaterStationCount mapped station points across imported States/UTs · zoom out for national distribution; tap a marker for its latest published reading · not a borewell register',
                         style: const TextStyle(
                           color: Color(0xFFB8C7D5),
                           fontSize: 11,
