@@ -4009,7 +4009,7 @@ class _MapPageState extends State<MapPage> {
       }
       return;
     }
-    if (layerId == 'samanvay-utility-conflict-candidates') {
+    if (layerId == 'samanvay-utility-conflict-markers') {
       final details = _utilityConflictDetails[id];
       if (details != null) {
         _showMessage(
@@ -4777,7 +4777,7 @@ class _MapPageState extends State<MapPage> {
           best = math.min(best, haversine(
             (point[1] as num).toDouble(),
             (point[0] as num).toDouble(),
-          ));
+          )).toDouble();
         }
       }
       return best;
@@ -4797,7 +4797,7 @@ class _MapPageState extends State<MapPage> {
             point[0] is! num || point[1] is! num) continue;
         final px = projectX((point[0] as num).toDouble());
         final py = projectY((point[1] as num).toDouble());
-        best = math.min(best, math.sqrt(px * px + py * py));
+        best = math.min(best, math.sqrt(px * px + py * py)).toDouble();
         if (i == 0) continue;
 
         final previous = line[i - 1];
@@ -4815,7 +4815,7 @@ class _MapPageState extends State<MapPage> {
         final nearestY = ay + clamped * dy;
         best = math.min(best, math.sqrt(
           nearestX * nearestX + nearestY * nearestY,
-        ));
+        )).toDouble();
       }
       return best;
     }
@@ -4825,7 +4825,7 @@ class _MapPageState extends State<MapPage> {
     if (type == 'MultiLineString') {
       var best = double.infinity;
       for (final line in coordinates) {
-        if (line is List) best = math.min(best, lineDistance(line));
+        if (line is List) best = math.min(best, lineDistance(line)).toDouble();
       }
       return best;
     }
@@ -4910,10 +4910,10 @@ class _MapPageState extends State<MapPage> {
       }
 
       final layers = await controller.getLayerIds();
-      if (!layers.contains('samanvay-utility-conflict-candidates')) {
+      if (!layers.contains('samanvay-utility-conflict-markers')) {
         await controller.addCircleLayer(
           'samanvay-utility-conflict-candidates',
-          'samanvay-utility-conflict-candidates',
+          'samanvay-utility-conflict-markers',
           const CircleLayerProperties(
             circleRadius: 9,
             circleColor: '#EF4444',
@@ -4925,7 +4925,7 @@ class _MapPageState extends State<MapPage> {
         );
       } else {
         await controller.setLayerVisibility(
-          'samanvay-utility-conflict-candidates',
+          'samanvay-utility-conflict-markers',
           true,
         );
       }
