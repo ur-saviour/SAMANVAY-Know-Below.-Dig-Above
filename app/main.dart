@@ -3848,6 +3848,8 @@ class _MapPageState extends State<MapPage> {
   bool _showVerifiedAssets = true;
   bool _showCoimbatoreWardBoundaries = true;
   int _coimbatoreWardCount = 0;
+  bool _showGroundwaterTelemetry = true;
+  int _groundwaterStationCount = 0;
   String _deviceCoordinateLabel = '';
   String _layerStatus =
       'Underground visibility requires authorised, verified GIS records.';
@@ -4287,6 +4289,69 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  Future<void> _loadGroundwaterTelemetryStations() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final text = await rootBundle.loadString(
+        'assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson',
+      );
+      final decoded = jsonDecode(text);
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection') {
+        throw const FormatException('Invalid groundwater telemetry GeoJSON.');
+      }
+      final rawFeatures = decoded['features'];
+      if (rawFeatures is! List || rawFeatures.isEmpty) {
+        throw const FormatException('Groundwater telemetry has no station features.');
+      }
+
+      final collection = Map<String, dynamic>.from(decoded);
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-groundwater-telemetry')) {
+        await controller.setGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.addCircleLayer(
+          'samanvay-groundwater-telemetry',
+          'samanvay-groundwater-telemetry-points',
+          const CircleLayerProperties(
+            circleRadius: 6.2,
+            circleColor: '#A78BFA',
+            circleOpacity: 0.96,
+            circleStrokeColor: '#101B29',
+            circleStrokeWidth: 1.8,
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          _showGroundwaterTelemetry,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _groundwaterStationCount = rawFeatures.length);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _groundwaterStationCount = 0);
+    }
+  }
+
   Future<void> _loadMapLayers() async {
     final controller = _controller;
     if (controller == null || !_styleReady) return;
@@ -4297,6 +4362,7 @@ class _MapPageState extends State<MapPage> {
       // Public administrative reference data is independent of account role.
       // This 2024 ward reference layer is not a current statutory jurisdiction source.
       await _loadCoimbatoreWardBoundaries();
+      await _loadGroundwaterTelemetryStations();
 
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -4711,6 +4777,29 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  Future<void> _toggleGroundwaterTelemetry(bool enabled) async {
+    setState(() => _showGroundwaterTelemetry = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadGroundwaterTelemetryStations();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the groundwater telemetry layer.');
+    }
+  }
+
   Future<void> _toggleUtilityZones(bool enabled) async {
     if (!_canViewUtilityOverview) {
       _showMessage('The utility overview is restricted to authorised infrastructure staff.');
@@ -4958,6 +5047,25 @@ class _MapPageState extends State<MapPage> {
                       onChanged: (value) {
                         setSheetState(() {});
                         _toggleCoimbatoreWardBoundaries(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showGroundwaterTelemetry,
+                      activeThumbColor: const Color(0xFFA78BFA),
+                      title: const Text(
+                        'Groundwater telemetry stations (2026–2030)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '$_groundwaterStationCount Coimbatore district stations · latest published reading shown by timestamp · not a borewell register',
+                        style: const TextStyle(
+                          color: Color(0xFFB8C7D5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleGroundwaterTelemetry(value);
                       },
                     ),
                     if (_canViewDepartmentAssets)
