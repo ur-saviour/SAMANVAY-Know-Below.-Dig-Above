@@ -4662,11 +4662,11 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
           ],
           const SizedBox(height: 8),
           if (administrativeUnits.isEmpty)
-            const Text(
+            Text(
               canManageDirectory
                 ? 'No district or ULB rows have been imported yet. ' + pendingDistrictExports.toString() + ' district and ' + pendingUlbExports.toString() + ' urban-local-body state export tasks are queued. Each official report must be generated through the LGD portal with its normal CAPTCHA check.'
                 : 'No district or ULB rows have been imported yet. The national LGD source is registered; the responsible authority export and validation process is pending.',
-              style: TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
+              style: const TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
             )
           else
             Wrap(spacing: 7, runSpacing: 7, children: labels.entries
