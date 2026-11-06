@@ -5491,8 +5491,7 @@ class _MapPageState extends State<MapPage> {
                           _toggleVerifiedAssets(value);
                         },
                       ),
-                    if (_canViewUtilityOverview)
-                      if (_canViewDepartmentAssets) ...[
+                    if (_canViewDepartmentAssets) ...[
                        const Divider(color: Color(0x334B647C)),
                        Row(
                          children: [
@@ -5519,7 +5518,8 @@ class _MapPageState extends State<MapPage> {
                        const SizedBox(height: 8),
                        const Text('Scope: verified assets owned by your department only. Other departments’ exact utility geometry is not exposed to this mobile view. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
                      ],
-                     SwitchListTile(
+                     if (_canViewUtilityOverview)
+                       SwitchListTile(
                         value: _showUtilityZones,
                         activeThumbColor: const Color(0xFFF59E0B),
                         title: const Text('Generalised utility coverage',
