@@ -4728,6 +4728,17 @@ class _MapPageState extends State<MapPage> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Import underground survey GeoJSON',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AssetGeoJsonImportPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.file_upload_outlined),
+          ),
+          IconButton(
             tooltip: 'Layer controls',
             onPressed: _openLayerPanel,
             icon: const Icon(Icons.layers_outlined),
@@ -5121,6 +5132,428 @@ class _MapPageState extends State<MapPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ==========================================
+// AUTHORISED GIS DATA INGESTION
+// ==========================================
+
+class AssetGeoJsonImportPage extends StatefulWidget {
+  const AssetGeoJsonImportPage({super.key});
+
+  @override
+  State<AssetGeoJsonImportPage> createState() => _AssetGeoJsonImportPageState();
+}
+
+class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
+  static const Set<String> _assetTypes = {
+    'water', 'sewer', 'stormwater', 'electricity', 'telecom',
+    'gas', 'borewell', 'drain', 'other', 'unknown',
+  };
+  static const Set<String> _sourceTypes = {
+    'utility_owner', 'field_survey', 'as_built_drawing',
+    'public_dataset', 'estimated', 'other',
+  };
+  static const Set<String> _geometryTypes = {
+    'Point', 'MultiPoint', 'LineString', 'MultiLineString',
+  };
+
+  bool _checkingAccess = true;
+  bool _authorised = false;
+  bool _loadingFile = false;
+  bool _importing = false;
+  String _departmentName = '';
+  String _fileName = '';
+  String _status = 'Select a GeoJSON FeatureCollection from an authorised survey source.';
+  List<Map<String, dynamic>> _records = [];
+  List<String> _errors = [];
+  int _imported = 0;
+  int _failed = 0;
+  int _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+
+  Future<void> _checkAccess() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw StateError('Sign in to continue.');
+      final profile = await supabase.from('profiles')
+          .select('role,department_id').eq('id', user.id).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      final departmentId = profile?['department_id']?.toString();
+      if (role != 'department' || departmentId == null || departmentId.isEmpty) {
+        throw StateError('Only an assigned department account can register underground utility records. The database independently enforces this restriction.');
+      }
+      final department = await supabase.from('departments')
+          .select('name').eq('id', departmentId).maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _authorised = true;
+        _departmentName = (department?['name'] ?? 'Assigned department').toString();
+        _status = 'Access confirmed. Imported records will be stored as UNVERIFIED.';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _status = error.toString().replaceFirst('Bad state: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _checkingAccess = false);
+    }
+  }
+
+  bool _validCoordinates(dynamic value) {
+    if (value is! List || value.length < 2) return false;
+    if (value[0] is num && value[1] is num) {
+      final lon = (value[0] as num).toDouble();
+      final lat = (value[1] as num).toDouble();
+      return lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
+    }
+    return value.isNotEmpty && value.every(_validCoordinates);
+  }
+
+  String? _validate(Map<String, dynamic> feature) {
+    if (feature['geometry'] is! Map || feature['properties'] is! Map) {
+      return 'Geometry and properties objects are required.';
+    }
+    final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
+    final type = (geometry['type'] ?? '').toString();
+    if (!_geometryTypes.contains(type)) return 'Unsupported geometry type: ' + type;
+    if (!_validCoordinates(geometry['coordinates'])) return 'Invalid WGS84 coordinates. GeoJSON order must be [longitude, latitude].';
+
+    final p = Map<String, dynamic>.from(feature['properties'] as Map);
+    final code = (p['asset_code'] ?? '').toString().trim();
+    final name = (p['asset_name'] ?? '').toString().trim();
+    final assetType = (p['asset_type'] ?? '').toString().trim().toLowerCase();
+    final sourceType = (p['source_type'] ?? '').toString().trim().toLowerCase();
+    if (code.length < 2 || code.length > 100) return 'asset_code is required (2–100 characters).';
+    if (name.length < 2 || name.length > 200) return 'asset_name is required (2–200 characters).';
+    if (!_assetTypes.contains(assetType)) return 'Unsupported asset_type.';
+    if (!_sourceTypes.contains(sourceType)) return 'Unsupported source_type.';
+
+    for (final key in ['depth_m', 'horizontal_accuracy_m', 'vertical_accuracy_m', 'diameter_mm']) {
+      final raw = p[key];
+      if (raw == null || raw.toString().trim().isEmpty) continue;
+      final value = double.tryParse(raw.toString());
+      if (value == null || !value.isFinite || value < 0) return key + ' must be a non-negative number.';
+    }
+    final depth = double.tryParse((p['depth_m'] ?? '').toString());
+    if (depth != null && depth > 100) return 'depth_m cannot exceed 100 metres.';
+    final diameter = double.tryParse((p['diameter_mm'] ?? '').toString());
+    if (diameter != null && (diameter <= 0 || diameter > 10000)) return 'diameter_mm must be 1–10000.';
+    return null;
+  }
+
+  Future<void> _pickFile() async {
+    if (!_authorised || _importing || _loadingFile) return;
+    setState(() {
+      _loadingFile = true;
+      _records = [];
+      _errors = [];
+      _fileName = '';
+      _imported = 0;
+      _failed = 0;
+      _progress = 0;
+    });
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['geojson', 'json'],
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.single;
+      if (file.size > 10 * 1024 * 1024) throw StateError('Maximum file size is 10 MB.');
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file. Export it as UTF-8 GeoJSON.');
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
+        throw const FormatException('Expected a GeoJSON FeatureCollection.');
+      }
+      final features = decoded['features'] as List;
+      if (features.isEmpty) throw StateError('No features found in the file.');
+      if (features.length > 500) throw StateError('Maximum 500 features per import batch.');
+      final records = <Map<String, dynamic>>[];
+      final errors = <String>[];
+      final seen = <String>{};
+      for (var i = 0; i < features.length; i++) {
+        final raw = features[i];
+        final feature = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+        var error = raw is Map ? _validate(feature) : 'Feature is not a JSON object.';
+        final props = feature['properties'] is Map
+            ? Map<String, dynamic>.from(feature['properties'] as Map) : <String, dynamic>{};
+        final code = (props['asset_code'] ?? '').toString().trim();
+        if (error == null && !seen.add(code)) error = 'Duplicate asset_code in this file.';
+        records.add({'feature': feature, 'error': error});
+        if (error != null) errors.add('Feature ' + (i + 1).toString() + ': ' + error);
+      }
+      if (!mounted) return;
+      setState(() {
+        _fileName = file.name;
+        _records = records;
+        _errors = errors;
+        _status = 'Preview ready. ' + (records.length - errors.length).toString() +
+            ' valid feature(s); ' + errors.length.toString() +
+            ' invalid feature(s). Nothing has been written yet.';
+      });
+    } catch (error) {
+      if (mounted) setState(() => _status = 'Preview failed: ' + error.toString().replaceFirst('Bad state: ', ''));
+    } finally {
+      if (mounted) setState(() => _loadingFile = false);
+    }
+  }
+
+  double? _number(Map<String, dynamic> p, String key) {
+    final raw = p[key];
+    if (raw == null || raw.toString().trim().isEmpty) return null;
+    return double.tryParse(raw.toString());
+  }
+
+  Future<void> _register() async {
+    if (!_authorised || _importing) return;
+    final valid = _records.where((r) => r['error'] == null).toList();
+    if (valid.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Register as unverified?'),
+        content: Text(valid.length.toString() + ' records from "' + _fileName +
+            '" will be registered under ' + _departmentName +
+            '. They remain UNVERIFIED until a separate verification process is completed.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Register')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() {
+      _importing = true;
+      _progress = 0;
+      _imported = 0;
+      _failed = 0;
+      _errors = [];
+      _status = 'Registering records as UNVERIFIED…';
+    });
+
+    final errors = <String>[];
+    for (var i = 0; i < valid.length; i++) {
+      final feature = Map<String, dynamic>.from(valid[i]['feature'] as Map);
+      final p = Map<String, dynamic>.from(feature['properties'] as Map);
+      final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
+      try {
+        final surveyedAtRaw = p['surveyed_at']?.toString();
+        final surveyedAt = surveyedAtRaw == null || surveyedAtRaw.trim().isEmpty
+            ? null : DateTime.tryParse(surveyedAtRaw)?.toUtc().toIso8601String();
+        await supabase.rpc('register_underground_asset', params: {
+          'p_asset_code': p['asset_code'].toString().trim(),
+          'p_asset_name': p['asset_name'].toString().trim(),
+          'p_asset_type': p['asset_type'].toString().trim().toLowerCase(),
+          'p_geometry': geometry,
+          'p_source_type': p['source_type'].toString().trim().toLowerCase(),
+          'p_source_reference': p['source_reference']?.toString(),
+          'p_depth_m': _number(p, 'depth_m'),
+          'p_horizontal_accuracy_m': _number(p, 'horizontal_accuracy_m'),
+          'p_vertical_accuracy_m': _number(p, 'vertical_accuracy_m'),
+          'p_material': p['material']?.toString(),
+          'p_diameter_mm': _number(p, 'diameter_mm'),
+          'p_surveyed_at': surveyedAt,
+          'p_surveyed_by_org': p['surveyed_by_org']?.toString(),
+          'p_verification_notes': p['verification_notes']?.toString(),
+        });
+        _imported++;
+      } catch (error) {
+        _failed++;
+        errors.add((p['asset_code'] ?? 'Unknown code').toString() + ': ' + error.toString());
+      }
+      if (mounted) setState(() => _progress = i + 1);
+    }
+
+    if (mounted) {
+      setState(() {
+        _errors = errors;
+        _status = 'Finished: ' + _imported.toString() +
+            ' registered as UNVERIFIED; ' + _failed.toString() +
+            ' failed. Resolve errors before retrying.';
+        _records = [];
+        _fileName = '';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import complete: ' + _imported.toString() +
+            ' registered; ' + _failed.toString() + ' failed.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final validCount = _records.where((r) => r['error'] == null).length;
+    final invalidCount = _records.length - validCount;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F6FA),
+      appBar: AppBar(title: const Text('GIS Data Ingestion'), backgroundColor: navy),
+      body: _checkingAccess
+          ? const Center(child: CircularProgressIndicator())
+          : !_authorised
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.lock_outline, size: 52, color: Colors.blueGrey),
+                    const SizedBox(height: 14),
+                    const Text('Department authorisation required',
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: navy)),
+                    const SizedBox(height: 8),
+                    Text(_status, textAlign: TextAlign.center),
+                  ]),
+                ))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(18)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('AUTHORISED DATA SOURCE',
+                            style: TextStyle(color: Color(0xFF8EDFD6), fontSize: 10, letterSpacing: 1.2, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 7),
+                        Text(_departmentName,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 8),
+                        const Text('Owner-supplied and field-surveyed geometry only. Imported records remain UNVERIFIED.',
+                            style: TextStyle(color: Color(0xFFD3E0EA), height: 1.4, fontSize: 12)),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('SUPPORTED FILE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                        const SizedBox(height: 8),
+                        const Text('GeoJSON FeatureCollection (.geojson / .json), WGS84 EPSG:4326. Point, MultiPoint, LineString and MultiLineString. Maximum 10 MB / 500 features.',
+                            style: TextStyle(color: mutedInk, height: 1.45, fontSize: 12)),
+                        const SizedBox(height: 8),
+                        const Text('Required properties: asset_code, asset_name, asset_type, source_type.',
+                            style: TextStyle(color: navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        const Text('Optional: source_reference, depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm, surveyed_at, surveyed_by_org, verification_notes.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 14),
+                        SizedBox(width: double.infinity, child: FilledButton.icon(
+                          onPressed: _loadingFile || _importing ? null : _pickFile,
+                          icon: _loadingFile
+                              ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.folder_open_outlined),
+                          label: Text(_loadingFile ? 'READING FILE…' : 'SELECT GEOJSON SURVEY FILE'),
+                          style: FilledButton.styleFrom(backgroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+                        )),
+                      ]),
+                    )),
+                    if (_fileName.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('PRE-IMPORT VALIDATION',
+                              style: TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                          const SizedBox(height: 6),
+                          Text(_fileName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            Expanded(child: _countTile('VALID', validCount, const Color(0xFF087F83))),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('INVALID', invalidCount, Colors.red)),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('TOTAL', _records.length, navy)),
+                          ]),
+                          const SizedBox(height: 8),
+                          ..._records.asMap().entries.take(20).map((entry) {
+                            final item = entry.value;
+                            final f = item['feature'] as Map<String, dynamic>;
+                            final p = f['properties'] is Map
+                                ? Map<String, dynamic>.from(f['properties'] as Map) : <String, dynamic>{};
+                            final error = item['error']?.toString();
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(error == null ? Icons.check_circle_outline : Icons.error_outline,
+                                  color: error == null ? const Color(0xFF087F83) : Colors.red),
+                              title: Text((p['asset_code'] ?? 'Feature ' + (entry.key + 1).toString()).toString(),
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              subtitle: Text(error ?? ((p['asset_name'] ?? '').toString() + ' · ' +
+                                  (p['asset_type'] ?? '').toString() + ' · ' +
+                                  ((f['geometry'] as Map?)?['type'] ?? '').toString()),
+                                  style: const TextStyle(fontSize: 10)),
+                            );
+                          }),
+                          if (_records.length > 20)
+                            Text('Showing first 20 of ' + _records.length.toString() + ' features.',
+                                style: const TextStyle(color: mutedInk, fontSize: 11)),
+                          if (_importing) ...[
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(value: _records.isEmpty ? null : _progress / validCount),
+                            Text('Processed ' + _progress.toString() + ' of ' + validCount.toString()),
+                          ],
+                          const SizedBox(height: 12),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: !_importing && validCount > 0 ? _register : null,
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: Text('REGISTER ' + validCount.toString() + ' VALID RECORD(S) AS UNVERIFIED'),
+                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF087F83), padding: const EdgeInsets.symmetric(vertical: 14)),
+                          )),
+                        ]),
+                      )),
+                    ],
+                    if (_errors.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('VALIDATION / IMPORT ERRORS',
+                              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 8),
+                          ..._errors.take(30).map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text('• ' + e, style: const TextStyle(fontSize: 11, color: Colors.red)),
+                          )),
+                        ]),
+                      )),
+                    ],
+                    const SizedBox(height: 12),
+                    Card(color: const Color(0xFFFFF7E6), child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Icon(Icons.verified_user_outlined, color: Color(0xFF9A6700)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(_status,
+                            style: const TextStyle(color: Color(0xFF664B16), fontSize: 12, height: 1.45))),
+                      ]),
+                    )),
+                    const SizedBox(height: 10),
+                    const Text('Only import records your department is authorised to submit. This tool does not independently verify geometry and does not issue excavation clearance or safety certification.',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+                  ],
+                ),
+    );
+  }
+
+  Widget _countTile(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text(value.toString(), style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 }
