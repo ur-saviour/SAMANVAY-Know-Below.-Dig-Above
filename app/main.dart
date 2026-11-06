@@ -3966,6 +3966,9 @@ class _MapPageState extends State<MapPage> {
   int _utilityCellCount = 0;
   int _verifiedAssetCount = 0;
   int _unverifiedAssetCount = 0;
+  int _utilityConflictCount = 0;
+  List<Map<String, dynamic>> _visibleRequests = [];
+  final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
   bool _canViewDepartmentAssets = false;
   bool _showVerifiedAssets = true;
   bool _showCoimbatoreWardBoundaries = true;
@@ -4003,6 +4006,17 @@ class _MapPageState extends State<MapPage> {
         final reading = details['groundwater_level_telemetry_m'];
         final observed = (details['observed_at'] ?? 'Timestamp unavailable').toString();
         _showMessage('$station · telemetry: ${reading ?? 'not reported'} m · $observed');
+      }
+      return;
+    }
+    if (layerId == 'samanvay-utility-conflict-candidates') {
+      final details = _utilityConflictDetails[id];
+      if (details != null) {
+        _showMessage(
+          'POTENTIAL CLASH · ${details['request_number']} near ${details['asset_code']} '
+          '(${details['asset_type']}) · ${(details['distance_m'] as num).round()} m from mapped geometry. '
+          'Department review required; this is not a confirmed strike or clearance.',
+        );
       }
       return;
     }
@@ -4531,12 +4545,14 @@ class _MapPageState extends State<MapPage> {
 
       final requestRows = await supabase
           .from('excavation_requests')
-          .select('id,request_number,title,status,latitude,longitude')
+          .select('id,request_number,title,status,latitude,longitude,work_radius_m')
           .order('created_at', ascending: false)
           .limit(500);
 
+      final loadedRequestRows = List<Map<String, dynamic>>.from(requestRows);
+      if (mounted) _visibleRequests = loadedRequestRows;
       final features = <Map<String, dynamic>>[];
-      for (final row in List<Map<String, dynamic>>.from(requestRows)) {
+      for (final row in loadedRequestRows) {
         final lat = (row['latitude'] as num?)?.toDouble();
         final lon = (row['longitude'] as num?)?.toDouble();
         if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
@@ -4718,6 +4734,224 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  // Convert a coordinate to a local metre-based plane around the proposed work.
+  // This is suitable for short municipal work corridors, not cadastral surveying.
+  double _distanceToAssetGeometryMetres(
+    double latitude,
+    double longitude,
+    Map<String, dynamic> geometry,
+  ) {
+    final type = (geometry['type'] ?? '').toString();
+    final coordinates = geometry['coordinates'];
+
+    double haversine(double lat, double lon) {
+      final p1 = latitude * math.pi / 180;
+      final p2 = lat * math.pi / 180;
+      final dp = (lat - latitude) * math.pi / 180;
+      final dl = (lon - longitude) * math.pi / 180;
+      final h = math.pow(math.sin(dp / 2), 2) +
+          math.cos(p1) * math.cos(p2) * math.pow(math.sin(dl / 2), 2);
+      return 6371000 * 2 * math.asin(math.sqrt(h));
+    }
+
+    if (coordinates is! List || coordinates.isEmpty) {
+      return double.infinity;
+    }
+
+    if (type == 'Point') {
+      if (coordinates.length < 2 ||
+          coordinates[0] is! num || coordinates[1] is! num) {
+        return double.infinity;
+      }
+      return haversine(
+        (coordinates[1] as num).toDouble(),
+        (coordinates[0] as num).toDouble(),
+      );
+    }
+
+    if (type == 'MultiPoint') {
+      var best = double.infinity;
+      for (final point in coordinates) {
+        if (point is List && point.length >= 2 &&
+            point[0] is num && point[1] is num) {
+          best = math.min(best, haversine(
+            (point[1] as num).toDouble(),
+            (point[0] as num).toDouble(),
+          ));
+        }
+      }
+      return best;
+    }
+
+    double lineDistance(List<dynamic> line) {
+      if (line.isEmpty) return double.infinity;
+      final cosLat = math.cos(latitude * math.pi / 180);
+      double projectX(double lon) =>
+          (lon - longitude) * 111320 * cosLat;
+      double projectY(double lat) => (lat - latitude) * 110540;
+      var best = double.infinity;
+
+      for (var i = 0; i < line.length; i++) {
+        final point = line[i];
+        if (point is! List || point.length < 2 ||
+            point[0] is! num || point[1] is! num) continue;
+        final px = projectX((point[0] as num).toDouble());
+        final py = projectY((point[1] as num).toDouble());
+        best = math.min(best, math.sqrt(px * px + py * py));
+        if (i == 0) continue;
+
+        final previous = line[i - 1];
+        if (previous is! List || previous.length < 2 ||
+            previous[0] is! num || previous[1] is! num) continue;
+        final ax = projectX((previous[0] as num).toDouble());
+        final ay = projectY((previous[1] as num).toDouble());
+        final dx = px - ax;
+        final dy = py - ay;
+        final lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared == 0) continue;
+        final t = ((-ax * dx) + (-ay * dy)) / lengthSquared;
+        final clamped = t.clamp(0.0, 1.0);
+        final nearestX = ax + clamped * dx;
+        final nearestY = ay + clamped * dy;
+        best = math.min(best, math.sqrt(
+          nearestX * nearestX + nearestY * nearestY,
+        ));
+      }
+      return best;
+    }
+
+    if (type == 'LineString') return lineDistance(coordinates);
+
+    if (type == 'MultiLineString') {
+      var best = double.infinity;
+      for (final line in coordinates) {
+        if (line is List) best = math.min(best, lineDistance(line));
+      }
+      return best;
+    }
+    return double.infinity;
+  }
+
+  Future<void> _refreshUtilityConflictOverlay(
+    List<Map<String, dynamic>> verifiedAssets,
+  ) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
+
+    final features = <Map<String, dynamic>>[];
+    final detailsById = <String, Map<String, dynamic>>{};
+    for (final request in _visibleRequests) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      if (['completed', 'resolved', 'rejected', 'cancelled'].contains(status)) {
+        continue;
+      }
+      final lat = (request['latitude'] as num?)?.toDouble();
+      final lon = (request['longitude'] as num?)?.toDouble();
+      if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+        continue;
+      }
+      final rawRadius = double.tryParse((request['work_radius_m'] ?? '').toString());
+      final threshold = (rawRadius ?? 15).clamp(15.0, 100.0);
+
+      for (final assetFeature in verifiedAssets) {
+        final geometry = assetFeature['geometry'];
+        final properties = assetFeature['properties'];
+        if (geometry is! Map || properties is! Map) continue;
+        final geometryMap = Map<String, dynamic>.from(geometry);
+        final props = Map<String, dynamic>.from(properties);
+        final distance = _distanceToAssetGeometryMetres(lat, lon, geometryMap);
+        if (!distance.isFinite || distance > threshold) continue;
+
+        final assetCode = (props['asset_code'] ?? props['id'] ?? 'verified-asset').toString();
+        final requestId = (request['id'] ?? '').toString();
+        final id = '${requestId}_${assetCode}'.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+        final requestNumber = (request['request_number'] ?? requestId).toString();
+        final assetType = (props['asset_type'] ?? 'unknown').toString();
+        final detail = {
+          'request_number': requestNumber,
+          'asset_code': assetCode,
+          'asset_type': assetType,
+          'distance_m': distance,
+        };
+        detailsById[id] = detail;
+        features.add({
+          'type': 'Feature',
+          'id': id,
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [lon, lat],
+          },
+          'properties': {
+            'request_number': requestNumber,
+            'asset_code': assetCode,
+            'asset_type': assetType,
+            'distance_m': distance,
+          },
+        });
+      }
+    }
+
+    try {
+      final collection = {
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-utility-conflict-candidates')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-utility-conflict-candidates')) {
+        await controller.addCircleLayer(
+          'samanvay-utility-conflict-candidates',
+          'samanvay-utility-conflict-candidates',
+          const CircleLayerProperties(
+            circleRadius: 9,
+            circleColor: '#EF4444',
+            circleOpacity: 0.98,
+            circleStrokeColor: '#FFFFFF',
+            circleStrokeWidth: 2.2,
+          ),
+          enableInteraction: true,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-utility-conflict-candidates',
+          true,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _utilityConflictCount = features.length;
+        _utilityConflictDetails
+          ..clear()
+          ..addAll(detailsById);
+      });
+      if (features.isNotEmpty) {
+        _showMessage(
+          '${features.length} potential utility proximity warning(s) found against verified assets owned by your department. Tap a red marker for details.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictDetails.clear();
+        });
+      }
+    }
+  }
+
   Future<void> _loadDepartmentAssets() async {
     final controller = _controller;
     if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
@@ -4760,6 +4994,8 @@ class _MapPageState extends State<MapPage> {
           verified.add(feature);
         }
       }
+
+      await _refreshUtilityConflictOverlay(verified);
 
       final verifiedCollection = <String, dynamic>{
         'type': 'FeatureCollection',
