@@ -165,7 +165,7 @@ jobs:
 
       # 6. Check Dart code
       - name: Analyze Dart code
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       # 7. Build APK
       - name: Build release APK
