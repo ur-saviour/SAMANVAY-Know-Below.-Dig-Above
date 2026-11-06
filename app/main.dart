@@ -5147,6 +5147,13 @@ class _MapPageState extends State<MapPage> {
       if (layers.contains('samanvay-utility-conflict-markers')) {
         await controller.setLayerVisibility('samanvay-utility-conflict-markers', false);
       }
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Screening paused because the verified department asset layer is hidden.';
+          _utilityConflictDetails.clear();
+        });
+      }
       return;
     }
     await _loadDepartmentAssets();
@@ -5526,7 +5533,7 @@ class _MapPageState extends State<MapPage> {
                            contentPadding: EdgeInsets.zero,
                            leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
                            title: Text('${detail['request_number']} · ${detail['asset_type']}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                           subtitle: Text('${detail['asset_code']} · ${distance.toStringAsFixed(1)} m', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                           subtitle: Text('${detail['asset_code']} · ${distance.toStringAsFixed(1)} m · depth ${detail['depth_m'] ?? 'n/a'} m · accuracy ${detail['horizontal_accuracy_m'] ?? 'unknown'} m', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
                          );
                        }),
                        if (_utilityConflictDetails.length > 5)
