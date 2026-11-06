@@ -14,12 +14,14 @@ We request guidance on whether CCMC can provide, or formally authorise access to
 2. Underground sewerage networks, manholes, pumping stations and treatment-system connections.
 3. Stormwater drains, culverts, outfalls and related structures.
 4. Road centreline / road-edge and ward boundary layers needed for spatial referencing.
+5. Existing 24/7 Water Supply project volumes and the latest approved/as-built drawings for the Siruvani, Pillur, Aliyar and Bhavani distribution systems, including storage reservoirs and interconnecting mains.
+6. Current Asset Management System exports and any GIS study data originally prepared for CCMC, including the status of AutoDCR/GIS/asset-management integration.
 
 Preferred formats: GeoPackage, GeoJSON, Shapefile, KML/KMZ or CAD (DWG/DXF), with the coordinate reference system and a data dictionary.
 
 For each asset, if available, please include a stable asset ID, type, owning/maintaining department, geometry, material, diameter/dimensions, depth/invert level, operational status, installation/last-inspection date, survey method, positional accuracy, source/record date and any access restrictions.
 
-Please clarify which records are authoritative and current; whether geometry is suitable for excavation-planning use; required attribution, licence, security controls and permitted reuse; whether sensitive layers must be accessed only by authorised departmental users; and the process for reporting corrections and receiving periodic updates.
+Please clarify which records are authoritative and current; whether geometry is suitable for excavation-planning use; required attribution, licence, security controls and permitted reuse; whether sensitive layers must be accessed only by authorised departmental users; and the process for reporting corrections and receiving periodic updates. For TNUFIP Tranche 1 (Kurichi/Kuniyamuthur) and Tranche 3 (Vadavalli, Veerakeralam, Kavundampalayam and Thudiyalur), please identify the project implementation unit and provide final as-built CAD/GIS, manhole register, invert levels, lift/pumping station locations, completion certificates, commissioning dates and contractor handover records, not only draft IEE or design drawings.
 
 We will preserve source attribution and will not expose sensitive utility geometry to the public.
 
@@ -39,7 +41,7 @@ Requested fields, subject to applicable privacy and disclosure rules:
 - Inspection/completion/occupancy status where legally disclosable;
 - Data update timestamp and correction/revision history.
 
-A documented API, bulk extract, verification endpoint or nominated officer workflow would be preferred. Please specify which fields may be used for civic coordination, which must remain restricted, and the permitted retention/sharing terms.
+A documented API, bulk extract, verification endpoint or nominated officer workflow would be preferred. The public portal has individual building-plan search and approval-number pages, but this review did not establish a reliable Coimbatore-only bulk export. Please identify the authoritative Coimbatore ULB records custodian and provide a scoped export or verification endpoint. Please specify which fields may be used for civic coordination, which must remain restricted, and the permitted retention/sharing terms.
 
 SAMANVAY will treat discrepancies as review flags only; statutory determinations remain with the competent authority.
 
