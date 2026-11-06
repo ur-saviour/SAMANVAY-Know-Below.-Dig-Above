@@ -5261,17 +5261,17 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       _progress = 0;
     });
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['geojson', 'json'],
-        allowMultiple: false,
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-      if (file.size > 10 * 1024 * 1024) throw StateError('Maximum file size is 10 MB.');
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty) throw StateError('Could not read the selected file. Export it as UTF-8 GeoJSON.');
+      if (file == null) return;
+      final fileSize = await file.length();
+      if (fileSize == null || fileSize > 10 * 1024 * 1024) {
+        throw StateError('File size could not be confirmed or exceeds 10 MB.');
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('The selected file is empty. Export it as UTF-8 GeoJSON.');
       final decoded = jsonDecode(utf8.decode(bytes));
       if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
         throw const FormatException('Expected a GeoJSON FeatureCollection.');
