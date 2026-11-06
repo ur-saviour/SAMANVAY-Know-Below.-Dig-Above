@@ -1694,6 +1694,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               isDepartment: widget.isDepartment,
               departmentId: widget.departmentId,
             ),
+            const SizedBox(height: 16),
+            DrainageInspectionBoard(
+              requests: requests,
+              departments: departments,
+              isDepartment: widget.isDepartment,
+              departmentId: widget.departmentId,
+            ),
             if (!widget.isDepartment) ...[
               const SizedBox(height: 18),
               executiveSnapshot(),
@@ -3402,6 +3409,283 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
         ),
       ),
     );
+  }
+}
+
+class DrainageInspectionBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+
+  const DrainageInspectionBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+
+  @override
+  State<DrainageInspectionBoard> createState() => _DrainageInspectionBoardState();
+}
+
+class _DrainageInspectionBoardState extends State<DrainageInspectionBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  List<Map<String, dynamic>> get drainageCases => widget.requests.where((r) =>
+      (r['case_category'] ?? '').toString() == 'stormwater_drainage').toList();
+
+  @override
+  void initState() { super.initState(); _loadRecords(); }
+
+  Future<void> _loadRecords() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('drainage_inspection_records')
+          .select().order('updated_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Drainage records could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final number = r['request_number']?.toString();
+        final title = (r['title'] ?? r['road_name'] ?? 'Drainage case').toString();
+        return number == null ? title : 'Case #' + number + ' · ' + title;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  String _departmentLabel(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return widget.isDepartment ? 'Assigned department' : 'Department';
+  }
+
+  String _pretty(String value) => value.replaceAll('_', ' ');
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'cleared': return const Color(0xFF25845C);
+      case 'critical': return const Color(0xFFB54747);
+      case 'high': return const Color(0xFFB7791F);
+      case 'in_progress': return const Color(0xFF3978B8);
+      default: return const Color(0xFF64748B);
+    }
+  }
+
+  Future<void> _edit({Map<String, dynamic>? existing}) async {
+    if (supabase.auth.currentUser == null) { _message('Please sign in again.'); return; }
+    final cases = drainageCases;
+    if (cases.isEmpty) { _message('No accessible stormwater-drainage cases are available.'); return; }
+
+    var requestId = existing?['request_id']?.toString() ?? cases.first['id'].toString();
+    if (!cases.any((r) => r['id'].toString() == requestId)) requestId = cases.first['id'].toString();
+    var departmentId = existing?['responsible_department_id']?.toString()
+        ?? widget.departmentId
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var obstruction = (existing?['obstruction_type'] ?? 'blocked_inlet').toString();
+    var severity = (existing?['severity'] ?? 'moderate').toString();
+    var status = (existing?['action_status'] ?? 'reported').toString();
+    var standingWater = existing?['standing_water'] == true;
+    var inletClear = existing?['inlet_clear'] == true;
+    var outfallClear = existing?['outfall_clear'] == true;
+    var frontageDrain = existing?['frontage_drain_present'] != false;
+    var saving = false;
+    final notes = TextEditingController(text: existing?['inspection_notes']?.toString() ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(existing == null ? 'Record drainage inspection' : 'Update drainage inspection'),
+          content: SizedBox(width: 480, child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: requestId, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Stormwater case'),
+                items: cases.map((r) {
+                  final n = r['request_number']?.toString() ?? '';
+                  final t = (r['title'] ?? r['road_name'] ?? 'Drainage case').toString();
+                  return DropdownMenuItem(value: r['id'].toString(),
+                    child: Text(n.isEmpty ? t : 'Case #' + n + ' · ' + t, overflow: TextOverflow.ellipsis));
+                }).toList(),
+                onChanged: (v) => setDialogState(() => requestId = v ?? requestId),
+              ),
+              const SizedBox(height: 8),
+              if (widget.isDepartment)
+                Align(alignment: Alignment.centerLeft,
+                  child: Text('Responsible department: ' + (widget.departmentId ?? 'Not assigned')))
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId, isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Responsible department'),
+                  items: widget.departments.map((d) => DropdownMenuItem(
+                    value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString()))).toList(),
+                  onChanged: (v) => setDialogState(() => departmentId = v),
+                ),
+              DropdownButtonFormField<String>(
+                initialValue: obstruction,
+                decoration: const InputDecoration(labelText: 'Observed issue'),
+                items: const [
+                  DropdownMenuItem(value: 'blocked_inlet', child: Text('Blocked drain inlet')),
+                  DropdownMenuItem(value: 'silt_debris', child: Text('Silt / debris accumulation')),
+                  DropdownMenuItem(value: 'encroachment', child: Text('Drain encroachment')),
+                  DropdownMenuItem(value: 'damaged_drain', child: Text('Damaged drain')),
+                  DropdownMenuItem(value: 'missing_frontage_drain', child: Text('Missing frontage drain')),
+                  DropdownMenuItem(value: 'inadequate_capacity', child: Text('Inadequate drainage capacity')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) => setDialogState(() => obstruction = v ?? obstruction),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: severity, decoration: const InputDecoration(labelText: 'Severity'),
+                items: const [
+                  DropdownMenuItem(value: 'low', child: Text('Low')),
+                  DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
+                  DropdownMenuItem(value: 'high', child: Text('High')),
+                  DropdownMenuItem(value: 'critical', child: Text('Critical')),
+                ],
+                onChanged: (v) => setDialogState(() => severity = v ?? severity),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: status, decoration: const InputDecoration(labelText: 'Action status'),
+                items: const [
+                  DropdownMenuItem(value: 'reported', child: Text('Reported')),
+                  DropdownMenuItem(value: 'inspection_required', child: Text('Inspection required')),
+                  DropdownMenuItem(value: 'action_assigned', child: Text('Action assigned')),
+                  DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+                  DropdownMenuItem(value: 'cleared', child: Text('Cleared')),
+                  DropdownMenuItem(value: 'monitoring', child: Text('Monitoring')),
+                ],
+                onChanged: (v) => setDialogState(() => status = v ?? status),
+              ),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: standingWater, onChanged: (v) => setDialogState(() => standingWater = v ?? false),
+                title: const Text('Standing water observed')),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: inletClear, onChanged: (v) => setDialogState(() => inletClear = v ?? false),
+                title: const Text('Drain inlet verified clear')),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: outfallClear, onChanged: (v) => setDialogState(() => outfallClear = v ?? false),
+                title: const Text('Outfall / discharge path verified clear')),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: frontageDrain, onChanged: (v) => setDialogState(() => frontageDrain = v ?? false),
+                title: const Text('Frontage drain is present')),
+              TextField(controller: notes, minLines: 2, maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Inspection / action notes')),
+              const SizedBox(height: 6),
+              const Text('Clearance requires a clear inlet, clear outfall and no standing water.',
+                style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+            ]),
+          )),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
+            FilledButton(
+              onPressed: saving ? null : () async {
+                if (departmentId == null || departmentId!.isEmpty) {
+                  _message('Select a responsible department.'); return;
+                }
+                if (status == 'cleared' && (!inletClear || !outfallClear || standingWater)) {
+                  _message('Clearance requires a clear inlet, clear outfall and no standing water.'); return;
+                }
+                setDialogState(() => saving = true);
+                try {
+                  await supabase.rpc('save_drainage_inspection_record', params: {
+                    'p_request_id': requestId,
+                    'p_responsible_department_id': departmentId,
+                    'p_obstruction_type': obstruction,
+                    'p_severity': severity,
+                    'p_action_status': status,
+                    'p_standing_water': standingWater,
+                    'p_inlet_clear': inletClear,
+                    'p_outfall_clear': outfallClear,
+                    'p_frontage_drain_present': frontageDrain,
+                    'p_inspection_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  });
+                  if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                } catch (_) {
+                  setDialogState(() => saving = false);
+                  _message('Unable to save. Confirm the case is assigned to the selected department.');
+                }
+              },
+              child: saving ? const SizedBox(width: 16,height: 16,child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    notes.dispose();
+    if (saved == true) { await _loadRecords(); _message('Drainage inspection saved.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.water_damage_outlined, color: Color(0xFF087F83)),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('Stormwater & frontage drainage',
+            style: TextStyle(fontSize: 14,fontWeight: FontWeight.w800,color: navy))),
+          IconButton(onPressed: loading ? null : _loadRecords,
+            icon: const Icon(Icons.refresh), tooltip: 'Refresh drainage records'),
+        ]),
+        const Text('Track blocked inlets, silt, encroachment, standing water and missing frontage drains. This is case-management data, not engineering clearance.',
+          style: TextStyle(fontSize: 11,color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: drainageCases.isEmpty ? null : () => _edit(),
+          icon: const Icon(Icons.add), label: const Text('RECORD DRAINAGE INSPECTION'))),
+        if (drainageCases.isEmpty)
+          const Padding(padding: EdgeInsets.only(top: 8),
+            child: Text('Create or assign a case under Stormwater and drainage to start an inspection.',
+              style: TextStyle(fontSize: 11,color: Colors.blueGrey))),
+        const SizedBox(height: 8),
+        if (loading)
+          const Center(child: Padding(padding: EdgeInsets.all(12),child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty)
+          Text(errorMessage,style: const TextStyle(fontSize: 12,color: Colors.red))
+        else if (records.isEmpty)
+          const Text('No drainage inspections have been entered yet.',
+            style: TextStyle(fontSize: 12,color: Colors.blueGrey))
+        else
+          ...records.map((r) {
+            final status = (r['action_status'] ?? 'reported').toString();
+            final severity = (r['severity'] ?? 'moderate').toString();
+            final dept = r['responsible_department_id'].toString();
+            final issue = _pretty((r['obstruction_type'] ?? 'other').toString());
+            return Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(color: const Color(0xFFF7FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE4EAF1))),
+              child: ListTile(dense: true, onTap: () => _edit(existing: r),
+                leading: Icon(Icons.water_damage_outlined,color: _statusColor(status)),
+                title: Text(_caseLabel(r['request_id'].toString()),maxLines: 2,overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12,fontWeight: FontWeight.w700,color: navy)),
+                subtitle: Text(_departmentLabel(dept) + ' · ' + issue + ' · ' +
+                  severity.toUpperCase() + ' · ' + _pretty(status),
+                  style: const TextStyle(fontSize: 10,color: Colors.blueGrey)),
+                trailing: const Icon(Icons.chevron_right)),
+            );
+          }),
+      ]),
+    ));
   }
 }
 
