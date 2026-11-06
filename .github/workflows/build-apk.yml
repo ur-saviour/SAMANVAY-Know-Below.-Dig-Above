@@ -102,8 +102,9 @@ jobs:
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
 
-          mkdir -p lib
+          mkdir -p lib assets/reference
           cp app/main.dart lib/main.dart
+          cp -R app/assets/reference/. assets/reference/
 
       # 5. Install dependencies
       - name: Install Flutter dependencies
@@ -123,6 +124,16 @@ jobs:
           content = path.read_text()
           if "dependency_overrides:" not in content:
               content += chr(10) + "dependency_overrides:" + chr(10) + "  permission_handler_android: 13.0.1" + chr(10)
+
+          asset_entry = "    - assets/reference/coimbatore/coimbatore_wards_legacy_2011.geojson"
+          if asset_entry not in content:
+              if chr(10) + "flutter:" + chr(10) not in content:
+                  raise SystemExit("Flutter section not found in generated pubspec.yaml")
+              content = content.replace(
+                  chr(10) + "flutter:" + chr(10),
+                  chr(10) + "flutter:" + chr(10) + "  assets:" + chr(10) + asset_entry + chr(10),
+                  1,
+              )
           path.write_text(content)
           PY
           flutter pub get
