@@ -5105,9 +5105,8 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
     final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['csv'],
-      withData: true,
     );
-    if (picked == null || picked.files.isEmpty) return;
+    if (picked == null) return;
     final selectedFile = picked;
     final bytes = await selectedFile.readAsBytes();
     if (bytes.isEmpty) {
@@ -5126,7 +5125,9 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       final nameCol = _column(headers, ['name','districtname','districtnameenglish','localbodyname','localbodynameenglish','nameenglish']);
       final stateCol = _column(headers, ['statename','statenameenglish','state']);
       final localNameCol = _column(headers, ['namelocal','localname','localbodynamelocal']);
-      final parentCol = _column(headers, ['parentlgdcode','parentcode','parentunitcode','districtlgdcode','districtcode']);
+      final parentCol = unitType == 'district'
+          ? -1
+          : _column(headers, ['parentlgdcode','parentcode','parentunitcode','districtlgdcode','districtcode']);
       if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
         throw Exception('Required columns not found. Include LGD Code, Name and State Name.');
       }
