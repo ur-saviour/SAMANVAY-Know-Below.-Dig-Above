@@ -191,6 +191,7 @@
 - [x] Apply authenticated read and admin/coordinator management RLS.
 - [x] Add district/ULB readiness panel to India coverage explorer.
 - [x] Add admin/coordinator-only CSV import screen with required-column validation, State/parent checks and text-preserved LGD codes.
+- [x] Link a single-State CSV upload to its matching queued district/ULB export batch; keep multi-State uploads separately audited.
 - [x] Add CSV parser to Android build workflow.
 - [x] Register the official IGOD State/UT district index and state-specific district-page URLs.
 - [x] Create 36 district export tasks and 36 urban-local-body export tasks in the import-batch audit table.
