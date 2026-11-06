@@ -211,3 +211,75 @@ After Tamil Nadu's authority, permission and ingestion model is operational, ext
 - NHAI: https://nhai.gov.in/
 
 **Research caution:** Portal content, organisation names, legal instruments, URLs, data formats and access terms can change. Revalidate with the custodian and obtain written approval before any production integration. This register is a sourced acquisition plan, not evidence that SAMANVAY has received the datasets or that any authority has endorsed the product.
+
+
+## 11. Supplemental official portal checks — 6 November 2026
+
+The following checks refine the acquisition sequence. They are discovery findings, not evidence that SAMANVAY has been granted access or that the data has been imported.
+
+### 11.1 TNGIS availability and permission boundary
+
+The Tamil Nadu Information Technology and Digital Services Department's 2025–26 policy note reports that TNGIS manages **400+ spatial layers**, with **200+ layers actively shared with government departments**. It also reports that approximately **27 commonly used administrative layers**—including State, District, Taluk, Village, Ward, Town, Block and Panchayat layers—are available in GIS formats for free download after user registration, and that the portal provides APIs.
+
+Acquisition action:
+1. Register through the official TNGIS portal and inspect the current catalogue, metadata and download/API terms.
+2. Identify which of the 27 commonly used layers cover the Coimbatore pilot and record their exact version, CRS, update date and data owner.
+3. For department-specific layers, submit a formal request through TNeGA/DeG and the owning department.
+4. Do not assume “free download” means unrestricted republication, commercial use or access to sensitive utility geometry. Apply the portal's current terms and obtain the approvals already identified in Section 1.
+
+Sources:
+- Tamil Nadu IT & Digital Services Policy Note 2025–26: https://tnega.tn.gov.in/assets/pdf/it_e_pn_2025_26.pdf
+- TNGIS portal: https://tngis.tn.gov.in/
+- TNGIS applications/catalogue: https://tngis.tn.gov.in/apps.html
+
+### 11.2 What the visible TNGIS map catalogue does—and does not—establish
+
+The TNGIS map-editor catalogue currently exposes contextual layers such as Major District Roads, State Highways, National Highways, Drainage, Tanks, Reservoirs and Rivers, along with public-facility layers. These are useful for a Tamil Nadu reference map and preliminary planning context.
+
+**Do not treat a layer named “Drainage” as proof of a surveyed underground stormwater-pipe network.** Before importing it as an asset, inspect its metadata, geometry type, attribute schema, scale, custodian and whether it represents surface drainage, a mapped channel, or a buried network. Only owner-confirmed underground assets should enter `gis.underground_assets`.
+
+Source: https://tngis.tn.gov.in/apps/cumta/
+
+### 11.3 Groundwater telemetry dataset
+
+The National Water Data Portal lists a Tamil Nadu Surface Water and Ground Water Department dataset titled **Ground Water Level (Telemetry - Six Hourly)**. Its metadata describes six-hourly station observations, including timestamp, station identifier, geographic hierarchy and groundwater depth below ground level. CSV resources are listed for 2021–2025 and 2026–2030.
+
+SAMANVAY use:
+- Add this as a separate groundwater-monitoring time-series dataset, not as underground utility geometry.
+- Preserve station ID, timestamp, measurement unit, depth reference, publisher, data period and update date.
+- Use it for regional monitoring/trend context only. It does not provide a complete inventory of private or permitted borewells.
+
+Source: https://nwdp.nwic.gov.in/en/dataset/ground-water-level-telemetry-daily-tamil-nadu-sw-gw
+
+### 11.4 Water Resources Department tank records
+
+The Tamil Nadu WRD Tank Information System describes technical profiles and work history for 14,306 tanks, including system and non-system tanks. The portal is engineer-oriented and presents authenticated access. It is a potential source for tank asset identifiers, location and maintenance-history integration, subject to WRD approval and a supported export/API route.
+
+SAMANVAY use:
+- Keep tank polygons/points and maintenance history in a distinct surface-water asset category.
+- Request the authoritative tank ID, geometry, basin/district, ownership/maintenance division, technical profile, last inspection and work history.
+- Do not assume the authenticated portal's records are publicly downloadable.
+
+Source: https://tngis.tn.gov.in/wrd/
+
+### 11.5 Electricity distribution GIS
+
+The TANGEDCO/TNPDCL GIS web-link page describes GIS views for substation and feeder fault status, Chennai fuse-off-call status, and an intranet map of distribution assets and consumer locations with access based on user group.
+
+SAMANVAY use:
+- Treat this as evidence that the distribution utility has GIS-based operational systems and a likely internal data custodian—not as an open underground-cable dataset.
+- Request the authorised TNPDCL GIS nodal officer, an approved API/export route, and a limited pilot dataset for underground cable/duct assets where maintained.
+- Keep consumer-location information out of SAMANVAY unless a separate lawful purpose, data minimisation assessment and written permission exist.
+
+Source: https://tapps.tneb.in/gisapp/weblink.html
+
+### 11.6 Revised Tamil Nadu first-import order
+
+1. **TNGIS administrative boundaries** — obtain registered downloads for the 27 common layers; validate Coimbatore ULB and ward identifiers with CCMC.
+2. **Road network and ownership** — reconcile TNGIS context with CCMC, Highways and NHAI road-owner records.
+3. **Water bodies, tanks and drainage context** — obtain TNGIS layer metadata and WRD tank records; classify these as surface/context assets.
+4. **Groundwater telemetry** — catalogue the NWDP CSV/API time series separately from borewell permits.
+5. **Road-cutting and works registers** — request structured records from the road-owning ULB/department.
+6. **Underground utility geometry** — request owner-authorised water, sewer, stormwater, power and telecom records; ingest only with permission, source lineage and survey/verification evidence.
+
+**Current database status remains unchanged:** These portal discoveries do not populate the SAMANVAY underground-asset registry. Until authorised datasets are received and verified, zero registered underground assets means “no authorised records are currently registered”, not that the area has no underground utilities.
