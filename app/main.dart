@@ -5102,15 +5102,15 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       return;
     }
 
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['csv'],
       withData: true,
     );
     if (picked == null || picked.files.isEmpty) return;
-    final selectedFile = picked.files.single;
-    final bytes = selectedFile.bytes;
-    if (bytes == null || bytes.isEmpty) {
+    final selectedFile = picked;
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) {
       setState(() => statusMessage = 'The selected CSV file could not be read.');
       return;
     }
@@ -5119,7 +5119,7 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
     try {
       var csvText = utf8.decode(bytes, allowMalformed: true);
       if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
-      final parsed = CsvToListConverter(shouldParseNumbers: false).convert(csvText);
+      final parsed = csv.decode(csvText);
       if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
       final headers = parsed.first.map((v) => _key(v.toString())).toList();
       final codeCol = _column(headers, ['lgdcode','districtlgdcode','districtcode','localbodycode','code']);
