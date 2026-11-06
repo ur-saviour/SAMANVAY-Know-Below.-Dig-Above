@@ -83,7 +83,9 @@ A previous Alpha 0.3 CI run completed package/signature/alignment checks but the
 2. verify both source files exist before build; and
 3. fail the APK verification step if either GeoJSON is absent from any ABI-specific APK.
 
-**The corrected APK build must be green and the APK contents must be inspected before calling the map data bundled in a release.** A successful Dart analysis alone is not proof that runtime assets were packaged.
+**Verified release evidence:** GitHub Actions run [42190005968](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/42190005968) completed successfully, including APK package/signature/alignment checks. I downloaded and inspected its three ABI APKs and confirmed that both GeoJSON files are present inside each APK at `assets/flutter_assets/assets/reference/coimbatore/`. The ARM64 APK SHA-256 is `49d1c6e2a352360c78216538e27d47c8830e2e5cdabda4698c184691bb245d64`.
+
+A follow-up workflow run [42191020032](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/42191020032) adds mandatory automated checks that fail the build if either GIS asset is absent. That follow-up run was still in progress when this draft was updated. A successful Dart analysis alone is not proof that runtime assets were packaged.
 
 ## 4. Official sources identified but not copied into the app
 
