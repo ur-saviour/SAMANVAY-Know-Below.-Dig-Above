@@ -7,7 +7,7 @@ Scope: all 28 States and 8 Union Territories. National coverage is tracked separ
 
 - National jurisdiction master: all 36 States/UTs.
 - CGWB 2025 groundwater resource assessment: 36/36 State/UT aggregate records imported.
-- NWDP/CGWB 2021-2025 telemetry: At the latest resource-registry check, 11 resource feeds are complete, 23 partial and 28 discovered/not yet imported. Resource-level imported row sum is 1,225,063; this may include overlapping alternative feeds and is not a deduplicated unique-observation count. The advertised source-row sum is 19,951,239 across 62 resource records at latest check; alternative/agency feeds can overlap, so this is not a deduplicated national count.
+- NWDP/CGWB 2021-2025 telemetry: At the latest resource-registry check, 11 resource feeds are complete, 23 partial and 28 discovered/not yet imported. Resource-level imported row sum is 1,235,063; this may include overlapping alternative feeds and is not a deduplicated unique-observation count. The advertised source-row sum is 19,951,239 across 62 resource records at latest check; alternative/agency feeds can overlap, so this is not a deduplicated national count.
 - Additional 199 district-level groundwater rows from seven State/UT CSV mirrors are stored in a separate reconciliation staging table; they are not cleared for official aggregation.
 - Utility GIS: 108 State/UT layer contracts plus 8 original Coimbatore pilot records (116 total); 115 are authority-data-pending and zero are enabled for operational excavation use.
 - Building approvals: 33 State/UT jurisdictions have an official portal or service-directory URL mapped; three have no direct portal/service entrypoint verified yet (Mizoram, Nagaland and Tripura). The approvals table contains zero imported approval records.
@@ -43,7 +43,7 @@ Official NWDP CKAN API and dataset pages:
 Current-period (2021-2025) resources catalogued:
 - 62 resource records.
 - Sum of advertised source row counts: 16,528,153 across those resource records at latest check. Some are alternative/agency feeds for a jurisdiction; this is not a deduplicated unique-observation count.
-- 11 resources completed, 23 partially imported, 28 discovered/not yet imported. Live resource-registry recheck: 495,063 rows in completed resources and 730,000 rows in partial resources (1,225,063 source rows imported). Alternative feeds may overlap. A resumable GitHub Actions import run is processing the backlog.
+- 11 resources completed, 23 partially imported, 28 discovered/not yet imported. Live resource-registry recheck: 495,063 rows in completed resources and 740,000 rows in partial resources (1,225,063 source rows imported). Alternative feeds may overlap. A resumable GitHub Actions import run is processing the backlog.
 - 1,225,063 resource-level imported rows are recorded in public.groundwater_source_resources; the observation-table unique row count must be rechecked after the active import finishes.
 - Observations currently represent 31 State/UT labels, 331 distinct station-name labels and 158 district-name labels (latest-station view counts may increase as new feeds finish importing).
 
