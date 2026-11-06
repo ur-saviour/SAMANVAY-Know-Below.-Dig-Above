@@ -1,0 +1,3 @@
+-- The preceding migration 20261105193420 already revokes mobile access to exact utility geometry.
+-- This migration records a hosted-project repair that restored that same intended boundary.
+-- Fresh installations require no additional SQL because the preceding migration establishes it.
