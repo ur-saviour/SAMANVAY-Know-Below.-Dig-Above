@@ -478,6 +478,116 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     }).length;
   }
 
+  double _distanceMetres(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final lat1 = (a['latitude'] as num).toDouble() * math.pi / 180;
+    final lat2 = (b['latitude'] as num).toDouble() * math.pi / 180;
+    final dLat = lat2 - lat1;
+    final dLon = ((b['longitude'] as num).toDouble() -
+        (a['longitude'] as num).toDouble()) * math.pi / 180;
+    final h = math.pow(math.sin(dLat / 2), 2) +
+        math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(dLon / 2), 2);
+    return 6371000 * 2 * math.asin(math.sqrt(h));
+  }
+
+  List<Map<String, dynamic>> _repeatedWorkCandidates() {
+    final candidates = <Map<String, dynamic>>[];
+    for (var i = 0; i < requests.length; i++) {
+      final a = requests[i];
+      if (a['latitude'] is! num || a['longitude'] is! num) continue;
+      final aStart = DateTime.tryParse((a['planned_start_date'] ?? '').toString());
+      final aEnd = DateTime.tryParse((a['planned_end_date'] ?? '').toString());
+      if (aStart == null || aEnd == null) continue;
+
+      for (var j = i + 1; j < requests.length; j++) {
+        final b = requests[j];
+        if (b['latitude'] is! num || b['longitude'] is! num) continue;
+        final bStart = DateTime.tryParse((b['planned_start_date'] ?? '').toString());
+        final bEnd = DateTime.tryParse((b['planned_end_date'] ?? '').toString());
+        if (bStart == null || bEnd == null) continue;
+        if (valueOf(a, 'id') == valueOf(b, 'id')) continue;
+
+        final categoryA = valueOf(a, 'case_category', fallback: '');
+        final categoryB = valueOf(b, 'case_category', fallback: '');
+        if (categoryA == categoryB) continue;
+
+        final distance = _distanceMetres(a, b);
+        final datesOverlap = !aStart.isAfter(bEnd) && !bStart.isAfter(aEnd);
+        if (distance <= 100 && datesOverlap) {
+          candidates.add({
+            'first': a,
+            'second': b,
+            'distance': distance,
+            'start': aStart.isAfter(bStart) ? aStart : bStart,
+            'end': aEnd.isBefore(bEnd) ? aEnd : bEnd,
+          });
+        }
+      }
+    }
+    candidates.sort((a, b) =>
+        (a['distance'] as double).compareTo(b['distance'] as double));
+    return candidates;
+  }
+
+  Widget repeatedWorkCoordinationPanel() {
+    final candidates = _repeatedWorkCandidates();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.alt_route, color: Color(0xFF087F83)),
+              const SizedBox(width: 9),
+              const Expanded(child: Text('Repeated excavation & joint-work opportunities',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+              Chip(label: Text('${candidates.length}')),
+            ]),
+            const SizedBox(height: 5),
+            const Text(
+              'Advisory matches: different infrastructure domains within 100 m with overlapping planned dates. Review before coordinating; these are not confirmed duplicates.',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+            ),
+            const SizedBox(height: 10),
+            if (candidates.isEmpty)
+              const Text(
+                'No qualifying matches in the currently loaded records. Cases without coordinates or planned dates are not assessed.',
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              )
+            else
+              ...candidates.take(5).map((match) {
+                final first = match['first'] as Map<String, dynamic>;
+                final second = match['second'] as Map<String, dynamic>;
+                final metres = (match['distance'] as double).round();
+                final start = (match['start'] as DateTime);
+                final end = (match['end'] as DateTime);
+                String label(Map<String, dynamic> row) =>
+                    (row['title'] ?? row['case_category'] ?? 'Infrastructure case').toString();
+                return Container(
+                  margin: const EdgeInsets.only(top: 9),
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F8F8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD5E9E7)),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${label(first)}  ↔  ${label(second)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+                    const SizedBox(height: 4),
+                    Text('${metres} m apart · overlapping dates: ${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}/${start.year}–${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
+                      style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                    const Text('Suggested action: coordinator review for possible joint execution.',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF087F83))),
+                  ]),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget domainBreakdown() {
     final counts = <String, int>{};
     for (final request in requests) {
@@ -1555,6 +1665,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             if (!widget.isDepartment) ...[
               const SizedBox(height: 18),
               executiveSnapshot(),
+              const SizedBox(height: 14),
+              repeatedWorkCoordinationPanel(),
             ],
             const SizedBox(height: 14),
             SizedBox(
