@@ -5223,7 +5223,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
     }
     final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
     final type = (geometry['type'] ?? '').toString();
-    if (!_geometryTypes.contains(type)) return 'Unsupported geometry type: ' + type;
+    if (!_geometryTypes.contains(type)) return 'Unsupported geometry type: $type';
     if (!_validCoordinates(geometry['coordinates'])) return 'Invalid WGS84 coordinates. GeoJSON order must be [longitude, latitude].';
 
     final p = Map<String, dynamic>.from(feature['properties'] as Map);
@@ -5240,7 +5240,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       final raw = p[key];
       if (raw == null || raw.toString().trim().isEmpty) continue;
       final value = double.tryParse(raw.toString());
-      if (value == null || !value.isFinite || value < 0) return key + ' must be a non-negative number.';
+      if (value == null || !value.isFinite || value < 0) return '$key must be a non-negative number.';
     }
     final depth = double.tryParse((p['depth_m'] ?? '').toString());
     if (depth != null && depth > 100) return 'depth_m cannot exceed 100 metres.';
@@ -5291,19 +5291,17 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
         final code = (props['asset_code'] ?? '').toString().trim();
         if (error == null && !seen.add(code)) error = 'Duplicate asset_code in this file.';
         records.add({'feature': feature, 'error': error});
-        if (error != null) errors.add('Feature ' + (i + 1).toString() + ': ' + error);
+        if (error != null) errors.add('Feature ${i + 1}: $error');
       }
       if (!mounted) return;
       setState(() {
         _fileName = file.name;
         _records = records;
         _errors = errors;
-        _status = 'Preview ready. ' + (records.length - errors.length).toString() +
-            ' valid feature(s); ' + errors.length.toString() +
-            ' invalid feature(s). Nothing has been written yet.';
+        _status = 'Preview ready. ${records.length - errors.length} valid feature(s); ${errors.length} invalid feature(s). Nothing has been written yet.';
       });
     } catch (error) {
-      if (mounted) setState(() => _status = 'Preview failed: ' + error.toString().replaceFirst('Bad state: ', ''));
+      if (mounted) setState(() => _status = 'Preview failed: ${error.toString().replaceFirst('Bad state: ', '')}');
     } finally {
       if (mounted) setState(() => _loadingFile = false);
     }
@@ -5323,9 +5321,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Register as unverified?'),
-        content: Text(valid.length.toString() + ' records from "' + _fileName +
-            '" will be registered under ' + _departmentName +
-            '. They remain UNVERIFIED until a separate verification process is completed.'),
+        content: Text('${valid.length} records from "$_fileName" will be registered under $_departmentName. They remain UNVERIFIED until a separate verification process is completed.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Register')),
@@ -5371,7 +5367,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
         _imported++;
       } catch (error) {
         _failed++;
-        errors.add((p['asset_code'] ?? 'Unknown code').toString() + ': ' + error.toString());
+        errors.add('${p['asset_code'] ?? 'Unknown code'}: $error');
       }
       if (mounted) setState(() => _progress = i + 1);
     }
@@ -5379,16 +5375,13 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
     if (mounted) {
       setState(() {
         _errors = errors;
-        _status = 'Finished: ' + _imported.toString() +
-            ' registered as UNVERIFIED; ' + _failed.toString() +
-            ' failed. Resolve errors before retrying.';
+        _status = 'Finished: $_imported registered as UNVERIFIED; $_failed failed. Resolve errors before retrying.';
         _records = [];
         _fileName = '';
         _importing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import complete: ' + _imported.toString() +
-            ' registered; ' + _failed.toString() + ' failed.')),
+        SnackBar(content: Text('Import complete: $_imported registered; $_failed failed.')), 
       );
     }
   }
@@ -5486,27 +5479,25 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                               contentPadding: EdgeInsets.zero,
                               leading: Icon(error == null ? Icons.check_circle_outline : Icons.error_outline,
                                   color: error == null ? const Color(0xFF087F83) : Colors.red),
-                              title: Text((p['asset_code'] ?? 'Feature ' + (entry.key + 1).toString()).toString(),
+                              title: Text((p['asset_code'] ?? 'Feature ${entry.key + 1}').toString(), 
                                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                              subtitle: Text(error ?? ((p['asset_name'] ?? '').toString() + ' · ' +
-                                  (p['asset_type'] ?? '').toString() + ' · ' +
-                                  ((f['geometry'] as Map?)?['type'] ?? '').toString()),
+                              subtitle: Text(error ?? '${p['asset_name'] ?? ''} · ${p['asset_type'] ?? ''} · ${(f['geometry'] as Map?)?['type'] ?? ''}',
                                   style: const TextStyle(fontSize: 10)),
                             );
                           }),
                           if (_records.length > 20)
-                            Text('Showing first 20 of ' + _records.length.toString() + ' features.',
+                            Text('Showing first 20 of ${_records.length} features.',
                                 style: const TextStyle(color: mutedInk, fontSize: 11)),
                           if (_importing) ...[
                             const SizedBox(height: 8),
                             LinearProgressIndicator(value: _records.isEmpty ? null : _progress / validCount),
-                            Text('Processed ' + _progress.toString() + ' of ' + validCount.toString()),
+                            Text('Processed $_progress of $validCount'),
                           ],
                           const SizedBox(height: 12),
                           SizedBox(width: double.infinity, child: FilledButton.icon(
                             onPressed: !_importing && validCount > 0 ? _register : null,
                             icon: const Icon(Icons.cloud_upload_outlined),
-                            label: Text('REGISTER ' + validCount.toString() + ' VALID RECORD(S) AS UNVERIFIED'),
+                            label: Text('REGISTER $validCount VALID RECORD(S) AS UNVERIFIED'),
                             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF087F83), padding: const EdgeInsets.symmetric(vertical: 14)),
                           )),
                         ]),
@@ -5522,7 +5513,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                           const SizedBox(height: 8),
                           ..._errors.take(30).map((e) => Padding(
                             padding: const EdgeInsets.only(bottom: 6),
-                            child: Text('• ' + e, style: const TextStyle(fontSize: 11, color: Colors.red)),
+                            child: Text('• $e', style: const TextStyle(fontSize: 11, color: Colors.red)), 
                           )),
                         ]),
                       )),
