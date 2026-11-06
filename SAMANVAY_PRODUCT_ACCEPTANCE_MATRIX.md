@@ -192,6 +192,11 @@
 - [x] Add district/ULB readiness panel to India coverage explorer.
 - [x] Add admin/coordinator-only CSV import screen with required-column validation, State/parent checks and text-preserved LGD codes.
 - [x] Add CSV parser to Android build workflow.
+- [x] Register the official IGOD State/UT district index and state-specific district-page URLs.
+- [x] Create 36 district export tasks and 36 urban-local-body export tasks in the import-batch audit table.
+- [x] Mark all 36 administrative-directory coverage rows as CAPTCHA-required / export pending.
+- [x] Show pending district and ULB export task totals in the admin/coordinator India explorer panel.
+- [x] Add reproducible queue SQL at database/seed/india_lgd_export_queue.sql.
 - [ ] Generate/download official LGD reports through the normal portal CAPTCHA flow.
 - [ ] Import district, sub-district, block, ULB, panchayat and ward records with source dates.
 - [ ] Verify current local-body records against the State/UT authority and LGD revision history.
@@ -199,7 +204,7 @@
 - [ ] Populate official State/UT and ULB department contacts and source registers.
 - [ ] Obtain owner-authorised, current public/permission-based infrastructure datasets; keep detailed utility geometry in authority-controlled workflows.
 
-**Verified database state on 6 November 2026:** 396 coverage metadata rows; 36 jurisdictions; 11 domains; 0 administrative hierarchy records imported; 0 import batches; 0 operationally enabled coverage rows. No district or ULB records have been fabricated.
+**Verified database state on 6 November 2026:** 396 coverage metadata rows; 36 jurisdictions; 11 domains; 0 administrative hierarchy records imported; 72 export batches queued (36 districts + 36 ULBs); all 72 awaiting authorised report generation; 0 operationally enabled coverage rows. No district or ULB records have been fabricated.
 
 
 ## 16. Restricted asset verification centre — 6 November 2026
