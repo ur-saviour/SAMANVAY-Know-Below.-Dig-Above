@@ -10,6 +10,7 @@ The Tamil Nadu-first and national data acquisition plans are maintained here:
 - [Coimbatore Pilot Authority Mapping](docs/data-governance/COIMBATORE_PILOT_AUTHORITY_MAPPING.md)
 - [Coimbatore Data-Sharing Request Templates](docs/data-governance/COIMBATORE_DATA_SHARING_REQUEST_TEMPLATE.md)
 - [Coimbatore Groundwater Telemetry Dataset](docs/data-governance/COIMBATORE_GROUNDWATER_TELEMETRY_DATASET.md)
+- [Coimbatore Pilot Data Readiness and Evidence Draft](docs/data-governance/COIMBATORE_PILOT_DATA_READINESS_AND_EVIDENCE_DRAFT.md)
 - [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
 - [India National Data Acquisition Register](docs/data-governance/INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
 
