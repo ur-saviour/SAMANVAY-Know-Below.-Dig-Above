@@ -25,6 +25,7 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - [Utility Proximity Conflict Screening](docs/features/UTILITY_PROXIMITY_CONFLICT_SCREENING.md)
 - [Road-Cut Permit Compliance & Restoration Deadlines](docs/features/ROAD_CUT_PERMIT_COMPLIANCE_AND_DEADLINES.md)
 - [Road Restoration and Quality Assurance](docs/features/ROAD_RESTORATION_QUALITY_ASSURANCE.md)
+- [Stormwater Drainage and Frontage Inspection Tracking](docs/features/STORMWATER_DRAINAGE_INSPECTION_TRACKING.md)
 - [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
 - The app bundles an optional 2024 Coimbatore 100-ward public-domain reference layer at `assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`.
 - That boundary layer is an administrative reference only; it is not CCMC-certified statutory GIS and does not contain underground utility geometry.
