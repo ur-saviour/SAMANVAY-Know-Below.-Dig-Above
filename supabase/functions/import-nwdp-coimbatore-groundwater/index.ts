@@ -62,6 +62,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const staleResult = await admin.from("groundwater_data_import_runs").update({
+    status: "failed",
+    completed_at: new Date().toISOString(),
+    error_summary: "Import lease expired before completion; safe to retry.",
+  }).eq("status", "running").lt("started_at", cutoff);
+  if (staleResult.error) return json({ error: "Could not clear an expired import lease." }, 500);
+
   const activeResult = await admin.from("groundwater_data_import_runs")
     .select("id").eq("status", "running").gte("started_at", cutoff).limit(1);
   if (activeResult.error) return json({ error: "Could not check import status." }, 500);
@@ -90,7 +97,10 @@ Deno.serve(async (req: Request) => {
     status: "running",
     requested_by: userId,
   }).select("id").single();
-  if (runResult.error || !runResult.data) return json({ error: "Could not create the import audit record." }, 500);
+  if (runResult.error || !runResult.data) {
+    if (runResult.error?.code === "23505") return json({ error: "Another groundwater import started at the same time." }, 409);
+    return json({ error: "Could not create the import audit record." }, 500);
+  }
 
   const runId = runResult.data.id;
   let imported = 0;
