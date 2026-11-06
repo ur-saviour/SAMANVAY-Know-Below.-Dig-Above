@@ -26,6 +26,8 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - Imported utility assets remain UNVERIFIED until authorised evidence and verification are recorded.
 - An empty underground-asset registry is not evidence that underground utilities are absent.
 
+- [Alpha 0.3 Coimbatore Pilot Delivery Record](docs/release/SAMANVAY_ALPHA_0_3_COIMBATORE_PILOT_DELIVERY.md)
+
 ## Application
 
 - Flutter Android application: `app/main.dart`
