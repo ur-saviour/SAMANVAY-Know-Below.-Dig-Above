@@ -41,9 +41,10 @@ Identify active work requests that may be close to registered underground utilit
 ## Validation performed
 
 A transaction-based QA test inserted one temporary verified asset and one temporary unverified asset near a temporary work request, called the RPC as an admin, then rolled back all test data. Results:
-- The request was marked `potential_conflict`.
-- Exactly one candidate was returned, confirming the unverified asset was excluded.
-- The result disclosed no asset identity or geometry.
+- The request was marked `potential_conflict` for a verified asset owned by a different department.
+- Exactly one candidate was returned, confirming the nearby unverified asset was excluded.
+- The result disclosed the owning department and asset type, but no asset identity or geometry.
+- A department user could screen a request assigned directly to its department; a request assigned to another department was rejected.
 - A requester-role call was rejected.
 - All temporary test rows were rolled back.
 
