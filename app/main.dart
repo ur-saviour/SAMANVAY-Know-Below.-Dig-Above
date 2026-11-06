@@ -3846,8 +3846,8 @@ class _MapPageState extends State<MapPage> {
   int _unverifiedAssetCount = 0;
   bool _canViewDepartmentAssets = false;
   bool _showVerifiedAssets = true;
-  bool _showCoimbatoreLegacyWardBoundaries = true;
-  int _coimbatoreLegacyWardCount = 0;
+  bool _showCoimbatoreWardBoundaries = true;
+  int _coimbatoreWardCount = 0;
   String _deviceCoordinateLabel = '';
   String _layerStatus =
       'Underground visibility requires authorised, verified GIS records.';
@@ -4206,13 +4206,13 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  Future<void> _loadCoimbatoreLegacyWardBoundaries() async {
+  Future<void> _loadCoimbatoreWardBoundaries() async {
     final controller = _controller;
     if (controller == null || !_styleReady) return;
 
     try {
       final text = await rootBundle.loadString(
-        'assets/reference/coimbatore/coimbatore_wards_legacy_2011.geojson',
+        'assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson',
       );
       final decoded = jsonDecode(text);
       if (decoded is! Map || decoded['type'] != 'FeatureCollection') {
@@ -4225,23 +4225,23 @@ class _MapPageState extends State<MapPage> {
 
       final collection = Map<String, dynamic>.from(decoded);
       final sources = await controller.getSourceIds();
-      if (sources.contains('samanvay-coimbatore-legacy-wards')) {
+      if (sources.contains('samanvay-coimbatore-ward-reference')) {
         await controller.setGeoJsonSource(
-          'samanvay-coimbatore-legacy-wards',
+          'samanvay-coimbatore-ward-reference',
           collection,
         );
       } else {
         await controller.addGeoJsonSource(
-          'samanvay-coimbatore-legacy-wards',
+          'samanvay-coimbatore-ward-reference',
           collection,
         );
       }
 
       var layers = await controller.getLayerIds();
-      if (!layers.contains('samanvay-coimbatore-legacy-ward-fill')) {
+      if (!layers.contains('samanvay-coimbatore-ward-fill')) {
         await controller.addFillLayer(
-          'samanvay-coimbatore-legacy-wards',
-          'samanvay-coimbatore-legacy-ward-fill',
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-fill',
           const FillLayerProperties(
             fillColor: '#20D6C2',
             fillOpacity: 0.045,
@@ -4252,10 +4252,10 @@ class _MapPageState extends State<MapPage> {
       }
 
       layers = await controller.getLayerIds();
-      if (!layers.contains('samanvay-coimbatore-legacy-ward-lines')) {
+      if (!layers.contains('samanvay-coimbatore-ward-lines')) {
         await controller.addLineLayer(
-          'samanvay-coimbatore-legacy-wards',
-          'samanvay-coimbatore-legacy-ward-lines',
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-lines',
           const LineLayerProperties(
             lineColor: '#45D9CE',
             lineWidth: 1.4,
@@ -4266,24 +4266,24 @@ class _MapPageState extends State<MapPage> {
       }
 
       layers = await controller.getLayerIds();
-      if (layers.contains('samanvay-coimbatore-legacy-ward-fill')) {
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
         await controller.setLayerVisibility(
-          'samanvay-coimbatore-legacy-ward-fill',
-          _showCoimbatoreLegacyWardBoundaries,
+          'samanvay-coimbatore-ward-fill',
+          _showCoimbatoreWardBoundaries,
         );
       }
-      if (layers.contains('samanvay-coimbatore-legacy-ward-lines')) {
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
         await controller.setLayerVisibility(
-          'samanvay-coimbatore-legacy-ward-lines',
-          _showCoimbatoreLegacyWardBoundaries,
+          'samanvay-coimbatore-ward-lines',
+          _showCoimbatoreWardBoundaries,
         );
       }
 
       if (mounted) {
-        setState(() => _coimbatoreLegacyWardCount = rawFeatures.length);
+        setState(() => _coimbatoreWardCount = rawFeatures.length);
       }
     } catch (_) {
-      if (mounted) setState(() => _coimbatoreLegacyWardCount = 0);
+      if (mounted) setState(() => _coimbatoreWardCount = 0);
     }
   }
 
@@ -4295,8 +4295,8 @@ class _MapPageState extends State<MapPage> {
 
     try {
       // Public administrative reference data is independent of account role.
-      // This legacy ward layer is not a current statutory jurisdiction source.
-      await _loadCoimbatoreLegacyWardBoundaries();
+      // This 2024 ward reference layer is not a current statutory jurisdiction source.
+      await _loadCoimbatoreWardBoundaries();
 
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -4682,27 +4682,27 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  Future<void> _toggleCoimbatoreLegacyWardBoundaries(bool enabled) async {
-    setState(() => _showCoimbatoreLegacyWardBoundaries = enabled);
+  Future<void> _toggleCoimbatoreWardBoundaries(bool enabled) async {
+    setState(() => _showCoimbatoreWardBoundaries = enabled);
     final controller = _controller;
     if (controller == null || !_styleReady) return;
 
     if (enabled) {
-      await _loadCoimbatoreLegacyWardBoundaries();
+      await _loadCoimbatoreWardBoundaries();
       return;
     }
 
     try {
       final layers = await controller.getLayerIds();
-      if (layers.contains('samanvay-coimbatore-legacy-ward-fill')) {
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
         await controller.setLayerVisibility(
-          'samanvay-coimbatore-legacy-ward-fill',
+          'samanvay-coimbatore-ward-fill',
           false,
         );
       }
-      if (layers.contains('samanvay-coimbatore-legacy-ward-lines')) {
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
         await controller.setLayerVisibility(
-          'samanvay-coimbatore-legacy-ward-lines',
+          'samanvay-coimbatore-ward-lines',
           false,
         );
       }
@@ -4942,14 +4942,14 @@ class _MapPageState extends State<MapPage> {
                       },
                     ),
                     SwitchListTile(
-                      value: _showCoimbatoreLegacyWardBoundaries,
+                      value: _showCoimbatoreWardBoundaries,
                       activeThumbColor: const Color(0xFF20D6C2),
                       title: const Text(
-                        'Coimbatore ward boundaries (legacy reference)',
+                        'Coimbatore ward boundaries (2024 reference)',
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '$_coimbatoreLegacyWardCount polygons · 2011 source · visual reference only, not a current statutory boundary',
+                        '$_coimbatoreWardCount polygons · OpenCity Public Domain dataset · reference only; confirm legal boundaries with CCMC',
                         style: const TextStyle(
                           color: Color(0xFFB8C7D5),
                           fontSize: 11,
@@ -4957,7 +4957,7 @@ class _MapPageState extends State<MapPage> {
                       ),
                       onChanged: (value) {
                         setSheetState(() {});
-                        _toggleCoimbatoreLegacyWardBoundaries(value);
+                        _toggleCoimbatoreWardBoundaries(value);
                       },
                     ),
                     if (_canViewDepartmentAssets)
