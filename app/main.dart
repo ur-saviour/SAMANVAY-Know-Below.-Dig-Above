@@ -394,6 +394,24 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           loadedRequests =
               List<Map<String, dynamic>>.from(rawRequests);
         }
+
+        // Include cases assigned directly to this department, not only review rows.
+        final directRows = await supabase
+            .from('excavation_requests')
+            .select()
+            .eq('department_id', widget.departmentId!)
+            .order('created_at', ascending: false)
+            .limit(200);
+        final mergedRequests = <String, Map<String, dynamic>>{};
+        for (final request in loadedRequests) {
+          mergedRequests[request['id'].toString()] = request;
+        }
+        for (final request in List<Map<String, dynamic>>.from(directRows)) {
+          mergedRequests[request['id'].toString()] = request;
+        }
+        loadedRequests = mergedRequests.values.toList()
+          ..sort((a, b) => (b['created_at'] ?? '').toString()
+              .compareTo((a['created_at'] ?? '').toString()));
       } else {
         final rawRequests = await supabase
             .from('excavation_requests')
@@ -2629,7 +2647,8 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
         return (number == null ? '' : 'Case #' + number + ' · ') + title;
       }
     }
-    return 'Case ' + requestId.substring(0, math.min(8, requestId.length));
+    final shortId = requestId.length > 8 ? requestId.substring(0, 8) : requestId;
+    return 'Case ' + shortId;
   }
 
   String _departmentLabel(String departmentId) {
@@ -2918,7 +2937,7 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                       }
 
                       if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
-                    } catch (error) {
+                    } catch (_) {
                       setDialogState(() => saving = false);
                       _showMessage('Unable to save restoration record. Confirm the case is assigned to the selected department.');
                     }
