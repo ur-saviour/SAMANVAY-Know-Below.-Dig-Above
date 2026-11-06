@@ -124,3 +124,13 @@
 - [ ] Validate role-based login, GIS interaction, responsive layout, file upload and redirect URLs in a real WebGL2 browser.
 - [ ] Deploy the static bundle to an approved HTTPS host and configure Supabase Auth redirect allow-lists for the production domain.
 - [ ] Browser portal is the desktop operations target; MapLibre Flutter does not provide native Windows/macOS/Linux desktop targets.
+
+## 11. India-wide data interface update — 6 November 2026
+
+- [x] State/UT selector backed by the 36-row national jurisdiction directory.
+- [x] Groundwater dashboard queries published observations by selected State/UT rather than hard-coding Coimbatore.
+- [x] Selected-jurisdiction CGWB 2025 resource metrics are shown separately from station telemetry.
+- [x] National data-readiness panel summarizes coverage states for groundwater, utility GIS and building approvals.
+- [x] Missing telemetry is shown as unavailable; it is not represented as zero groundwater or a safety clearance.
+- [ ] Build workflow must complete successfully against the updated 398 KB Flutter entrypoint; this commit has been submitted for CI.
+- [ ] Full UI/device, auth-role and GIS map regression testing remains outstanding.
