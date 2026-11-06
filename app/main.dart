@@ -4384,6 +4384,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   List<Map<String, dynamic>> states = [];
   List<Map<String, dynamic>> coverage = [];
   List<Map<String, dynamic>> administrativeUnits = [];
+  List<Map<String, dynamic>> directoryBatches = [];
   bool canManageDirectory = false;
   bool loading = true;
   String errorMessage = '';
@@ -4425,12 +4426,19 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       final profile = userId == null ? null : await supabase.from('profiles')
           .select('role').eq('id', userId).maybeSingle();
       final role = (profile?['role'] ?? '').toString();
+      final manager = role == 'admin' || role == 'coordinator';
+      final rawDirectoryBatches = manager
+          ? await supabase.from('india_directory_import_batches')
+              .select('unit_type,import_status,rows_received,rows_inserted,rows_rejected,jurisdiction_state_ut_id')
+              .limit(1000)
+          : <Map<String, dynamic>>[];
       if (!mounted) return;
       setState(() {
         states = List<Map<String, dynamic>>.from(rawStates);
         coverage = List<Map<String, dynamic>>.from(rawCoverage);
         administrativeUnits = List<Map<String, dynamic>>.from(rawAdministrativeUnits);
-        canManageDirectory = role == 'admin' || role == 'coordinator';
+        directoryBatches = List<Map<String, dynamic>>.from(rawDirectoryBatches);
+        canManageDirectory = manager;
         loading = false;
       });
     } catch (_) {
@@ -4601,6 +4609,12 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     final verified = administrativeUnits.where(
       (row) => row['verification_status'] == 'authority_verified',
     ).length;
+    final pendingDistrictExports = directoryBatches.where((row) =>
+      row['unit_type'] == 'district' && row['import_status'] == 'awaiting_authorised_export').length;
+    final pendingUlbExports = directoryBatches.where((row) =>
+      row['unit_type'] == 'urban_local_body' && row['import_status'] == 'awaiting_authorised_export').length;
+    final completedBatches = directoryBatches.where((row) =>
+      row['import_status'] == 'imported').length;
     for (final row in administrativeUnits) {
       final type = (row['unit_type'] ?? 'other').toString();
       counts[type] = (counts[type] ?? 0) + 1;
@@ -4638,10 +4652,20 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
           Text(administrativeUnits.length.toString() + ' directory records currently loaded · ' +
             verified.toString() + ' authority-verified',
             style: const TextStyle(fontSize: 10, color: mutedInk)),
+          if (canManageDirectory) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 7, runSpacing: 7, children: [
+              _metric('DISTRICT EXPORTS PENDING', pendingDistrictExports.toString(), Icons.map_outlined),
+              _metric('ULB EXPORTS PENDING', pendingUlbExports.toString(), Icons.location_city_outlined),
+              _metric('BATCHES IMPORTED', completedBatches.toString(), Icons.fact_check_outlined),
+            ]),
+          ],
           const SizedBox(height: 8),
           if (administrativeUnits.isEmpty)
             const Text(
-              'No district or ULB rows have been imported yet. The national LGD source has been registered, and the database is ready to receive an official report.',
+              canManageDirectory
+                ? 'No district or ULB rows have been imported yet. ' + pendingDistrictExports.toString() + ' district and ' + pendingUlbExports.toString() + ' urban-local-body state export tasks are queued. Each official report must be generated through the LGD portal with its normal CAPTCHA check.'
+                : 'No district or ULB rows have been imported yet. The national LGD source is registered; the responsible authority export and validation process is pending.',
               style: TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
             )
           else
