@@ -180,3 +180,23 @@
 - [ ] Keep sensitive underground network geometry in authority-controlled access workflows; do not expose precise routes, depths or asset-point details in the general explorer.
 
 **Verified database state on 6 November 2026:** 360 coverage rows; 36 jurisdictions; 10 domains; 0 rows operationally enabled. The 360 rows are coverage metadata, not 360 downloaded or authority-verified datasets.
+
+
+## 15. India administrative hierarchy and LGD import — 6 November 2026
+
+- [x] Register Ministry of Panchayati Raj LGD as the national administrative hierarchy source.
+- [x] Expand the coverage matrix to 11 domains across all 36 States/UTs (396 coverage metadata rows).
+- [x] Create administrative-unit hierarchy table with unique LGD code, parent unit, source date and verification status.
+- [x] Create import-batch audit table with report provenance and row counts.
+- [x] Apply authenticated read and admin/coordinator management RLS.
+- [x] Add district/ULB readiness panel to India coverage explorer.
+- [x] Add admin/coordinator-only CSV import screen with required-column validation, State/parent checks and text-preserved LGD codes.
+- [x] Add CSV parser to Android build workflow.
+- [ ] Generate/download official LGD reports through the normal portal CAPTCHA flow.
+- [ ] Import district, sub-district, block, ULB, panchayat and ward records with source dates.
+- [ ] Verify current local-body records against the State/UT authority and LGD revision history.
+- [ ] Complete Android/browser build and device regression checks.
+- [ ] Populate official State/UT and ULB department contacts and source registers.
+- [ ] Obtain owner-authorised, current public/permission-based infrastructure datasets; keep detailed utility geometry in authority-controlled workflows.
+
+**Verified database state on 6 November 2026:** 396 coverage metadata rows; 36 jurisdictions; 11 domains; 0 administrative hierarchy records imported; 0 import batches; 0 operationally enabled coverage rows. No district or ULB records have been fabricated.
