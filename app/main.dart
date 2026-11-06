@@ -4446,7 +4446,10 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     final status = (row['coverage_status'] ?? '').toString().toLowerCase();
     if (status.contains('partial')) return 'PARTIAL REGISTER';
     if (status.contains('imported')) return 'IMPORTED · REVIEW REQUIRED';
-    if (status.contains('identified')) return 'PORTAL IDENTIFIED';
+    if (status.contains('national_authority_identified_state_level_register_pending')) {
+      return 'NATIONAL SOURCE · LOCAL DATA PENDING';
+    }
+    if (status.contains('portal_identified')) return 'PORTAL IDENTIFIED';
     return 'AUTHORITY DATA PENDING';
   }
 
@@ -4455,7 +4458,10 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     final status = (row['coverage_status'] ?? '').toString().toLowerCase();
     if (status.contains('partial')) return const Color(0xFFFFF0D7);
     if (status.contains('imported')) return const Color(0xFFE6F0FB);
-    if (status.contains('identified')) return const Color(0xFFEAF4F4);
+    if (status.contains('national_authority_identified_state_level_register_pending')) {
+      return const Color(0xFFFFF0D7);
+    }
+    if (status.contains('portal_identified')) return const Color(0xFFEAF4F4);
     return const Color(0xFFF0F2F5);
   }
 
@@ -4464,7 +4470,10 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     final status = (row['coverage_status'] ?? '').toString().toLowerCase();
     if (status.contains('partial')) return const Color(0xFF8A5A00);
     if (status.contains('imported')) return const Color(0xFF285B8F);
-    if (status.contains('identified')) return const Color(0xFF176B6D);
+    if (status.contains('national_authority_identified_state_level_register_pending')) {
+      return const Color(0xFF8A5A00);
+    }
+    if (status.contains('portal_identified')) return const Color(0xFF176B6D);
     return const Color(0xFF526071);
   }
 
