@@ -136,7 +136,7 @@ jobs:
           BACKUP_DIR="$RUNNER_TEMP/samanvay-r2-backup"
           ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           mkdir -p "$BACKUP_DIR/remote-check"
-          aws s3 cp "s3://${R2_BUCKET_NAME}/${R2_OBJECT_KEY}" "$BACKUP_DIR/remote-check/remote-backup.fernet" --endpoint-url "$ENDPOINT" --only-show-errors
+          aws s3 cp "s3://${R2_BUCKET_NAME}/${R2_OBJECT_KEY}" "$BACKUP_DIR/remote-check/SAMANVAY-full-database.dump.fernet" --endpoint-url "$ENDPOINT" --only-show-errors
           aws s3 cp "s3://${R2_BUCKET_NAME}/${R2_OBJECT_KEY}.sha256" "$BACKUP_DIR/remote-check/SHA256SUM" --endpoint-url "$ENDPOINT" --only-show-errors
           cd "$BACKUP_DIR/remote-check"
           sha256sum --check SHA256SUM
@@ -157,7 +157,7 @@ jobs:
           from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
           folder = Path(os.environ["BACKUP_DIR"]) / "remote-check"
-          payload = (folder / "remote-backup.fernet").read_bytes()
+          payload = (folder / "SAMANVAY-full-database.dump.fernet").read_bytes()
           if payload[:4] != b"SAM2":
               raise SystemExit("Unknown encrypted backup format.")
           salt, token = payload[4:20], payload[20:]
