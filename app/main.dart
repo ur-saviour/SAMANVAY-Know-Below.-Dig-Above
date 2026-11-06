@@ -6512,19 +6512,40 @@ class _MapPageState extends State<MapPage> {
     if (controller == null || !_styleReady) return;
 
     try {
-      final text = await rootBundle.loadString(
-        'assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson',
-      );
-      final decoded = jsonDecode(text);
-      if (decoded is! Map || decoded['type'] != 'FeatureCollection') {
-        throw const FormatException('Invalid groundwater telemetry GeoJSON.');
-      }
-      final rawFeatures = decoded['features'];
-      if (rawFeatures is! List || rawFeatures.isEmpty) {
-        throw const FormatException('Groundwater telemetry has no station features.');
+      final rows = await supabase
+          .from('latest_groundwater_station_observations')
+          .select('id,station_name,agency,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
+          .eq('district_name', 'Coimbatore')
+          .order('observed_at_local', ascending: false)
+          .limit(300);
+
+      final features = <Map<String, dynamic>>[];
+      final stationDetails = <String, Map<String, dynamic>>[];
+      for (final item in rows) {
+        if (item is! Map) continue;
+        final properties = Map<String, dynamic>.from(item);
+        final latitude = properties['latitude'];
+        final longitude = properties['longitude'];
+        if (latitude is! num || longitude is! num) continue;
+
+        final featureId = (properties['id'] ?? '').toString();
+        if (featureId.isEmpty) continue;
+        features.add({
+          'type': 'Feature',
+          'id': featureId,
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [longitude.toDouble(), latitude.toDouble()],
+          },
+          'properties': properties,
+        });
+        stationDetails.add(Map<String, dynamic>.from(properties));
       }
 
-      final collection = Map<String, dynamic>.from(decoded);
+      final collection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': features,
+      };
       final sources = await controller.getSourceIds();
       if (sources.contains('samanvay-groundwater-telemetry')) {
         await controller.setGeoJsonSource(
@@ -6562,23 +6583,15 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
-      final stationDetails = <String, Map<String, dynamic>>{};
-      for (final item in rawFeatures) {
-        if (item is! Map) continue;
-        final feature = Map<String, dynamic>.from(item);
-        final featureId = (feature['id'] ?? '').toString();
-        final properties = feature['properties'];
-        if (featureId.isNotEmpty && properties is Map) {
-          stationDetails[featureId] = Map<String, dynamic>.from(properties);
-        }
-      }
-
       if (mounted) {
         setState(() {
-          _groundwaterStationCount = rawFeatures.length;
+          _groundwaterStationCount = features.length;
           _groundwaterStationDetails
             ..clear()
-            ..addAll(stationDetails);
+            ..addEntries(stationDetails.map((properties) => MapEntry(
+              (properties['id'] ?? '').toString(),
+              properties,
+            )));
         });
       }
     } catch (_) {
