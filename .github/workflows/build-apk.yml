@@ -14,6 +14,7 @@ on:
       - 'lib/**'
       - 'android/**'
       - 'pubspec.yaml'
+      - 'assets/**'
       - '.github/workflows/build-apk.yml'
 
 concurrency:
@@ -102,9 +103,13 @@ jobs:
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
 
-          mkdir -p lib assets/reference
+          mkdir -p lib assets/reference/coimbatore
           cp app/main.dart lib/main.dart
-          cp -R app/assets/reference/. assets/reference/
+
+          if [ ! -s assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson ]; then
+            echo "ERROR: Coimbatore ward reference GeoJSON is missing from the repository."
+            exit 1
+          fi
 
       # 5. Install dependencies
       - name: Install Flutter dependencies
@@ -220,10 +225,13 @@ jobs:
 
             Includes:
             - ABI-specific Flutter release APKs (ARM64, ARMv7, x86_64)
-            - Verified department-owned GIS asset map layer
+            - Coimbatore 2024 Public Domain ward-boundary reference layer (OpenCity.in)
+            - Verified department-owned GIS asset map layer (when owner data is registered and verified)
             - Device GPS coordinate display and OpenStreetMap place search fallback
             - Supabase integration foundation
             - Required APK integrity, signature and alignment checks
+
+            Note: The ward boundary layer is a 2024 public reference and is not a statutory boundary certification or an underground utility dataset.
 
           prerelease: true
           make_latest: false
