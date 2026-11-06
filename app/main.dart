@@ -5307,21 +5307,19 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
     }
   }
 
-  double? _number(Map<String, dynamic> p, String key) {
-    final raw = p[key];
-    if (raw == null || raw.toString().trim().isEmpty) return null;
-    return double.tryParse(raw.toString());
-  }
-
   Future<void> _register() async {
     if (!_authorised || _importing) return;
     final valid = _records.where((r) => r['error'] == null).toList();
     if (valid.isEmpty) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Register as unverified?'),
-        content: Text('${valid.length} records from "$_fileName" will be registered under $_departmentName. They remain UNVERIFIED until a separate verification process is completed.'),
+        content: Text(
+          '${valid.length} records from "$_fileName" will be registered under $_departmentName. '
+          'They remain UNVERIFIED until an authorised verification process is completed.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Register')),
@@ -5336,52 +5334,56 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       _imported = 0;
       _failed = 0;
       _errors = [];
-      _status = 'Registering records as UNVERIFIED…';
+      _status = 'Sending validated batch to the secured server-side registry…';
     });
 
-    final errors = <String>[];
-    for (var i = 0; i < valid.length; i++) {
-      final feature = Map<String, dynamic>.from(valid[i]['feature'] as Map);
-      final p = Map<String, dynamic>.from(feature['properties'] as Map);
-      final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
-      try {
-        final surveyedAtRaw = p['surveyed_at']?.toString();
-        final surveyedAt = surveyedAtRaw == null || surveyedAtRaw.trim().isEmpty
-            ? null : DateTime.tryParse(surveyedAtRaw)?.toUtc().toIso8601String();
-        await supabase.rpc('register_underground_asset', params: {
-          'p_asset_code': p['asset_code'].toString().trim(),
-          'p_asset_name': p['asset_name'].toString().trim(),
-          'p_asset_type': p['asset_type'].toString().trim().toLowerCase(),
-          'p_geometry': geometry,
-          'p_source_type': p['source_type'].toString().trim().toLowerCase(),
-          'p_source_reference': p['source_reference']?.toString(),
-          'p_depth_m': _number(p, 'depth_m'),
-          'p_horizontal_accuracy_m': _number(p, 'horizontal_accuracy_m'),
-          'p_vertical_accuracy_m': _number(p, 'vertical_accuracy_m'),
-          'p_material': p['material']?.toString(),
-          'p_diameter_mm': _number(p, 'diameter_mm'),
-          'p_surveyed_at': surveyedAt,
-          'p_surveyed_by_org': p['surveyed_by_org']?.toString(),
-          'p_verification_notes': p['verification_notes']?.toString(),
-        });
-        _imported++;
-      } catch (error) {
-        _failed++;
-        errors.add('${p['asset_code'] ?? 'Unknown code'}: $error');
+    try {
+      final features = valid
+          .map((record) => Map<String, dynamic>.from(record['feature'] as Map))
+          .toList(growable: false);
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-registry',
+        body: {'action': 'import', 'features': features},
+      );
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final imported = (data['imported'] as num?)?.toInt() ?? 0;
+      final failed = (data['failed'] as num?)?.toInt() ?? (valid.length - imported);
+      final resultRows = data['results'] is List ? data['results'] as List : const [];
+      final errors = <String>[];
+      for (final row in resultRows) {
+        if (row is! Map) continue;
+        final item = Map<String, dynamic>.from(row);
+        if (item['error'] != null) {
+          errors.add('${item['asset_code'] ?? 'Unknown feature'}: ${item['error']}');
+        }
       }
-      if (mounted) setState(() => _progress = i + 1);
-    }
 
-    if (mounted) {
+      if (!mounted) return;
       setState(() {
+        _imported = imported;
+        _failed = failed;
+        _progress = valid.length;
         _errors = errors;
-        _status = 'Finished: $_imported registered as UNVERIFIED; $_failed failed. Resolve errors before retrying.';
+        _status = 'Server registration complete: $_imported stored as UNVERIFIED; $_failed failed. '
+            'Only authorised department-owned records are accepted.';
         _records = [];
         _fileName = '';
         _importing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Import complete: $_imported registered; $_failed failed.')), 
+        SnackBar(content: Text('Registry import: $_imported registered; $_failed failed.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failed = valid.length;
+        _progress = 0;
+        _errors = [error.toString()];
+        _status = 'Server-side import failed. No success has been assumed; check the session and retry after resolving the error.';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GIS import failed. No records were confirmed as registered.')),
       );
     }
   }
