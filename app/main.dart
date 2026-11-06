@@ -5261,7 +5261,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       _progress = 0;
     });
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['geojson', 'json'],
         allowMultiple: false,
