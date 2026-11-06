@@ -17,7 +17,7 @@ The dataset contains station, agency, State/District LGD codes, tehsil, latitude
 ### Integration boundary
 SAMANVAY imports the Coimbatore district subset as official station observations. It is not a live sensor connection and does not represent every private borewell. The source's signed numeric values are preserved as published; do not silently convert sign conventions or infer groundwater safety, extraction legality or sustainability. Source timestamps are stored as local timestamps without inventing a timezone. Every imported row retains its NWDP resource ID, source record ID and source URL.
 
-The current integration is intentionally a Coimbatore pilot. The statewide resource contains approximately 921,523 rows and should not be copied wholesale into a free-plan project without a storage/retention plan. Other Tamil Nadu districts can be added in controlled batches after reviewing coverage, freshness and project capacity.
+The current integration is intentionally a Coimbatore pilot. The statewide resource contains approximately 921,523 rows and should not be copied wholesale into a free-plan project without a storage/retention plan. Other Tamil Nadu districts can be added in controlled batches after reviewing coverage, freshness and project capacity. The Supabase Edge Function import-nwdp-coimbatore-groundwater is deployed with JWT verification, a single-active-run guard and a six-hour freshness window. The app dashboard and GIS station layer now read the official database view; a signed-in user can start the first import with the Sync Official NWDP Data action. Until that action completes, the database remains empty.
 
 ## 2. Underground utilities — authoritative data access required
 
