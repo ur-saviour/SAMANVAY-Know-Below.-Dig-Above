@@ -29,6 +29,7 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - [Stormwater Drainage and Frontage Inspection Tracking](docs/features/STORMWATER_DRAINAGE_INSPECTION_TRACKING.md)
 - [Groundwater Telemetry Snapshot Dashboard](docs/features/GROUNDWATER_TELEMETRY_SNAPSHOT_DASHBOARD.md)
 - [Building Height and Floor Compliance Inspections](docs/features/BUILDING_COMPLIANCE_INSPECTIONS.md)
+- [Groundwater and Borewell Observation Register](docs/features/GROUNDWATER_OBSERVATION_REGISTER.md)
 - [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
 - The app bundles an optional 2024 Coimbatore 100-ward public-domain reference layer at `assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`.
 - That boundary layer is an administrative reference only; it is not CCMC-certified statutory GIS and does not contain underground utility geometry.
