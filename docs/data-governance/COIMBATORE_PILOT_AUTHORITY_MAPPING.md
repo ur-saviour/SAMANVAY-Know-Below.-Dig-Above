@@ -161,3 +161,23 @@ Sources:
 Ask CCMC for the latest machine-readable ward boundary layer and official ward codes; current road ownership/road inventory; road-cut permission records and restoration status; stormwater drain asset register with dated GIS/CAD geometry; UGD network and manhole records; and the current workflow/SLA rules. For each dataset, ask whether the source is an as-built drawing, field survey, planning map or legacy GIS layer. Request the date and accuracy before import.
 
 Do not use the old GIS-study description, a PDF map, a public service workflow or a published length figure as proof of exact underground geometry.
+
+## 9. Public groundwater telemetry snapshot integrated — 6 November 2026
+
+SAMANVAY now includes a district-wide reference layer sourced from the National Water Data Portal's 2026–2030 Tamil Nadu SW-GW telemetry resource.
+
+- 21 distinct Coimbatore-district monitoring stations returned by the source query.
+- 14,643 Coimbatore-district observation rows reported by the source API at retrieval.
+- Latest per-station observation rows were selected and preserved with their original timestamps.
+- GeoJSON file: `assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson`
+- Map layer: **Groundwater telemetry stations (2026–2030)**; markers can be tapped to inspect the station's latest returned value and timestamp.
+- Dataset record: [Coimbatore Groundwater Telemetry Dataset](COIMBATORE_GROUNDWATER_TELEMETRY_DATASET.md)
+
+Official source:
+- Dataset page: https://nwdp.nwic.gov.in/en/dataset/ground-water-level-telemetry-daily-tamil-nadu-sw-gw
+- Resource ID: `6857c02f-c77e-4576-b349-3e45aacc1c21`
+- Resource is described as six-hourly groundwater telemetry by Tamil Nadu Surface Water and Ground Water Departments.
+
+**Use boundary:** These are groundwater monitoring stations, not a borewell inventory, not private borewell points, and not water-pipeline routes. The dataset is district-wide, so it must not be presented as a CCMC-only dataset. Observation dates vary by station; display the source timestamp and do not imply that every station is reporting live. The source metadata lists the licence as “Other (Open)”; its precise reuse terms should be confirmed with NWIC / the producing department before commercial redistribution.
+
+This is the first public monitoring dataset added to the Coimbatore pilot. The underground-utility asset registry remains separate and still requires owner-supplied or surveyed utility geometry with verification evidence.
