@@ -575,7 +575,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     Text('${label(first)}  ↔  ${label(second)}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
                     const SizedBox(height: 4),
-                    Text('${metres} m apart · overlapping dates: ${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}/${start.year}–${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
+                    Text('$metres m apart · overlapping dates: ${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}/${start.year}–${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
                       style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
                     const Text('Suggested action: coordinator review for possible joint execution.',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF087F83))),
@@ -4817,8 +4817,6 @@ class _MapPageState extends State<MapPage> {
 
     final activeRequests = _visibleRequests.where((request) {
       final status = (request['status'] ?? '').toString().toLowerCase();
-      final lat = (request['latitude'] as num?)?.toDouble();
-      final lon = (request['longitude'] as num?)?.toDouble();
       return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status);
     }).toList();
 
