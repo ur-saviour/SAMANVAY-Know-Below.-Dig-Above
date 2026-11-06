@@ -2,56 +2,66 @@
 
 ## Purpose
 
-Flag active, location-based work requests that may be close to registered underground utility assets. The result is an advisory for authorised departmental review. It is not an excavation permit, utility clearance, strike prediction, or substitute for a site survey / utility-owner confirmation.
+Identify active work requests that may be close to registered underground utilities across departments. Results are advisory and require owner-department review and field verification. They are not excavation permits, utility clearances, strike predictions, or substitutes for site surveys.
 
-## Current application behaviour
+## Application workflow
 
-- Runs in the GIS map for an authenticated user whose profile is an assigned `department` account.
-- Uses the existing `get_my_department_verified_assets_geojson` RPC. The RPC derives the caller's department from the authenticated session and returns only verified assets owned by that department in the requested map area.
-- Does not read unverified asset geometry and does not substitute basemap features, public reference layers, telemetry stations, estimated routes, or empty-data assumptions.
-- Loads all RLS-visible request rows in the current map extent plus a 1 km buffer, in 500-row pages. The asset query uses the same 1 km buffer so nearby line geometry can be considered even when it lies just outside the visible screen.
-- Screens active requests only. Completed, resolved, rejected and cancelled requests are excluded.
-- A request must have an explicitly entered `work_radius_m`. The optional form field accepts 1–500 m; a blank value does not silently become a 15 m work radius.
-- Compares the request point with the nearest point/segment of supported GeoJSON geometries: Point, MultiPoint, LineString and MultiLineString.
-- Adds the asset's recorded `horizontal_accuracy_m` to the entered work radius as a conservative horizontal uncertainty buffer (capped at 500 m). Unknown accuracy is not invented.
-- Shows red markers at candidate work-request locations, plus request number, asset code/type, measured horizontal distance, recorded depth and recorded horizontal accuracy.
-- Shows screening status and the first five candidate records in the GIS layer panel. Additional candidates remain available through their map markers.
-- Hiding the verified-asset layer also hides and clears the visible conflict results. Re-enabling it reruns the screening.
+- Runs for authenticated staff roles: assigned department, coordinator and admin.
+- The map loads all RLS-visible requests in the current viewport plus a 1 km buffer, in 500-row pages.
+- Completed, resolved, rejected and cancelled requests are excluded from screening.
+- A request must have an entered `work_radius_m`. The request form accepts 1–500 m; a blank radius is not silently changed to a default.
+- Requests are screened in batches of up to 500 IDs through `public.get_map_utility_conflict_advisories`.
+- The PostGIS function runs on the server against **verified assets across all departments**. It uses geography distance for Point, MultiPoint, LineString and MultiLineString geometries.
+- The effective horizontal screening buffer is the entered work radius + the asset's recorded horizontal accuracy (capped at 500 m) + a 3 m conservative guard buffer.
+- The function returns only minimum advisory metadata: request number, asset type, owning department, horizontal distance, recorded depth and recorded horizontal accuracy.
+- It does not return asset IDs, asset codes, asset names, coordinates or geometry.
+- Red markers appear at affected work-request locations. Tapping a marker shows the owning department and proximity details. The GIS layer panel shows the affected request list and screening state.
+- The separate verified-department-assets map layer remains owner-only and can show exact geometry only to the owning department. It is not used by the cross-department screening endpoint.
 
-## Access and data governance
+## Database and security controls
 
-Exact underground geometry remains within the existing department-scoped RPC boundary. This mobile implementation does **not** expose another department's exact utility geometry. The UI explicitly labels that scope. Do not broaden the RPC grants or grant mobile users direct access to the private `gis` schema to make a map overlay work.
-
-Cross-department coordination is a separate backend capability: it should run the spatial comparison server-side and return only minimum necessary advisory metadata to authorised coordinators, without returning another owner's exact geometry. It is not claimed as implemented by this client-side feature.
+- The endpoint requires a valid authenticated profile with role `department`, `coordinator` or `admin`.
+- Coordinators and admins may screen requests visible to their role. Department users may screen only requests assigned to their department through the existing assignment-check function.
+- A requester profile is rejected by the endpoint.
+- The RPC checks every supplied request ID and rejects the batch if any ID is unavailable or not assigned to the caller.
+- The endpoint is `SECURITY DEFINER` with an empty search path, fully qualified table/function references, explicit `auth.uid()` checks, and execution revoked from `PUBLIC` and `anon`; only `authenticated` is granted execution.
+- A partial GiST expression index on verified assets' geography representation supports the spatial proximity lookup.
+- The existing `run_request_coordination_check` was hardened to ignore unverified assets and return `unavailable` when no verified assets exist.
+- The endpoint returns a `geometry_disclosed: false` marker and a no-clearance disclaimer.
 
 ## Interpretation limits
 
-- The check is horizontal proximity only. Asset `depth_m` is displayed when recorded, but the request form does not currently capture excavation depth, so vertical clearance cannot be computed.
-- The work-site radius is user-entered and is not a surveyed excavation boundary.
-- Horizontal distance uses a local metre-based projection for short municipal work corridors. It is a screening estimate, not cadastral or engineering survey output.
-- A result may be false positive or false negative because of geometry quality, survey date, positional accuracy, incomplete asset coverage, unregistered utilities, or unknown vertical alignment.
-- No warning means only that no candidate was found in the verified assets returned for this department and map extent. It never means the site is utility-free or safe to excavate.
-- The current underground asset registry has been reported as empty. Until authorised assets are imported and verified, live detection cannot produce meaningful coverage.
+- The check is horizontal proximity only. Asset depth is returned when recorded, but the request form does not capture excavation depth, so vertical clearance is not calculated.
+- The entered work radius is user-provided and is not a surveyed excavation boundary.
+- Unknown horizontal accuracy remains unknown; the system does not fabricate an uncertainty value.
+- No match means only that no verified registered asset matched the query. It does not prove that a site is utility-free or safe.
+- Incomplete asset coverage, stale surveys, inaccurate geometry, unregistered services and unknown vertical alignment can cause false positives or false negatives.
+- The current underground asset registry has zero records. The server endpoint and app workflow are implemented and tested with temporary synthetic records, but real operational warnings require owner-authorised utility data to be imported and verified.
 
-## Release validation checklist
+## Validation performed
 
-1. Assigned department user sees only their own department's verified assets and receives the screening panel.
-2. Request with blank radius is not screened.
-3. Request with 1 m, 100 m and 500 m radii uses the entered range without silently changing it.
-4. Completed/resolved/rejected/cancelled requests are excluded.
-5. Point and MultiPoint assets trigger when within the effective horizontal buffer.
-6. LineString and MultiLineString assets trigger when the request point is near a segment, including when it is near the middle of a long segment rather than a vertex.
-7. Recorded horizontal accuracy widens the advisory buffer; missing accuracy remains unknown and is not fabricated.
-8. Unverified assets never trigger warnings.
-9. Request and asset records outside the current map buffer do not appear in this map's screening result.
-10. A GIS/RPC failure displays an unavailable state, never a "clear" state.
-11. Hiding verified assets hides markers and clears the displayed list; turning the layer back on reruns screening.
-12. Requester, coordinator and admin roles do not receive exact department-owned utility geometry through this department-only map RPC.
-13. Verify Flutter static analysis and the Android APK build in GitHub Actions before distributing an APK.
+A transaction-based QA test inserted one temporary verified asset and one temporary unverified asset near a temporary work request, called the RPC as an admin, then rolled back all test data. Results:
+- The request was marked `potential_conflict`.
+- Exactly one candidate was returned, confirming the unverified asset was excluded.
+- The result disclosed no asset identity or geometry.
+- A requester-role call was rejected.
+- All temporary test rows were rolled back.
 
-## Remaining prerequisites for operational use
+## Release checklist
 
-- Obtain owner-authorised underground utility records or complete verified field surveys.
-- Have the asset owner record source lineage, survey date, horizontal/vertical accuracy, depth where known, and verification evidence.
-- Implement the separate server-side cross-department advisory endpoint before claiming city-wide interdepartmental clash detection.
-- Add excavation depth to the work request schema and form before attempting vertical-clearance assessment.
+1. Verify Flutter static analysis and Android APK build in GitHub Actions before distributing an APK.
+2. Test department users against assigned and unassigned requests; unassigned requests must be rejected.
+3. Test coordinator/admin access and requester denial.
+4. Test missing location, missing radius, 1 m and 500 m radii.
+5. Test Point, MultiPoint, LineString and MultiLineString assets, including proximity to the middle of a line segment.
+6. Confirm unverified, disputed and retired records never produce warnings.
+7. Confirm the RPC never returns asset codes, IDs, names, coordinates or geometry.
+8. Confirm screening failure is displayed as unavailable, never as a clear site.
+9. Import only owner-authorised source records and complete verification before treating the layer as operational.
+10. Add excavation depth to the request schema and form before implementing vertical-clearance analysis.
+
+## Operational prerequisites
+
+- Obtain owner-authorised utility records or conduct verified field surveys.
+- Preserve source lineage, survey date, horizontal/vertical accuracy, depth where known, and verification evidence.
+- Keep cross-department advisories server-side; do not grant mobile clients direct access to the private `gis` schema.
