@@ -21,7 +21,7 @@ Identify active work requests that may be close to registered underground utilit
 ## Database and security controls
 
 - The endpoint requires a valid authenticated profile with role `department`, `coordinator` or `admin`.
-- Coordinators and admins may screen requests visible to their role. Department users may screen only requests assigned to their department through the existing assignment-check function.
+- Coordinators and admins may screen requests visible to their role. Department users may screen only requests assigned directly through their profile's department ID or assigned through the existing request-review assignment function.
 - A requester profile is rejected by the endpoint.
 - The RPC checks every supplied request ID and rejects the batch if any ID is unavailable or not assigned to the caller.
 - The endpoint is `SECURITY DEFINER` with an empty search path, fully qualified table/function references, explicit `auth.uid()` checks, and execution revoked from `PUBLIC` and `anon`; only `authenticated` is granted execution.
