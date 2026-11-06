@@ -5467,7 +5467,7 @@ class _MapPageState extends State<MapPage> {
                           _toggleVerifiedAssets(value);
                         },
                       ),
-                    if (_canViewDepartmentAssets) ...[
+                    if (_canViewUtilityOverview) ...[
                        const Divider(color: Color(0x334B647C)),
                        Row(
                          children: [
