@@ -89,6 +89,31 @@ Telemetry resource feeds can overlap; imported row totals must not be described 
 5. Geocode building records only from authoritative parcel/plot coordinates or an approved official GIS join; do not infer private residential coordinates from text addresses.
 6. Validate every import before operational use. The app must distinguish source discovered, source retrieved, records imported, geometry validated, authority confirmed and field verified.
 
+## 6. Nationwide infrastructure coverage explorer — 6 November 2026
+
+The state/UT coverage matrix has been expanded from three domains to ten, covering the 36 State/UT jurisdictions listed by the National Portal of India / IGOD.
+
+- **Coverage rows:** 360 (36 jurisdictions × 10 domains).
+- **Existing domains retained:** groundwater, underground utility GIS and building approvals.
+- **New nationwide coverage domains:** roads/right-of-way, drinking-water supply, sewerage/wastewater, stormwater drainage, electricity distribution, telecom/fibre and city-gas distribution.
+- **National source references:** MoRTH, Jal Jeevan Mission / Department of Drinking Water & Sanitation, MoHUA CPHEEO, Central Electricity Authority, Department of Telecommunications and PNGRB.
+- **State/local custodian resolution:** pending. The named national institutions provide sector-level policy, programme or regulatory context; they do not replace State/UT, DISCOM, utility-owner or ULB confirmation.
+- **Operationally enabled coverage rows:** 0. No new coverage template is treated as a verified asset inventory or field-work clearance.
+- **Access:** signed-in users can read the matrix; admins/coordinators retain management access through the existing RLS policies.
+
+The Flutter interface now includes an **India** navigation tab and an operations-dashboard entry to the same explorer. It provides State/UT search, jurisdiction selection, infrastructure-domain filtering, authority/custodian descriptions, national-source links and explicit status labels. The explorer reads the live public.india_state_uts and public.india_data_coverage tables.
+
+**Interpretation warning:** 360 rows represent coverage metadata templates, not 360 downloaded datasets. For the seven newly added domains, a row means that a relevant national-level source or sector authority has been identified and a State/UT or local asset register still needs to be confirmed and obtained. The explorer does not claim that all local portals, approvals, networks or as-built records have been collected.
+
+Reproducible SQL:
+database/seed/india_nationwide_coverage_domains.sql
+
+Jurisdiction reference:
+https://www.india.gov.in/directory/web-directory/state-uts
+
+National urban water/sanitation/stormwater technical role:
+https://www.mohua.gov.in/ministry/our-division/details/cpheeo-QDM1IzMtQWa
+
 ## Operational rule
 
 A public map layer, engineering diagram, approximate alignment, portal listing or aggregate feature count is not an excavation-clearance source. Pending utility layers must not be used for excavation clearance. Only owner-authorised, current and appropriately validated data may be promoted to operational use.
