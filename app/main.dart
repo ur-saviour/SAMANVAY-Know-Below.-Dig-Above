@@ -4925,6 +4925,24 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
     return const Color(0xFFFFF0D7);
   }
 
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE4EAF1)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: const Color(0xFF087F83)),
+        const SizedBox(width: 7),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 10, color: mutedInk)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = records.where((row) {
