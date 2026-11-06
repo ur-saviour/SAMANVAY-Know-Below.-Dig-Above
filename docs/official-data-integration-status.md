@@ -166,6 +166,34 @@ The next GIS governance step has been implemented as a **metadata-only** verific
 
 **Current database state:** `gis.underground_assets` contains 0 records and `gis.asset_survey_evidence` contains 0 records. The queue therefore has no live records to review yet. No utility line geometry was imported or displayed. A verification label alone does not constitute excavation clearance.
 
+## 9. National authority directory — 6 November 2026
+
+The next coordination layer is implemented as `public.india_national_authority_directory`.
+
+**Seeded national references (9):**
+- Ministry of Panchayati Raj — Local Government Directory (administrative codes).
+- NIC — Integrated Government Online Directory (State/UT district and government-portal discovery).
+- MoHUA CPHEEO (urban water, sewerage and stormwater technical guidance).
+- Department of Drinking Water and Sanitation / Jal Jeevan Mission (rural drinking-water programme).
+- Central Ground Water Board (groundwater assessment and monitoring).
+- Ministry of Road Transport and Highways (road-sector policy and national-highway context).
+- Central Electricity Authority (electricity-sector technical information).
+- Department of Telecommunications (telecom policy and regulatory context).
+- Petroleum and Natural Gas Regulatory Board (city-gas regulatory framework).
+
+**Access and governance:**
+- Authenticated users can read the national reference directory.
+- Admins/coordinators can manage records.
+- Each record contains authority level, responsibility summary, domain tags, official portal, source reference and whether a local custodian must be confirmed.
+- All nine records explicitly require confirmation of the relevant local asset custodian; a central ministry/regulator is not automatically the local network owner.
+
+The Flutter India explorer now links to a searchable National Authority Directory with domain filtering and official portal links.
+
+**Verified database state:** 9 national authority references; 10 infrastructure domain tags plus administrative-directory references; local custodian confirmation still required for site-specific ownership. No personal contact data or sensitive underground network geometry is stored in this directory.
+
+Reproducible SQL:
+`database/seed/india_national_authority_directory.sql`
+
 ## Operational rule
 
 A public map layer, engineering diagram, approximate alignment, portal listing or aggregate feature count is not an excavation-clearance source. Pending utility layers must not be used for excavation clearance. Only owner-authorised, current and appropriately validated data may be promoted to operational use.
