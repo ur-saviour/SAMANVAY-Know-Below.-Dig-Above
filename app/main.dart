@@ -1681,6 +1681,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             const SizedBox(height: 10),
             domainBreakdown(),
             const SizedBox(height: 16),
+            RoadCutPermitBoard(
+              requests: requests,
+              departments: departments,
+              isDepartment: widget.isDepartment,
+              departmentId: widget.departmentId,
+            ),
+            const SizedBox(height: 16),
             RoadRestorationBoard(
               requests: requests,
               departments: departments,
@@ -2578,6 +2585,383 @@ class _DashboardPageState extends State<DashboardPage> {
               'Underground visibility depends on verified survey records and access permissions. An empty layer does not prove that no utility exists.',
               style: GoogleFonts.inter(color: const Color(0xFF42627E),
                 fontSize: 11, height: 1.45))),
+        ]),
+      ),
+    );
+  }
+}
+
+
+class RoadCutPermitBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+
+  const RoadCutPermitBoard({
+    super.key,
+    required this.requests,
+    required this.departments,
+    required this.isDepartment,
+    this.departmentId,
+  });
+
+  @override
+  State<RoadCutPermitBoard> createState() => _RoadCutPermitBoardState();
+}
+
+class _RoadCutPermitBoardState extends State<RoadCutPermitBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('road_cut_permit_compliance')
+          .select().order('updated_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Permit records could not be loaded for this account.';
+      });
+    }
+  }
+
+  String _requestLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final number = r['request_number']?.toString() ?? '';
+        final title = (r['title'] ?? r['road_name'] ?? 'Infrastructure case').toString();
+        return number.isEmpty ? title : 'Case #' + number + ' · ' + title;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  String _departmentLabel(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return widget.isDepartment ? 'Your assigned department' : 'Department';
+  }
+
+  String _pretty(String value) => value.replaceAll('_', ' ').toUpperCase();
+
+  Color _stateColor(String state) {
+    if (state == 'closed' || state == 'not_required') return const Color(0xFF25845C);
+    if (['restoration_overdue','permit_expired','revoked','work_outside_permit_window'].contains(state)) {
+      return const Color(0xFFB54747);
+    }
+    if (['restoration_due_soon','awaiting_permit','suspended','review_required'].contains(state)) {
+      return const Color(0xFFB7791F);
+    }
+    return const Color(0xFF3978B8);
+  }
+
+  DateTime? _date(String value) =>
+      value.trim().isEmpty ? null : DateTime.tryParse(value.trim());
+
+  String? _asDate(DateTime? value) {
+    if (value == null) return null;
+    return value.year.toString().padLeft(4, '0') + '-' +
+        value.month.toString().padLeft(2, '0') + '-' +
+        value.day.toString().padLeft(2, '0');
+  }
+
+  String? _asTimestamp(DateTime? value) {
+    if (value == null) return null;
+    return DateTime.utc(value.year, value.month, value.day).toIso8601String();
+  }
+
+  Future<void> _editRecord({Map<String, dynamic>? existing}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    if (widget.requests.isEmpty) { _message('No accessible cases are available.'); return; }
+
+    final ids = widget.requests.map((r) => r['id'].toString()).toSet();
+    var requestId = existing?['request_id']?.toString();
+    if (requestId == null || !ids.contains(requestId)) requestId = widget.requests.first['id'].toString();
+    var departmentId = existing?['responsible_department_id']?.toString()
+        ?? widget.departmentId
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var status = (existing?['permit_status'] ?? 'pending').toString();
+    var traffic = existing?['traffic_management_confirmed'] == true;
+    var clearance = existing?['utility_clearance_confirmed'] == true;
+    var safety = existing?['road_safety_plan_confirmed'] == true;
+    var saving = false;
+
+    final reference = TextEditingController(text: existing?['permit_reference']?.toString() ?? '');
+    final authority = TextEditingController(text: existing?['issuing_authority']?.toString() ?? '');
+    final fromText = TextEditingController(text: existing?['permit_valid_from']?.toString() ?? '');
+    final untilText = TextEditingController(text: existing?['permit_valid_until']?.toString() ?? '');
+    final dueText = TextEditingController(text: existing?['restoration_due_date']?.toString() ?? '');
+    final startedText = TextEditingController(text: existing?['work_started_at'] == null ? '' : existing!['work_started_at'].toString().substring(0, 10));
+    final completedText = TextEditingController(text: existing?['work_completed_at'] == null ? '' : existing!['work_completed_at'].toString().substring(0, 10));
+    final notes = TextEditingController(text: existing?['notes']?.toString() ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(existing == null ? 'Register road-cut permit' : 'Update road-cut permit'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: requestId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Linked infrastructure case'),
+                    items: widget.requests.map((r) => DropdownMenuItem<String>(
+                      value: r['id'].toString(),
+                      child: Text('Case #' + (r['request_number']?.toString() ?? '') + ' · ' +
+                          (r['title'] ?? r['road_name'] ?? 'Infrastructure case').toString(),
+                          overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setDialogState(() => requestId = v),
+                  ),
+                  const SizedBox(height: 8),
+                  if (widget.isDepartment)
+                    Text('Responsible department: ' + (widget.departmentId ?? 'Not assigned'),
+                      style: const TextStyle(fontSize: 12, color: Colors.blueGrey))
+                  else
+                    DropdownButtonFormField<String>(
+                      initialValue: departmentId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Responsible department'),
+                      items: widget.departments.map((d) => DropdownMenuItem<String>(
+                        value: d['id'].toString(),
+                        child: Text((d['name'] ?? 'Department').toString()),
+                      )).toList(),
+                      onChanged: (v) => setDialogState(() => departmentId = v),
+                    ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(labelText: 'Permit status'),
+                    items: const [
+                      DropdownMenuItem(value: 'pending', child: Text('Pending approval')),
+                      DropdownMenuItem(value: 'issued', child: Text('Issued / active')),
+                      DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
+                      DropdownMenuItem(value: 'expired', child: Text('Expired')),
+                      DropdownMenuItem(value: 'revoked', child: Text('Revoked')),
+                      DropdownMenuItem(value: 'not_required', child: Text('Permit not required')),
+                      DropdownMenuItem(value: 'closed', child: Text('Closed after restoration')),
+                    ],
+                    onChanged: (v) => setDialogState(() => status = v ?? status),
+                  ),
+                  TextField(controller: reference, decoration: const InputDecoration(labelText: 'Permit / approval reference')),
+                  TextField(controller: authority, decoration: const InputDecoration(labelText: 'Issuing road authority')),
+                  const SizedBox(height: 8),
+                  const Text('Dates (YYYY-MM-DD)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  Row(children: [
+                    Expanded(child: TextField(controller: fromText, decoration: const InputDecoration(labelText: 'Valid from'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: untilText, decoration: const InputDecoration(labelText: 'Valid until'))),
+                  ]),
+                  TextField(controller: dueText, decoration: const InputDecoration(labelText: 'Restoration deadline')),
+                  Row(children: [
+                    Expanded(child: TextField(controller: startedText, decoration: const InputDecoration(labelText: 'Work started'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: completedText, decoration: const InputDecoration(labelText: 'Work completed'))),
+                  ]),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero, dense: true, value: traffic,
+                    onChanged: (v) => setDialogState(() => traffic = v ?? false),
+                    title: const Text('Traffic management arrangements confirmed'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero, dense: true, value: clearance,
+                    onChanged: (v) => setDialogState(() => clearance = v ?? false),
+                    title: const Text('Utility-owner clearance confirmed'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero, dense: true, value: safety,
+                    onChanged: (v) => setDialogState(() => safety = v ?? false),
+                    title: const Text('Road safety plan confirmed'),
+                  ),
+                  TextField(controller: notes, minLines: 2, maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Conditions, exemption reason or notes')),
+                  const SizedBox(height: 8),
+                  const Text('The competent road authority determines permit requirements and statutory conditions.',
+                    style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
+            FilledButton(
+              onPressed: saving ? null : () async {
+                if (requestId == null || departmentId == null || departmentId!.isEmpty) {
+                  _message('Select a case and responsible department.'); return;
+                }
+                final from = _date(fromText.text);
+                final until = _date(untilText.text);
+                final due = _date(dueText.text);
+                final started = _date(startedText.text);
+                final completed = _date(completedText.text);
+                final invalid = (fromText.text.trim().isNotEmpty && from == null) ||
+                    (untilText.text.trim().isNotEmpty && until == null) ||
+                    (dueText.text.trim().isNotEmpty && due == null) ||
+                    (startedText.text.trim().isNotEmpty && started == null) ||
+                    (completedText.text.trim().isNotEmpty && completed == null);
+                if (invalid) { _message('Enter dates in YYYY-MM-DD format.'); return; }
+                if (from != null && until != null && until.isBefore(from)) {
+                  _message('Permit expiry cannot be before its start date.'); return;
+                }
+                if (from != null && due != null && due.isBefore(from)) {
+                  _message('Restoration deadline cannot be before permit start.'); return;
+                }
+                if (started != null && completed != null && completed.isBefore(started)) {
+                  _message('Completion date cannot be before work started.'); return;
+                }
+                if (['issued','suspended','expired','revoked','closed'].contains(status) &&
+                    (reference.text.trim().isEmpty || authority.text.trim().isEmpty || from == null || until == null)) {
+                  _message('This status requires a permit reference, authority and validity dates.'); return;
+                }
+                if (status == 'not_required' && notes.text.trim().isEmpty) {
+                  _message('Record the reason why a permit is not required.'); return;
+                }
+                if (status == 'closed' && completed == null) {
+                  _message('Enter the work completion date before closing the permit.'); return;
+                }
+
+                setDialogState(() => saving = true);
+                final payload = <String, dynamic>{
+                  'permit_status': status,
+                  'permit_reference': reference.text.trim().isEmpty ? null : reference.text.trim(),
+                  'issuing_authority': authority.text.trim().isEmpty ? null : authority.text.trim(),
+                  'permit_valid_from': _asDate(from),
+                  'permit_valid_until': _asDate(until),
+                  'restoration_due_date': _asDate(due),
+                  'work_started_at': _asTimestamp(started),
+                  'work_completed_at': _asTimestamp(completed),
+                  'traffic_management_confirmed': traffic,
+                  'utility_clearance_confirmed': clearance,
+                  'road_safety_plan_confirmed': safety,
+                  'notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'updated_by': user.id,
+                };
+                try {
+                  if (existing == null) {
+                    await supabase.from('road_cut_permit_records').insert({
+                      ...payload, 'request_id': requestId,
+                      'responsible_department_id': departmentId, 'created_by': user.id,
+                    });
+                  } else {
+                    await supabase.from('road_cut_permit_records')
+                        .update(payload).eq('id', existing['id'].toString());
+                  }
+                  if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                } catch (_) {
+                  setDialogState(() => saving = false);
+                  _message('Unable to save. Check assignment, dates and restoration acceptance requirements.');
+                }
+              },
+              child: saving ? const SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save permit record'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    reference.dispose(); authority.dispose(); fromText.dispose(); untilText.dispose();
+    dueText.dispose(); startedText.dispose(); completedText.dispose(); notes.dispose();
+    if (saved == true) {
+      await _loadRecords();
+      _message('Road-cut permit record saved.');
+    }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.fact_check_outlined, color: Color(0xFF087F83)),
+            const SizedBox(width: 9),
+            const Expanded(child: Text('Road-cut permits & deadline compliance',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            IconButton(onPressed: loading ? null : _loadRecords,
+              icon: const Icon(Icons.refresh), tooltip: 'Refresh permit records'),
+          ]),
+          const Text('Track permit references, validity windows, utility clearance, road safety and restoration deadlines.',
+            style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: widget.requests.isEmpty ? null : () => _editRecord(),
+            icon: const Icon(Icons.add), label: const Text('REGISTER ROAD-CUT PERMIT'))),
+          const SizedBox(height: 8),
+          if (loading)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+          else if (records.isEmpty)
+            const Text('No permit records have been entered yet.',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+          else
+            ...records.map((record) {
+              final state = (record['compliance_state'] ?? 'review_required').toString();
+              final req = record['request_id'].toString();
+              final dept = record['responsible_department_id'].toString();
+              final days = record['days_to_restoration_due'];
+              final dueLabel = days == null ? (record['restoration_due_date']?.toString() ?? 'No deadline')
+                  : days is num && days < 0 ? days.abs().toString() + ' day(s) overdue'
+                  : days == 0 ? 'Due today' : 'Due in ' + days.toString() + ' day(s)';
+              return Container(
+                margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFF7FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE4EAF1))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(_requestLabel(req),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: _stateColor(state).withOpacity(.12),
+                        borderRadius: BorderRadius.circular(20)),
+                      child: Text(_pretty(state), style: TextStyle(color: _stateColor(state),
+                        fontSize: 9, fontWeight: FontWeight.w800))),
+                  ]),
+                  const SizedBox(height: 5),
+                  Text(_departmentLabel(dept) + ' · ' + _pretty((record['permit_status'] ?? '').toString()),
+                    style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                  Text('Restoration: ' + dueLabel + ' · Permit expiry: ' +
+                    (record['permit_valid_until']?.toString() ?? 'Not recorded'),
+                    style: const TextStyle(fontSize: 11, color: ink)),
+                  Align(alignment: Alignment.centerRight, child: TextButton.icon(
+                    onPressed: () => _editRecord(existing: record),
+                    icon: const Icon(Icons.edit_outlined, size: 15), label: const Text('UPDATE'))),
+                ]),
+              );
+            }),
         ]),
       ),
     );
