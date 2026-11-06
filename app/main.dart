@@ -4385,7 +4385,7 @@ class _MapPageState extends State<MapPage> {
       // This RPC is scoped by auth.uid() to the signed-in department's own assets.
       // Only verified features are drawn; unverified records are counted, not mapped.
       final raw = await supabase.rpc(
-        'get_my_department_assets_geojson',
+        'get_my_department_verified_assets_geojson',
         params: {
           'p_min_lon': minLon,
           'p_min_lat': minLat,
@@ -4396,7 +4396,10 @@ class _MapPageState extends State<MapPage> {
       final collection = Map<String, dynamic>.from(raw as Map);
       final rawFeatures = collection['features'];
       final verified = <Map<String, dynamic>>[];
-      var unverified = 0;
+      final metadata = collection['metadata'] is Map
+          ? Map<String, dynamic>.from(collection['metadata'] as Map)
+          : <String, dynamic>{};
+      final unverified = (metadata['withheld_unverified_count'] as num?)?.toInt() ?? 0;
 
       if (rawFeatures is List) {
         for (final item in rawFeatures) {
@@ -4405,13 +4408,8 @@ class _MapPageState extends State<MapPage> {
           final properties = feature['properties'];
           if (properties is! Map) continue;
           final props = Map<String, dynamic>.from(properties);
-          final status = (props['verification_status'] ?? '').toString().toLowerCase();
-          if (status == 'verified') {
-            feature['id'] = (props['id'] ?? '').toString();
-            verified.add(feature);
-          } else {
-            unverified++;
-          }
+          feature['id'] = (props['id'] ?? feature['id'] ?? '').toString();
+          verified.add(feature);
         }
       }
 
