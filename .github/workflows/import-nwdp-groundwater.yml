@@ -2,6 +2,12 @@ name: Import nationwide NWDP groundwater telemetry
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/alpha-03-integrated-platform
+    paths:
+      - 'scripts/import_nwdp_telemetry.py'
+      - '.github/workflows/import-nwdp-groundwater.yml'
     inputs:
       max_pages:
         description: "Maximum 5,000-row pages in this run (resume is automatic)"
