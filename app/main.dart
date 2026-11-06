@@ -4078,9 +4078,8 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
-  // Extrude basemap building polygons only where the active provider style
-  // supplies OpenMapTiles building attributes. This is city context, not
-  // underground utility geometry.
+  // Reload request markers and cross-department advisories for the current
+  // map viewport. A pending flag coalesces camera movement during pagination.
   Future<void> _loadVisibleWorkRequests() async {
     if (_requestLayerInFlight) {
       _requestLayerRefreshPending = true;
@@ -4709,7 +4708,6 @@ class _MapPageState extends State<MapPage> {
       }
 
       await _loadVisibleWorkRequests();
-
 
       if (_showUtilityZones && authorised) {
         await _loadUtilityOverview();
