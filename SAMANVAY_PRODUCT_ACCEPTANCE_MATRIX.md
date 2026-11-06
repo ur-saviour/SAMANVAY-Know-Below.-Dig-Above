@@ -160,3 +160,23 @@
 - [ ] Expand original building-approval record imports beyond MCD; 2,015 records do not constitute a nationwide approval register.
 - [ ] Recover the eight MCD source serial entries not reliably parsed from the public report extraction.
 - [ ] Map the remaining three State/UT direct building-approval service entrypoints and obtain authority exports/API permissions for the mapped jurisdictions.
+
+
+## 14. Nationwide infrastructure coverage explorer — 6 November 2026
+
+- [x] Expand the national coverage-domain constraint from 3 to 10 infrastructure domains.
+- [x] Populate 360 state/domain coverage metadata rows across all 36 State/UT jurisdictions.
+- [x] Add roads/right-of-way, drinking water, sewerage/wastewater, stormwater, electricity, telecom/fibre and city-gas coverage categories.
+- [x] Preserve national source references and responsible-authority/custodian descriptions.
+- [x] Mark the new state/local registers as pending until the relevant custodian is confirmed.
+- [x] Keep operational_use_allowed=false for all coverage rows; the explorer must not present coverage metadata as excavation clearance.
+- [x] Add Flutter India navigation tab with State/UT search, jurisdiction selector, domain filter, source links and readiness labels.
+- [x] Add an entry point from the operations portal national-readiness panel.
+- [x] Add a reproducible SQL seed/update script at database/seed/india_nationwide_coverage_domains.sql.
+- [ ] Identify and verify the responsible State/UT department, DISCOM, utility owner or ULB for each domain and jurisdiction.
+- [ ] Secure owner-approved data-sharing terms and retrieve source records where lawful and permitted.
+- [ ] Validate public-record completeness, update dates and record provenance; do not treat source discovery as data import.
+- [ ] Complete role-based, Android-device and browser UI regression tests after the Flutter build.
+- [ ] Keep sensitive underground network geometry in authority-controlled access workflows; do not expose precise routes, depths or asset-point details in the general explorer.
+
+**Verified database state on 6 November 2026:** 360 coverage rows; 36 jurisdictions; 10 domains; 0 rows operationally enabled. The 360 rows are coverage metadata, not 360 downloaded or authority-verified datasets.
