@@ -135,3 +135,14 @@
 - [x] Missing telemetry is shown as unavailable; it is not represented as zero groundwater or a safety clearance.
 - [ ] Build workflow must complete successfully against the updated 398 KB Flutter entrypoint; this commit has been submitted for CI.
 - [ ] Full UI/device, auth-role and GIS map regression testing remains outstanding.
+
+## 12. Alpha 0.3 release verification — 6 November 2026
+
+- [x] Flutter static analysis passed with informational lints non-fatal; no Dart errors.
+- [x] Android release APK compiled successfully.
+- [x] APK package, signature and alignment verification passed.
+- [x] APK artifact uploaded: `SAMANVAY-Alpha-0.3-APK`.
+- [x] Browser operations portal compiled and packaged successfully.
+- [x] Building-approval portal/service entrypoints synced for 33/36 State/UT jurisdictions.
+- [ ] Full Android device regression, role-based workflow testing, realtime notification testing and map interaction QA remain outstanding.
+- [ ] Nationwide underground utility geometry and original building approval registers remain authority-data dependencies; not represented as completed by portal discovery.
