@@ -4015,7 +4015,8 @@ class _MapPageState extends State<MapPage> {
       if (details != null) {
         _showMessage(
           'POTENTIAL CLASH · ${details['request_number']} near ${details['asset_code']} '
-          '(${details['asset_type']}) · ${(details['distance_m'] as num).round()} m from mapped geometry. '
+          '(${details['asset_type']}) · ${(details['distance_m'] as num).toStringAsFixed(1)} m from mapped geometry. '
+          'Recorded depth: ${details['depth_m'] ?? 'not supplied'} m; horizontal accuracy: ${details['horizontal_accuracy_m'] ?? 'unknown'} m. '
           'Department review required; this is not a confirmed strike or clearance.',
         );
       }
@@ -4867,7 +4868,18 @@ class _MapPageState extends State<MapPage> {
         final geometryMap = Map<String, dynamic>.from(geometry);
         final props = Map<String, dynamic>.from(properties);
         final distance = _distanceToAssetGeometryMetres(lat, lon, geometryMap);
-        if (!distance.isFinite || distance > threshold) continue;
+        final rawAccuracy = double.tryParse(
+          (props['horizontal_accuracy_m'] ?? '').toString(),
+        );
+        // Positional uncertainty widens the screening buffer. It does not
+        // turn an estimated asset into a verified one or establish clearance.
+        final accuracyBuffer = rawAccuracy != null &&
+                rawAccuracy.isFinite &&
+                rawAccuracy >= 0
+            ? rawAccuracy.clamp(0.0, 500.0).toDouble()
+            : 0.0;
+        final effectiveThreshold = threshold + accuracyBuffer;
+        if (!distance.isFinite || distance > effectiveThreshold) continue;
 
         final assetCode = (props['asset_code'] ?? props['id'] ?? 'verified-asset').toString();
         final requestId = (request['id'] ?? '').toString();
@@ -4880,6 +4892,8 @@ class _MapPageState extends State<MapPage> {
           'asset_code': assetCode,
           'asset_type': assetType,
           'distance_m': distance,
+          'horizontal_accuracy_m': rawAccuracy,
+          'depth_m': props['depth_m'],
         };
         detailsById[id] = detail;
         features.add({
@@ -4894,6 +4908,8 @@ class _MapPageState extends State<MapPage> {
             'asset_code': assetCode,
             'asset_type': assetType,
             'distance_m': distance,
+            'horizontal_accuracy_m': rawAccuracy,
+            'depth_m': props['depth_m'],
           },
         });
       }
