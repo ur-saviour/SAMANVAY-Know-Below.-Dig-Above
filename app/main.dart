@@ -5422,7 +5422,21 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       }
       if (payload.isEmpty) throw Exception('No valid rows remain after checking LGD codes and State names.');
 
-      final batch = await supabase.from('india_directory_import_batches').insert({
+      final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
+      final batchStateId = touchedStates.length == 1 ? touchedStates.first : null;
+      Map<String, dynamic>? queuedBatch;
+      if (batchStateId != null) {
+        queuedBatch = await supabase.from('india_directory_import_batches')
+          .select('id')
+          .eq('jurisdiction_state_ut_id', batchStateId)
+          .eq('unit_type', unitType)
+          .eq('import_status', 'awaiting_authorised_export')
+          .maybeSingle();
+      }
+
+      late final String batchId;
+      final batchMetadata = {
+        'jurisdiction_state_ut_id': batchStateId,
         'source_url': 'https://lgdirectory.gov.in/downloadDirectory.do',
         'unit_type': unitType,
         'source_updated_at': reportDate.toIso8601String().split('T').first,
@@ -5432,8 +5446,16 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
         'rows_rejected': rejected,
         'imported_by': userId,
         'notes': 'Imported from an administrator-supplied LGD report converted to CSV. Records remain unverified until authority review.',
-      }).select('id').single();
-      final batchId = batch['id'].toString();
+      };
+      if (queuedBatch != null) {
+        batchId = queuedBatch['id'].toString();
+        await supabase.from('india_directory_import_batches')
+          .update(batchMetadata).eq('id', batchId);
+      } else {
+        final batch = await supabase.from('india_directory_import_batches')
+          .insert(batchMetadata).select('id').single();
+        batchId = batch['id'].toString();
+      }
 
       for (var i = 0; i < payload.length; i += 100) {
         final end = (i + 100 < payload.length) ? i + 100 : payload.length;
@@ -5449,7 +5471,6 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
         'completed_at': DateTime.now().toIso8601String(),
       }).eq('id', batchId);
 
-      final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
       for (final stateId in touchedStates) {
         await supabase.from('india_data_coverage').update({
           'coverage_status': 'directory_records_imported_pending_authority_validation',
