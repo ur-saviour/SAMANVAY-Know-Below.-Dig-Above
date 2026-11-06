@@ -1,0 +1,510 @@
+{
+  "type": "FeatureCollection",
+  "name": "Coimbatore District Groundwater Telemetry Stations — NWDP 2026–2030 snapshot",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-01",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.96709,
+          10.486364
+        ]
+      },
+      "properties": {
+        "station_name": "Aliyar Nagar",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Anaimalai",
+        "rl_msl_m": 298,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -4.726,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-02",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.27441667,
+          10.81580556
+        ]
+      },
+      "properties": {
+        "station_name": "Senjeripudur",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Sulur",
+        "rl_msl_m": 338,
+        "observed_at": "04-09-2026 12:00",
+        "groundwater_level_telemetry_m": -61.49,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-03",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8469,
+          10.948
+        ]
+      },
+      "properties": {
+        "station_name": "Thenkarai",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "COIMBATORE SOUTH",
+        "rl_msl_m": null,
+        "observed_at": "05-11-2026 12:00",
+        "groundwater_level_telemetry_m": -53.35,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-04",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.961133,
+          10.858001
+        ]
+      },
+      "properties": {
+        "station_name": "Natchipalayam",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Madukkarai",
+        "rl_msl_m": null,
+        "observed_at": "01-10-2026 00:00",
+        "groundwater_level_telemetry_m": -15.83,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-05",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.882573,
+          10.513013
+        ]
+      },
+      "properties": {
+        "station_name": "Sethumadai_2",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": null,
+        "rl_msl_m": null,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -33.626,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-06",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.955069,
+          10.327933
+        ]
+      },
+      "properties": {
+        "station_name": "Valparai",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": null,
+        "rl_msl_m": null,
+        "observed_at": "01-10-2026 00:00",
+        "groundwater_level_telemetry_m": -34.99,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-07",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.05527778,
+          10.661111
+        ]
+      },
+      "properties": {
+        "station_name": "Unjavelampatty",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": null,
+        "rl_msl_m": 365,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -2.318,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-08",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.84458,
+          10.622225
+        ]
+      },
+      "properties": {
+        "station_name": "Ganapathi Palayam",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Anaimalai",
+        "rl_msl_m": 214.79,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": 1,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-09",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.12327778,
+          10.90127778
+        ]
+      },
+      "properties": {
+        "station_name": "Bogampatti",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Sulur",
+        "rl_msl_m": 356.02,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -14.023,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-10",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.21369444,
+          11.09883333
+        ]
+      },
+      "properties": {
+        "station_name": "Subbarayanpudur",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Sulur",
+        "rl_msl_m": 346,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -18.553,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-11",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.060895,
+          10.580132
+        ]
+      },
+      "properties": {
+        "station_name": "Thondamuthur_2",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": null,
+        "rl_msl_m": null,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -25.766,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-12",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0867,
+          11.05139
+        ]
+      },
+      "properties": {
+        "station_name": "Athinarayanapuram",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Sulur",
+        "rl_msl_m": null,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -10.03,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-13",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0671056,
+          11.0125997
+        ]
+      },
+      "properties": {
+        "station_name": "Irugur",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Sulur",
+        "rl_msl_m": 383,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -5.529,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-14",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.916386,
+          10.708316
+        ]
+      },
+      "properties": {
+        "station_name": "Ramapattinam_2",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": null,
+        "rl_msl_m": null,
+        "observed_at": "01-10-2026 00:00",
+        "groundwater_level_telemetry_m": -7.55,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-15",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.989669,
+          11.178317
+        ]
+      },
+      "properties": {
+        "station_name": "Vellamadai",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Annur",
+        "rl_msl_m": 413.82,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": 57.905,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-16",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.025681,
+          10.741945
+        ]
+      },
+      "properties": {
+        "station_name": "K.mettupalayam",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Kinathukadavu",
+        "rl_msl_m": null,
+        "observed_at": "01-10-2026 00:00",
+        "groundwater_level_telemetry_m": -19.481,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-17",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.05083333,
+          11.145
+        ]
+      },
+      "properties": {
+        "station_name": "Kunnathur Pudur",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Annur",
+        "rl_msl_m": 371,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -34.126,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-18",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.84441667,
+          10.98719444
+        ]
+      },
+      "properties": {
+        "station_name": "Thondamuthur",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "COIMBATORE SOUTH",
+        "rl_msl_m": 288.6,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -40.102,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-19",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.012021,
+          11.150982
+        ]
+      },
+      "properties": {
+        "station_name": "Agraharasamakulam",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Annur",
+        "rl_msl_m": 410.75,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": 2.898,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-20",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1148974,
+          10.628433
+        ]
+      },
+      "properties": {
+        "station_name": "Kolarpatti",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": null,
+        "rl_msl_m": 366.22,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -15.052,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "nwdp-coimbatore-21",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.14580556,
+          11.194
+        ]
+      },
+      "properties": {
+        "station_name": "Nallagoundanpalayam",
+        "agency": "Tamil Nadu SW GW",
+        "state": "Tamil Nadu",
+        "district": "Coimbatore",
+        "tehsil": "Sulur",
+        "rl_msl_m": 371,
+        "observed_at": "05-11-2026 00:00",
+        "groundwater_level_telemetry_m": -51.075,
+        "dataset_period": "2026–2030",
+        "dataset_resource_id": "6857c02f-c77e-4576-b349-3e45aacc1c21",
+        "source": "National Water Data Portal / Tamil Nadu Surface Water and Ground Water Departments"
+      }
+    }
+  ]
+}
