@@ -98,3 +98,33 @@ Official portal: https://nwdp.nwic.gov.in/en/dataset/ground-water-level-telemetr
 | Supabase underground asset registry | Remains empty unless and until authorised asset-owner records are imported and verified |
 
 **Safety wording:** “No authorised underground asset record is registered or returned” is not equivalent to “no utility exists” or “the site is safe”. Actual clearance must come from the relevant utility owner and prescribed field verification.
+## 7. Additional surface-water sources identified — not imported
+
+### 7.1 Coimbatore District official taluk waterbody maps
+
+The Coimbatore District Administration publishes a waterbody page listing map PDFs for 11 taluks: Coimbatore South, Madukkarai, Perur, Sulur, Coimbatore North, Mettupalayam, Annur, Pollachi, Kinathukadavu, Valparai and Anamalai. These are official local reference documents and can help identify the relevant waterbody records and custodians for a pilot. The page provides PDF maps, not a machine-readable GIS export.
+
+Official source: https://coimbatore.nic.in/waterbody/
+
+**Status:** Catalogue and document links located; PDFs have not been digitised into GIS. A PDF location map must not be treated as survey-grade geometry or a current underground drainage network.
+
+### 7.2 National Water Data Portal — Tamil Nadu surface-waterbody boundaries
+
+NWDP publishes a Tamil Nadu-wide surface-waterbody boundary resource described as satellite-derived boundaries for waterbodies larger than 0.1 hectare. The resource metadata states:
+- Format: Shapefile (SHP)
+- Last updated: 5 May 2025
+- Licence field: Other (Open)
+- Resource download: https://nwdp.nwic.gov.in/dataset/811f6a62-61c2-4d79-b90b-deeee4151f6d/resource/b53491de-0ab9-4f59-8071-8a9cfead60c3/download/wb_tn_shp.zip
+- Metadata page: https://nwdp.nwic.gov.in/dataset/surface-waterbodies/resource/b53491de-0ab9-4f59-8071-8a9cfead60c3
+
+**Status:** Metadata inspected; the shapefile endpoint was unreachable during this build session. No shapefile bytes, feature count, CRS or Coimbatore subset have been imported or validated. Re-attempt retrieval through the data portal's supported download/API process before ingestion. Even when obtained, this dataset is surface-waterbody context, not a stormwater pipe/drain asset inventory.
+
+### 7.3 Tamil Nadu Water Bodies Census — Jal Dharohar
+
+OpenCity lists 2023 KML resources from the 2018–19 Water Bodies Census conducted by the Department of Water Resources, River Development and Ganga Rejuvenation. The dataset catalogue exposes a **CC BY-NC 2.0** licence. Because that licence includes a non-commercial condition and SAMANVAY's future deployment/commercial status is not established, these resources have not been copied into the app. Review the licence and intended use with the data publisher before redistribution.
+
+Source: https://data.opencity.in/dataset/tamil-nadu-water-bodies-census-data
+
+## 8. Data import acceptance rule
+
+Only import a downloaded GIS file after confirming actual bytes, file integrity, feature count, geometry type, CRS, attribute schema, licence and intended-use compatibility. Preserve the source file, checksum, publisher, source URL, last-updated date and transformation script. Do not turn satellite-derived waterbody polygons or district PDF map labels into underground stormwater pipes or legal excavation clearance.
