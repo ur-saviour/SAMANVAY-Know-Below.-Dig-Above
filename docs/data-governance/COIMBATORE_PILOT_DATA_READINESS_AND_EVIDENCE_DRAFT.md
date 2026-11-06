@@ -117,3 +117,10 @@ For every imported underground asset, preserve the owner, source document, date,
 - [India National Data Acquisition Register](INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
 
 **Final conclusion:** SAMANVAY has progressed from an empty reference-data map to a real Coimbatore GIS prototype with two traceable spatial reference datasets and an integrated groundwater monitoring layer. It is not yet an authoritative underground-utility inventory. That final capability depends on asset-owner data-sharing approval and verified survey/as-built records.
+
+
+## 10. Additional official source index committed on 6 November 2026
+
+A machine-readable CSV source index has been committed at `data/reference/coimbatore_waterbody_map_index.csv`. It records the 11 official taluk-level PDF map links published by the Coimbatore District Administration. This adds traceable public source references, not digitised GIS features. The source page was last updated 10 August 2026. No PDF geometry has been extracted, and these documents are not underground drainage or utility records.
+
+The project therefore has two actual spatial datasets already bundled in the app (100 ward-reference polygons and 21 groundwater telemetry station points), plus this 11-document official source index. The underground utility registry remains separate and must only receive asset-owner-approved or verified survey/as-built data.
