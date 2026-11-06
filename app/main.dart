@@ -3972,6 +3972,7 @@ class _MapPageState extends State<MapPage> {
   String _utilityConflictStatus = 'Conflict screening has not run.';
   List<Map<String, dynamic>> _visibleRequests = [];
   final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
+  String _lastConflictAlertSignature = '';
   bool _canViewDepartmentAssets = false;
   bool _showVerifiedAssets = true;
   bool _showCoimbatoreWardBoundaries = true;
@@ -4950,8 +4951,13 @@ class _MapPageState extends State<MapPage> {
               : eligibleRequestCount == 0
                   ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
                   : features.isEmpty
-                  ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
-                  : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
+                      ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
+                      : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
+      final alertSignature = detailsById.keys.toList()..sort();
+      final signature = alertSignature.join('|');
+      final shouldNotify = signature.isNotEmpty &&
+          signature != _lastConflictAlertSignature;
+      _lastConflictAlertSignature = signature;
       setState(() {
         _utilityConflictCount = features.length;
         _utilityConflictStatus = status;
@@ -4959,7 +4965,7 @@ class _MapPageState extends State<MapPage> {
           ..clear()
           ..addAll(detailsById);
       });
-      if (features.isNotEmpty) {
+      if (shouldNotify) {
         _showMessage(
           '${features.length} work request(s) have potential proximity to verified underground assets across departments. Tap a red marker for advisory details.',
         );
