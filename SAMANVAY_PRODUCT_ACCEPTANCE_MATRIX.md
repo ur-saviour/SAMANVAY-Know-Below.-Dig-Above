@@ -129,6 +129,7 @@
 
 - [x] State/UT selector backed by the 36-row national jurisdiction directory.
 - [x] Groundwater dashboard queries published observations by selected State/UT rather than hard-coding Coimbatore.
+- [x] GIS groundwater layer now loads latest imported monitoring-station points across all currently represented States/UTs rather than filtering to Coimbatore.
 - [x] Selected-jurisdiction CGWB 2025 resource metrics are shown separately from station telemetry.
 - [x] National data-readiness panel summarizes coverage states for groundwater, utility GIS and building approvals.
 - [x] Missing telemetry is shown as unavailable; it is not represented as zero groundwater or a safety clearance.
