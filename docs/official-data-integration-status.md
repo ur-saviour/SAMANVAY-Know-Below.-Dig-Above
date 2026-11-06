@@ -10,7 +10,7 @@ Scope: all 28 States and 8 Union Territories. National coverage is tracked separ
 - NWDP/CGWB 2021-2025 telemetry: 1,095,209 observations currently stored at latest check; 10 resource feeds complete, 22 partial, 30 discovered/not yet imported. The advertised source-row sum is 16,528,153 across 62 resource records at latest check; alternative/agency feeds can overlap, so this is not a deduplicated national count.
 - Additional 199 district-level groundwater rows from seven State/UT CSV mirrors are stored in a separate reconciliation staging table; they are not cleared for official aggregation.
 - Utility GIS: 108 State/UT layer contracts plus 8 original Coimbatore pilot records (116 total); 115 are authority-data-pending and zero are enabled for operational excavation use.
-- Building approvals: 25 State/UT jurisdictions have an official portal or service-directory URL mapped; 11 still need an authority/ULB portal mapping. The approvals table contains zero imported approval records.
+- Building approvals: 33 State/UT jurisdictions have an official portal or service-directory URL mapped; three have no direct portal/service entrypoint verified yet (Mizoram, Nagaland and Tripura). The approvals table contains zero imported approval records.
 
 ## 1. Groundwater
 
@@ -105,7 +105,7 @@ National reference:
 - MoHUA / National Urban Digital Mission UPYOG Building Plan Approval: https://www.nudm.mohua.gov.in/building-plan-approval/
 - National Government Services Portal: https://services.india.gov.in/
 
-The 36-jurisdiction coverage matrix currently has 25 State/UT rows with a mapped official portal or service-directory entrypoint. Eleven jurisdictions still have no portal URL mapped: Arunachal Pradesh, Chandigarh, Himachal Pradesh, Lakshadweep, Manipur, Meghalaya, Mizoram, Nagaland, Puducherry, Tripura and Uttarakhand.
+The 36-jurisdiction coverage matrix now has 33 State/UT rows with a mapped official portal or service-directory entrypoint. Three still have no direct portal URL mapped: Mizoram (OBPAS 2.0 confirmed for Aizawl Municipal Corporation but direct endpoint not verified), Nagaland (OBPS reported as under establishment/testing in August 2026) and Tripura (departmental construction-permit process documented, direct application portal not verified).
 
 Examples of official portal references registered:
 - Andhra Pradesh — APDPMS 2.0: https://portal.apdpms.ap.gov.in/
@@ -193,3 +193,18 @@ National source discovery, schema coverage and partial data ingestion are not th
 - The browser operations portal compiled successfully in GitHub Actions; its packaged artifact is attached to run 42249149103.
 - The Android APK workflow has passed Dart analysis and is in the release APK build stage at the time of this update.
 - Remaining external dependencies are unchanged: authority-supplied utility network GIS, official building approval exports, final survey verification, and any API credentials required for optional third-party services.
+
+Additional official State/UT portal discovery synced on 6 November 2026:
+- Arunachal Pradesh — OBPS: https://obps.arunachal.gov.in (NIC launch confirmation: https://www.nic.gov.in/newsletter-content/launch-inauguration/)
+- Chandigarh — Estate Office e-Services / Building Plan Approval: https://estateoffice.chd.gov.in/
+- Himachal Pradesh — e-Avedan building planning permission: https://obpsud.hp.gov.in/index
+- Lakshadweep — PWD Building Permit ServicePlus service listing: https://serviceonline.gov.in/getServiceDesc.html?serviceId=21970002
+- Manipur — EoDB building plan approval services: https://www.eodbmanipur.mn.gov.in/Services
+- Meghalaya — MUDA OBPS: https://obps.meghalaya.gov.in/obps/aboutus.htm
+- Puducherry — Planning Authority OBPS: https://ppa.py.gov.in/obps
+- Uttarakhand — Urban Development ServicePlus directory: https://www.serviceonline.gov.in/uttarakhand/
+- Mizoram — AMC OBPAS 2.0 is confirmed by the State Government, but direct endpoint remains unverified: https://dipr.mizoram.gov.in/post/speech-of-gen-dr-vijay-kumar-singh-pvsm-avsm-ysm-retd-honble-governor-of-mizoram-on-the-occasion-of-the-77th-republic-day-of-india-at-lammual-ground-aizawl1769417004
+- Nagaland — official DIPR reported OBPS implementation/testing and rollout preparation on 7 August 2026: https://ipr.nagaland.gov.in/node/21663
+- Tripura — Urban Development Department construction-permit process and timelines: https://udd.tripura.gov.in/sites/default/files/2024-01/Construction%20Permit%20Approval_1.pdf
+
+These entries establish public service discovery only. They do not constitute imported approval registers or permission to scrape applicant records. Current public.building_approval_records count remains zero.
