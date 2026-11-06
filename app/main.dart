@@ -4381,6 +4381,7 @@ class IndiaCoverageExplorerPage extends StatefulWidget {
 class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   List<Map<String, dynamic>> states = [];
   List<Map<String, dynamic>> coverage = [];
+  List<Map<String, dynamic>> administrativeUnits = [];
   bool loading = true;
   String errorMessage = '';
   String searchText = '';
@@ -4399,6 +4400,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     'electricity_distribution': 'Electricity distribution',
     'telecom_fibre': 'Telecom and fibre',
     'city_gas': 'City gas distribution',
+    'administrative_directory': 'Districts, ULBs and local bodies',
   };
 
   @override
@@ -4413,10 +4415,14 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       final rawCoverage = await supabase.from('india_data_coverage')
           .select('state_ut_id,data_domain,responsible_authority,official_portal_url,national_source_url,coverage_status,data_granularity,operational_use_allowed,last_checked_at,notes,telemetry_resource_count,telemetry_records_imported,telemetry_source_records,telemetry_status')
           .limit(1000);
+      final rawAdministrativeUnits = await supabase.from('india_administrative_units')
+          .select('unit_type,verification_status,state_ut_id')
+          .limit(1000);
       if (!mounted) return;
       setState(() {
         states = List<Map<String, dynamic>>.from(rawStates);
         coverage = List<Map<String, dynamic>>.from(rawCoverage);
+        administrativeUnits = List<Map<String, dynamic>>.from(rawAdministrativeUnits);
         loading = false;
       });
     } catch (_) {
@@ -4449,6 +4455,9 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     if (status.contains('national_authority_identified_state_level_register_pending')) {
       return 'NATIONAL SOURCE · LOCAL DATA PENDING';
     }
+    if (status.contains('captcha_required_for_bulk_export')) {
+      return 'OFFICIAL DIRECTORY · EXPORT PENDING';
+    }
     if (status.contains('portal_identified')) return 'PORTAL IDENTIFIED';
     return 'AUTHORITY DATA PENDING';
   }
@@ -4458,7 +4467,8 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     final status = (row['coverage_status'] ?? '').toString().toLowerCase();
     if (status.contains('partial')) return const Color(0xFFFFF0D7);
     if (status.contains('imported')) return const Color(0xFFE6F0FB);
-    if (status.contains('national_authority_identified_state_level_register_pending')) {
+    if (status.contains('national_authority_identified_state_level_register_pending') ||
+        status.contains('captcha_required_for_bulk_export')) {
       return const Color(0xFFFFF0D7);
     }
     if (status.contains('portal_identified')) return const Color(0xFFEAF4F4);
@@ -4470,7 +4480,8 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     final status = (row['coverage_status'] ?? '').toString().toLowerCase();
     if (status.contains('partial')) return const Color(0xFF8A5A00);
     if (status.contains('imported')) return const Color(0xFF285B8F);
-    if (status.contains('national_authority_identified_state_level_register_pending')) {
+    if (status.contains('national_authority_identified_state_level_register_pending') ||
+        status.contains('captcha_required_for_bulk_export')) {
       return const Color(0xFF8A5A00);
     }
     if (status.contains('portal_identified')) return const Color(0xFF176B6D);
@@ -4577,6 +4588,78 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
     );
   }
 
+  Widget _administrativeDirectoryCard() {
+    final counts = <String, int>{};
+    final verified = administrativeUnits.where(
+      (row) => row['verification_status'] == 'authority_verified',
+    ).length;
+    for (final row in administrativeUnits) {
+      final type = (row['unit_type'] ?? 'other').toString();
+      counts[type] = (counts[type] ?? 0) + 1;
+    }
+    const labels = {
+      'district': 'Districts',
+      'sub_district': 'Sub-districts',
+      'block': 'Blocks',
+      'urban_local_body': 'Urban local bodies',
+      'gram_panchayat': 'Gram panchayats',
+      'village': 'Villages',
+      'ward': 'Wards',
+      'traditional_local_body': 'Traditional local bodies',
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.account_balance_outlined, color: Color(0xFF087F83)),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('District and local-government directory',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF0D7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('IMPORT PENDING',
+                style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF8A5A00))),
+            ),
+          ]),
+          const SizedBox(height: 7),
+          Text(administrativeUnits.length.toString() + ' directory records currently loaded · ' +
+            verified.toString() + ' authority-verified',
+            style: const TextStyle(fontSize: 10, color: mutedInk)),
+          const SizedBox(height: 8),
+          if (administrativeUnits.isEmpty)
+            const Text(
+              'No district or ULB rows have been imported yet. The national LGD source has been registered, and the database is ready to receive an official report.',
+              style: TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
+            )
+          else
+            Wrap(spacing: 7, runSpacing: 7, children: labels.entries
+              .where((entry) => counts.containsKey(entry.key))
+              .map((entry) => _metric(entry.value, counts[entry.key].toString(), Icons.location_city_outlined))
+              .toList()),
+          const SizedBox(height: 8),
+          const Text(
+            'Required source: Ministry of Panchayati Raj Local Government Directory (LGD). Its bulk report generator requires a CAPTCHA. Upload an authority-generated report with its LGD codes and report date; do not treat manually typed names as verified records.',
+            style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
+          ),
+          const SizedBox(height: 7),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _openSource('https://lgdirectory.gov.in/downloadDirectory.do'),
+              icon: const Icon(Icons.open_in_new, size: 15),
+              label: const Text('Open official LGD report generator'),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
   Widget _jurisdictionCard(Map<String, dynamic> state) {
     final stateId = state['id'].toString();
     final rows = _rowsFor(stateId);
@@ -4672,7 +4755,9 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                         _metric('OPERATIONAL', authorisedRows.toString(), Icons.verified_outlined),
                         _metric('COVERAGE ROWS', coverage.length.toString(), Icons.storage_outlined),
                       ]),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 12),
+                      _administrativeDirectoryCard(),
+                      const SizedBox(height: 12),
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(13),
