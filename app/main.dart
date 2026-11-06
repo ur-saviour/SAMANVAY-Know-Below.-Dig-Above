@@ -1711,6 +1711,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               departmentId: widget.departmentId,
             ),
             const SizedBox(height: 16),
+            const NationalDataCoverageBoard(),
+            const SizedBox(height: 16),
             const GroundwaterTelemetryDashboard(),
             const SizedBox(height: 16),
             GroundwaterObservationBoard(
@@ -4073,10 +4075,224 @@ class _DrainageInspectionBoardState extends State<DrainageInspectionBoard> {
 
 class GroundwaterTelemetryDashboard extends StatefulWidget {
   const GroundwaterTelemetryDashboard({super.key});
-
   @override
   State<GroundwaterTelemetryDashboard> createState() => _GroundwaterTelemetryDashboardState();
 }
+
+class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDashboard> {
+  List<Map<String, dynamic>> jurisdictions = [];
+  List<Map<String, dynamic>> stations = [];
+  Map<String, dynamic>? assessment;
+  String? selectedStateId;
+  String selectedStateName = 'Tamil Nadu';
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() { super.initState(); _loadSnapshot(); }
+
+  Future<void> _loadSnapshot({String? requestedStateId}) async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rawJurisdictions = await supabase.from('india_state_uts')
+          .select('id,name,jurisdiction_type').order('name');
+      final loaded = List<Map<String, dynamic>>.from(rawJurisdictions);
+      if (loaded.isEmpty) throw Exception('Empty State/UT directory');
+      String? nextId = requestedStateId ?? selectedStateId;
+      if (nextId == null || !loaded.any((r) => r['id'].toString() == nextId)) {
+        final tn = loaded.where((r) => r['name'].toString() == 'Tamil Nadu');
+        nextId = tn.isNotEmpty ? tn.first['id'].toString() : loaded.first['id'].toString();
+      }
+      final selected = loaded.firstWhere((r) => r['id'].toString() == nextId);
+      final stateName = selected['name'].toString();
+      final rawStations = await supabase.from('latest_groundwater_station_observations')
+          .select('station_name,agency,state_name,district_name,tehsil,block_name,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text,imported_at')
+          .eq('state_name', stateName).order('observed_at_local', ascending: false).limit(300);
+      final rawAssessment = await supabase.from('groundwater_state_assessments')
+          .select('assessment_year,agency,total_annual_recharge_bcm,annual_extractable_resource_bcm,total_annual_extraction_bcm,stage_of_extraction_pct,source_document_url,source_reference')
+          .eq('state_ut_id', nextId).order('assessment_year', ascending: false).limit(1);
+      if (!mounted) return;
+      setState(() {
+        jurisdictions = loaded; selectedStateId = nextId; selectedStateName = stateName;
+        stations = List<Map<String, dynamic>>.from(rawStations);
+        assessment = rawAssessment.isEmpty ? null : Map<String, dynamic>.from(rawAssessment.first);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Nationwide groundwater records could not be loaded. Check your connection and account permissions.'; });
+    }
+  }
+
+  String _number(dynamic value, {int digits = 2, String suffix = ''}) {
+    if (value is num) return value.toStringAsFixed(digits) + suffix;
+    final parsed = num.tryParse(value?.toString() ?? '');
+    return parsed == null ? 'Not reported' : parsed.toStringAsFixed(digits) + suffix;
+  }
+
+  String _reading(Map<String, dynamic> station) {
+    final value = station['reported_level_m'];
+    if (value is num) return value.toStringAsFixed(3) + ' m (as published)';
+    final raw = (station['reported_level_text'] ?? '').toString();
+    return raw.isEmpty || raw == '-' ? 'Not reported' : raw + ' (as published)';
+  }
+
+  Widget _metric(String label, String value) => Expanded(
+    child: Container(padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(color: const Color(0xFFF1F7FA), borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: navy)),
+      ])));
+
+  Widget _stationTile(Map<String, dynamic> station) {
+    final name = (station['station_name'] ?? 'Unnamed station').toString();
+    final district = (station['district_name'] ?? 'District not supplied').toString();
+    final tehsil = (station['tehsil'] ?? station['block_name'] ?? '').toString();
+    final observed = (station['observed_at_local'] ?? 'Timestamp unavailable').toString();
+    final place = [district, tehsil].where((v) => v.trim().isNotEmpty).join(' · ');
+    final rl = station['rl_msl_m'] is num ? ' · RL MSL ${(station['rl_msl_m'] as num).toStringAsFixed(2)} m' : '';
+    return ListTile(dense: true, contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.sensors_outlined, color: Color(0xFF087F83)),
+      title: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+      subtitle: Text('$place · Observed $observed$rl', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+      trailing: Text(_reading(station), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = stations.isNotEmpty ? (stations.first['observed_at_local'] ?? 'Unavailable').toString() : 'Unavailable';
+    final year = assessment?['assessment_year']?.toString() ?? 'Unavailable';
+    final stage = assessment == null ? 'Not reported' : _number(assessment?['stage_of_extraction_pct'], suffix: '%');
+    return Card(child: Padding(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.public, color: Color(0xFF087F83)), const SizedBox(width: 9),
+          const Expanded(child: Text('India groundwater intelligence', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+          IconButton(onPressed: loading ? null : () => _loadSnapshot(), icon: const Icon(Icons.refresh), tooltip: 'Refresh nationwide groundwater records'),
+        ]),
+        const Text('CGWB State/UT resource assessments + published NWDP monitoring observations', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          value: selectedStateId, isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Select State / Union Territory', border: OutlineInputBorder(), isDense: true),
+          items: jurisdictions.map((r) => DropdownMenuItem<String>(value: r['id'].toString(), child: Text(r['name'].toString()))).toList(),
+          onChanged: loading || jurisdictions.isEmpty ? null : (v) { if (v != null) _loadSnapshot(requestedStateId: v); },
+        ),
+        const SizedBox(height: 10),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else ...[
+          Text(selectedStateName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
+          const SizedBox(height: 8),
+          Row(children: [_metric('Assessment year', year), const SizedBox(width: 8), _metric('Extraction stage', stage)]),
+          const SizedBox(height: 8),
+          Row(children: [
+            _metric('Annual recharge', assessment == null ? 'Not reported' : _number(assessment?['total_annual_recharge_bcm'], suffix: ' BCM')),
+            const SizedBox(width: 8),
+            _metric('Annual extraction', assessment == null ? 'Not reported' : _number(assessment?['total_annual_extraction_bcm'], suffix: ' BCM')),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            const Expanded(child: Text('Published monitoring stations', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
+            Text('${stations.length} shown', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          ]),
+          if (stations.isEmpty)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text('No station observations are currently imported for this jurisdiction. This does not mean that monitoring stations are absent.', style: TextStyle(fontSize: 11, color: Colors.blueGrey)))
+          else ...[
+            Text('Latest observation in this result: $latest', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            const SizedBox(height: 6),
+            ...stations.take(10).map(_stationTile),
+            if (stations.length > 10) ExpansionTile(tilePadding: EdgeInsets.zero,
+              title: Text('Show remaining ${stations.length - 10} stations', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              children: stations.skip(10).map(_stationTile).toList()),
+          ],
+          const SizedBox(height: 6),
+          const Text('Resource assessments are annual CGWB estimates, not live sensor values. Station readings are displayed as published. Missing observations are not evidence of absent groundwater or safe borewell conditions. National telemetry imports run through the controlled server-side import workflow.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        ],
+      ])));
+  }
+}
+
+class NationalDataCoverageBoard extends StatefulWidget {
+  const NationalDataCoverageBoard({super.key});
+  @override
+  State<NationalDataCoverageBoard> createState() => _NationalDataCoverageBoardState();
+}
+
+class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('india_data_coverage')
+          .select('data_domain,coverage_status,operational_use_allowed,telemetry_records_imported,telemetry_status').limit(200);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'National data coverage status is unavailable.'; });
+    }
+  }
+
+  Widget _domainSummary(String domain, String label) {
+    final items = records.where((r) => r['data_domain']?.toString() == domain).toList();
+    final operational = items.where((r) => r['operational_use_allowed'] == true).length;
+    final statuses = <String, int>{};
+    for (final row in items) {
+      final status = (row['coverage_status'] ?? 'unknown').toString();
+      statuses[status] = (statuses[status] ?? 0) + 1;
+    }
+    final imported = items.fold<int>(0, (sum, row) {
+      final v = row['telemetry_records_imported'];
+      return sum + (v is num ? v.toInt() : 0);
+    });
+    return Container(width: double.infinity, margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFFF5F8FA), borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(height: 5),
+        Text('${items.length} of 36 jurisdictions mapped · $operational enabled for operational use', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        if (domain == 'groundwater') Text('State-level telemetry records attributed in coverage matrix: $imported', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+        const SizedBox(height: 5),
+        ...statuses.entries.map((e) => Padding(padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            Expanded(child: Text(e.key.replaceAll('_', ' '), style: const TextStyle(fontSize: 10, color: Colors.blueGrey))),
+            Text(e.value.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
+          ]))),
+      ]));
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(16),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.account_tree_outlined, color: Color(0xFF087F83)), const SizedBox(width: 9),
+        const Expanded(child: Text('India-wide data readiness', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+        IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh national coverage matrix'),
+      ]),
+      const Text('36 States / UTs · three national data domains', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+      if (loading) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
+      else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
+      else ...[
+        _domainSummary('groundwater', 'Groundwater'),
+        _domainSummary('utility_gis', 'Underground utility GIS'),
+        _domainSummary('building_approvals', 'Building approvals'),
+        const SizedBox(height: 8),
+        const Text('A mapped portal is not an imported dataset. Operational use remains disabled until the responsible authority supplies and validates the underlying records.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+      ],
+    ])));
+}
+
 
 class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDashboard> {
   List<Map<String, dynamic>> stations = [];
