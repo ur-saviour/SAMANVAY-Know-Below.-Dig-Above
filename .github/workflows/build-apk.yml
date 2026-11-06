@@ -17,7 +17,7 @@ on:
       - '.github/workflows/build-apk.yml'
 
 concurrency:
-  group: samanvay-android-${{ github.ref }}
+  group: samanvay-android-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -154,18 +154,18 @@ jobs:
           fi
 
           mkdir -p dist
-          cp "$APK" dist/SAMANVAY-Alpha-0.2.apk
+          cp "$APK" dist/SAMANVAY-Alpha-0.3.apk
 
           echo "APK successfully prepared:"
-          ls -lh dist/SAMANVAY-Alpha-0.2.apk
+          ls -lh dist/SAMANVAY-Alpha-0.3.apk
 
-          sha256sum dist/SAMANVAY-Alpha-0.2.apk
+          sha256sum dist/SAMANVAY-Alpha-0.3.apk
 
       # 9. Diagnose APK (diagnostic failures won't block download)
       - name: Inspect APK package and signing
         continue-on-error: true
         run: |
-          APK="dist/SAMANVAY-Alpha-0.2.apk"
+          APK="dist/SAMANVAY-Alpha-0.3.apk"
 
           echo "========== APK FILE =========="
           file "$APK"
@@ -198,31 +198,33 @@ jobs:
 
       # 10. ALWAYS upload APK as a downloadable artifact
       - name: Upload APK download
-        if: always() && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
+        if: always() && hashFiles('dist/SAMANVAY-Alpha-0.3.apk') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: SAMANVAY-Alpha-0.2-APK
-          path: dist/SAMANVAY-Alpha-0.2.apk
+          name: SAMANVAY-Alpha-0.3-APK
+          path: dist/SAMANVAY-Alpha-0.3.apk
           if-no-files-found: error
           retention-days: 30
 
       # 11. Publish GitHub Release when manually triggered
-      - name: Publish SAMANVAY Alpha 0.2
-        if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
+      - name: Publish SAMANVAY Alpha 0.3
+        if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Alpha-0.3.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: samanvay-alpha-0.2
-          name: SAMANVAY Alpha 0.2
+          tag_name: samanvay-alpha-0.3
+          name: SAMANVAY Alpha 0.3
           body: |
             SAMANVAY Android Application
-            Version: Alpha 0.2
+            Version: Alpha 0.3
 
             Includes:
             - Flutter release APK
+            - Verified department-owned GIS asset map layer
+            - Device GPS coordinate display and OpenStreetMap place search fallback
             - Supabase integration foundation
             - APK package and signing diagnostics
 
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: dist/SAMANVAY-Alpha-0.2.apk
+          files: dist/SAMANVAY-Alpha-0.3.apk
