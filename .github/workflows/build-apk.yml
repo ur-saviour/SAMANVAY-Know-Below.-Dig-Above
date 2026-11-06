@@ -111,6 +111,11 @@ jobs:
             exit 1
           fi
 
+          if [ ! -s assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson ]; then
+            echo "ERROR: Coimbatore groundwater telemetry GeoJSON is missing from the repository."
+            exit 1
+          fi
+
       # 5. Install dependencies
       - name: Install Flutter dependencies
         run: |
@@ -137,6 +142,16 @@ jobs:
               content = content.replace(
                   chr(10) + "flutter:" + chr(10),
                   chr(10) + "flutter:" + chr(10) + "  assets:" + chr(10) + asset_entry + chr(10),
+                  1,
+              )
+
+          groundwater_entry = "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"
+          if groundwater_entry not in content:
+              if asset_entry not in content:
+                  raise SystemExit("Coimbatore ward asset entry not found")
+              content = content.replace(
+                  asset_entry,
+                  asset_entry + chr(10) + groundwater_entry,
                   1,
               )
           path.write_text(content)
@@ -226,6 +241,7 @@ jobs:
             Includes:
             - ABI-specific Flutter release APKs (ARM64, ARMv7, x86_64)
             - Coimbatore 2024 Public Domain ward-boundary reference layer (OpenCity.in)
+            - 21 Coimbatore district groundwater telemetry station points from NWDP 2026–2030 snapshot
             - Verified department-owned GIS asset map layer (when owner data is registered and verified)
             - Device GPS coordinate display and OpenStreetMap place search fallback
             - Supabase integration foundation
