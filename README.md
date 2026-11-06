@@ -24,6 +24,7 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - [Supabase Security and Performance Review](docs/security/SUPABASE_SECURITY_AND_PERFORMANCE_REVIEW_2026-11-06.md)
 - [Utility Proximity Conflict Screening](docs/features/UTILITY_PROXIMITY_CONFLICT_SCREENING.md)
 - [Road-Cut Permit Compliance & Restoration Deadlines](docs/features/ROAD_CUT_PERMIT_COMPLIANCE_AND_DEADLINES.md)
+- [Coordinated Road-Work Scheduling](docs/features/COORDINATED_ROAD_WORK_SCHEDULING.md)
 - [Road Restoration and Quality Assurance](docs/features/ROAD_RESTORATION_QUALITY_ASSURANCE.md)
 - [Stormwater Drainage and Frontage Inspection Tracking](docs/features/STORMWATER_DRAINAGE_INSPECTION_TRACKING.md)
 - [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
