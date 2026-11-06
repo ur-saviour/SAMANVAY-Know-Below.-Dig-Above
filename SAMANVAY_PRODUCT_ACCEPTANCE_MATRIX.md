@@ -221,3 +221,18 @@
 - [ ] Keep detailed geometry in the authority-controlled GIS workflow, separate from the general app.
 
 **Verified current data:** 0 underground asset records and 0 survey evidence records. The verification centre is implemented but has no submitted assets to review.
+
+
+## 17. National authority directory — 6 November 2026
+
+- [x] Create national authority directory with role, responsibility, domain tags and official source links.
+- [x] Seed nine central/national directory, ministry, programme, technical-body and regulator references.
+- [x] Add authenticated read and admin/coordinator management RLS.
+- [x] Add domain index for filtering.
+- [x] Add Flutter searchable authority directory page and link it from the India coverage explorer.
+- [x] Explicitly mark local custodian confirmation as required for all national reference entries.
+- [ ] Resolve the actual State/UT department, ULB, utility owner or regulator for each jurisdiction/domain.
+- [ ] Add verified local agency portal and data-sharing references once confirmed.
+- [ ] Obtain and validate source registers and their update dates.
+
+**Verified database state:** 9 national authority references. This is an authority/source directory, not a complete list of every State/UT or municipal department.
