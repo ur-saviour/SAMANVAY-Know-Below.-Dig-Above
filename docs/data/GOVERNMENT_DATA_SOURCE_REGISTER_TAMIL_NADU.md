@@ -87,6 +87,8 @@ Official pages:
 - Property assessment view: https://tnurbanepay.tn.gov.in/PT_AssessmentViewsLink.aspx
 - Building plan workflow: https://tnurbanepay.tn.gov.in/BPM_LayoutBuildingApproval.aspx
 
+The public Building Plan Approval Search page lists fields for ULB, request type, applicant, mobile number, service request number, approval number, surveyor and date/status. During a live interactive check, a usable Coimbatore ULB selector was not exposed, so no unscoped records were queried and no applicant contact details were collected. This discrepancy between indexed page content and the live form must be resolved with the portal operator before any automated extraction.
+
 **Finding:** individual approval searches and authenticated property/application workflows are visible, but a public bulk Coimbatore export of approved plans, floor counts, heights and geospatial footprints was not verified. SAMANVAY should use authority-issued records uploaded or API-shared by the relevant planning authority, not scrape personal applicant details or infer approval from property-tax fields.
 
 ## 4. Data admission rules for the live registry
