@@ -4777,104 +4777,6 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  // Convert a coordinate to a local metre-based plane around the proposed work.
-  // This is suitable for short municipal work corridors, not cadastral surveying.
-  double _distanceToAssetGeometryMetres(
-    double latitude,
-    double longitude,
-    Map<String, dynamic> geometry,
-  ) {
-    final type = (geometry['type'] ?? '').toString();
-    final coordinates = geometry['coordinates'];
-
-    double haversine(double lat, double lon) {
-      final p1 = latitude * math.pi / 180;
-      final p2 = lat * math.pi / 180;
-      final dp = (lat - latitude) * math.pi / 180;
-      final dl = (lon - longitude) * math.pi / 180;
-      final h = math.pow(math.sin(dp / 2), 2) +
-          math.cos(p1) * math.cos(p2) * math.pow(math.sin(dl / 2), 2);
-      return 6371000 * 2 * math.asin(math.sqrt(h));
-    }
-
-    if (coordinates is! List || coordinates.isEmpty) {
-      return double.infinity;
-    }
-
-    if (type == 'Point') {
-      if (coordinates.length < 2 ||
-          coordinates[0] is! num || coordinates[1] is! num) {
-        return double.infinity;
-      }
-      return haversine(
-        (coordinates[1] as num).toDouble(),
-        (coordinates[0] as num).toDouble(),
-      );
-    }
-
-    if (type == 'MultiPoint') {
-      var best = double.infinity;
-      for (final point in coordinates) {
-        if (point is List && point.length >= 2 &&
-            point[0] is num && point[1] is num) {
-          best = math.min(best, haversine(
-            (point[1] as num).toDouble(),
-            (point[0] as num).toDouble(),
-          )).toDouble();
-        }
-      }
-      return best;
-    }
-
-    double lineDistance(List<dynamic> line) {
-      if (line.isEmpty) return double.infinity;
-      final cosLat = math.cos(latitude * math.pi / 180);
-      double projectX(double lon) =>
-          (lon - longitude) * 111320 * cosLat;
-      double projectY(double lat) => (lat - latitude) * 110540;
-      var best = double.infinity;
-
-      for (var i = 0; i < line.length; i++) {
-        final point = line[i];
-        if (point is! List || point.length < 2 ||
-            point[0] is! num || point[1] is! num) continue;
-        final px = projectX((point[0] as num).toDouble());
-        final py = projectY((point[1] as num).toDouble());
-        best = math.min(best, math.sqrt(px * px + py * py)).toDouble();
-        if (i == 0) continue;
-
-        final previous = line[i - 1];
-        if (previous is! List || previous.length < 2 ||
-            previous[0] is! num || previous[1] is! num) continue;
-        final ax = projectX((previous[0] as num).toDouble());
-        final ay = projectY((previous[1] as num).toDouble());
-        final dx = px - ax;
-        final dy = py - ay;
-        final lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared == 0) continue;
-        final t = ((-ax * dx) + (-ay * dy)) / lengthSquared;
-        final clamped = t.clamp(0.0, 1.0);
-        final nearestX = ax + clamped * dx;
-        final nearestY = ay + clamped * dy;
-        best = math.min(best, math.sqrt(
-          nearestX * nearestX + nearestY * nearestY,
-        )).toDouble();
-      }
-      return best;
-    }
-
-    if (type == 'LineString') return lineDistance(coordinates);
-
-    if (type == 'MultiLineString') {
-      var best = double.infinity;
-      for (final line in coordinates) {
-        if (line is List) best = math.min(best, lineDistance(line)).toDouble();
-      }
-      return best;
-    }
-    return double.infinity;
-  }
-
   Future<void> _refreshUtilityConflictOverlay() async {
     final controller = _controller;
     if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
@@ -4883,8 +4785,7 @@ class _MapPageState extends State<MapPage> {
       final status = (request['status'] ?? '').toString().toLowerCase();
       final lat = (request['latitude'] as num?)?.toDouble();
       final lon = (request['longitude'] as num?)?.toDouble();
-      return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status) &&
-          lat != null && lon != null && lat.abs() <= 90 && lon.abs() <= 180;
+      return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status);
     }).toList();
 
     final features = <Map<String, dynamic>>[];
@@ -4929,11 +4830,11 @@ class _MapPageState extends State<MapPage> {
           }
 
           final requestId = (result['request_id'] ?? '').toString();
-          final request = batch.cast<Map<String, dynamic>?>().firstWhere(
-                (item) => item?['id']?.toString() == requestId,
-                orElse: () => null,
-              );
-          if (request == null) continue;
+          final request = batch.firstWhere(
+            (item) => item['id']?.toString() == requestId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (request.isEmpty) continue;
           final lat = (request['latitude'] as num?)?.toDouble();
           final lon = (request['longitude'] as num?)?.toDouble();
           if (lat == null || lon == null) continue;
@@ -5009,11 +4910,13 @@ class _MapPageState extends State<MapPage> {
       }
 
       if (!mounted) return;
-      final status = !verifiedAssetsAvailable
-          ? 'No verified underground utility assets are registered. Cross-department screening is unavailable; this does not mean sites are clear.'
-          : eligibleRequestCount == 0
-              ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
-              : features.isEmpty
+      final status = activeRequests.isEmpty
+          ? 'No active work requests are available in this map area to screen.'
+          : !verifiedAssetsAvailable
+              ? 'No verified underground utility assets are registered. Cross-department screening is unavailable; this does not mean sites are clear.'
+              : eligibleRequestCount == 0
+                  ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
+                  : features.isEmpty
                   ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
                   : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
       setState(() {
@@ -5182,9 +5085,6 @@ class _MapPageState extends State<MapPage> {
       if (mounted) {
         setState(() {
           _verifiedAssetCount = 0;
-          _utilityConflictCount = 0;
-          _utilityConflictStatus = 'Conflict screening unavailable because verified department assets could not be loaded. Do not treat this as a clear site.';
-          _utilityConflictDetails.clear();
           _layerStatus = 'Department asset layer unavailable. No unverified or estimated geometry is substituted.';
         });
       }
