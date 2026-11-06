@@ -1,10 +1,31 @@
-# SAMANVAY-Know-Below.-Dig-Above
-SAMANVAY - Municipal Infrastructure Coordination Android Application
+# SAMANVAY — Know Below. Dig Above.
+
+SAMANVAY is a multi-department municipal infrastructure coordination platform with a PostGIS-backed underground asset registry.
 
 ## Government data acquisition
 
-The current Tamil Nadu-first authority and dataset plan is maintained here:
+The Tamil Nadu-first and national data acquisition plans are maintained here:
 
-- [Tamil Nadu Official Data Acquisition Register](docs/data-governance/TAMIL_NADU_OFFICIAL_DATA_ACQUISITION_REGISTER.md)\n- [India National Data Acquisition Register](docs/data-governance/INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
+- [Tamil Nadu Official Data Acquisition Register](docs/data-governance/TAMIL_NADU_OFFICIAL_DATA_ACQUISITION_REGISTER.md)
+- [India National Data Acquisition Register](docs/data-governance/INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
 
-This register documents official custodians, source portals, permission requirements, data fields, trust states, security controls and the Coimbatore pilot sequence. It is an acquisition plan; it does not imply that government datasets or approvals have already been received.
+These are acquisition plans. They do not imply that government datasets, survey records, permissions or approvals have already been received.
+
+## GIS asset data governance
+
+- [Secure GIS Asset Ingestion and Verification](docs/data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
+- GeoJSON ingestion is restricted to authenticated department accounts.
+- Exact utility geometry remains server-side; mobile map views use approved generalised coverage.
+- Imported assets remain UNVERIFIED until authorised evidence and verification are recorded.
+- An empty registry is not evidence that underground utilities are absent.
+
+## Application
+
+- Flutter Android application: `app/main.dart`
+- Supabase migrations: `supabase/migrations/`
+- Supabase Edge Functions: `supabase/functions/`
+- Current development branch: `feature/alpha-03-integrated-platform`
+
+## Build
+
+Android and browser build workflows are maintained in `.github/workflows/`. Downloadable build artifacts are available from the GitHub Actions run page.
