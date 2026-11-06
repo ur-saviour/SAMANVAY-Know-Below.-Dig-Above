@@ -4019,7 +4019,7 @@ class _MapPageState extends State<MapPage> {
         final conflicts = (details['conflicts'] as List?) ?? const [];
         final summary = conflicts.take(3).map((raw) {
           final item = Map<String, dynamic>.from(raw as Map);
-          return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m';
+          return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m · depth ${item['depth_m'] ?? 'n/a'} m · accuracy ${item['horizontal_accuracy_m'] ?? 'unknown'} m';
         }).join(' | ');
         _showMessage(
           'POTENTIAL UTILITY PROXIMITY · Request ${details['request_number']} · '
