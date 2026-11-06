@@ -128,3 +128,11 @@ Source: https://data.opencity.in/dataset/tamil-nadu-water-bodies-census-data
 ## 8. Data import acceptance rule
 
 Only import a downloaded GIS file after confirming actual bytes, file integrity, feature count, geometry type, CRS, attribute schema, licence and intended-use compatibility. Preserve the source file, checksum, publisher, source URL, last-updated date and transformation script. Do not turn satellite-derived waterbody polygons or district PDF map labels into underground stormwater pipes or legal excavation clearance.
+
+## 9. Committed public-source index — 6 November 2026
+
+The repository now includes `data/reference/coimbatore_waterbody_map_index.csv`, an 11-row index of the official taluk-level PDF map links listed by the Coimbatore District Administration. The source page was last updated 10 August 2026. This is a traceable source index, **not** digitised waterbody geometry. PDF links are recorded, but PDF bytes and GIS geometries were not imported in this session; no map features have been inferred from the PDFs.
+
+The source page lists Coimbatore South, Madukkarai, Perur, Sulur, Coimbatore North, Mettupalayam, Annur, Pollachi, Kinathukadavu, Valparai and Anamalai. Each PDF URL is stored in the CSV. The page is: https://coimbatore.nic.in/waterbody/.
+
+For broader public geospatial context, the current repository also contains the 100-polygon Coimbatore 2024 ward reference GeoJSON and the 21-station Coimbatore groundwater telemetry GeoJSON described above. These are the actual spatial datasets presently bundled in the app. Groundwater telemetry is a monitoring dataset, not a borewell register or underground utility map.
