@@ -200,3 +200,19 @@
 - [ ] Obtain owner-authorised, current public/permission-based infrastructure datasets; keep detailed utility geometry in authority-controlled workflows.
 
 **Verified database state on 6 November 2026:** 396 coverage metadata rows; 36 jurisdictions; 11 domains; 0 administrative hierarchy records imported; 0 import batches; 0 operationally enabled coverage rows. No district or ULB records have been fabricated.
+
+
+## 16. Restricted asset verification centre — 6 November 2026
+
+- [x] Create admin/coordinator-only metadata view for underground asset review.
+- [x] Exclude geometry, coordinates, depth, dimensions and positional accuracy from the view.
+- [x] Include verification status, source type, owner department, survey date and evidence count.
+- [x] Add evidence lookup index.
+- [x] Add Flutter review screen with status filter and role check.
+- [x] Add navigation from the India coverage panel for authorised roles.
+- [x] Add reproducible SQL at database/seed/asset_verification_queue.sql.
+- [ ] Receive current owner-authorised asset metadata and survey evidence.
+- [ ] Validate provenance and evidence under the asset owner's process.
+- [ ] Keep detailed geometry in the authority-controlled GIS workflow, separate from the general app.
+
+**Verified current data:** 0 underground asset records and 0 survey evidence records. The verification centre is implemented but has no submitted assets to review.
