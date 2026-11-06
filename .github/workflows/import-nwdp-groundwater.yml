@@ -1,0 +1,53 @@
+name: Import nationwide NWDP groundwater telemetry
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Maximum 5,000-row pages in this run (resume is automatic)"
+        required: false
+        default: "1000"
+        type: string
+      period:
+        description: "NWDP resource period to import"
+        required: false
+        default: "2021-2025"
+        type: choice
+        options:
+          - "2021-2025"
+          - "1991-2020"
+
+permissions:
+  contents: read
+
+jobs:
+  import-groundwater:
+    name: Import public CGWB / State groundwater telemetry
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned PostgreSQL client dependency
+        run: python -m pip install --disable-pip-version-check "psycopg2-binary==2.9.10"
+
+      - name: Import NWDP resources with resumable checkpoints
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+          IMPORT_PERIOD: ${{ inputs.period }}
+        run: |
+          set -euo pipefail
+          python scripts/import_nwdp_telemetry.py \
+            --max-pages "${MAX_PAGES:-1000}" \
+            --period "${IMPORT_PERIOD:-2021-2025}" \
+            --page-size 5000
