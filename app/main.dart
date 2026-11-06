@@ -4685,6 +4685,13 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
               icon: const Icon(Icons.open_in_new, size: 15),
               label: const Text('Open official LGD report generator'),
             ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const IndiaNationalAuthorityDirectoryPage(),
+              )),
+              icon: const Icon(Icons.account_balance, size: 15),
+              label: const Text('National authority directory'),
+            ),
             if (canManageDirectory) ...[
               FilledButton.icon(
                 onPressed: () async {
@@ -4886,6 +4893,218 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   }
 }
 
+
+
+
+class IndiaNationalAuthorityDirectoryPage extends StatefulWidget {
+  const IndiaNationalAuthorityDirectoryPage({super.key});
+  @override
+  State<IndiaNationalAuthorityDirectoryPage> createState() => _IndiaNationalAuthorityDirectoryPageState();
+}
+
+class _IndiaNationalAuthorityDirectoryPageState extends State<IndiaNationalAuthorityDirectoryPage> {
+  List<Map<String, dynamic>> authorities = [];
+  bool loading = true;
+  String errorMessage = '';
+  String searchText = '';
+  String selectedDomain = 'all';
+
+  static const Map<String, String> domainLabels = {
+    'all': 'All domains',
+    'administrative_directory': 'Administrative directory',
+    'building_approvals': 'Building approvals',
+    'groundwater': 'Groundwater',
+    'road_right_of_way': 'Roads / right-of-way',
+    'water_supply': 'Water supply',
+    'sewerage_wastewater': 'Sewerage / wastewater',
+    'stormwater_drainage': 'Stormwater drainage',
+    'electricity_distribution': 'Electricity',
+    'telecom_fibre': 'Telecom / fibre',
+    'city_gas': 'City gas',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('india_national_authority_directory')
+        .select('authority_name,authority_level,responsibility,domain_tags,official_portal_url,source_reference_url,local_custodian_required,verification_status,notes,last_checked_at')
+        .order('authority_name').limit(100);
+      if (!mounted) return;
+      setState(() {
+        authorities = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'National authority references could not be loaded. Check the account permissions and refresh.';
+      });
+    }
+  }
+
+  Future<void> _open(String? value) async {
+    final uri = Uri.tryParse((value ?? '').trim());
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+      _message('No valid official source link is recorded.');
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) _message('The official portal could not be opened.');
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  Widget _authorityCard(Map<String, dynamic> row) {
+    final name = (row['authority_name'] ?? '').toString();
+    final level = (row['authority_level'] ?? '').toString().replaceAll('_', ' ').toUpperCase();
+    final responsibility = (row['responsibility'] ?? '').toString();
+    final notes = (row['notes'] ?? '').toString();
+    final tags = (row['domain_tags'] is List)
+      ? List<String>.from((row['domain_tags'] as List).map((v) => v.toString()))
+      : <String>[];
+    final localRequired = row['local_custodian_required'] == true;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
+          const SizedBox(height: 4),
+          Text(level, style: const TextStyle(fontSize: 8, letterSpacing: .7, fontWeight: FontWeight.w900, color: Color(0xFF087F83))),
+          const SizedBox(height: 8),
+          Text(responsibility, style: const TextStyle(fontSize: 11, height: 1.4, color: ink)),
+          if (tags.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Wrap(spacing: 6, runSpacing: 6, children: tags.map((tag) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(color: const Color(0xFFEAF4F4), borderRadius: BorderRadius.circular(7)),
+              child: Text(domainLabels[tag] ?? tag.replaceAll('_', ' '),
+                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF176B6D))),
+            )).toList()),
+          ],
+          if (localRequired) ...[
+            const SizedBox(height: 9),
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(color: const Color(0xFFFFF0D7), borderRadius: BorderRadius.circular(8)),
+              child: const Text(
+                'LOCAL CUSTODIAN REQUIRED: Confirm the relevant State/UT department, municipal body, utility operator or asset owner before treating this authority as responsible for a specific site.',
+                style: TextStyle(fontSize: 9, height: 1.4, color: Color(0xFF805600), fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(notes, style: const TextStyle(fontSize: 10, height: 1.4, color: mutedInk)),
+          ],
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _open(row['official_portal_url']?.toString()),
+            icon: const Icon(Icons.open_in_new, size: 15),
+            label: const Text('Open official authority portal'),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = authorities.where((row) {
+      final name = (row['authority_name'] ?? '').toString().toLowerCase();
+      final responsibility = (row['responsibility'] ?? '').toString().toLowerCase();
+      final matchesText = searchText.isEmpty || name.contains(searchText.toLowerCase()) ||
+        responsibility.contains(searchText.toLowerCase());
+      final tags = (row['domain_tags'] is List)
+        ? (row['domain_tags'] as List).map((v) => v.toString()).toList()
+        : <String>[];
+      final matchesDomain = selectedDomain == 'all' || tags.contains(selectedDomain);
+      return matchesText && matchesDomain;
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('National authority directory'),
+        actions: [
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : errorMessage.isNotEmpty
+          ? Center(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(errorMessage, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+              ]),
+            ))
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(15),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('NATIONAL GOVERNMENT SOURCES',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy)),
+                        const SizedBox(height: 6),
+                        Text(authorities.length.toString() + ' national authority and directory references registered.',
+                          style: const TextStyle(fontSize: 10, color: mutedInk)),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'These records identify national policy, programme, regulatory and technical bodies. They do not establish which State/UT or local operator owns an asset. Confirm the local custodian for each site.',
+                          style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    onChanged: (value) => setState(() => searchText = value),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Search authority or responsibility',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedDomain,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Infrastructure domain', border: OutlineInputBorder(), isDense: true),
+                    items: domainLabels.entries.map((entry) => DropdownMenuItem<String>(
+                      value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) { if (value != null) setState(() => selectedDomain = value); },
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Showing ' + filtered.length.toString() + ' of ' + authorities.length.toString() + ' authorities',
+                    style: const TextStyle(fontSize: 10, color: mutedInk, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  if (filtered.isEmpty)
+                    const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No authority references match this filter.')))
+                  else
+                    ...filtered.map(_authorityCard),
+                ],
+              ),
+            ),
+    );
+  }
+}
 
 
 class UtilityAssetVerificationPage extends StatefulWidget {
