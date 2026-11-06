@@ -10,7 +10,7 @@
 - The batch registration function rejects an actor without an assigned department before processing any asset.
 - Imported records are always stored with `verification_status='unverified'` and `operational_status='unknown'`.
 - The map's mobile utility layer returns only generalised 250 m coverage cells with a minimum aggregate count of three. It does not return exact routes.
-- All ten SECURITY DEFINER functions flagged by the advisor were reviewed for an `auth.uid()` check, role/ownership gate logic and an empty fixed `search_path`. The warnings remain visible because these functions are intentionally callable by authenticated users and enforce their own authorization checks. They require ongoing tests; do not blanket-revoke them because some support core workflows and RLS helpers.
+- Eleven SECURITY DEFINER functions are currently reported by the Supabase security advisor as executable by authenticated users: admin_create_department, admin_set_service_domain_route, admin_update_profile_role, admin_user_directory, assign_request_department, change_request_status, get_my_department_verified_assets_geojson, get_underground_asset_overview, is_department_assigned_to_request, run_request_coordination_check and submit_department_review. Function bodies were inspected for caller identity and role/department/request ownership checks; the GIS RPC specifically requires an authenticated profile with role department and a non-null department assignment. The checked RPC ACLs deny anon execution. The advisor warnings remain because these functions intentionally use elevated privileges and are callable by signed-in users. Treat this as a monitored risk, not a clean bill of health: add adversarial role/ownership tests and consider moving privileged implementations behind a non-exposed schema/API boundary. Do not blanket-revoke functions without tracing their callers, because some support core workflows.
 
 ## Performance remediation
 
@@ -30,7 +30,7 @@ The follow-up advisor check returned no `unindexed_foreign_keys` finding.
 ## Remaining action
 
 - Supabase Auth leaked-password protection is currently disabled. Enable it in the project's Auth security settings and verify the setting after saving.
-- Keep reviewing the ten SECURITY DEFINER functions with adversarial authorization tests as roles and workflows evolve.
+- Keep reviewing the eleven SECURITY DEFINER functions with adversarial authorization tests as roles and workflows evolve. In particular, the department-only exact-asset RPC is a deliberate privilege boundary and must remain restricted to assigned department profiles.
 - The GIS asset registry currently contains zero records. This is an empty registry, not proof that underground utilities are absent.
 - No government utility dataset has been represented as acquired or verified merely because a portal is publicly accessible.
 
@@ -38,4 +38,13 @@ The follow-up advisor check returned no `unindexed_foreign_keys` finding.
 
 - Flutter static analysis passed for the updated GIS import client.
 - Browser portal build and packaging passed.
-- The Android release build for the updated GIS import client was still running at the time of this review; check the associated GitHub Actions run before distributing that build.
+- The universal Alpha 0.3 APK build completed, but inspection showed it uses a temporary Android Debug certificate. It is suitable for development installation, not stable production signing.
+- A follow-up workflow now builds ABI-specific APKs and makes package, signature and alignment checks mandatory. Run 42181324894 is the active validation run at the time of this update; do not distribute the new ABI-specific artifacts until that run succeeds.
+
+## Follow-up advisor snapshot — 6 November 2026, 07:29 UTC
+
+- Security advisor: two GIS tables (gis.underground_assets, gis.asset_survey_evidence) have RLS enabled with no policies. This remains intentional default-deny because the gis schema has no USAGE grant to mobile roles and the tables have no direct mobile grants. Do not add policies or grants independently; preserve the RPC/Edge Function access boundary.
+- Security advisor: eleven authenticated-executable SECURITY DEFINER functions listed above. These warnings are not dismissed; the body-level authorization gates and function ACLs are part of the control and require regression testing.
+- Security advisor: leaked-password protection remains disabled. A project owner must enable it in Supabase Auth security settings and verify it after saving.
+- Performance advisor: 34 indexes were reported unused in this early, low-volume environment. Do not drop them based only on this snapshot; re-evaluate after representative workload and query-plan measurements.
+- Performance advisor: the prior eight unindexed foreign-key findings remain remediated; verify again after future schema changes.
