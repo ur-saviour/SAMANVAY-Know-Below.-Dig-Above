@@ -3966,7 +3966,6 @@ class _MapPageState extends State<MapPage> {
   int _utilityCellCount = 0;
   int _verifiedAssetCount = 0;
   int _unverifiedAssetCount = 0;
-  int _utilityConflictCount = 0;
   List<Map<String, dynamic>> _visibleRequests = [];
   final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
   bool _canViewDepartmentAssets = false;
@@ -4932,7 +4931,6 @@ class _MapPageState extends State<MapPage> {
 
       if (!mounted) return;
       setState(() {
-        _utilityConflictCount = features.length;
         _utilityConflictDetails
           ..clear()
           ..addAll(detailsById);
@@ -4945,7 +4943,6 @@ class _MapPageState extends State<MapPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _utilityConflictCount = 0;
           _utilityConflictDetails.clear();
         });
       }
@@ -5107,6 +5104,9 @@ class _MapPageState extends State<MapPage> {
       }
       if (layers.contains('samanvay-verified-asset-points')) {
         await controller.setLayerVisibility('samanvay-verified-asset-points', false);
+      }
+      if (layers.contains('samanvay-utility-conflict-markers')) {
+        await controller.setLayerVisibility('samanvay-utility-conflict-markers', false);
       }
       return;
     }
