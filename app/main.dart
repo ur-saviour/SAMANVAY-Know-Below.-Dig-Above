@@ -4696,8 +4696,6 @@ class _MapPageState extends State<MapPage> {
       final departmentAssigned = role == 'department' &&
           profile?['department_id'] != null;
 
-      await _loadVisibleWorkRequests();
-
       if (mounted) {
         setState(() {
           _canViewUtilityOverview = authorised;
@@ -4709,6 +4707,8 @@ class _MapPageState extends State<MapPage> {
                   : 'Requester GIS view: only requests visible to your account are shown.';
         });
       }
+
+      await _loadVisibleWorkRequests();
 
 
       if (_showUtilityZones && authorised) {
