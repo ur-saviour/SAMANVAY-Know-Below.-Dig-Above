@@ -4384,6 +4384,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   List<Map<String, dynamic>> states = [];
   List<Map<String, dynamic>> coverage = [];
   List<Map<String, dynamic>> administrativeUnits = [];
+  bool canManageDirectory = false;
   bool loading = true;
   String errorMessage = '';
   String searchText = '';
@@ -4420,11 +4421,16 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       final rawAdministrativeUnits = await supabase.from('india_administrative_units')
           .select('unit_type,verification_status,state_ut_id')
           .limit(1000);
+      final userId = supabase.auth.currentUser?.id;
+      final profile = userId == null ? null : await supabase.from('profiles')
+          .select('role').eq('id', userId).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
       if (!mounted) return;
       setState(() {
         states = List<Map<String, dynamic>>.from(rawStates);
         coverage = List<Map<String, dynamic>>.from(rawCoverage);
         administrativeUnits = List<Map<String, dynamic>>.from(rawAdministrativeUnits);
+        canManageDirectory = role == 'admin' || role == 'coordinator';
         loading = false;
       });
     } catch (_) {
@@ -4649,14 +4655,24 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
             style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
           ),
           const SizedBox(height: 7),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            TextButton.icon(
               onPressed: () => _openSource('https://lgdirectory.gov.in/downloadDirectory.do'),
               icon: const Icon(Icons.open_in_new, size: 15),
               label: const Text('Open official LGD report generator'),
             ),
-          ),
+            if (canManageDirectory)
+              FilledButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const IndiaLgdCsvImportPage(),
+                  ));
+                  if (mounted) _load();
+                },
+                icon: const Icon(Icons.upload_file, size: 15),
+                label: const Text('Import official CSV'),
+              ),
+          ]),
         ]),
       ),
     );
@@ -4836,6 +4852,258 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                 ),
     );
   }
+}
+
+
+class IndiaLgdCsvImportPage extends StatefulWidget {
+  const IndiaLgdCsvImportPage({super.key});
+  @override
+  State<IndiaLgdCsvImportPage> createState() => _IndiaLgdCsvImportPageState();
+}
+
+class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
+  final TextEditingController reportDateController = TextEditingController();
+  String unitType = 'district';
+  bool busy = false;
+  String statusMessage = '';
+
+  static const Map<String, String> unitTypes = {
+    'district': 'Districts',
+    'sub_district': 'Sub-districts',
+    'block': 'Blocks',
+    'urban_local_body': 'Urban Local Bodies',
+    'gram_panchayat': 'Gram Panchayats',
+    'village': 'Villages',
+    'ward': 'Wards',
+    'traditional_local_body': 'Traditional Local Bodies',
+  };
+
+  String _key(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  int _column(List<String> headers, List<String> aliases) {
+    for (var i = 0; i < headers.length; i++) {
+      if (aliases.contains(headers[i])) return i;
+    }
+    return -1;
+  }
+
+  String _cell(List<dynamic> row, int index) {
+    if (index < 0 || index >= row.length) return '';
+    return (row[index] ?? '').toString().trim();
+  }
+
+  Future<void> _pickAndImport() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() => statusMessage = 'Sign in before importing an official directory report.');
+      return;
+    }
+    final profile = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+    final role = (profile?['role'] ?? '').toString();
+    if (role != 'admin' && role != 'coordinator') {
+      setState(() => statusMessage = 'This import is restricted to SAMANVAY administrators and coordinators.');
+      return;
+    }
+    final reportDate = DateTime.tryParse(reportDateController.text.trim());
+    if (reportDate == null) {
+      setState(() => statusMessage = 'Enter the report date in YYYY-MM-DD format before importing.');
+      return;
+    }
+
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    final selectedFile = picked.files.single;
+    final bytes = selectedFile.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      setState(() => statusMessage = 'The selected CSV file could not be read.');
+      return;
+    }
+
+    setState(() { busy = true; statusMessage = 'Validating the official LGD CSV...'; });
+    try {
+      var csvText = utf8.decode(bytes, allowMalformed: true);
+      if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
+      final parsed = CsvToListConverter().convert(csvText);
+      if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
+      final headers = parsed.first.map((v) => _key(v.toString())).toList();
+      final codeCol = _column(headers, ['lgdcode','districtlgdcode','localbodycode','code']);
+      final nameCol = _column(headers, ['name','districtname','localbodyname','nameenglish','localbodynameenglish']);
+      final stateCol = _column(headers, ['statename','statenameenglish','state']);
+      final localNameCol = _column(headers, ['namelocal','localname','localbodynamelocal']);
+      final parentCol = _column(headers, ['parentlgdcode','parentcode','parentunitcode']);
+      if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
+        throw Exception('Required columns not found. Include LGD Code, Name and State Name.');
+      }
+
+      final rawStates = await supabase.from('india_state_uts').select('id,name').limit(100);
+      final stateIds = <String, String>{};
+      for (final state in rawStates) {
+        stateIds[_key(state['name'].toString())] = state['id'].toString();
+      }
+      final rawExisting = await supabase.from('india_administrative_units')
+          .select('id,lgd_code').limit(5000);
+      final parentIds = <String, String>{};
+      for (final row in rawExisting) {
+        final code = (row['lgd_code'] ?? '').toString();
+        if (code.isNotEmpty) parentIds[code] = row['id'].toString();
+      }
+
+      final payload = <Map<String, dynamic>>[];
+      final seenCodes = <String>{};
+      var rejected = 0;
+      for (final row in parsed.skip(1)) {
+        final code = _cell(row, codeCol);
+        final name = _cell(row, nameCol);
+        final stateName = _cell(row, stateCol);
+        final stateId = stateIds[_key(stateName)];
+        if (code.isEmpty || name.isEmpty || stateId == null || !seenCodes.add(code)) {
+          rejected++;
+          continue;
+        }
+        final parentCode = _cell(row, parentCol);
+        final parentId = parentCode.isEmpty ? null : parentIds[parentCode];
+        if (parentCode.isNotEmpty && parentId == null) {
+          rejected++;
+          continue;
+        }
+        payload.add({
+          'state_ut_id': stateId,
+          'parent_unit_id': parentId,
+          'unit_type': unitType,
+          'lgd_code': code,
+          'name': name,
+          'local_name': _cell(row, localNameCol).isEmpty ? null : _cell(row, localNameCol),
+          'source_system': 'Local Government Directory (LGD)',
+          'source_url': 'https://lgdirectory.gov.in/',
+          'source_updated_at': reportDate.toIso8601String().split('T').first,
+          'verification_status': 'imported_unverified',
+          'is_active': true,
+        });
+      }
+      if (payload.isEmpty) throw Exception('No valid rows remain after checking LGD codes and State names.');
+
+      final batch = await supabase.from('india_directory_import_batches').insert({
+        'source_url': 'https://lgdirectory.gov.in/downloadDirectory.do',
+        'unit_type': unitType,
+        'source_updated_at': reportDate.toIso8601String().split('T').first,
+        'original_file_name': selectedFile.name,
+        'import_status': 'uploaded',
+        'rows_received': parsed.length - 1,
+        'rows_rejected': rejected,
+        'imported_by': userId,
+        'notes': 'Imported from an administrator-supplied LGD report converted to CSV. Records remain unverified until authority review.',
+      }).select('id').single();
+      final batchId = batch['id'].toString();
+
+      for (var i = 0; i < payload.length; i += 100) {
+        final end = (i + 100 < payload.length) ? i + 100 : payload.length;
+        final chunk = payload.sublist(i, end)
+            .map((row) => {...row, 'import_batch_id': batchId})
+            .toList();
+        await supabase.from('india_administrative_units')
+            .upsert(chunk, onConflict: 'source_system,lgd_code');
+      }
+      await supabase.from('india_directory_import_batches').update({
+        'import_status': 'imported',
+        'rows_inserted': payload.length,
+        'completed_at': DateTime.now().toIso8601String(),
+      }).eq('id', batchId);
+
+      final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
+      for (final stateId in touchedStates) {
+        await supabase.from('india_data_coverage').update({
+          'coverage_status': 'directory_records_imported_pending_authority_validation',
+          'operational_use_allowed': false,
+          'last_checked_at': DateTime.now().toIso8601String(),
+          'notes': 'LGD directory rows imported from ' + selectedFile.name +
+            ' dated ' + reportDate.toIso8601String().split('T').first +
+            '. Imported records remain unverified pending authority review.',
+        }).eq('state_ut_id', stateId).eq('data_domain', 'administrative_directory');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import complete: ' + payload.length.toString() +
+          ' rows inserted/updated; ' + rejected.toString() +
+          ' rows rejected. Records remain unverified until authority review.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import stopped: ' + error.toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    reportDateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Import official LGD directory')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+      const Card(child: Padding(
+        padding: EdgeInsets.all(14),
+        child: Text(
+          'ADMINISTRATOR / COORDINATOR ONLY. Generate the report on the official LGD portal yourself, complete its CAPTCHA normally, and convert the XLS/HTML report to CSV using the standard column headings. This importer does not automate or bypass the CAPTCHA.',
+          style: TextStyle(fontSize: 11, height: 1.45, color: mutedInk),
+        ),
+      )),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: unitType,
+        decoration: const InputDecoration(labelText: 'Directory entity type', border: OutlineInputBorder()),
+        items: unitTypes.entries.map((entry) => DropdownMenuItem(
+          value: entry.key, child: Text(entry.value),
+        )).toList(),
+        onChanged: busy ? null : (value) { if (value != null) setState(() => unitType = value); },
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: reportDateController,
+        enabled: !busy,
+        decoration: const InputDecoration(
+          labelText: 'Official report date',
+          hintText: 'YYYY-MM-DD',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 12),
+      const Text('Required CSV columns: LGD Code, Name, State Name. Optional: Parent LGD Code, Local Name.',
+        style: TextStyle(fontSize: 11, color: mutedInk)),
+      const SizedBox(height: 14),
+      FilledButton.icon(
+        onPressed: busy ? null : _pickAndImport,
+        icon: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.upload_file),
+        label: Text(busy ? 'IMPORTING...' : 'SELECT CSV AND IMPORT'),
+      ),
+      if (statusMessage.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(statusMessage, style: const TextStyle(fontSize: 11, height: 1.4)),
+        )),
+      ],
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => launchUrl(Uri.parse('https://lgdirectory.gov.in/downloadDirectory.do'),
+          mode: LaunchMode.externalApplication),
+        icon: const Icon(Icons.open_in_new),
+        label: const Text('Open official LGD report generator'),
+      ),
+    ]),
+  );
 }
 
 class GroundwaterObservationBoard extends StatefulWidget {
