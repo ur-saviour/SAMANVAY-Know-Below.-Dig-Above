@@ -130,3 +130,34 @@ Every request should ask for schema, CRS, geometry type, positional/depth accura
 - NHAI: https://nhai.gov.in/
 
 **Final limitation:** This mapping identifies who should be approached and what must be verified. It does not prove that these agencies have supplied data, accepted SAMANVAY, or authorised excavation. Production routing must be confirmed by the competent authority and asset owner.
+
+## 8. CCMC-specific public evidence checked on 6 November 2026
+
+### 8.1 Ward and zone reference
+CCMC's ward-delimitation page lists a “Know Your Zone & Ward” service, ward-delimitation format, delimitation ward map and Gazette notification. The corporation's published zone map shows five zones and 100 divisions/wards. Use the Gazette and current ward dataset as the authoritative boundary/version check; do not digitise a static PDF and label it as a live GIS service.
+
+Sources:
+- CCMC ward delimitation: https://ccmc.gov.in/index.php/createpage/delimitation-of-ward
+- CCMC zone map PDF: https://ccmc.gov.in/img/upload/Zone%20Map.pdf
+
+### 8.2 CCMC GIS history
+CCMC's GIS information page describes a GIS study initiated in 2008, primarily to map properties for property-tax and municipal service administration. This proves that a municipal GIS study was undertaken; it does not prove that CCMC currently exposes a complete, current, survey-verified underground water/sewer/stormwater/electricity/telecom network. Request the present GIS asset catalogue and as-built records directly.
+
+Source: https://www.ccmc.gov.in/index.php/createpage/geographical-information-system-and40gisand41
+
+### 8.3 UGD and stormwater service workflow
+CCMC's UGD page publishes a service workflow with application entry, engineering verification, approval and dispatch stages. It names Junior Assistant, AE/JE Water Supply, Assistant Executive Engineer, Assistant Commissioner and Record Clerk, and shows a 15-day total for that listed workflow. The same page states that the Corporation maintains 603.50 km of stormwater drains and describes ongoing additions. Because the page does not clearly establish the effective date or spatial completeness of these figures, treat them as published administrative context—not a current GIS inventory or verified asset count. Request the latest dated asset register, ward-wise geometry, dimensions, outfall details, maintenance owner and inspection history.
+
+Source: https://www.ccmc.gov.in/index.php/department/ugd
+
+### 8.4 Road-cutting and online municipal service processes
+The CMA citizen portal lists road-cutting, water-supply, building-plan approval and other municipal procedures. The published road-cutting application covers optical cable, electrical cable, pipeline repair/laying, sewer-line repair/laying and trenchless cable work. It requests location/site and ward maps, work length/extent and related supporting documents. This is a strong source for SAMANVAY's road-opening request fields and review checklist; it does not establish that the portal exposes a supported public API.
+
+Sources:
+- CMA application instructions: https://tnurbanepay.tn.gov.in/Howtoapply.aspx
+- Road-cutting application form: https://tnurbanepay.tn.gov.in/Road%20Cutting-Application.pdf
+
+### 8.5 Coimbatore pilot data request refined
+Ask CCMC for the latest machine-readable ward boundary layer and official ward codes; current road ownership/road inventory; road-cut permission records and restoration status; stormwater drain asset register with dated GIS/CAD geometry; UGD network and manhole records; and the current workflow/SLA rules. For each dataset, ask whether the source is an as-built drawing, field survey, planning map or legacy GIS layer. Request the date and accuracy before import.
+
+Do not use the old GIS-study description, a PDF map, a public service workflow or a published length figure as proof of exact underground geometry.
