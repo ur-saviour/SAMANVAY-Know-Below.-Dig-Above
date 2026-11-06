@@ -80,43 +80,21 @@ function validateFeature(feature: unknown): { props: Json; geometry: Json } {
   return { props: { ...props, asset_code: code, asset_name: name, asset_type: assetType, source_type: sourceType }, geometry };
 }
 
-async function registerAsset(config: ReturnType<typeof keys>, actorId: string, props: Json, geometry: Json): Promise<string> {
-  const surveyedAtRaw = props.surveyed_at == null ? null : String(props.surveyed_at).trim();
-  const surveyedAt = surveyedAtRaw ? new Date(surveyedAtRaw) : null;
-  if (surveyedAt && Number.isNaN(surveyedAt.getTime())) throw new Error("INVALID_SURVEYED_AT");
-  const payload = {
-    p_actor_id: actorId,
-    p_asset_code: props.asset_code,
-    p_asset_name: props.asset_name,
-    p_asset_type: props.asset_type,
-    p_geometry: geometry,
-    p_source_type: props.source_type,
-    p_source_reference: props.source_reference == null ? null : String(props.source_reference),
-    p_depth_m: optionalNumber(props.depth_m, "DEPTH_M", 0, 100),
-    p_horizontal_accuracy_m: optionalNumber(props.horizontal_accuracy_m, "HORIZONTAL_ACCURACY_M", 0, 1000),
-    p_vertical_accuracy_m: optionalNumber(props.vertical_accuracy_m, "VERTICAL_ACCURACY_M", 0, 1000),
-    p_material: props.material == null ? null : String(props.material).slice(0, 120),
-    p_diameter_mm: optionalNumber(props.diameter_mm, "DIAMETER_MM", Number.MIN_VALUE, 10000),
-    p_surveyed_at: surveyedAt?.toISOString() ?? null,
-    p_surveyed_by_org: props.surveyed_by_org == null ? null : String(props.surveyed_by_org).slice(0, 200),
-    p_verification_notes: props.verification_notes == null ? null : String(props.verification_notes).slice(0, 2000),
-  };
-  const response = await fetch(config.url + "/rest/v1/rpc/register_underground_asset_server", {
+async function registerBatch(config: ReturnType<typeof keys>, actorId: string, assets: Json[]): Promise<Json> {
+  const response = await fetch(config.url + "/rest/v1/rpc/register_underground_assets_batch_server", {
     method: "POST",
     headers: {
       apikey: config.secret,
       Authorization: "Bearer " + config.secret,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ p_actor_id: actorId, p_assets: assets }),
   });
   if (!response.ok) {
     const detail = await response.text();
-    if (response.status === 409 || detail.toLowerCase().includes("duplicate")) throw new Error("ASSET_CODE_ALREADY_EXISTS");
-    throw new Error("DATABASE_REGISTRATION_FAILED_" + response.status);
+    throw new Error("BATCH_REGISTRATION_FAILED_" + response.status + "_" + detail.slice(0, 120));
   }
-  const result = await response.json();
-  return String(result);
+  return await response.json() as Json;
 }
 
 Deno.serve(async (request: Request) => {
@@ -166,23 +144,47 @@ Deno.serve(async (request: Request) => {
   }
 
   const seen = new Set<string>();
-  const results: Array<{ asset_code: string; id?: string; error?: string }> = [];
-  let imported = 0;
+  const prepared: Json[] = [];
+  const preparedIndexes: number[] = [];
+  const results: Array<{ asset_code: string; id?: string; error?: string }> = new Array(features.length);
+
   for (let i = 0; i < features.length; i++) {
     try {
       const { props, geometry } = validateFeature(features[i]);
       const code = String(props.asset_code);
       if (seen.has(code)) throw new Error("DUPLICATE_ASSET_CODE_IN_BATCH");
       seen.add(code);
-      const id = await registerAsset(config, authUser.id, props, geometry);
-      imported++;
-      results.push({ asset_code: code, id });
+      prepared.push({ geometry, properties: props });
+      preparedIndexes.push(i);
     } catch (error) {
       const raw = error instanceof Error ? error.message : "UNKNOWN_IMPORT_ERROR";
-      results.push({ asset_code: "feature_" + (i + 1), error: raw.slice(0, 180) });
+      results[i] = { asset_code: "feature_" + (i + 1), error: raw.slice(0, 180) };
     }
   }
 
+  if (prepared.length > 0) {
+    try {
+      const batch = await registerBatch(config, authUser.id, prepared);
+      const batchRows = Array.isArray(batch.results) ? batch.results as Array<{asset_code?: string; id?: string; error?: string}> : [];
+      for (let i = 0; i < preparedIndexes.length; i++) {
+        const originalIndex = preparedIndexes[i];
+        const row = batchRows[i];
+        results[originalIndex] = row
+          ? { asset_code: String(row.asset_code ?? "feature_" + (originalIndex + 1)), id: row.id, error: row.error }
+          : { asset_code: "feature_" + (originalIndex + 1), error: "MISSING_DATABASE_RESULT" };
+      }
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "UNKNOWN_BATCH_ERROR";
+      for (const originalIndex of preparedIndexes) {
+        results[originalIndex] = { asset_code: "feature_" + (originalIndex + 1), error: raw.slice(0, 180) };
+      }
+    }
+  }
+
+  const completeResults = results.map((row, index) =>
+    row ?? { asset_code: "feature_" + (index + 1), error: "MISSING_IMPORT_RESULT" }
+  );
+  const imported = completeResults.filter(row => Boolean(row.id)).length;
   return json(200, {
     ok: imported === features.length,
     department_id: profile.department_id,
@@ -190,6 +192,6 @@ Deno.serve(async (request: Request) => {
     imported,
     failed: features.length - imported,
     verification_status: "unverified",
-    results,
+    results: completeResults,
   });
 });
