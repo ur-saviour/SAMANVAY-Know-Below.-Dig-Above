@@ -4928,14 +4928,14 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
     try {
       var csvText = utf8.decode(bytes, allowMalformed: true);
       if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
-      final parsed = CsvToListConverter().convert(csvText);
+      final parsed = CsvToListConverter(shouldParseNumbers: false).convert(csvText);
       if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
       final headers = parsed.first.map((v) => _key(v.toString())).toList();
-      final codeCol = _column(headers, ['lgdcode','districtlgdcode','localbodycode','code']);
-      final nameCol = _column(headers, ['name','districtname','localbodyname','nameenglish','localbodynameenglish']);
+      final codeCol = _column(headers, ['lgdcode','districtlgdcode','districtcode','localbodycode','code']);
+      final nameCol = _column(headers, ['name','districtname','districtnameenglish','localbodyname','localbodynameenglish','nameenglish']);
       final stateCol = _column(headers, ['statename','statenameenglish','state']);
       final localNameCol = _column(headers, ['namelocal','localname','localbodynamelocal']);
-      final parentCol = _column(headers, ['parentlgdcode','parentcode','parentunitcode']);
+      final parentCol = _column(headers, ['parentlgdcode','parentcode','parentunitcode','districtlgdcode','districtcode']);
       if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
         throw Exception('Required columns not found. Include LGD Code, Name and State Name.');
       }
