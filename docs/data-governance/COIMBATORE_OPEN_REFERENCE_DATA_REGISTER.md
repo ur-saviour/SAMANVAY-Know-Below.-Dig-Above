@@ -24,7 +24,7 @@
 | Vertex count | 23,403 |
 | Coordinate system | WGS 84 longitude/latitude |
 | Geographic extent | 76.8576557°E–77.0628924°E; 10.9143712°N–11.1054671°N |
-| Repository path | app/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson |
+| Repository path | assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson |
 | Map availability | Optional MapLibre layer: “Coimbatore ward boundaries (2024 reference)” |
 
 Sources:
