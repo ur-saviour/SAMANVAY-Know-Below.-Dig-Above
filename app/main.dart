@@ -6576,7 +6576,6 @@ class _MapPageState extends State<MapPage> {
       final features = <Map<String, dynamic>>[];
       final stationDetails = <Map<String, dynamic>>[];
       for (final item in rows) {
-        if (item is! Map) continue;
         final properties = Map<String, dynamic>.from(item);
         final latitude = properties['latitude'];
         final longitude = properties['longitude'];
