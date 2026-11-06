@@ -13,7 +13,7 @@
 
 Existing assets:
 - `app/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`
-- `app/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson`
+- `assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson`
 
 ## New source index committed in this change
 
