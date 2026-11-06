@@ -4358,6 +4358,7 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
         _domainSummary('electricity_distribution', 'Electricity distribution'),
         _domainSummary('telecom_fibre', 'Telecom and fibre'),
         _domainSummary('city_gas', 'City gas distribution'),
+        _domainSummary('administrative_directory', 'Districts, ULBs and local bodies'),
         const SizedBox(height: 8),
         const Text('A portal reference or imported public record does not establish a complete or current asset inventory. Operational use remains disabled until the responsible authority validates the relevant records.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
         const SizedBox(height: 10),
