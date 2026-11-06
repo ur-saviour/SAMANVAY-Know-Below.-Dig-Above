@@ -3841,6 +3841,11 @@ class _MapPageState extends State<MapPage> {
   bool _hasLocationPermission = false;
   int _requestMarkerCount = 0;
   int _utilityCellCount = 0;
+  int _verifiedAssetCount = 0;
+  int _unverifiedAssetCount = 0;
+  bool _canViewDepartmentAssets = false;
+  bool _showVerifiedAssets = true;
+  String _deviceCoordinateLabel = '';
   String _layerStatus =
       'Underground visibility requires authorised, verified GIS records.';
 
@@ -3925,6 +3930,9 @@ class _MapPageState extends State<MapPage> {
       if (!mounted) return;
       if (_showUtilityZones && _canViewUtilityOverview) {
         await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && _canViewDepartmentAssets) {
+        await _loadDepartmentAssets();
       }
     });
   }
@@ -4164,12 +4172,14 @@ class _MapPageState extends State<MapPage> {
 
       final profile = await supabase
           .from('profiles')
-          .select('role')
+          .select('role,department_id')
           .eq('id', user.id)
           .maybeSingle();
 
       final role = (profile?['role'] ?? '').toString();
       final authorised = ['admin', 'coordinator', 'department'].contains(role);
+      final departmentAssigned = role == 'department' &&
+          profile?['department_id'] != null;
 
       final requestRows = await supabase
           .from('excavation_requests')
@@ -4250,14 +4260,20 @@ class _MapPageState extends State<MapPage> {
         setState(() {
           _requestMarkerCount = features.length;
           _canViewUtilityOverview = authorised;
-          _layerStatus = authorised
-              ? 'Staff GIS view: only aggregated, permission-filtered utility coverage is available here.'
-              : 'Requester GIS view: only requests visible to your account are shown.';
+          _canViewDepartmentAssets = departmentAssigned;
+          _layerStatus = departmentAssigned
+              ? 'Department GIS view: verified assets owned by your department can be displayed.'
+              : authorised
+                  ? 'Staff GIS view: generalised utility coverage only; exact asset geometry is restricted.'
+                  : 'Requester GIS view: only requests visible to your account are shown.';
         });
       }
 
       if (_showUtilityZones && authorised) {
         await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && departmentAssigned) {
+        await _loadDepartmentAssets();
       }
     } catch (error) {
       if (mounted) {
@@ -4352,6 +4368,167 @@ class _MapPageState extends State<MapPage> {
     } finally {
       _utilityQueryInFlight = false;
     }
+  }
+
+  Future<void> _loadDepartmentAssets() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final minLon = bounds.southwest.longitude;
+      final minLat = bounds.southwest.latitude;
+      final maxLon = bounds.northeast.longitude;
+      final maxLat = bounds.northeast.latitude;
+      if (minLon >= maxLon || minLat >= maxLat) return;
+
+      // This RPC is scoped by auth.uid() to the signed-in department's own assets.
+      // Only verified features are drawn; unverified records are counted, not mapped.
+      final raw = await supabase.rpc(
+        'get_my_department_assets_geojson',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+      final collection = Map<String, dynamic>.from(raw as Map);
+      final rawFeatures = collection['features'];
+      final verified = <Map<String, dynamic>>[];
+      var unverified = 0;
+
+      if (rawFeatures is List) {
+        for (final item in rawFeatures) {
+          if (item is! Map) continue;
+          final feature = Map<String, dynamic>.from(item);
+          final properties = feature['properties'];
+          if (properties is! Map) continue;
+          final props = Map<String, dynamic>.from(properties);
+          final status = (props['verification_status'] ?? '').toString().toLowerCase();
+          if (status == 'verified') {
+            feature['id'] = (props['id'] ?? '').toString();
+            verified.add(feature);
+          } else {
+            unverified++;
+          }
+        }
+      }
+
+      final verifiedCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': verified,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-verified-department-assets')) {
+        await controller.setGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-verified-asset-lines')) {
+        await controller.addLineLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-lines',
+          LineLayerProperties(
+            lineColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            lineWidth: 3.5,
+            lineOpacity: 0.96,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-lines',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (!layers.contains('samanvay-verified-asset-points')) {
+        await controller.addCircleLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-points',
+          CircleLayerProperties(
+            circleRadius: 5.5,
+            circleColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            circleStrokeColor: '#071827',
+            circleStrokeWidth: 1.8,
+            circleOpacity: 0.98,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-points',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = verified.length;
+          _unverifiedAssetCount = unverified;
+          _layerStatus = verified.isEmpty
+              ? 'No verified assets are registered in this department and map extent. $unverified unverified record(s) are withheld from the map.'
+              : '$verified verified department asset(s) mapped. $unverified unverified record(s) withheld.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = 0;
+          _layerStatus = 'Department asset layer unavailable. No unverified or estimated geometry is substituted.';
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleVerifiedAssets(bool enabled) async {
+    if (!_canViewDepartmentAssets) {
+      _showMessage('Verified asset geometry is restricted to the owning department.');
+      return;
+    }
+    setState(() => _showVerifiedAssets = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (!enabled) {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-verified-asset-lines')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-lines', false);
+      }
+      if (layers.contains('samanvay-verified-asset-points')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-points', false);
+      }
+      return;
+    }
+    await _loadDepartmentAssets();
   }
 
   Future<void> _toggleRequests(bool enabled) async {
@@ -4521,6 +4698,12 @@ class _MapPageState extends State<MapPage> {
         ),
         duration: const Duration(milliseconds: 1200),
       );
+      if (mounted) {
+        setState(() {
+          _deviceCoordinateLabel =
+              '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}';
+        });
+      }
     } catch (_) {
       _showMessage('Unable to access device location. You can still navigate the map manually.');
     } finally {
@@ -4598,6 +4781,21 @@ class _MapPageState extends State<MapPage> {
                         _toggleRequests(value);
                       },
                     ),
+                    if (_canViewDepartmentAssets)
+                      SwitchListTile(
+                        value: _showVerifiedAssets,
+                        activeThumbColor: const Color(0xFF20D6C2),
+                        title: const Text('Verified department assets',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_verifiedAssetCount verified asset(s) mapped · $_unverifiedAssetCount unverified withheld',
+                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleVerifiedAssets(value);
+                        },
+                      ),
                     if (_canViewUtilityOverview)
                       SwitchListTile(
                         value: _showUtilityZones,
@@ -4757,9 +4955,11 @@ class _MapPageState extends State<MapPage> {
             child: MapLibreMap(
               key: ValueKey(_satellite ? 'samanvay-satellite' : 'samanvay-vector'),
               styleString: _mapStyle,
+              // Regional fallback only; a granted device GPS fix immediately
+              // replaces this camera. Never present 0,0 as the user's location.
               initialCameraPosition: const CameraPosition(
-                target: LatLng(0, 0),
-                zoom: 2.5,
+                target: LatLng(10.8, 78.6),
+                zoom: 5.7,
                 tilt: 0,
                 bearing: 0,
               ),
@@ -4836,6 +5036,18 @@ class _MapPageState extends State<MapPage> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                  if (_deviceCoordinateLabel.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'DEVICE GPS  $_deviceCoordinateLabel',
+                      style: const TextStyle(
+                        color: Color(0xFF55D9CE),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     _satellite
