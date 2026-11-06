@@ -359,7 +359,7 @@ def main() -> int:
                       last_verified_at=now(),
                       updated_at=now()
                     """,
-                    [tuple(row) + (False, False, row[-1],) for row in FACTS],
+                    [tuple(row[:-1]) + (False, False, row[-1]) for row in FACTS],
                     template="(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),now())",
                 )
 
