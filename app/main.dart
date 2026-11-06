@@ -4383,7 +4383,7 @@ class _MapPageState extends State<MapPage> {
           _unverifiedAssetCount = unverified;
           _layerStatus = verified.isEmpty
               ? 'No verified asset geometry in this map view. $unverified unverified record(s) were excluded. Empty results do not mean utilities are absent.'
-              : '$verified.length verified asset feature(s) displayed. $unverified unverified record(s) excluded from the operational map.';
+              : '${verified.length} verified asset feature(s) displayed. $unverified unverified record(s) excluded from the operational map.';
         });
       }
     } catch (_) {
