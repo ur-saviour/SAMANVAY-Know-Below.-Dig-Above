@@ -42,3 +42,22 @@ set coverage_status='captcha_required_for_bulk_export',
     notes='Official IGOD publishes a State/UT district index. The official LGD portal supplies standard location codes and state-wise district/ULB reports. Bulk exports require CAPTCHA verification. SAMANVAY has queued district and ULB import batches for this jurisdiction. No CAPTCHA bypassed and no LGD codes fabricated.'
 from public.india_state_uts s
 where c.state_ut_id=s.id and c.data_domain='administrative_directory';
+
+
+-- Register the official IGOD State/UT district index as a complementary
+-- government-portal discovery source. It does not replace LGD unique codes.
+insert into public.official_data_sources
+(source_key,agency,dataset_name,source_url,geography,data_theme,access_mode,integration_status,format,notes)
+values
+('india_igod_district_directory','National Informatics Centre / Ministry of Electronics and Information Technology','Integrated Government Online Directory — State/UT District Index','https://igod.gov.in/sg/district/states','India — all States and Union Territories','Administrative directory and official district-government portal discovery','metadata_only','metadata_registered','HTML',
+'Official IGOD index lists State/UT district pages. Use for district portal discovery only. LGD code reconciliation and district master import require the official LGD export, which requires CAPTCHA verification. No CAPTCHA bypassed.')
+on conflict (source_key) do update set
+ agency=excluded.agency,dataset_name=excluded.dataset_name,source_url=excluded.source_url,
+ geography=excluded.geography,data_theme=excluded.data_theme,access_mode=excluded.access_mode,
+ integration_status=excluded.integration_status,format=excluded.format,notes=excluded.notes,last_checked_at=now();
+
+update public.official_data_sources
+set integration_status='awaiting_authority_data',
+    access_mode='authority_export_required',
+    notes='Official LGD portal assigns unique codes to districts, sub-districts, blocks, villages, urban local bodies, panchayats and wards. State-wise exports are publicly downloadable after CAPTCHA verification. SAMANVAY queues 36 district and 36 urban-local-body import batches. No CAPTCHA bypassed; no administrative rows or LGD codes fabricated. Import via the admin-only CSV workflow after generating the official report.'
+where source_key='india_lgd_admin_hierarchy';
