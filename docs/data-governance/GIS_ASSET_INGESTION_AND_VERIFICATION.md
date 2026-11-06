@@ -40,3 +40,13 @@ Supported source types: utility_owner, field_survey, as_built_drawing, public_da
 - The server RPC is executable only by `service_role`; its service key is never embedded in Flutter or GitHub source.
 - The Edge Function validates the user's bearer token and derives role/department from the database; it does not trust a client-supplied role or department ID.
 - Exact geometry and survey evidence must not be sent to AI assessment prompts or exposed through general mobile list APIs.
+
+
+## Map display boundary
+
+- The department asset map uses `get_my_department_verified_assets_geojson`, a narrowly scoped SECURITY DEFINER RPC.
+- It requires a valid authenticated user whose database profile is `role = department` and has a non-null `department_id`.
+- It returns only `verified` assets owned by that department and intersecting the current map viewport.
+- The function returns only a count of withheld unverified records; it does not return their geometries.
+- The mobile client has no `USAGE` on the private `gis` schema and no direct SELECT access to `gis.underground_assets`.
+- Admin/coordinator overview uses generalised 250 m coverage cells and now counts verified assets only.
