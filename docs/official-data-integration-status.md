@@ -7,7 +7,7 @@ Scope: all 28 States and 8 Union Territories. National coverage is tracked separ
 
 - National jurisdiction master: all 36 States/UTs.
 - CGWB 2025 groundwater resource assessment: 36/36 State/UT aggregate records imported.
-- NWDP/CGWB 2021-2025 telemetry: 675,209 observations currently stored; 10 resource feeds complete, 21 partial, 31 catalogue resources not yet imported. The 14,249,309 advertised source rows are summed across 62 resources and are not a deduplicated national count.
+- NWDP/CGWB 2021-2025 telemetry: 850,209 observations currently stored; 10 resource feeds complete, 21 partial, 31 catalogue resources not yet imported. The 14,249,309 advertised source rows are summed across 62 resources and are not a deduplicated national count.
 - Additional 199 district-level groundwater rows from seven State/UT CSV mirrors are stored in a separate reconciliation staging table; they are not cleared for official aggregation.
 - Utility GIS: 108 State/UT layer contracts plus 8 original Coimbatore pilot records (116 total); 115 are authority-data-pending and zero are enabled for operational excavation use.
 - Building approvals: 25 State/UT jurisdictions have an official portal or service-directory URL mapped; 11 still need an authority/ULB portal mapping. The approvals table contains zero imported approval records.
@@ -43,11 +43,11 @@ Official NWDP CKAN API and dataset pages:
 Current-period (2021-2025) resources catalogued:
 - 62 resource records.
 - Sum of advertised source row counts: 14,249,309 across those resource records. Some are alternative/agency feeds for a jurisdiction; this is not a deduplicated unique-observation count.
-- 10 resources completed, 21 partially imported, 31 discovered/not yet imported.
-- 675,209 station observations currently stored in public.groundwater_station_observations.
-- Observations currently represent 31 State/UT labels, 266 distinct station-name labels and 104 district-name labels.
+- 10 resources completed, 21 partially imported, 31 discovered/not yet imported. Live DB recheck: 420,209 rows in completed resources and 430,000 rows in partial resources (850,209 observation rows overall).
+- 850,209 station observations currently stored in public.groundwater_station_observations.
+- Observations currently represent 31 State/UT labels, 331 distinct station-name labels and 148 district-name labels.
 
-The ten resources currently complete are:
+The ten resources currently complete are (420,209 rows in total; additional 430,000 rows are imported from 21 partial resources):
 - Assam — 160,859 rows.
 - Bihar — 52,998.
 - Jharkhand — 39,519.
@@ -148,7 +148,7 @@ Database:
 - public.groundwater_state_assessments: 36 official 2025 State/UT aggregate records.
 - public.groundwater_national_summary: one national summary row.
 - public.groundwater_source_resources: 62 current-period telemetry resources plus other historical/forward resources.
-- public.groundwater_station_observations: 675,209 imported telemetry rows.
+- public.groundwater_station_observations: 850,209 imported telemetry rows.
 - public.groundwater_district_source_resources: seven mirrored district CSV resources and provenance.
 - public.groundwater_district_assessments: 199 district rows, reconciliation pending.
 - gis.utility_layer_catalog: 116 utility layer contracts; zero operationally enabled.
@@ -163,7 +163,7 @@ Row-level security is enabled for new exposed tables. Read access is authenticat
 | State/UT jurisdiction master | 36 | 28 States + 8 UTs |
 | 2025 CGWB State/UT resource assessments | 36 | Imported aggregate assessment rows |
 | 2025 CGWB national summary | 1 | National summary |
-| NWDP/CGWB telemetry observations | 675,209 | Real records; partial across 31 State/UT labels |
+| NWDP/CGWB telemetry observations | 850,209 | Real records; partial across 31 State/UT labels |
 | Current-period telemetry resources | 62 | 10 complete, 21 partial, 31 not yet imported |
 | Advertised source rows across 62 resources | 14,249,309 | Sum across resources; not a unique/deduplicated national count |
 | 2025 district groundwater staging rows | 199 | Seven jurisdictions; reconciliation pending |
