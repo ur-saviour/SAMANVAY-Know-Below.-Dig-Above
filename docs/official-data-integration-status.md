@@ -114,6 +114,38 @@ https://www.india.gov.in/directory/web-directory/state-uts
 National urban water/sanitation/stormwater technical role:
 https://www.mohua.gov.in/ministry/our-division/details/cpheeo-QDM1IzMtQWa
 
+## 7. India administrative hierarchy and LGD import — 6 November 2026
+
+The official Ministry of Panchayati Raj Local Government Directory (LGD) is now registered as the national administrative hierarchy source. It assigns unique LGD codes and covers State/UT, district, sub-district, block, urban local body, panchayat, village and ward entities.
+
+**Source-access finding:** the public LGD portal exposes citizen views, but bulk report generation at https://lgdirectory.gov.in/downloadDirectory.do requires a CAPTCHA. The automation inspected the official workflow and stopped at the CAPTCHA; it did not solve, bypass or automate it. The OGD Platform's LGD local-body resource page also says its data is dynamically generated through API and that an API for that resource does not exist. The LGD district resource is listed as monthly updated, but a direct bulk download was not verified in this pass.
+
+**Implemented:**
+- Added `administrative_directory` as the 11th coverage domain across all 36 jurisdictions.
+- Added `public.india_administrative_units` for the LGD hierarchy, parent-child links, unique LGD codes, source dates and verification status.
+- Added `public.india_directory_import_batches` for report provenance, filename, report date, row counts and import audit.
+- Added RLS: authenticated read for administrative units; admin/coordinator-only management; admin/coordinator-only access to import batches.
+- Added an India explorer panel that shows the imported-record count, verification count and official LGD report link.
+- Added an admin/coordinator-only CSV import screen. It validates required LGD Code, Name and State Name fields, preserves codes as text (including leading zeros), checks state/parent references, records report date and source filename, and upserts records with `imported_unverified` status. It never marks an import authority-verified.
+- Added CSV parser dependency to the Android build workflow.
+
+**Current verified database state:**
+- Coverage metadata: 396 rows = 36 jurisdictions × 11 domains.
+- Administrative hierarchy records imported: 0.
+- Import batches: 0.
+- Operationally enabled coverage rows: 0.
+
+The 36 administrative-directory rows are source/readiness metadata, not 36 populated district or ULB lists. A report generated from LGD by an authorised operator is still required before district, municipality and ward records can be populated. The importer is intentionally limited to admin/coordinator roles.
+
+Sources:
+- Ministry of Panchayati Raj LGD overview: https://panchayat.gov.in/en/lgd/
+- Official LGD report generator: https://lgdirectory.gov.in/downloadDirectory.do
+- OGD LGD districts resource: https://data.gov.in/resource/local-government-directory-lgd-districts
+- OGD LGD local bodies resource: https://data.gov.in/resource/local-government-directory-lgd-local-bodies
+
+Reproducible schema/seed:
+`database/seed/india_lgd_administrative_directory.sql`
+
 ## Operational rule
 
 A public map layer, engineering diagram, approximate alignment, portal listing or aggregate feature count is not an excavation-clearance source. Pending utility layers must not be used for excavation clearance. Only owner-authorised, current and appropriately validated data may be promoted to operational use.
