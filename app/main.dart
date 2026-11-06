@@ -1688,6 +1688,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               departmentId: widget.departmentId,
             ),
             const SizedBox(height: 16),
+            RoadWorkScheduleBoard(),
+            const SizedBox(height: 16),
             RoadRestorationBoard(
               requests: requests,
               departments: departments,
@@ -2966,6 +2968,137 @@ class _RoadCutPermitBoardState extends State<RoadCutPermitBoard> {
                   Align(alignment: Alignment.centerRight, child: TextButton.icon(
                     onPressed: () => _editRecord(existing: record),
                     icon: const Icon(Icons.edit_outlined, size: 15), label: const Text('UPDATE'))),
+                ]),
+              );
+            }),
+        ]),
+      ),
+    );
+  }
+}
+
+
+class RoadWorkScheduleBoard extends StatefulWidget {
+  const RoadWorkScheduleBoard({super.key});
+
+  @override
+  State<RoadWorkScheduleBoard> createState() => _RoadWorkScheduleBoardState();
+}
+
+class _RoadWorkScheduleBoardState extends State<RoadWorkScheduleBoard> {
+  List<Map<String, dynamic>> rows = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final result = await supabase.from('road_work_schedule_advisories')
+          .select().order('planned_start_date', ascending: true).limit(100);
+      if (!mounted) return;
+      setState(() {
+        rows = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Road-work schedule could not be loaded for this account.';
+      });
+    }
+  }
+
+  String _stateLabel(String state) => state.replaceAll('_', ' ').toUpperCase();
+
+  Color _stateColor(String state) {
+    if (state == 'road_window_overlap' || state == 'invalid_window' || state == 'past_due') {
+      return const Color(0xFFB54747);
+    }
+    if (state == 'dates_missing') return const Color(0xFFB7791F);
+    if (state == 'closed') return const Color(0xFF25845C);
+    return const Color(0xFF3978B8);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.calendar_month_outlined, color: Color(0xFF087F83)),
+            const SizedBox(width: 9),
+            const Expanded(child: Text('Coordinated road-work schedule',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            IconButton(onPressed: loading ? null : _load,
+              icon: const Icon(Icons.refresh), tooltip: 'Refresh road schedule'),
+          ]),
+          const Text('Compare planned work windows on the same road and city. Update dates in the linked case record.',
+            style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          const SizedBox(height: 8),
+          if (loading)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+          else if (rows.isEmpty)
+            const Text('No accessible road-work schedules are available.',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+          else
+            ...rows.map((row) {
+              final state = (row['schedule_state'] ?? 'dates_missing').toString();
+              final number = row['request_number']?.toString() ?? '';
+              final road = (row['road_name'] ?? 'Road not specified').toString();
+              final city = (row['city'] ?? '').toString();
+              final start = row['planned_start_date']?.toString() ?? 'Start not set';
+              final end = row['planned_end_date']?.toString() ?? 'End not set';
+              final department = (row['department_name'] ?? 'Unassigned').toString();
+              final rawOverlaps = row['overlapping_request_numbers'];
+              final overlapText = rawOverlaps is List
+                  ? rawOverlaps.map((v) => v.toString()).join(', ')
+                  : '';
+              final days = row['days_until_start'];
+              final startLabel = days == null ? start
+                  : days is num && days < 0 ? days.abs().toString() + ' day(s) since planned start'
+                  : days == 0 ? 'Starts today'
+                  : 'Starts in ' + days.toString() + ' day(s)';
+              return Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFF7FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE4EAF1))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text('Case #' + number + ' · ' + road,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: _stateColor(state).withOpacity(.12),
+                        borderRadius: BorderRadius.circular(20)),
+                      child: Text(_stateLabel(state),
+                        style: TextStyle(color: _stateColor(state), fontSize: 9, fontWeight: FontWeight.w800)),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(city + ' · ' + department,
+                    style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                  Text(start + ' → ' + end + ' · ' + startLabel,
+                    style: const TextStyle(fontSize: 11, color: ink)),
+                  if (overlapText.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('Overlapping case numbers: ' + overlapText,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFFB54747),
+                          fontWeight: FontWeight.w700)),
+                    ),
                 ]),
               );
             }),
