@@ -32,6 +32,27 @@ Official references:
 
 **Finding:** these public pages establish agency responsibility but do not provide a downloadable, georeferenced citywide pipe/drain asset register. SAMANVAY must request approved GIS/CAD records directly from CCMC and relevant asset owners.
 
+### Additional official Coimbatore engineering records
+
+CCMC publishes three volumes under its 24/7 Water Supply project page. These are useful engineering-document leads, but the public page does not describe them as a current machine-readable GIS asset export or certified as-built register. They must be treated as project documents until the Engineering Department confirms which drawings are final, constructed and current.
+
+- 24/7 Water Supply — Volumes 1–3: https://ccmc.gov.in/index.php/createpage/24-7-water-supply
+- Water Supply Department: https://ccmc.gov.in/index.php/department/water-supply
+
+CCMC's public Asset Management System page currently says that the page is still under development. This does not prove the Corporation has no internal asset-management system; it means no public asset register was available from that page during this review.
+
+- Asset Management System page: https://ccmc.gov.in/search/2910
+
+CCMC's UGD page publishes project reports for TNUFIP Tranche 1 (Kurichi and Kuniyamuthur) and Tranche 3 (Vadavalli, Veerakeralam, Kavundampalayam and Thudiyalur). The updated Tranche 3 Initial Environmental Examination is also listed by the Asian Development Bank in April 2026. These are project/environmental documents, not proof of completed as-built utility geometry. The report contains project-area and site-set-out plans; the responsible project implementation unit should provide the final as-built CAD/GIS, manhole register, invert levels and completion/commissioning status before any line is admitted as a verified asset.
+
+- CCMC UGD project documents: https://ccmc.gov.in/index.php/department/ugd
+- ADB TNUFIP Tranche 3 project documents: https://www.adb.org/projects/49107-010/main
+- ADB TNUFIP Tranche 1 project documents: https://www.adb.org/projects/49107-004/main
+
+The Coimbatore City Development Plan (2006) includes a schematic “Existing water supply system” map and recommends GIS mapping/asset management for water-supply and sewerage networks. This is historical planning evidence only; it must not be treated as current pipe geometry or used for excavation clearance.
+
+- City Development Plan (2006): https://ccmc.gov.in/images/stories/CDP/City_Development_Plan.pdf
+
 ### Legacy Coimbatore GIS and utility asset-management leads
 
 CCMC's published GIS page records a city GIS study initiated in 2008, initially described as a property-focused GIS for property tax and related municipal services. It also describes intended integration with AutoDCR, Asset Management and engineering estimation systems. CCMC's achievements page separately lists GIS and Asset Management software. These are important leads for a formal data request, but they do not establish that current, accurate underground pipe/drain geometries are available or maintained in a present-day export.
