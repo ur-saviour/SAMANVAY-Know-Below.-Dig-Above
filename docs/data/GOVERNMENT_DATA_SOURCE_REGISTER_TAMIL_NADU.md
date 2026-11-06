@@ -32,6 +32,19 @@ Official references:
 
 **Finding:** these public pages establish agency responsibility but do not provide a downloadable, georeferenced citywide pipe/drain asset register. SAMANVAY must request approved GIS/CAD records directly from CCMC and relevant asset owners.
 
+### Legacy Coimbatore GIS and utility asset-management leads
+
+CCMC's published GIS page records a city GIS study initiated in 2008, initially described as a property-focused GIS for property tax and related municipal services. It also describes intended integration with AutoDCR, Asset Management and engineering estimation systems. CCMC's achievements page separately lists GIS and Asset Management software. These are important leads for a formal data request, but they do not establish that current, accurate underground pipe/drain geometries are available or maintained in a present-day export.
+
+The Coimbatore City Development Plan (2006) recommended mapping/GIS for water-supply network location, characteristics, age and condition, and separately recommended mapping/GIS and an asset-management plan for underground sewerage. This establishes that the need was recognised in historical planning documents; it is not proof that the proposed datasets were completed or remain current.
+
+References:
+- CCMC GIS study: https://ccmc.gov.in/index.php/createpage/geographical-information-system-and40gisand41
+- CCMC achievements: https://ccmc.gov.in/index.php/createpage/achievements
+- Coimbatore City Development Plan: https://ccmc.gov.in/images/stories/CDP/City_Development_Plan.pdf
+
+The TNGIS CUMTA map editor exposes a public-utilities/drainage theme, but the application is labelled CUMTA and its coverage is not established as Coimbatore. It is therefore not admitted to the Coimbatore utility registry. The WRD GIS tank portal is a login-based tank information system, not a public buried-utility asset feed.
+
 ### Tamil Nadu Geographical Information System (TNGIS / TNeGA)
 TNGIS states that its data is collated from departments and remains owned by the respective departments. Its disclaimer requires TNeGA approval for commercial use/applications. Request the relevant Coimbatore utility layers, data dictionary, licence and written permission before copying them into SAMANVAY.
 
