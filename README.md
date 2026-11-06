@@ -23,6 +23,7 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - [Secure GIS Asset Ingestion and Verification](docs/data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
 - [Supabase Security and Performance Review](docs/security/SUPABASE_SECURITY_AND_PERFORMANCE_REVIEW_2026-11-06.md)
 - [Utility Proximity Conflict Screening](docs/features/UTILITY_PROXIMITY_CONFLICT_SCREENING.md)
+- [Road-Cut Permit Compliance & Restoration Deadlines](docs/features/ROAD_CUT_PERMIT_COMPLIANCE_AND_DEADLINES.md)
 - [Road Restoration and Quality Assurance](docs/features/ROAD_RESTORATION_QUALITY_ASSURANCE.md)
 - [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
 - The app bundles an optional 2024 Coimbatore 100-ward public-domain reference layer at `assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`.
