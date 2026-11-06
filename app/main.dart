@@ -1704,6 +1704,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               departmentId: widget.departmentId,
             ),
             const SizedBox(height: 16),
+            BuildingComplianceInspectionBoard(
+              requests: requests,
+              departments: departments,
+              isDepartment: widget.isDepartment,
+              departmentId: widget.departmentId,
+            ),
+            const SizedBox(height: 16),
             const GroundwaterTelemetryDashboard(),
             if (!widget.isDepartment) ...[
               const SizedBox(height: 18),
@@ -3544,6 +3551,239 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
         ),
       ),
     );
+  }
+}
+
+
+class BuildingComplianceInspectionBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const BuildingComplianceInspectionBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<BuildingComplianceInspectionBoard> createState() => _BuildingComplianceInspectionBoardState();
+}
+
+class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceInspectionBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+  List<Map<String, dynamic>> get buildingCases => widget.requests
+      .where((r) => (r['case_category'] ?? '').toString() == 'building_planning').toList();
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('building_compliance_inspections')
+          .select().order('inspected_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Building inspection records could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final n = r['request_number']?.toString();
+        final t = (r['title'] ?? r['road_name'] ?? 'Building case').toString();
+        return n == null ? t : 'Case #' + n + ' · ' + t;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  String _departmentLabel(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return widget.isDepartment ? 'Assigned department' : 'Department';
+  }
+
+  Future<void> _addInspection() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    final cases = buildingCases;
+    if (cases.isEmpty) { _message('No accessible building-planning cases are available.'); return; }
+
+    var requestId = cases.first['id'].toString();
+    var departmentId = widget.departmentId ?? cases.first['department_id']?.toString()
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var reviewState = 'awaiting_review';
+    var saving = false;
+    final approval = TextEditingController();
+    final authority = TextEditingController();
+    final approvedFloors = TextEditingController();
+    final observedFloors = TextEditingController();
+    final approvedHeight = TextEditingController();
+    final observedHeight = TextEditingController();
+    final notes = TextEditingController();
+
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) =>
+      StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Record building compliance inspection'),
+        content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: requestId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Building-planning case'),
+              items: cases.map((r) {
+                final id = r['id'].toString();
+                return DropdownMenuItem(value: id, child: Text(_caseLabel(id), overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => requestId = v); },
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: departmentId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Responsible department'),
+              items: widget.departments.map((d) => DropdownMenuItem<String>(
+                value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString(),
+                  overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: saving ? null : (v) => setDialogState(() => departmentId = v),
+            ),
+            TextField(controller: approval, decoration: const InputDecoration(labelText: 'Approval / permit reference')),
+            TextField(controller: authority, decoration: const InputDecoration(labelText: 'Issuing authority')),
+            TextField(controller: approvedFloors, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Approved floor count')),
+            TextField(controller: observedFloors, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Observed floor count *')),
+            TextField(controller: approvedHeight, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Approved height (m)')),
+            TextField(controller: observedHeight, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Observed height (m)')),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: reviewState,
+              decoration: const InputDecoration(labelText: 'Inspection review state'),
+              items: const [
+                DropdownMenuItem(value: 'awaiting_review', child: Text('Awaiting review')),
+                DropdownMenuItem(value: 'reviewed_consistent', child: Text('Reviewed — consistent with recorded approval')),
+                DropdownMenuItem(value: 'refer_to_authority', child: Text('Refer to competent authority')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => reviewState = v); },
+            ),
+            TextField(controller: notes, maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Inspection notes / verification limitations')),
+            const SizedBox(height: 8),
+            const Text('A recorded difference is an inspection flag only. It does not establish unlawful construction or replace review by the competent planning authority.',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          ],
+        ))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(
+            onPressed: saving ? null : () async {
+              final observed = int.tryParse(observedFloors.text.trim());
+              final approved = approvedFloors.text.trim().isEmpty ? null : int.tryParse(approvedFloors.text.trim());
+              final aHeight = approvedHeight.text.trim().isEmpty ? null : double.tryParse(approvedHeight.text.trim());
+              final oHeight = observedHeight.text.trim().isEmpty ? null : double.tryParse(observedHeight.text.trim());
+              if (departmentId == null || departmentId!.isEmpty || observed == null || observed < 0) {
+                _message('Select a department and enter a valid observed floor count.'); return;
+              }
+              if ((approvedFloors.text.trim().isNotEmpty && (approved == null || approved < 0)) ||
+                  (approvedHeight.text.trim().isNotEmpty && (aHeight == null || aHeight < 0)) ||
+                  (observedHeight.text.trim().isNotEmpty && (oHeight == null || oHeight < 0))) {
+                _message('Floor counts and heights must be valid non-negative numbers.'); return;
+              }
+              if (approved == null && aHeight == null && approval.text.trim().isEmpty) {
+                _message('Enter an approval reference, approved floor count, or approved height.'); return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                await supabase.from('building_compliance_inspections').insert({
+                  'request_id': requestId,
+                  'responsible_department_id': departmentId,
+                  'approval_reference': approval.text.trim().isEmpty ? null : approval.text.trim(),
+                  'issuing_authority': authority.text.trim().isEmpty ? null : authority.text.trim(),
+                  'approved_floor_count': approved,
+                  'observed_floor_count': observed,
+                  'approved_height_m': aHeight,
+                  'observed_height_m': oHeight,
+                  'review_state': reviewState,
+                  'inspection_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'created_by': user.id,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (_) {
+                setDialogState(() => saving = false);
+                _message('Unable to save. Confirm that the case is assigned to the selected department.');
+              }
+            },
+            child: saving ? const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save inspection'),
+          ),
+        ],
+      )),
+    );
+
+    approval.dispose(); authority.dispose(); approvedFloors.dispose(); observedFloors.dispose();
+    approvedHeight.dispose(); observedHeight.dispose(); notes.dispose();
+    if (saved == true) { await _load(); _message('Building compliance inspection recorded.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.apartment_outlined, color: Color(0xFF087F83)),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('Building height & floor compliance',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ]),
+        const Text('Compare observed building details with recorded approval information. Discrepancies require competent-authority verification.',
+          style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: buildingCases.isEmpty ? null : _addInspection,
+          icon: const Icon(Icons.add), label: const Text('RECORD BUILDING INSPECTION'))),
+        const SizedBox(height: 8),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else if (records.isEmpty) const Text('No building inspections have been recorded yet.',
+          style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+        else ...records.map((record) {
+          final dept = record['responsible_department_id'].toString();
+          final approved = record['approved_floor_count']?.toString() ?? 'Not recorded';
+          final observed = record['observed_floor_count']?.toString() ?? 'Not recorded';
+          final state = (record['review_state'] ?? 'awaiting_review').toString().replaceAll('_', ' ').toUpperCase();
+          final heights = record['approved_height_m'] == null && record['observed_height_m'] == null ? ''
+            : ' · height ' + (record['observed_height_m']?.toString() ?? '—') + ' m observed / ' +
+              (record['approved_height_m']?.toString() ?? '—') + ' m approved';
+          return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFF7FAFC), borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4EAF1))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_caseLabel(record['request_id'].toString()),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              Text(_departmentLabel(dept) + ' · floors ' + observed + ' observed / ' + approved +
+                ' approved' + heights + ' · ' + state,
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+              if ((record['approval_reference'] ?? '').toString().isNotEmpty)
+                Text('Approval: ' + record['approval_reference'].toString(),
+                  style: const TextStyle(fontSize: 10, color: ink)),
+              if ((record['inspection_notes'] ?? '').toString().isNotEmpty)
+                Text(record['inspection_notes'].toString(), style: const TextStyle(fontSize: 10, color: ink)),
+            ]));
+        }),
+      ],
+    )));
   }
 }
 
