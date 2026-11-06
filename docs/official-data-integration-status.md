@@ -129,6 +129,7 @@ The official Ministry of Panchayati Raj Local Government Directory (LGD) is now 
 - Catalogued the official IGOD State/UT district index and added state-specific IGOD district-page links to the 36 administrative-directory coverage records.
 - Created 72 auditable export tasks: one district export and one urban-local-body export for each of the 36 jurisdictions. All are explicitly awaiting the normal public CAPTCHA-protected report generation; no records were fabricated.
 - Added an admin/coordinator-only CSV import screen. It validates required LGD Code, Name and State Name fields, preserves codes as text (including leading zeros), checks state/parent references, records report date and source filename, and upserts records with `imported_unverified` status. It never marks an import authority-verified.
+- Single-State uploads now update the matching queued district/ULB batch; multi-State uploads create a separate audited batch.
 - Added CSV parser dependency to the Android build workflow.
 
 **Current verified database state:**
