@@ -146,6 +146,20 @@ Sources:
 Reproducible schema/seed:
 `database/seed/india_lgd_administrative_directory.sql`
 
+## 8. Restricted asset verification centre — 6 November 2026
+
+The next GIS governance step has been implemented as a **metadata-only** verification queue for administrators and coordinators.
+
+- Added `public.utility_asset_verification_queue`, a restricted view over owner/survey metadata and evidence counts.
+- The view excludes geometry, coordinates, depth, dimensions, positional accuracy and asset-point locations.
+- The view checks the signed-in user's profile role and only returns records for admin/coordinator users.
+- Added a supporting index on `gis.asset_survey_evidence(asset_id)`.
+- Added a read-only Flutter review screen with status filtering, survey date, owner department, source type and evidence count.
+- Added navigation from the India directory panel, visible only to admin/coordinator profiles.
+- Added reproducible SQL at `database/seed/asset_verification_queue.sql`.
+
+**Current database state:** `gis.underground_assets` contains 0 records and `gis.asset_survey_evidence` contains 0 records. The queue therefore has no live records to review yet. No utility line geometry was imported or displayed. A verification label alone does not constitute excavation clearance.
+
 ## Operational rule
 
 A public map layer, engineering diagram, approximate alignment, portal listing or aggregate feature count is not an excavation-clearance source. Pending utility layers must not be used for excavation clearance. Only owner-authorised, current and appropriately validated data may be promoted to operational use.
