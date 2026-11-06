@@ -2639,7 +2639,6 @@ class RoadCutPermitBoard extends StatefulWidget {
 
 class _RoadCutPermitBoardState extends State<RoadCutPermitBoard> {
   List<Map<String, dynamic>> records = [];
-  List<Map<String, dynamic>> publicApprovalRecords = [];
   bool loading = true;
   String errorMessage = '';
 
@@ -3578,6 +3577,7 @@ class BuildingComplianceInspectionBoard extends StatefulWidget {
 
 class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceInspectionBoard> {
   List<Map<String, dynamic>> records = [];
+  List<Map<String, dynamic>> publicApprovalRecords = [];
   bool loading = true;
   String errorMessage = '';
   List<Map<String, dynamic>> get buildingCases => widget.requests
