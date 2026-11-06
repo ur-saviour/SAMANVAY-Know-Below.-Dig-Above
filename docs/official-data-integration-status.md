@@ -7,7 +7,7 @@ Scope: all 28 States and 8 Union Territories. National coverage is tracked separ
 
 - National jurisdiction master: all 36 States/UTs.
 - CGWB 2025 groundwater resource assessment: 36/36 State/UT aggregate records imported.
-- NWDP/CGWB 2021-2025 telemetry: 850,209 observations currently stored; 10 resource feeds complete, 21 partial, 31 catalogue resources not yet imported. The 14,249,309 advertised source rows are summed across 62 resources and are not a deduplicated national count.
+- NWDP/CGWB 2021-2025 telemetry: 1,095,209 observations currently stored at latest check; 10 resource feeds complete, 22 partial, 30 discovered/not yet imported. The advertised source-row sum is 16,528,153 across 62 resource records at latest check; alternative/agency feeds can overlap, so this is not a deduplicated national count.
 - Additional 199 district-level groundwater rows from seven State/UT CSV mirrors are stored in a separate reconciliation staging table; they are not cleared for official aggregation.
 - Utility GIS: 108 State/UT layer contracts plus 8 original Coimbatore pilot records (116 total); 115 are authority-data-pending and zero are enabled for operational excavation use.
 - Building approvals: 25 State/UT jurisdictions have an official portal or service-directory URL mapped; 11 still need an authority/ULB portal mapping. The approvals table contains zero imported approval records.
@@ -42,12 +42,12 @@ Official NWDP CKAN API and dataset pages:
 
 Current-period (2021-2025) resources catalogued:
 - 62 resource records.
-- Sum of advertised source row counts: 14,249,309 across those resource records. Some are alternative/agency feeds for a jurisdiction; this is not a deduplicated unique-observation count.
-- 10 resources completed, 21 partially imported, 31 discovered/not yet imported. Live DB recheck: 420,209 rows in completed resources and 430,000 rows in partial resources (850,209 observation rows overall).
-- 850,209 station observations currently stored in public.groundwater_station_observations.
-- Observations currently represent 31 State/UT labels, 331 distinct station-name labels and 148 district-name labels.
+- Sum of advertised source row counts: 16,528,153 across those resource records at latest check. Some are alternative/agency feeds for a jurisdiction; this is not a deduplicated unique-observation count.
+- 10 resources completed, 22 partially imported, 30 discovered/not yet imported. Live DB recheck: 420,209 rows in completed resources and 675,000 rows in partial resources (1,095,209 observation rows overall). A resumable GitHub Actions import run was started on 2026-11-06 and is still processing the backlog.
+- 1,095,209 station observations currently stored in public.groundwater_station_observations.
+- Observations currently represent 31 State/UT labels, 331 distinct station-name labels and 158 district-name labels.
 
-The ten resources currently complete are (420,209 rows in total; additional 430,000 rows are imported from 21 partial resources):
+The ten resources currently complete are (420,209 rows in total; 675,000 additional rows are imported from 22 partial resources):
 - Assam — 160,859 rows.
 - Bihar — 52,998.
 - Jharkhand — 39,519.
@@ -184,3 +184,12 @@ Row-level security is enabled for new exposed tables. Read access is authenticat
 ## Operational rule
 
 National source discovery, schema coverage and partial data ingestion are not the same as a fully populated operational national registry. Only source-proven, appropriately validated records may be described as authoritative. Pending utility layers must not be used for excavation clearance. Never infer underground route, depth, manhole position, permit status or permitted building floors from unrelated public maps or imagery.
+
+## 4. India-wide application interface update — 6 November 2026
+
+- The Flutter groundwater dashboard now selects from the 36-row State/UT directory and loads the selected jurisdiction's CGWB 2025 resource assessment separately from station observations.
+- The GIS groundwater overlay now queries the nationwide latest-station view. Latest database check: 382 mapped station points across 31 represented State/UT labels and 158 district labels.
+- A national readiness panel summarizes the three data domains (groundwater, utility GIS and building approvals) without equating portal discovery with imported records.
+- The browser operations portal compiled successfully in GitHub Actions; its packaged artifact is attached to run 42249149103.
+- The Android APK workflow has passed Dart analysis and is in the release APK build stage at the time of this update.
+- Remaining external dependencies are unchanged: authority-supplied utility network GIS, official building approval exports, final survey verification, and any API credentials required for optional third-party services.
