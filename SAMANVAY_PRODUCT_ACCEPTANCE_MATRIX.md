@@ -146,3 +146,17 @@
 - [x] Building-approval portal/service entrypoints synced for 33/36 State/UT jurisdictions.
 - [ ] Full Android device regression, role-based workflow testing, realtime notification testing and map interaction QA remain outstanding.
 - [ ] Nationwide underground utility geometry and original building approval registers remain authority-data dependencies; not represented as completed by portal discovery.
+
+## 13. Public-record and utility-source ingestion — 6 November 2026
+
+- [x] Import 2,015 non-personal public MCD 2023 plan-release entries into `public.building_approval_public_register_records`, with 2,015 unique source request IDs.
+- [x] Preserve source provenance and omit applicant/professional names, licence numbers and contact details.
+- [x] Export the imported fields to `data/imports/mcd_public_building_plan_releases_2023.csv`.
+- [x] Add a building-compliance UI panel showing the latest imported MCD entries and an explicit MCD-only/partial coverage warning.
+- [x] Register 11 official public utility GIS service summaries across Andhra Pradesh, Kalyan-Dombivli and an FMDA-labelled OneMap service; aggregate raw feature count 658,896.
+- [x] Restrict the detailed utility source registry to admin-only access. The public catalogue contains aggregate availability metadata only.
+- [ ] Do not enable detailed utility geometry until the asset owner confirms data-sharing rights, currentness, survey provenance, coordinate reference system and positional accuracy.
+- [ ] Obtain CCMC/TWAD commissioned as-built utility GIS for Coimbatore; the available project reports are not a current citywide as-built export.
+- [ ] Expand original building-approval record imports beyond MCD; 2,015 records do not constitute a nationwide approval register.
+- [ ] Recover the eight MCD source serial entries not reliably parsed from the public report extraction.
+- [ ] Map the remaining three State/UT direct building-approval service entrypoints and obtain authority exports/API permissions for the mapped jurisdictions.
