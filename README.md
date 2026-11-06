@@ -7,6 +7,7 @@ SAMANVAY is a multi-department municipal infrastructure coordination platform wi
 The Tamil Nadu-first and national data acquisition plans are maintained here:
 
 - [Tamil Nadu Official Data Acquisition Register](docs/data-governance/TAMIL_NADU_OFFICIAL_DATA_ACQUISITION_REGISTER.md)
+- [Coimbatore Pilot Authority Mapping](docs/data-governance/COIMBATORE_PILOT_AUTHORITY_MAPPING.md)
 - [India National Data Acquisition Register](docs/data-governance/INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
 
 These are acquisition plans. They do not imply that government datasets, survey records, permissions or approvals have already been received.
