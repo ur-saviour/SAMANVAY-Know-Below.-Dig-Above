@@ -3835,10 +3835,6 @@ class _MapPageState extends State<MapPage> {
   bool _satellite = _mapTilerKey.isNotEmpty;
   bool _showRequests = true;
   bool _showUtilityZones = false;
-  bool _showVerifiedAssets = false;
-  bool _assetQueryInFlight = false;
-  int _verifiedAssetCount = 0;
-  int _unverifiedAssetCount = 0;
   bool _canViewUtilityOverview = false;
   bool _loadingLayers = false;
   bool _locating = false;
@@ -3927,9 +3923,6 @@ class _MapPageState extends State<MapPage> {
       if (!mounted) return;
       await _refreshMapScale();
       if (!mounted) return;
-      if (_showVerifiedAssets && _canViewUtilityOverview) {
-        await _loadVerifiedAssets();
-      }
       if (_showUtilityZones && _canViewUtilityOverview) {
         await _loadUtilityOverview();
       }
@@ -4263,9 +4256,6 @@ class _MapPageState extends State<MapPage> {
         });
       }
 
-      if (_showVerifiedAssets && authorised) {
-        await _loadVerifiedAssets();
-      }
       if (_showUtilityZones && authorised) {
         await _loadUtilityOverview();
       }
@@ -4278,145 +4268,6 @@ class _MapPageState extends State<MapPage> {
     } finally {
       if (mounted) setState(() => _loadingLayers = false);
     }
-  }
-
-  Future<void> _loadVerifiedAssets() async {
-    final controller = _controller;
-    if (controller == null || !_styleReady || !_canViewUtilityOverview || _assetQueryInFlight) return;
-    _assetQueryInFlight = true;
-
-    try {
-      final bounds = await controller.getVisibleRegion();
-      final minLon = bounds.southwest.longitude;
-      final minLat = bounds.southwest.latitude;
-      final maxLon = bounds.northeast.longitude;
-      final maxLat = bounds.northeast.latitude;
-      if (minLon >= maxLon || minLat >= maxLat) return;
-
-      // This RPC runs as the signed-in user. Postgres RLS filters every row;
-      // the client then excludes records that have not passed verification.
-      final raw = await supabase.rpc('get_underground_assets', params: {
-        'p_min_lon': minLon,
-        'p_min_lat': minLat,
-        'p_max_lon': maxLon,
-        'p_max_lat': maxLat,
-      });
-      final response = Map<String, dynamic>.from(raw as Map);
-      final rawFeatures = response['features'];
-      final verified = <Map<String, dynamic>>[];
-      var unverified = 0;
-      if (rawFeatures is List) {
-        for (final item in rawFeatures) {
-          if (item is! Map) continue;
-          final feature = Map<String, dynamic>.from(item);
-          final properties = feature['properties'];
-          if (properties is! Map) continue;
-          final status = (properties['verification_status'] ?? '').toString().toLowerCase();
-          if (status == 'verified') {
-            verified.add(feature);
-          } else {
-            unverified++;
-          }
-        }
-      }
-
-      final collection = {'type': 'FeatureCollection', 'features': verified};
-      final sources = await controller.getSourceIds();
-      if (sources.contains('samanvay-verified-assets')) {
-        await controller.setGeoJsonSource('samanvay-verified-assets', collection);
-      } else {
-        await controller.addGeoJsonSource('samanvay-verified-assets', collection);
-      }
-
-      var layers = await controller.getLayerIds();
-      if (!layers.contains('samanvay-verified-asset-lines')) {
-        await controller.addLineLayer(
-          'samanvay-verified-assets',
-          'samanvay-verified-asset-lines',
-          LineLayerProperties(
-            lineColor: [
-              'match', ['get', 'asset_type'],
-              'water', '#38BDF8',
-              'sewer', '#A78BFA',
-              'stormwater', '#22D3EE',
-              'electricity', '#FBBF24',
-              'telecom', '#F472B6',
-              'gas', '#FB923C',
-              'drain', '#34D399',
-              '#94A3B8',
-            ],
-            lineWidth: 3.2,
-            lineOpacity: 0.94,
-          ),
-        );
-      }
-      layers = await controller.getLayerIds();
-      if (!layers.contains('samanvay-verified-asset-points')) {
-        await controller.addCircleLayer(
-          'samanvay-verified-assets',
-          'samanvay-verified-asset-points',
-          CircleLayerProperties(
-            circleRadius: 5,
-            circleColor: [
-              'match', ['get', 'asset_type'],
-              'water', '#38BDF8',
-              'sewer', '#A78BFA',
-              'stormwater', '#22D3EE',
-              'electricity', '#FBBF24',
-              'telecom', '#F472B6',
-              'gas', '#FB923C',
-              'drain', '#34D399',
-              '#94A3B8',
-            ],
-            circleStrokeColor: '#071827',
-            circleStrokeWidth: 1.5,
-            circleOpacity: 0.98,
-          ),
-        );
-      }
-      await controller.setLayerVisibility('samanvay-verified-asset-lines', _showVerifiedAssets);
-      await controller.setLayerVisibility('samanvay-verified-asset-points', _showVerifiedAssets);
-
-      if (mounted) {
-        setState(() {
-          _verifiedAssetCount = verified.length;
-          _unverifiedAssetCount = unverified;
-          _layerStatus = verified.isEmpty
-              ? 'No verified asset geometry in this map view. $unverified unverified record(s) were excluded. Empty results do not mean utilities are absent.'
-              : '${verified.length} verified asset feature(s) displayed. $unverified unverified record(s) excluded from the operational map.';
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _layerStatus = 'Verified asset layer unavailable. Access remains governed by database row-level security.');
-      }
-      _showMessage('Unable to load verified underground assets.');
-    } finally {
-      _assetQueryInFlight = false;
-    }
-  }
-
-  Future<void> _toggleVerifiedAssets(bool enabled) async {
-    if (!_canViewUtilityOverview) {
-      _showMessage('Verified utility geometry is restricted to authorised infrastructure staff.');
-      return;
-    }
-    setState(() => _showVerifiedAssets = enabled);
-    final controller = _controller;
-    if (controller == null || !_styleReady) return;
-    if (!enabled) {
-      try {
-        final layers = await controller.getLayerIds();
-        if (layers.contains('samanvay-verified-asset-lines')) {
-          await controller.setLayerVisibility('samanvay-verified-asset-lines', false);
-        }
-        if (layers.contains('samanvay-verified-asset-points')) {
-          await controller.setLayerVisibility('samanvay-verified-asset-points', false);
-        }
-      } catch (_) {}
-      return;
-    }
-    await _loadVerifiedAssets();
   }
 
   Future<void> _loadUtilityOverview() async {
@@ -4747,21 +4598,7 @@ class _MapPageState extends State<MapPage> {
                         _toggleRequests(value);
                       },
                     ),
-                    if (_canViewUtilityOverview) ...[
-                      SwitchListTile(
-                        value: _showVerifiedAssets,
-                        activeThumbColor: const Color(0xFF20D6C2),
-                        title: const Text('Verified underground assets',
-                            style: TextStyle(color: Colors.white)),
-                        subtitle: Text(
-                          '$_verifiedAssetCount verified feature(s) shown; $_unverifiedAssetCount unverified excluded',
-                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
-                        ),
-                        onChanged: (value) {
-                          setSheetState(() {});
-                          _toggleVerifiedAssets(value);
-                        },
-                      ),
+                    if (_canViewUtilityOverview)
                       SwitchListTile(
                         value: _showUtilityZones,
                         activeThumbColor: const Color(0xFFF59E0B),
@@ -4775,8 +4612,8 @@ class _MapPageState extends State<MapPage> {
                           setSheetState(() {});
                           _toggleUtilityZones(value);
                         },
-                      ),
-                    ] else
+                      )
+                    else
                       const ListTile(
                         leading: Icon(Icons.lock_outline, color: Color(0xFFF6C66B)),
                         title: Text('Utility coverage restricted',
