@@ -4029,10 +4029,8 @@ class _MapPageState extends State<MapPage> {
       _showMessage('Search text is too long. Use a shorter place name.');
       return;
     }
-    if (_mapTilerKey.isEmpty) {
-      _showMessage('Place search needs the MAPTILER_API_KEY GitHub secret. GPS and manual map navigation still work.');
-      return;
-    }
+    // MapTiler is preferred when configured. Photon provides a no-key
+    // OpenStreetMap-based fallback so place search still works in free builds.
 
     setState(() {
       _searching = true;
@@ -4040,17 +4038,27 @@ class _MapPageState extends State<MapPage> {
     });
 
     try {
-      final uri = Uri.https(
-        'api.maptiler.com',
-        '/geocoding/$query.json',
-        {
-          'key': _mapTilerKey,
-          'limit': '6',
-          'country': 'IN',
-          'language': 'en',
-          'autocomplete': 'false',
-        },
-      );
+      final uri = _mapTilerKey.isNotEmpty
+          ? Uri.https(
+              'api.maptiler.com',
+              '/geocoding/$query.json',
+              {
+                'key': _mapTilerKey,
+                'limit': '6',
+                'country': 'IN',
+                'language': 'en',
+                'autocomplete': 'false',
+              },
+            )
+          : Uri.https(
+              'photon.komoot.io',
+              '/api/',
+              {
+                'q': query,
+                'limit': '6',
+                'lang': 'en',
+              },
+            );
       final response = await http.get(uri).timeout(const Duration(seconds: 12));
       if (response.statusCode != 200) {
         throw StateError('Place search provider returned HTTP ${response.statusCode}.');
@@ -4065,13 +4073,50 @@ class _MapPageState extends State<MapPage> {
       for (final rawFeature in decoded['features'] as List) {
         if (rawFeature is! Map) continue;
         final feature = Map<String, dynamic>.from(rawFeature);
-        final center = feature['center'];
-        if (center is List &&
-            center.length >= 2 &&
-            center[0] is num &&
-            center[1] is num) {
-          results.add(feature);
+
+        if (_mapTilerKey.isNotEmpty) {
+          final center = feature['center'];
+          if (center is List &&
+              center.length >= 2 &&
+              center[0] is num &&
+              center[1] is num) {
+            results.add(feature);
+          }
+          continue;
         }
+
+        // Normalize Photon GeoJSON to the same shape consumed by _selectPlace.
+        final geometry = feature['geometry'];
+        final properties = feature['properties'];
+        if (geometry is! Map || properties is! Map) continue;
+        final coordinates = geometry['coordinates'];
+        if (coordinates is! List ||
+            coordinates.length < 2 ||
+            coordinates[0] is! num ||
+            coordinates[1] is! num) {
+          continue;
+        }
+        final props = Map<String, dynamic>.from(properties);
+        final name = (props['name'] ??
+                props['street'] ??
+                props['district'] ??
+                props['city'] ??
+                'Place')
+            .toString();
+        final locationParts = [
+          name,
+          props['district'],
+          props['city'],
+          props['state'],
+          props['country'],
+        ].where((part) => part != null && part.toString().trim().isNotEmpty)
+         .map((part) => part.toString().trim())
+         .toList();
+        results.add({
+          'center': [coordinates[0], coordinates[1]],
+          'text': name,
+          'place_name': locationParts.toSet().join(', '),
+        });
       }
 
       if (!mounted) return;
