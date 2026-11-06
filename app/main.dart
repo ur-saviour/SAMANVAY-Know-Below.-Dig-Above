@@ -1662,6 +1662,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             ),
             const SizedBox(height: 10),
             domainBreakdown(),
+            const SizedBox(height: 16),
+            RoadRestorationBoard(
+              requests: requests,
+              departments: departments,
+              isDepartment: widget.isDepartment,
+              departmentId: widget.departmentId,
+            ),
             if (!widget.isDepartment) ...[
               const SizedBox(height: 18),
               executiveSnapshot(),
@@ -2554,6 +2561,467 @@ class _DashboardPageState extends State<DashboardPage> {
               style: GoogleFonts.inter(color: const Color(0xFF42627E),
                 fontSize: 11, height: 1.45))),
         ]),
+      ),
+    );
+  }
+}
+
+class RoadRestorationBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+
+  const RoadRestorationBoard({
+    super.key,
+    required this.requests,
+    required this.departments,
+    required this.isDepartment,
+    this.departmentId,
+  });
+
+  @override
+  State<RoadRestorationBoard> createState() => _RoadRestorationBoardState();
+}
+
+class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    if (!mounted) return;
+    setState(() {
+      loading = true;
+      errorMessage = '';
+    });
+    try {
+      final rows = await supabase
+          .from('road_restoration_records')
+          .select()
+          .order('updated_at', ascending: false)
+          .limit(100);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Restoration records could not be loaded for this account.';
+      });
+    }
+  }
+
+  String _requestLabel(String requestId) {
+    for (final request in widget.requests) {
+      if (request['id'].toString() == requestId) {
+        final number = request['request_number']?.toString();
+        final title = (request['title'] ?? request['road_name'] ?? 'Infrastructure case').toString();
+        return (number == null ? '' : 'Case #' + number + ' · ') + title;
+      }
+    }
+    return 'Case ' + requestId.substring(0, math.min(8, requestId.length));
+  }
+
+  String _departmentLabel(String departmentId) {
+    for (final department in widget.departments) {
+      if (department['id'].toString() == departmentId) {
+        return (department['name'] ?? 'Department').toString();
+      }
+    }
+    return widget.isDepartment ? 'Your assigned department' : 'Department';
+  }
+
+  String _pretty(String value) => value.replaceAll('_', ' ').toUpperCase();
+
+  Color _statusColor(String value) {
+    switch (value) {
+      case 'accepted':
+        return const Color(0xFF25845C);
+      case 'rework_required':
+        return const Color(0xFFB54747);
+      case 'awaiting_inspection':
+        return const Color(0xFFB7791F);
+      case 'in_progress':
+        return const Color(0xFF3978B8);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  double? _optionalNumber(String value) {
+    if (value.trim().isEmpty) return null;
+    return double.tryParse(value.trim());
+  }
+
+  Future<void> _editRecord({Map<String, dynamic>? existing}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _showMessage('Please sign in again.');
+      return;
+    }
+    if (widget.requests.isEmpty) {
+      _showMessage('No accessible cases are available to link to a restoration record.');
+      return;
+    }
+
+    final requestIds = widget.requests.map((r) => r['id'].toString()).toSet();
+    var selectedRequestId = existing?['request_id']?.toString();
+    if (selectedRequestId == null || !requestIds.contains(selectedRequestId)) {
+      selectedRequestId = widget.requests.first['id'].toString();
+    }
+
+    var selectedDepartmentId = existing?['responsible_department_id']?.toString()
+        ?? widget.departmentId
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var surface = (existing?['road_surface_type'] ?? 'bituminous').toString();
+    var status = (existing?['restoration_status'] ?? 'planned').toString();
+    var inspection = (existing?['inspection_outcome'] ?? 'not_inspected').toString();
+    var compaction = existing?['compaction_verified'] == true;
+    var drainage = existing?['drainage_clear'] == true;
+    var saving = false;
+
+    final cutLength = TextEditingController(text: existing?['cut_length_m']?.toString() ?? '');
+    final cutWidth = TextEditingController(text: existing?['cut_width_m']?.toString() ?? '');
+    final restoredLength = TextEditingController(text: existing?['restored_length_m']?.toString() ?? '');
+    final restoredWidth = TextEditingController(text: existing?['restored_width_m']?.toString() ?? '');
+    final method = TextEditingController(text: existing?['restoration_method']?.toString() ?? '');
+    final plannedDate = TextEditingController(text: existing?['planned_restore_date']?.toString() ?? '');
+    final notes = TextEditingController(text: existing?['surface_quality_notes']?.toString() ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Record road restoration' : 'Update road restoration'),
+              content: SizedBox(
+                width: 480,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedRequestId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Linked case'),
+                        items: widget.requests.map((request) {
+                          final number = request['request_number']?.toString() ?? '';
+                          final title = (request['title'] ?? request['road_name'] ?? 'Infrastructure case').toString();
+                          return DropdownMenuItem<String>(
+                            value: request['id'].toString(),
+                            child: Text((number.isEmpty ? '' : 'Case #' + number + ' · ') + title,
+                              overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (value) => setDialogState(() => selectedRequestId = value),
+                      ),
+                      const SizedBox(height: 10),
+                      if (widget.isDepartment)
+                        Text('Responsible department: ' + (widget.departmentId ?? 'Not assigned'),
+                          style: const TextStyle(fontSize: 12, color: Colors.blueGrey))
+                      else
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedDepartmentId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Responsible department'),
+                          items: widget.departments.map((department) => DropdownMenuItem<String>(
+                            value: department['id'].toString(),
+                            child: Text((department['name'] ?? 'Department').toString()),
+                          )).toList(),
+                          onChanged: (value) => setDialogState(() => selectedDepartmentId = value),
+                        ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: surface,
+                        decoration: const InputDecoration(labelText: 'Road surface type'),
+                        items: const [
+                          DropdownMenuItem(value: 'bituminous', child: Text('Bituminous / asphalt')),
+                          DropdownMenuItem(value: 'concrete', child: Text('Concrete')),
+                          DropdownMenuItem(value: 'interlocking_pavers', child: Text('Interlocking pavers')),
+                          DropdownMenuItem(value: 'gravel', child: Text('Gravel')),
+                          DropdownMenuItem(value: 'earthen', child: Text('Earthen')),
+                          DropdownMenuItem(value: 'other', child: Text('Other')),
+                        ],
+                        onChanged: (value) => setDialogState(() => surface = value ?? surface),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: status,
+                        decoration: const InputDecoration(labelText: 'Restoration status'),
+                        items: const [
+                          DropdownMenuItem(value: 'planned', child: Text('Planned')),
+                          DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+                          DropdownMenuItem(value: 'awaiting_inspection', child: Text('Awaiting inspection')),
+                          DropdownMenuItem(value: 'accepted', child: Text('Accepted')),
+                          DropdownMenuItem(value: 'rework_required', child: Text('Rework required')),
+                        ],
+                        onChanged: (value) => setDialogState(() => status = value ?? status),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: inspection,
+                        decoration: const InputDecoration(labelText: 'Final inspection outcome'),
+                        items: const [
+                          DropdownMenuItem(value: 'not_inspected', child: Text('Not inspected')),
+                          DropdownMenuItem(value: 'accepted', child: Text('Accepted')),
+                          DropdownMenuItem(value: 'rework_required', child: Text('Rework required')),
+                        ],
+                        onChanged: (value) => setDialogState(() => inspection = value ?? inspection),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Measured dimensions (optional, metres)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      Row(children: [
+                        Expanded(child: TextField(controller: cutLength, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Cut length'))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: cutWidth, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Cut width'))),
+                      ]),
+                      Row(children: [
+                        Expanded(child: TextField(controller: restoredLength, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Restored length'))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: restoredWidth, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Restored width'))),
+                      ]),
+                      TextField(controller: plannedDate, decoration: const InputDecoration(labelText: 'Planned restoration date', hintText: 'YYYY-MM-DD')),
+                      TextField(controller: method, decoration: const InputDecoration(labelText: 'Restoration method')),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: compaction,
+                        onChanged: (value) => setDialogState(() => compaction = value ?? false),
+                        title: const Text('Compaction / surface preparation verified'),
+                        dense: true,
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: drainage,
+                        onChanged: (value) => setDialogState(() => drainage = value ?? false),
+                        title: const Text('Drainage path is clear'),
+                        dense: true,
+                      ),
+                      TextField(
+                        controller: notes,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Surface quality / inspection notes',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Acceptance is blocked until inspection, compaction and drainage checks pass.',
+                        style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : () async {
+                    if (selectedRequestId == null || selectedDepartmentId == null || selectedDepartmentId!.isEmpty) {
+                      _showMessage('Select a case and responsible department.');
+                      return;
+                    }
+                    if (plannedDate.text.trim().isNotEmpty &&
+                        DateTime.tryParse(plannedDate.text.trim()) == null) {
+                      _showMessage('Enter the planned date as YYYY-MM-DD.');
+                      return;
+                    }
+                    final cutLengthValue = _optionalNumber(cutLength.text);
+                    final cutWidthValue = _optionalNumber(cutWidth.text);
+                    final restoredLengthValue = _optionalNumber(restoredLength.text);
+                    final restoredWidthValue = _optionalNumber(restoredWidth.text);
+                    if ((cutLength.text.trim().isNotEmpty && cutLengthValue == null) ||
+                        (cutWidth.text.trim().isNotEmpty && cutWidthValue == null) ||
+                        (restoredLength.text.trim().isNotEmpty && restoredLengthValue == null) ||
+                        (restoredWidth.text.trim().isNotEmpty && restoredWidthValue == null)) {
+                      _showMessage('Enter valid numeric dimensions in metres.');
+                      return;
+                    }
+                    if (status == 'accepted' &&
+                        (inspection != 'accepted' || !compaction || !drainage)) {
+                      _showMessage('Acceptance requires a passed inspection, compaction verification and clear drainage.');
+                      return;
+                    }
+                    if (status == 'rework_required' && inspection != 'rework_required') {
+                      _showMessage('Select “Rework required” as the inspection outcome.');
+                      return;
+                    }
+                    if (inspection == 'accepted' && status != 'accepted') {
+                      _showMessage('Set the restoration status to Accepted after a passed inspection.');
+                      return;
+                    }
+                    if (inspection == 'rework_required' && status != 'rework_required') {
+                      _showMessage('Set the restoration status to Rework required.');
+                      return;
+                    }
+                    if (inspection != 'not_inspected' && notes.text.trim().isEmpty) {
+                      _showMessage('Add inspection notes before recording an inspection outcome.');
+                      return;
+                    }
+
+                    setDialogState(() => saving = true);
+                    final payload = <String, dynamic>{
+                      'road_surface_type': surface,
+                      'restoration_status': status,
+                      'cut_length_m': cutLengthValue,
+                      'cut_width_m': cutWidthValue,
+                      'restored_length_m': restoredLengthValue,
+                      'restored_width_m': restoredWidthValue,
+                      'restoration_method': method.text.trim().isEmpty ? null : method.text.trim(),
+                      'planned_restore_date': plannedDate.text.trim().isEmpty ? null : plannedDate.text.trim(),
+                      'completed_at': status == 'accepted' ? DateTime.now().toUtc().toIso8601String() : null,
+                      'inspection_outcome': inspection,
+                      'compaction_verified': compaction,
+                      'drainage_clear': drainage,
+                      'surface_quality_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                      'updated_by': user.id,
+                    };
+
+                    try {
+                      if (existing == null) {
+                        await supabase.from('road_restoration_records').insert({
+                          ...payload,
+                          'request_id': selectedRequestId,
+                          'responsible_department_id': selectedDepartmentId,
+                          'created_by': user.id,
+                        });
+                      } else {
+                        await supabase.from('road_restoration_records')
+                            .update(payload)
+                            .eq('id', existing['id'].toString());
+                      }
+
+                      final oldInspection = (existing?['inspection_outcome'] ?? 'not_inspected').toString();
+                      if (inspection != 'not_inspected' && inspection != oldInspection) {
+                        await supabase.from('case_inspections').insert({
+                          'request_id': selectedRequestId,
+                          'inspection_type': 'post_work',
+                          'outcome': inspection == 'accepted' ? 'pass' : 'follow_up_required',
+                          'notes': notes.text.trim(),
+                          'inspected_by': user.id,
+                        });
+                      }
+
+                      if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                    } catch (error) {
+                      setDialogState(() => saving = false);
+                      _showMessage('Unable to save restoration record. Confirm the case is assigned to the selected department.');
+                    }
+                  },
+                  child: saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save record'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    cutLength.dispose();
+    cutWidth.dispose();
+    restoredLength.dispose();
+    restoredWidth.dispose();
+    method.dispose();
+    plannedDate.dispose();
+    notes.dispose();
+
+    if (saved == true) {
+      await _loadRecords();
+      _showMessage('Road restoration record saved.');
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.construction_outlined, color: Color(0xFF087F83)),
+              const SizedBox(width: 9),
+              const Expanded(child: Text('Road restoration & quality assurance',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+              IconButton(onPressed: loading ? null : _loadRecords,
+                icon: const Icon(Icons.refresh), tooltip: 'Refresh restoration records'),
+            ]),
+            const Text('Track reinstatement after road openings, inspect the restored surface and drainage, and record accepted work or required rework.',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: widget.requests.isEmpty ? null : () => _editRecord(),
+                icon: const Icon(Icons.add),
+                label: const Text('RECORD RESTORATION'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (loading)
+              const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+            else if (errorMessage.isNotEmpty)
+              Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+            else if (records.isEmpty)
+              const Text('No restoration records have been entered yet.',
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+            else
+              ...records.map((record) {
+                final state = (record['restoration_status'] ?? 'planned').toString();
+                final surfaceName = _pretty((record['road_surface_type'] ?? 'other').toString());
+                final outcome = _pretty((record['inspection_outcome'] ?? 'not_inspected').toString());
+                final departmentId = record['responsible_department_id'].toString();
+                final dimensions = [
+                  if (record['restored_length_m'] != null) record['restored_length_m'].toString() + ' m length',
+                  if (record['restored_width_m'] != null) record['restored_width_m'].toString() + ' m width',
+                ].join(' · ');
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE4EAF1)),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    onTap: () => _editRecord(existing: record),
+                    leading: Icon(Icons.route_outlined, color: _statusColor(state)),
+                    title: Text(_requestLabel(record['request_id'].toString()),
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+                    subtitle: Text(
+                      _departmentLabel(departmentId) + ' · ' + surfaceName + ' · inspection: ' + outcome +
+                      (dimensions.isEmpty ? '' : ' · ' + dimensions),
+                      style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                    trailing: Icon(Icons.chevron_right, color: _statusColor(state)),
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }
