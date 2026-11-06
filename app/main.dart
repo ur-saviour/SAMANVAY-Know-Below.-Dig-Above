@@ -1712,6 +1712,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             ),
             const SizedBox(height: 16),
             const GroundwaterTelemetryDashboard(),
+            const SizedBox(height: 16),
+            GroundwaterObservationBoard(
+              requests: requests,
+              departments: departments,
+              isDepartment: widget.isDepartment,
+              departmentId: widget.departmentId,
+            ),
             if (!widget.isDepartment) ...[
               const SizedBox(height: 18),
               executiveSnapshot(),
@@ -4213,6 +4220,243 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
         ]),
       ),
     );
+  }
+}
+
+
+class GroundwaterObservationBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const GroundwaterObservationBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<GroundwaterObservationBoard> createState() => _GroundwaterObservationBoardState();
+}
+
+class _GroundwaterObservationBoardState extends State<GroundwaterObservationBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+  List<Map<String, dynamic>> get groundwaterCases => widget.requests
+      .where((r) => (r['case_category'] ?? '').toString() == 'borewell_groundwater').toList();
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('groundwater_observation_records')
+          .select().order('observed_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Groundwater observations could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final n = r['request_number']?.toString();
+        final t = (r['title'] ?? r['road_name'] ?? 'Groundwater case').toString();
+        return n == null ? t : 'Case #' + n + ' · ' + t;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  Future<void> _add() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    final cases = groundwaterCases;
+    if (cases.isEmpty) { _message('No accessible borewell/groundwater cases are available.'); return; }
+    var requestId = cases.first['id'].toString();
+    var departmentId = widget.departmentId ?? cases.first['department_id']?.toString()
+      ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var wellType = 'borewell';
+    var method = 'manual_measurement';
+    var pumping = 'unknown';
+    var sourceType = 'field_observed';
+    var saving = false;
+    final site = TextEditingController();
+    final level = TextEditingController();
+    final sourceRef = TextEditingController();
+    final notes = TextEditingController();
+
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) =>
+      StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Record groundwater observation'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: requestId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Groundwater case'),
+              items: cases.map((r) {
+                final id = r['id'].toString();
+                return DropdownMenuItem(value: id, child: Text(_caseLabel(id), overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => requestId = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: departmentId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Responsible department'),
+              items: widget.departments.map((d) => DropdownMenuItem<String>(
+                value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString(),
+                  overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: saving ? null : (v) => setDialogState(() => departmentId = v),
+            ),
+            TextField(controller: site, decoration: const InputDecoration(labelText: 'Site / well reference *')),
+            DropdownButtonFormField<String>(
+              initialValue: wellType, decoration: const InputDecoration(labelText: 'Well type'),
+              items: const [
+                DropdownMenuItem(value: 'borewell', child: Text('Borewell')),
+                DropdownMenuItem(value: 'open_well', child: Text('Open well')),
+                DropdownMenuItem(value: 'observation_well', child: Text('Observation well')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => wellType = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: method, decoration: const InputDecoration(labelText: 'Observation method'),
+              items: const [
+                DropdownMenuItem(value: 'manual_measurement', child: Text('Manual measurement')),
+                DropdownMenuItem(value: 'sensor_reading', child: Text('Sensor reading')),
+                DropdownMenuItem(value: 'authority_record', child: Text('Authority record')),
+                DropdownMenuItem(value: 'field_inspection', child: Text('Field inspection')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => method = v); },
+            ),
+            TextField(controller: level, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Water level below ground (m) *')),
+            DropdownButtonFormField<String>(
+              initialValue: pumping, decoration: const InputDecoration(labelText: 'Pumping state at observation'),
+              items: const [
+                DropdownMenuItem(value: 'unknown', child: Text('Unknown')),
+                DropdownMenuItem(value: 'not_pumping', child: Text('Not pumping')),
+                DropdownMenuItem(value: 'pumping', child: Text('Pumping')),
+                DropdownMenuItem(value: 'recovery', child: Text('Recovery')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => pumping = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: sourceType, decoration: const InputDecoration(labelText: 'Source type'),
+              items: const [
+                DropdownMenuItem(value: 'field_observed', child: Text('Field observed')),
+                DropdownMenuItem(value: 'authority_document', child: Text('Authority document')),
+                DropdownMenuItem(value: 'sensor_snapshot', child: Text('Sensor snapshot')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => sourceType = v); },
+            ),
+            TextField(controller: sourceRef, decoration: const InputDecoration(labelText: 'Source / document reference')),
+            TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Measurement notes')),
+            const SizedBox(height: 8),
+            const Text('A water-level reading is not a legal or sustainability classification. Record the measurement time, method and pumping state accurately. This form does not connect to live sensors.',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          ],
+        ))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(
+            onPressed: saving ? null : () async {
+              final value = double.tryParse(level.text.trim());
+              if (departmentId == null || departmentId!.isEmpty || site.text.trim().isEmpty ||
+                  value == null || value < 0) {
+                _message('Enter a site reference and a valid non-negative water-level measurement.');
+                return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                await supabase.from('groundwater_observation_records').insert({
+                  'request_id': requestId,
+                  'responsible_department_id': departmentId,
+                  'site_reference': site.text.trim(),
+                  'well_type': wellType,
+                  'observation_method': method,
+                  'water_level_below_ground_m': value,
+                  'pumping_state': pumping,
+                  'source_type': sourceType,
+                  'source_reference': sourceRef.text.trim().isEmpty ? null : sourceRef.text.trim(),
+                  'measurement_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'created_by': user.id,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (_) {
+                setDialogState(() => saving = false);
+                _message('Unable to save. Confirm that the case is assigned to the selected department.');
+              }
+            },
+            child: saving ? const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save observation'),
+          ),
+        ],
+      )),
+    );
+    site.dispose(); level.dispose(); sourceRef.dispose(); notes.dispose();
+    if (saved == true) { await _load(); _message('Groundwater observation recorded.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.water_drop_outlined, color: Color(0xFF087F83)),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('Borewell & groundwater field observations',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ]),
+        const Text('Append dated site measurements to a borewell/groundwater case. The public station snapshot above remains separate.',
+          style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: groundwaterCases.isEmpty ? null : _add,
+          icon: const Icon(Icons.add), label: const Text('RECORD GROUNDWATER OBSERVATION'))),
+        const SizedBox(height: 8),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else if (records.isEmpty) const Text('No field observations have been recorded yet.',
+          style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+        else ...records.map((r) {
+          final dept = (r['responsible_department_id'] ?? '').toString();
+          return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFF7FAFC), borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4EAF1))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_caseLabel(r['request_id'].toString()),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              Text((r['site_reference'] ?? 'Site not specified').toString() + ' · ' +
+                (r['well_type'] ?? '').toString().replaceAll('_', ' ') + ' · ' +
+                (r['water_level_below_ground_m']?.toString() ?? '—') + ' m below ground',
+                style: const TextStyle(fontSize: 11, color: ink)),
+              Text(_departmentName(dept) + ' · ' +
+                (r['pumping_state'] ?? 'unknown').toString().replaceAll('_', ' ') + ' · ' +
+                (r['source_type'] ?? '').toString().replaceAll('_', ' '),
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+              Text('Observed: ' + (r['observed_at'] ?? '').toString(),
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            ]));
+        }),
+      ],
+    )));
+  }
+
+  String _departmentName(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return 'Department';
   }
 }
 
