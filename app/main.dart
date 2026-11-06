@@ -4661,7 +4661,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
               icon: const Icon(Icons.open_in_new, size: 15),
               label: const Text('Open official LGD report generator'),
             ),
-            if (canManageDirectory)
+            if (canManageDirectory) ...[
               FilledButton.icon(
                 onPressed: () async {
                   await Navigator.of(context).push(MaterialPageRoute(
@@ -4672,6 +4672,14 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                 icon: const Icon(Icons.upload_file, size: 15),
                 label: const Text('Import official CSV'),
               ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const UtilityAssetVerificationPage(),
+                )),
+                icon: const Icon(Icons.fact_check_outlined, size: 15),
+                label: const Text('Asset verification centre'),
+              ),
+            ],
           ]),
         ]),
       ),
@@ -4854,6 +4862,171 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   }
 }
 
+
+
+class UtilityAssetVerificationPage extends StatefulWidget {
+  const UtilityAssetVerificationPage({super.key});
+  @override
+  State<UtilityAssetVerificationPage> createState() => _UtilityAssetVerificationPageState();
+}
+
+class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationPage> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  bool authorised = false;
+  String errorMessage = '';
+  String selectedStatus = 'all';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      final profile = userId == null ? null : await supabase.from('profiles')
+          .select('role').eq('id', userId).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      if (role != 'admin' && role != 'coordinator') {
+        if (!mounted) return;
+        setState(() { authorised = false; loading = false; });
+        return;
+      }
+      final rows = await supabase.from('utility_asset_verification_queue')
+          .select('asset_id,asset_type,owner_department,operational_status,source_type,verification_status,surveyed_at,surveyed_by_org,verified_at,verification_notes,evidence_count,created_at')
+          .order('created_at', ascending: false).limit(300);
+      if (!mounted) return;
+      setState(() {
+        authorised = true;
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'The restricted verification queue could not be loaded. Check administrator permissions.';
+      });
+    }
+  }
+
+  String _date(dynamic value) {
+    if (value == null) return 'Not recorded';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return 'Not recorded';
+    return parsed.toLocal().toString().split('.').first;
+  }
+
+  Color _statusColor(String status) {
+    if (status == 'verified' || status == 'owner_confirmed') return const Color(0xFFE4F4E9);
+    if (status == 'field_surveyed') return const Color(0xFFE6F0FB);
+    if (status == 'disputed') return const Color(0xFFFFE8E8);
+    return const Color(0xFFFFF0D7);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = records.where((row) {
+      return selectedStatus == 'all' || row['verification_status'] == selectedStatus;
+    }).toList();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Asset verification centre'),
+        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : !authorised
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Restricted area. Only authorised SAMANVAY administrators and coordinators can access this review queue.',
+                    textAlign: TextAlign.center),
+                ))
+              : errorMessage.isNotEmpty
+                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(errorMessage)))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(padding: const EdgeInsets.all(15), children: [
+                        const Card(child: Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text(
+                            'AUTHORITY REVIEW QUEUE — metadata only. This screen deliberately excludes underground asset coordinates, routes, depths, dimensions and precise geometry. A verification label is not excavation clearance.',
+                            style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                          ),
+                        )),
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _metric('RECORDS LOADED', records.length.toString(), Icons.inventory_2_outlined),
+                          _metric('WITH EVIDENCE', records.where((r) => (r['evidence_count'] as num? ?? 0) > 0).length.toString(), Icons.attach_file),
+                          _metric('VERIFIED', records.where((r) => r['verification_status'] == 'verified').length.toString(), Icons.verified_outlined),
+                        ]),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedStatus,
+                          decoration: const InputDecoration(labelText: 'Verification status', border: OutlineInputBorder()),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All statuses')),
+                            DropdownMenuItem(value: 'unverified', child: Text('Unverified')),
+                            DropdownMenuItem(value: 'field_surveyed', child: Text('Field surveyed')),
+                            DropdownMenuItem(value: 'owner_confirmed', child: Text('Owner confirmed')),
+                            DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                            DropdownMenuItem(value: 'disputed', child: Text('Disputed')),
+                            DropdownMenuItem(value: 'retired', child: Text('Retired')),
+                          ],
+                          onChanged: (value) { if (value != null) setState(() => selectedStatus = value); },
+                        ),
+                        const SizedBox(height: 12),
+                        if (filtered.isEmpty)
+                          const Card(child: Padding(
+                            padding: EdgeInsets.all(18),
+                            child: Text('No asset metadata records are available for this queue yet. Authorised owner or survey submissions are required before review can begin.'),
+                          ))
+                        else
+                          ...filtered.map((row) {
+                            final status = (row['verification_status'] ?? 'unverified').toString();
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 9),
+                              child: Padding(
+                                padding: const EdgeInsets.all(13),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Expanded(child: Text((row['asset_type'] ?? 'unknown').toString().toUpperCase(),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy))),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                      decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(8)),
+                                      child: Text(status.replaceAll('_', ' ').toUpperCase(),
+                                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: navy)),
+                                    ),
+                                  ]),
+                                  const SizedBox(height: 7),
+                                  Text('Owner department: ' + (row['owner_department'] ?? 'Not assigned').toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Source: ' + (row['source_type'] ?? 'Not recorded').toString() +
+                                    ' · Operational status: ' + (row['operational_status'] ?? 'unknown').toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Survey date: ' + _date(row['surveyed_at']) +
+                                    ' · Evidence items: ' + (row['evidence_count'] ?? 0).toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['surveyed_by_org'] ?? '').toString().isNotEmpty)
+                                    Text('Survey organisation: ' + row['surveyed_by_org'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['verification_notes'] ?? '').toString().isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(row['verification_notes'].toString(),
+                                        style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                    ),
+                                ]),
+                              ),
+                            );
+                          }),
+                      ]),
+                    ),
+    );
+  }
+}
 
 class IndiaLgdCsvImportPage extends StatefulWidget {
   const IndiaLgdCsvImportPage({super.key});
