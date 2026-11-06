@@ -14,6 +14,7 @@ These are acquisition plans. They do not imply that government datasets, survey 
 ## GIS asset data governance
 
 - [Secure GIS Asset Ingestion and Verification](docs/data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
+- [Supabase Security and Performance Review](docs/security/SUPABASE_SECURITY_AND_PERFORMANCE_REVIEW_2026-11-06.md)
 - GeoJSON ingestion is restricted to authenticated department accounts.
 - Exact utility geometry remains server-side; mobile map views use approved generalised coverage.
 - Imported assets remain UNVERIFIED until authorised evidence and verification are recorded.
