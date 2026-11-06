@@ -3951,6 +3951,8 @@ class _MapPageState extends State<MapPage> {
   List<Map<String, dynamic>> _placeResults = [];
   bool _searching = false;
   bool _utilityQueryInFlight = false;
+  bool _requestLayerInFlight = false;
+  bool _requestLayerRefreshPending = false;
   String _scaleLabel = '';
   double _scaleWidth = 80;
   bool _is3D = true;
@@ -4079,6 +4081,150 @@ class _MapPageState extends State<MapPage> {
   // Extrude basemap building polygons only where the active provider style
   // supplies OpenMapTiles building attributes. This is city context, not
   // underground utility geometry.
+  Future<void> _loadVisibleWorkRequests() async {
+    if (_requestLayerInFlight) {
+      _requestLayerRefreshPending = true;
+      return;
+    }
+    _requestLayerInFlight = true;
+    try {
+      do {
+        _requestLayerRefreshPending = false;
+        final controller = _controller;
+        if (controller == null || !_styleReady) break;
+
+        final visibleBounds = await controller.getVisibleRegion();
+        final centerLatitude =
+            (visibleBounds.southwest.latitude + visibleBounds.northeast.latitude) / 2;
+        final latitudeBuffer = 1000 / 110540;
+        final longitudeScale =
+            (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+        final longitudeBuffer = 1000 / (111320 * longitudeScale);
+        final minRequestLat =
+            (visibleBounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+        final maxRequestLat =
+            (visibleBounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+        final minRequestLon =
+            (visibleBounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+        final maxRequestLon =
+            (visibleBounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+
+        final loadedRequestRows = <Map<String, dynamic>>[];
+        const requestPageSize = 500;
+        var requestOffset = 0;
+        while (true) {
+          final requestPage = await supabase
+              .from('excavation_requests')
+              .select('id,request_number,title,status,latitude,longitude,work_radius_m')
+              .gte('latitude', minRequestLat)
+              .lte('latitude', maxRequestLat)
+              .gte('longitude', minRequestLon)
+              .lte('longitude', maxRequestLon)
+              .order('created_at', ascending: false)
+              .order('id')
+              .range(requestOffset, requestOffset + requestPageSize - 1);
+          final pageRows = List<Map<String, dynamic>>.from(requestPage);
+          loadedRequestRows.addAll(pageRows);
+          if (pageRows.length < requestPageSize) break;
+          requestOffset += requestPageSize;
+        }
+
+        if (!mounted) break;
+        _visibleRequests = loadedRequestRows;
+        final features = <Map<String, dynamic>>[];
+        for (final row in loadedRequestRows) {
+          final lat = (row['latitude'] as num?)?.toDouble();
+          final lon = (row['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+            continue;
+          }
+          features.add({
+            'type': 'Feature',
+            'id': row['id'].toString(),
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_id': row['id'].toString(),
+              'request_number': row['request_number']?.toString() ?? '',
+              'title': row['title']?.toString() ?? 'Infrastructure request',
+              'status': row['status']?.toString() ?? 'submitted',
+            },
+          });
+        }
+
+        final sourceIds = await controller.getSourceIds();
+        final requestCollection = {
+          'type': 'FeatureCollection',
+          'features': features,
+        };
+        if (sourceIds.contains('samanvay-work-requests')) {
+          await controller.setGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        } else {
+          await controller.addGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        }
+
+        var layerIds = await controller.getLayerIds();
+        if (!layerIds.contains('samanvay-work-request-points')) {
+          await controller.addCircleLayer(
+            'samanvay-work-requests',
+            'samanvay-work-request-points',
+            CircleLayerProperties(
+              circleRadius: 6,
+              circleColor: [
+                'match',
+                ['get', 'status'],
+                'submitted', '#38BDF8',
+                'under_review', '#F59E0B',
+                'approved', '#22C55E',
+                'in_progress', '#F97316',
+                'completed', '#64748B',
+                'resolved', '#64748B',
+                'rejected', '#EF4444',
+                '#20D6C2',
+              ],
+              circleOpacity: 0.96,
+              circleStrokeColor: '#082033',
+              circleStrokeWidth: 1.6,
+            ),
+            enableInteraction: true,
+          );
+          layerIds = await controller.getLayerIds();
+        }
+        if (layerIds.contains('samanvay-work-request-points')) {
+          await controller.setLayerVisibility(
+            'samanvay-work-request-points',
+            _showRequests,
+          );
+        }
+
+        if (mounted) {
+          setState(() => _requestMarkerCount = features.length);
+        }
+        if (_canViewUtilityOverview) {
+          await _refreshUtilityConflictOverlay();
+        }
+      } while (_requestLayerRefreshPending && mounted);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Request locations or conflict advisories could not be refreshed. Check connectivity and staff access; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    } finally {
+      _requestLayerInFlight = false;
+    }
+  }
+
   void _handleCameraIdle() {
     if (!_styleReady) return;
     _viewportRefreshTimer?.cancel();
@@ -4086,11 +4232,9 @@ class _MapPageState extends State<MapPage> {
       if (!mounted) return;
       await _refreshMapScale();
       if (!mounted) return;
+      await _loadVisibleWorkRequests();
       if (_showUtilityZones && _canViewUtilityOverview) {
         await _loadUtilityOverview();
-      }
-      if (_canViewUtilityOverview) {
-        await _refreshUtilityConflictOverlay();
       }
       if (_showVerifiedAssets && _canViewDepartmentAssets) {
         await _loadDepartmentAssets();
@@ -4552,117 +4696,10 @@ class _MapPageState extends State<MapPage> {
       final departmentAssigned = role == 'department' &&
           profile?['department_id'] != null;
 
-      // Load every request in the current map extent plus a 1 km buffer.
-      // The buffer covers the 500 m maximum work radius and a conservative
-      // allowance for recorded horizontal survey uncertainty.
-      final visibleBounds = await controller.getVisibleRegion();
-      final centerLatitude =
-          (visibleBounds.southwest.latitude + visibleBounds.northeast.latitude) / 2;
-      final latitudeBuffer = 1000 / 110540;
-      final longitudeScale =
-          (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
-      final longitudeBuffer = 1000 / (111320 * longitudeScale);
-      final minRequestLat =
-          (visibleBounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
-      final maxRequestLat =
-          (visibleBounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
-      final minRequestLon =
-          (visibleBounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
-      final maxRequestLon =
-          (visibleBounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
-
-      final loadedRequestRows = <Map<String, dynamic>>[];
-      const requestPageSize = 500;
-      var requestOffset = 0;
-      while (true) {
-        final requestPage = await supabase
-            .from('excavation_requests')
-            .select('id,request_number,title,status,latitude,longitude,work_radius_m')
-            .gte('latitude', minRequestLat)
-            .lte('latitude', maxRequestLat)
-            .gte('longitude', minRequestLon)
-            .lte('longitude', maxRequestLon)
-            .order('created_at', ascending: false)
-            .order('id')
-            .range(requestOffset, requestOffset + requestPageSize - 1);
-        final pageRows = List<Map<String, dynamic>>.from(requestPage);
-        loadedRequestRows.addAll(pageRows);
-        if (pageRows.length < requestPageSize) break;
-        requestOffset += requestPageSize;
-      }
-      if (mounted) _visibleRequests = loadedRequestRows;
-      final features = <Map<String, dynamic>>[];
-      for (final row in loadedRequestRows) {
-        final lat = (row['latitude'] as num?)?.toDouble();
-        final lon = (row['longitude'] as num?)?.toDouble();
-        if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
-          continue;
-        }
-
-        features.add({
-          'type': 'Feature',
-          'id': row['id'].toString(),
-          'geometry': {
-            'type': 'Point',
-            'coordinates': [lon, lat],
-          },
-          'properties': {
-            'request_id': row['id'].toString(),
-            'request_number': row['request_number']?.toString() ?? '',
-            'title': row['title']?.toString() ?? 'Infrastructure request',
-            'status': row['status']?.toString() ?? 'submitted',
-          },
-        });
-      }
-
-      final sourceIds = await controller.getSourceIds();
-      if (sourceIds.contains('samanvay-work-requests')) {
-        await controller.setGeoJsonSource(
-          'samanvay-work-requests',
-          {'type': 'FeatureCollection', 'features': features},
-        );
-      } else {
-        await controller.addGeoJsonSource(
-          'samanvay-work-requests',
-          {'type': 'FeatureCollection', 'features': features},
-        );
-      }
-
-      final layerIds = await controller.getLayerIds();
-      if (!layerIds.contains('samanvay-work-request-points')) {
-        await controller.addCircleLayer(
-          'samanvay-work-requests',
-          'samanvay-work-request-points',
-          CircleLayerProperties(
-            circleRadius: 6,
-            circleColor: [
-              'match',
-              ['get', 'status'],
-              'submitted', '#38BDF8',
-              'under_review', '#F59E0B',
-              'approved', '#22C55E',
-              'in_progress', '#F97316',
-              'completed', '#64748B',
-              'resolved', '#64748B',
-              'rejected', '#EF4444',
-              '#20D6C2',
-            ],
-            circleOpacity: 0.96,
-            circleStrokeColor: '#082033',
-            circleStrokeWidth: 1.6,
-          ),
-          enableInteraction: true,
-        );
-      } else {
-        await controller.setLayerVisibility(
-          'samanvay-work-request-points',
-          _showRequests,
-        );
-      }
+      await _loadVisibleWorkRequests();
 
       if (mounted) {
         setState(() {
-          _requestMarkerCount = features.length;
           _canViewUtilityOverview = authorised;
           _canViewDepartmentAssets = departmentAssigned;
           _layerStatus = departmentAssigned
@@ -4673,11 +4710,9 @@ class _MapPageState extends State<MapPage> {
         });
       }
 
+
       if (_showUtilityZones && authorised) {
         await _loadUtilityOverview();
-      }
-      if (authorised) {
-        await _refreshUtilityConflictOverlay();
       }
       if (_showVerifiedAssets && departmentAssigned) {
         await _loadDepartmentAssets();
