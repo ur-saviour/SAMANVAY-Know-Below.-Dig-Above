@@ -4545,13 +4545,44 @@ class _MapPageState extends State<MapPage> {
       final departmentAssigned = role == 'department' &&
           profile?['department_id'] != null;
 
-      final requestRows = await supabase
-          .from('excavation_requests')
-          .select('id,request_number,title,status,latitude,longitude,work_radius_m')
-          .order('created_at', ascending: false)
-          .limit(500);
+      // Load every request in the current map extent plus a 1 km buffer.
+      // The buffer covers the 500 m maximum work radius and a conservative
+      // allowance for recorded horizontal survey uncertainty.
+      final visibleBounds = await controller.getVisibleRegion();
+      final centerLatitude =
+          (visibleBounds.southwest.latitude + visibleBounds.northeast.latitude) / 2;
+      final latitudeBuffer = 1000 / 110540;
+      final longitudeScale =
+          (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+      final longitudeBuffer = 1000 / (111320 * longitudeScale);
+      final minRequestLat =
+          (visibleBounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+      final maxRequestLat =
+          (visibleBounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+      final minRequestLon =
+          (visibleBounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+      final maxRequestLon =
+          (visibleBounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
 
-      final loadedRequestRows = List<Map<String, dynamic>>.from(requestRows);
+      final loadedRequestRows = <Map<String, dynamic>>[];
+      const requestPageSize = 500;
+      var requestOffset = 0;
+      while (true) {
+        final requestPage = await supabase
+            .from('excavation_requests')
+            .select('id,request_number,title,status,latitude,longitude,work_radius_m')
+            .gte('latitude', minRequestLat)
+            .lte('latitude', maxRequestLat)
+            .gte('longitude', minRequestLon)
+            .lte('longitude', maxRequestLon)
+            .order('created_at', ascending: false)
+            .order('id')
+            .range(requestOffset, requestOffset + requestPageSize - 1);
+        final pageRows = List<Map<String, dynamic>>.from(requestPage);
+        loadedRequestRows.addAll(pageRows);
+        if (pageRows.length < requestPageSize) break;
+        requestOffset += requestPageSize;
+      }
       if (mounted) _visibleRequests = loadedRequestRows;
       final features = <Map<String, dynamic>>[];
       for (final row in loadedRequestRows) {
