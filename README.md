@@ -18,10 +18,13 @@ These are acquisition plans. They do not imply that government datasets, survey 
 
 - [Secure GIS Asset Ingestion and Verification](docs/data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
 - [Supabase Security and Performance Review](docs/security/SUPABASE_SECURITY_AND_PERFORMANCE_REVIEW_2026-11-06.md)
-- GeoJSON ingestion is restricted to authenticated department accounts.
+- [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
+- The app bundles an optional 2024 Coimbatore 100-ward public-domain reference layer at `app/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson`.
+- That boundary layer is an administrative reference only; it is not CCMC-certified statutory GIS and does not contain underground utility geometry.
+- GeoJSON utility ingestion is restricted to authenticated department accounts.
 - Exact utility geometry remains server-side; mobile map views use approved generalised coverage.
-- Imported assets remain UNVERIFIED until authorised evidence and verification are recorded.
-- An empty registry is not evidence that underground utilities are absent.
+- Imported utility assets remain UNVERIFIED until authorised evidence and verification are recorded.
+- An empty underground-asset registry is not evidence that underground utilities are absent.
 
 ## Application
 
