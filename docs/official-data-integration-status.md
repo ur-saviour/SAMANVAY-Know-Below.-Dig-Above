@@ -118,24 +118,26 @@ https://www.mohua.gov.in/ministry/our-division/details/cpheeo-QDM1IzMtQWa
 
 The official Ministry of Panchayati Raj Local Government Directory (LGD) is now registered as the national administrative hierarchy source. It assigns unique LGD codes and covers State/UT, district, sub-district, block, urban local body, panchayat, village and ward entities.
 
-**Source-access finding:** the public LGD portal exposes citizen views, but bulk report generation at https://lgdirectory.gov.in/downloadDirectory.do requires a CAPTCHA. The automation inspected the official workflow and stopped at the CAPTCHA; it did not solve, bypass or automate it. The OGD Platform's LGD local-body resource page also says its data is dynamically generated through API and that an API for that resource does not exist. The LGD district resource is listed as monthly updated, but a direct bulk download was not verified in this pass.
+**Source-access finding:** the public LGD portal exposes citizen views, but bulk report generation at https://lgdirectory.gov.in/downloadDirectory.do requires a CAPTCHA. The browser inspection confirmed state-wise XLS/PDF/HTML/ODT exports for district and urban-local-body lists, with no single national bulk export found. The automation stopped at the CAPTCHA; it did not solve, bypass or automate it. The OGD Platform's LGD local-body resource page says its data is dynamically generated and that an API for that resource does not exist. IGOD's official State/UT district index has been catalogued as a second source for district portal discovery.
 
 **Implemented:**
 - Added `administrative_directory` as the 11th coverage domain across all 36 jurisdictions.
 - Added `public.india_administrative_units` for the LGD hierarchy, parent-child links, unique LGD codes, source dates and verification status.
 - Added `public.india_directory_import_batches` for report provenance, filename, report date, row counts and import audit.
 - Added RLS: authenticated read for administrative units; admin/coordinator-only management; admin/coordinator-only access to import batches.
-- Added an India explorer panel that shows the imported-record count, verification count and official LGD report link.
+- Added an India explorer panel that shows imported-record count, authority-verification count, and state-wise district/ULB export queue totals for administrators/coordinators.
+- Catalogued the official IGOD State/UT district index and added state-specific IGOD district-page links to the 36 administrative-directory coverage records.
+- Created 72 auditable export tasks: one district export and one urban-local-body export for each of the 36 jurisdictions. All are explicitly awaiting the normal public CAPTCHA-protected report generation; no records were fabricated.
 - Added an admin/coordinator-only CSV import screen. It validates required LGD Code, Name and State Name fields, preserves codes as text (including leading zeros), checks state/parent references, records report date and source filename, and upserts records with `imported_unverified` status. It never marks an import authority-verified.
 - Added CSV parser dependency to the Android build workflow.
 
 **Current verified database state:**
 - Coverage metadata: 396 rows = 36 jurisdictions × 11 domains.
 - Administrative hierarchy records imported: 0.
-- Import batches: 0.
+- Import batches: 72 queued (36 district exports + 36 urban-local-body exports; all awaiting official report generation).
 - Operationally enabled coverage rows: 0.
 
-The 36 administrative-directory rows are source/readiness metadata, not 36 populated district or ULB lists. A report generated from LGD by an authorised operator is still required before district, municipality and ward records can be populated. The importer is intentionally limited to admin/coordinator roles.
+The 36 administrative-directory rows are source/readiness metadata, not populated district or ULB lists. The 72 queued batches are workflow tasks, not imported data. A report generated from LGD through its normal CAPTCHA flow is still required before district, municipality and ward records can be populated. The importer is intentionally limited to admin/coordinator roles.
 
 Sources:
 - Ministry of Panchayati Raj LGD overview: https://panchayat.gov.in/en/lgd/
@@ -145,6 +147,10 @@ Sources:
 
 Reproducible schema/seed:
 `database/seed/india_lgd_administrative_directory.sql`
+`database/seed/india_lgd_export_queue.sql`
+
+IGOD district index:
+https://igod.gov.in/sg/district/states
 
 ## 8. Restricted asset verification centre — 6 November 2026
 
