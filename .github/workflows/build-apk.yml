@@ -138,77 +138,67 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
         run: |
-          flutter build apk --release \
+          flutter build apk --release --split-per-abi \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=MAPTILER_API_KEY="$MAPTILER_API_KEY"
 
-      # 8. Copy APK before diagnostics
-      - name: Prepare downloadable APK
+      # 8. Prepare smaller ABI-specific APKs for Android devices
+      - name: Prepare downloadable APKs
         run: |
-          APK="build/app/outputs/flutter-apk/app-release.apk"
-
-          if [ ! -s "$APK" ]; then
-            echo "ERROR: APK was not generated."
-            exit 1
-          fi
-
+          set -euo pipefail
           mkdir -p dist
-          cp "$APK" dist/SAMANVAY-Alpha-0.3.apk
 
-          echo "APK successfully prepared:"
-          ls -lh dist/SAMANVAY-Alpha-0.3.apk
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            SOURCE="build/app/outputs/flutter-apk/app-${ABI}-release.apk"
+            DEST="dist/SAMANVAY-Alpha-0.3-${ABI}.apk"
 
-          sha256sum dist/SAMANVAY-Alpha-0.3.apk
+            if [ ! -s "$SOURCE" ]; then
+              echo "ERROR: Expected APK not found: $SOURCE"
+              exit 1
+            fi
 
-      # 9. Diagnose APK (diagnostic failures won't block download)
-      - name: Inspect APK package and signing
-        continue-on-error: true
+            cp "$SOURCE" "$DEST"
+          done
+
+          echo "Prepared ABI-specific APKs:"
+          ls -lh dist/*.apk
+          sha256sum dist/*.apk
+
+      # 9. APK checks are required; failures fail the build
+      - name: Verify APK package, signature and alignment
         run: |
-          APK="dist/SAMANVAY-Alpha-0.3.apk"
-
-          echo "========== APK FILE =========="
-          file "$APK"
-          ls -lh "$APK"
-
-          echo "========== APK INTEGRITY =========="
-          unzip -t "$APK"
-
-          echo "========== ANDROID BUILD TOOLS =========="
+          set -euo pipefail
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" \
             -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
 
           if [ -z "$BUILD_TOOLS" ]; then
-            echo "Android build-tools unavailable; skipping detailed inspection."
-            exit 0
+            echo "ERROR: Android build-tools unavailable."
+            exit 1
           fi
 
-          echo "Build tools: $BUILD_TOOLS"
+          for APK in dist/*.apk; do
+            echo "========== VERIFYING $APK =========="
+            file "$APK"
+            unzip -t "$APK" >/dev/null
+            "$BUILD_TOOLS/aapt" dump badging "$APK"
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+            "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+          done
 
-          echo "========== PACKAGE INFORMATION =========="
-          "$BUILD_TOOLS/aapt" dump badging "$APK" || true
-
-          echo "========== SIGNATURE VERIFICATION =========="
-          "$BUILD_TOOLS/apksigner" verify \
-            --verbose \
-            --print-certs "$APK" || true
-
-          echo "========== ALIGNMENT CHECK =========="
-          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK" || true
-
-      # 10. ALWAYS upload APK as a downloadable artifact
-      - name: Upload APK download
-        if: always() && hashFiles('dist/SAMANVAY-Alpha-0.3.apk') != ''
+      # 10. Upload all ABI-specific APKs
+      - name: Upload APK downloads
+        if: always() && hashFiles('dist/*.apk') != ''
         uses: actions/upload-artifact@v4
         with:
           name: SAMANVAY-Alpha-0.3-APK
-          path: dist/SAMANVAY-Alpha-0.3.apk
+          path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
 
-      # 11. Publish GitHub Release when manually triggered
+      # 11. Publish/update the Alpha 0.3 prerelease on successful builds
       - name: Publish SAMANVAY Alpha 0.3
-        if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Alpha-0.3.apk') != ''
+        if: hashFiles('dist/*.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: samanvay-alpha-0.3
@@ -218,13 +208,13 @@ jobs:
             Version: Alpha 0.3
 
             Includes:
-            - Flutter release APK
+            - ABI-specific Flutter release APKs (ARM64, ARMv7, x86_64)
             - Verified department-owned GIS asset map layer
             - Device GPS coordinate display and OpenStreetMap place search fallback
             - Supabase integration foundation
-            - APK package and signing diagnostics
+            - Required APK integrity, signature and alignment checks
 
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: dist/SAMANVAY-Alpha-0.3.apk
+          files: dist/*.apk
