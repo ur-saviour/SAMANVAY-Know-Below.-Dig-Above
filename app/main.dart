@@ -5474,7 +5474,7 @@ class _MapPageState extends State<MapPage> {
                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 18),
                            const SizedBox(width: 8),
                            const Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
-                           Text('$_utilityConflictCount warning(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
+                           Text('$_utilityConflictCount request(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
                          ],
                        ),
                        const SizedBox(height: 6),
