@@ -4013,11 +4013,15 @@ class _MapPageState extends State<MapPage> {
     if (layerId == 'samanvay-utility-conflict-markers') {
       final details = _utilityConflictDetails[id];
       if (details != null) {
+        final conflicts = (details['conflicts'] as List?) ?? const [];
+        final summary = conflicts.take(3).map((raw) {
+          final item = Map<String, dynamic>.from(raw as Map);
+          return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m';
+        }).join(' | ');
         _showMessage(
-          'POTENTIAL CLASH · ${details['request_number']} near ${details['asset_code']} '
-          '(${details['asset_type']}) · ${(details['distance_m'] as num).toStringAsFixed(1)} m from mapped geometry. '
-          'Recorded depth: ${details['depth_m'] ?? 'not supplied'} m; horizontal accuracy: ${details['horizontal_accuracy_m'] ?? 'unknown'} m. '
-          'Department review required; this is not a confirmed strike or clearance.',
+          'POTENTIAL UTILITY PROXIMITY · Request ${details['request_number']} · '
+          '${details['candidate_count']} verified asset match(es). $summary. '
+          'Recorded depths/accuracy are advisory metadata only. Obtain owner-department clearance and field verification; this is not a safety clearance.',
         );
       }
       return;
@@ -4084,6 +4088,9 @@ class _MapPageState extends State<MapPage> {
       if (!mounted) return;
       if (_showUtilityZones && _canViewUtilityOverview) {
         await _loadUtilityOverview();
+      }
+      if (_canViewUtilityOverview) {
+        await _refreshUtilityConflictOverlay();
       }
       if (_showVerifiedAssets && _canViewDepartmentAssets) {
         await _loadDepartmentAssets();
@@ -4669,6 +4676,9 @@ class _MapPageState extends State<MapPage> {
       if (_showUtilityZones && authorised) {
         await _loadUtilityOverview();
       }
+      if (authorised) {
+        await _refreshUtilityConflictOverlay();
+      }
       if (_showVerifiedAssets && departmentAssigned) {
         await _loadDepartmentAssets();
       }
@@ -4865,88 +4875,101 @@ class _MapPageState extends State<MapPage> {
     return double.infinity;
   }
 
-  Future<void> _refreshUtilityConflictOverlay(
-    List<Map<String, dynamic>> verifiedAssets,
-  ) async {
+  Future<void> _refreshUtilityConflictOverlay() async {
     final controller = _controller;
-    if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
+
+    final activeRequests = _visibleRequests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      final lat = (request['latitude'] as num?)?.toDouble();
+      final lon = (request['longitude'] as num?)?.toDouble();
+      return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status) &&
+          lat != null && lon != null && lat.abs() <= 90 && lon.abs() <= 180;
+    }).toList();
 
     final features = <Map<String, dynamic>>[];
     final detailsById = <String, Map<String, dynamic>>{};
     var eligibleRequestCount = 0;
-    var candidateSequence = 0;
-    for (final request in _visibleRequests) {
-      final status = (request['status'] ?? '').toString().toLowerCase();
-      if (['completed', 'resolved', 'rejected', 'cancelled'].contains(status)) {
-        continue;
-      }
-      final lat = (request['latitude'] as num?)?.toDouble();
-      final lon = (request['longitude'] as num?)?.toDouble();
-      if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
-        continue;
-      }
-      // No radius means screening was not requested on the optional form field.
-      // Preserve the full 1–500 m range accepted by that form.
-      final rawRadius = double.tryParse((request['work_radius_m'] ?? '').toString());
-      if (rawRadius == null || !rawRadius.isFinite || rawRadius <= 0) continue;
-      eligibleRequestCount++;
-      final threshold = rawRadius.clamp(1.0, 500.0).toDouble();
-
-      for (final assetFeature in verifiedAssets) {
-        final geometry = assetFeature['geometry'];
-        final properties = assetFeature['properties'];
-        if (geometry is! Map || properties is! Map) continue;
-        final geometryMap = Map<String, dynamic>.from(geometry);
-        final props = Map<String, dynamic>.from(properties);
-        final distance = _distanceToAssetGeometryMetres(lat, lon, geometryMap);
-        final rawAccuracy = double.tryParse(
-          (props['horizontal_accuracy_m'] ?? '').toString(),
-        );
-        // Positional uncertainty widens the screening buffer. It does not
-        // turn an estimated asset into a verified one or establish clearance.
-        final accuracyBuffer = rawAccuracy != null &&
-                rawAccuracy.isFinite &&
-                rawAccuracy >= 0
-            ? rawAccuracy.clamp(0.0, 500.0).toDouble()
-            : 0.0;
-        final effectiveThreshold = threshold + accuracyBuffer;
-        if (!distance.isFinite || distance > effectiveThreshold) continue;
-
-        final assetCode = (props['asset_code'] ?? props['id'] ?? 'verified-asset').toString();
-        final requestId = (request['id'] ?? '').toString();
-        candidateSequence++;
-        final id = '${requestId}_${assetCode}_$candidateSequence'.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-        final requestNumber = (request['request_number'] ?? requestId).toString();
-        final assetType = (props['asset_type'] ?? 'unknown').toString();
-        final detail = {
-          'request_number': requestNumber,
-          'asset_code': assetCode,
-          'asset_type': assetType,
-          'distance_m': distance,
-          'horizontal_accuracy_m': rawAccuracy,
-          'depth_m': props['depth_m'],
-        };
-        detailsById[id] = detail;
-        features.add({
-          'type': 'Feature',
-          'id': id,
-          'geometry': {
-            'type': 'Point',
-            'coordinates': [lon, lat],
-          },
-          'properties': {
-            'request_number': requestNumber,
-            'asset_code': assetCode,
-            'asset_type': assetType,
-            'distance_m': distance,
-            'horizontal_accuracy_m': rawAccuracy,
-            'depth_m': props['depth_m'],
-          },
-        });
-      }
-    }
+    var verifiedAssetsAvailable = false;
 
     try {
+      const batchSize = 500;
+      for (var offset = 0; offset < activeRequests.length; offset += batchSize) {
+        final batch = activeRequests.skip(offset).take(batchSize).toList();
+        final requestIds = batch
+            .map((request) => (request['id'] ?? '').toString())
+            .where((id) => id.isNotEmpty)
+            .toList();
+        if (requestIds.isEmpty) continue;
+
+        // The server performs PostGIS screening against verified assets across
+        // departments and returns advisory metadata only, never asset geometry.
+        final raw = await supabase.rpc(
+          'get_map_utility_conflict_advisories',
+          params: {'p_request_ids': requestIds},
+        );
+        final response = Map<String, dynamic>.from(raw as Map);
+        verifiedAssetsAvailable =
+            response['verified_assets_available'] == true || verifiedAssetsAvailable;
+        final rawResults = response['results'];
+        if (rawResults is! List) continue;
+
+        for (final rawResult in rawResults) {
+          if (rawResult is! Map) continue;
+          final result = Map<String, dynamic>.from(rawResult);
+          final screeningStatus = (result['screening_status'] ?? '').toString();
+          if (screeningStatus == 'potential_conflict' ||
+              screeningStatus == 'screened_no_proximity_match') {
+            eligibleRequestCount++;
+          }
+          final rawConflicts = result['conflicts'];
+          if (screeningStatus != 'potential_conflict' ||
+              rawConflicts is! List || rawConflicts.isEmpty) {
+            continue;
+          }
+
+          final requestId = (result['request_id'] ?? '').toString();
+          final request = batch.cast<Map<String, dynamic>?>().firstWhere(
+                (item) => item?['id']?.toString() == requestId,
+                orElse: () => null,
+              );
+          if (request == null) continue;
+          final lat = (request['latitude'] as num?)?.toDouble();
+          final lon = (request['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null) continue;
+
+          final conflicts = rawConflicts
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          if (conflicts.isEmpty) continue;
+
+          final requestNumber =
+              (result['request_number'] ?? requestId).toString();
+          final markerId = requestId.replaceAll(
+            RegExp(r'[^A-Za-z0-9_-]'),
+            '_',
+          );
+          detailsById[markerId] = {
+            'request_number': requestNumber,
+            'candidate_count': conflicts.length,
+            'conflicts': conflicts,
+          };
+          features.add({
+            'type': 'Feature',
+            'id': markerId,
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_number': requestNumber,
+              'candidate_count': conflicts.length,
+            },
+          });
+        }
+      }
+
       final collection = {
         'type': 'FeatureCollection',
         'features': features,
@@ -4986,13 +5009,13 @@ class _MapPageState extends State<MapPage> {
       }
 
       if (!mounted) return;
-      final status = verifiedAssets.isEmpty
-          ? 'No verified assets are available in this map extent. Screening is unavailable; an empty registry does not mean the site is clear.'
+      final status = !verifiedAssetsAvailable
+          ? 'No verified underground utility assets are registered. Cross-department screening is unavailable; this does not mean sites are clear.'
           : eligibleRequestCount == 0
-              ? 'No active request in the loaded set has an entered work-site radius. Add a 1–500 m radius to enable proximity screening.'
+              ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
               : features.isEmpty
-                  ? 'No proximity warnings found within the entered work-site radii against verified assets visible in this map extent. This is not an excavation clearance.'
-                  : '${features.length} potential proximity warning(s). Department review and field verification are required; this is not a confirmed clash or clearance.';
+                  ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
+                  : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
       setState(() {
         _utilityConflictCount = features.length;
         _utilityConflictStatus = status;
@@ -5002,14 +5025,14 @@ class _MapPageState extends State<MapPage> {
       });
       if (features.isNotEmpty) {
         _showMessage(
-          '${features.length} potential utility proximity warning(s) found against verified assets owned by your department. Tap a red marker for details.',
+          '${features.length} work request(s) have potential proximity to verified underground assets across departments. Tap a red marker for advisory details.',
         );
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _utilityConflictCount = 0;
-          _utilityConflictStatus = 'Conflict screening could not be completed. Check department access and GIS connectivity; do not treat this as a clear site.';
+          _utilityConflictStatus = 'Cross-department screening could not be completed. Check staff access and GIS connectivity; do not treat this as a clear site.';
           _utilityConflictDetails.clear();
         });
       }
@@ -5069,8 +5092,6 @@ class _MapPageState extends State<MapPage> {
           verified.add(feature);
         }
       }
-
-      await _refreshUtilityConflictOverlay(verified);
 
       final verifiedCollection = <String, dynamic>{
         'type': 'FeatureCollection',
@@ -5185,16 +5206,6 @@ class _MapPageState extends State<MapPage> {
       }
       if (layers.contains('samanvay-verified-asset-points')) {
         await controller.setLayerVisibility('samanvay-verified-asset-points', false);
-      }
-      if (layers.contains('samanvay-utility-conflict-markers')) {
-        await controller.setLayerVisibility('samanvay-utility-conflict-markers', false);
-      }
-      if (mounted) {
-        setState(() {
-          _utilityConflictCount = 0;
-          _utilityConflictStatus = 'Screening paused because the verified department asset layer is hidden.';
-          _utilityConflictDetails.clear();
-        });
       }
       return;
     }
@@ -5569,19 +5580,23 @@ class _MapPageState extends State<MapPage> {
                        const SizedBox(height: 6),
                        Text(_utilityConflictStatus, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4)),
                        ..._utilityConflictDetails.values.take(5).map((detail) {
-                         final distance = (detail['distance_m'] as num).toDouble();
+                         final conflicts = (detail['conflicts'] as List?) ?? const [];
+                         final summary = conflicts.take(2).map((raw) {
+                           final item = Map<String, dynamic>.from(raw as Map);
+                           return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m';
+                         }).join(' | ');
                          return ListTile(
                            dense: true,
                            contentPadding: EdgeInsets.zero,
                            leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
-                           title: Text('${detail['request_number']} · ${detail['asset_type']}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                           subtitle: Text('${detail['asset_code']} · ${distance.toStringAsFixed(1)} m · depth ${detail['depth_m'] ?? 'n/a'} m · accuracy ${detail['horizontal_accuracy_m'] ?? 'unknown'} m', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                           title: Text('${detail['request_number']} · ${detail['candidate_count']} potential match(es)', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                           subtitle: Text(summary, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
                          );
                        }),
                        if (_utilityConflictDetails.length > 5)
                          Text('And ${_utilityConflictDetails.length - 5} more. Tap red map markers for details.', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
                        const SizedBox(height: 8),
-                       const Text('Scope: verified assets owned by your department only. Other departments’ exact utility geometry is not exposed to this mobile view. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
+                       const Text('Cross-department screening runs on the server against verified assets. The phone receives advisory metadata only, never another department’s exact route geometry. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
                      ],
                      if (_canViewUtilityOverview)
                        SwitchListTile(
