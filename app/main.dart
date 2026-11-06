@@ -2894,47 +2894,23 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                     }
 
                     setDialogState(() => saving = true);
-                    final payload = <String, dynamic>{
-                      'road_surface_type': surface,
-                      'restoration_status': status,
-                      'cut_length_m': cutLengthValue,
-                      'cut_width_m': cutWidthValue,
-                      'restored_length_m': restoredLengthValue,
-                      'restored_width_m': restoredWidthValue,
-                      'restoration_method': method.text.trim().isEmpty ? null : method.text.trim(),
-                      'planned_restore_date': plannedDate.text.trim().isEmpty ? null : plannedDate.text.trim(),
-                      'completed_at': status == 'accepted' ? DateTime.now().toUtc().toIso8601String() : null,
-                      'inspection_outcome': inspection,
-                      'compaction_verified': compaction,
-                      'drainage_clear': drainage,
-                      'surface_quality_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
-                      'updated_by': user.id,
-                    };
-
                     try {
-                      if (existing == null) {
-                        await supabase.from('road_restoration_records').insert({
-                          ...payload,
-                          'request_id': selectedRequestId,
-                          'responsible_department_id': selectedDepartmentId,
-                          'created_by': user.id,
-                        });
-                      } else {
-                        await supabase.from('road_restoration_records')
-                            .update(payload)
-                            .eq('id', existing['id'].toString());
-                      }
-
-                      final oldInspection = (existing?['inspection_outcome'] ?? 'not_inspected').toString();
-                      if (inspection != 'not_inspected' && inspection != oldInspection) {
-                        await supabase.from('case_inspections').insert({
-                          'request_id': selectedRequestId,
-                          'inspection_type': 'post_work',
-                          'outcome': inspection == 'accepted' ? 'pass' : 'follow_up_required',
-                          'notes': notes.text.trim(),
-                          'inspected_by': user.id,
-                        });
-                      }
+                      await supabase.rpc('save_road_restoration_record', params: {
+                        'p_request_id': selectedRequestId,
+                        'p_responsible_department_id': selectedDepartmentId,
+                        'p_road_surface_type': surface,
+                        'p_restoration_status': status,
+                        'p_cut_length_m': cutLengthValue,
+                        'p_cut_width_m': cutWidthValue,
+                        'p_restored_length_m': restoredLengthValue,
+                        'p_restored_width_m': restoredWidthValue,
+                        'p_restoration_method': method.text.trim().isEmpty ? null : method.text.trim(),
+                        'p_planned_restore_date': plannedDate.text.trim().isEmpty ? null : plannedDate.text.trim(),
+                        'p_inspection_outcome': inspection,
+                        'p_compaction_verified': compaction,
+                        'p_drainage_clear': drainage,
+                        'p_surface_quality_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                      });
 
                       if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
                     } catch (_) {
