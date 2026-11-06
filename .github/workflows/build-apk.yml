@@ -125,7 +125,7 @@ jobs:
           if "dependency_overrides:" not in content:
               content += chr(10) + "dependency_overrides:" + chr(10) + "  permission_handler_android: 13.0.1" + chr(10)
 
-          asset_entry = "    - assets/reference/coimbatore/coimbatore_wards_legacy_2011.geojson"
+          asset_entry = "    - assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson"
           if asset_entry not in content:
               if chr(10) + "flutter:" + chr(10) not in content:
                   raise SystemExit("Flutter section not found in generated pubspec.yaml")
