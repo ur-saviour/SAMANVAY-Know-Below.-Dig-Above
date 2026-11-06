@@ -12,6 +12,7 @@ The Tamil Nadu-first and national data acquisition plans are maintained here:
 - [Coimbatore Groundwater Telemetry Dataset](docs/data-governance/COIMBATORE_GROUNDWATER_TELEMETRY_DATASET.md)
 - [Coimbatore Pilot Data Readiness and Evidence Draft](docs/data-governance/COIMBATORE_PILOT_DATA_READINESS_AND_EVIDENCE_DRAFT.md)
 - [Coimbatore Open Reference Data Register](docs/data-governance/COIMBATORE_OPEN_REFERENCE_DATA_REGISTER.md)
+- [Coimbatore Public Data Package — 6 November 2026](docs/data-governance/COIMBATORE_PUBLIC_DATA_PACKAGE_2026-11-06.md)
 - [India National Data Acquisition Register](docs/data-governance/INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
 
 These are acquisition plans. They do not imply that government datasets, survey records, permissions or approvals have already been received.
@@ -29,6 +30,8 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - An empty underground-asset registry is not evidence that underground utilities are absent.
 
 - [Alpha 0.3 Coimbatore Pilot Delivery Record](docs/release/SAMANVAY_ALPHA_0_3_COIMBATORE_PILOT_DELIVERY.md)
+
+- Official Coimbatore taluk waterbody PDF source index (11 links): `data/reference/coimbatore_waterbody_map_index.csv`.
 
 ## Application
 
