@@ -156,6 +156,11 @@ jobs:
               )
           path.write_text(content)
           PY
+          echo "Verifying Flutter asset declarations before build..."
+          grep -F "assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" pubspec.yaml
+          grep -F "assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson" pubspec.yaml
+          test -s assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson
+          test -s assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson
           flutter pub get
 
       # 6. Check Dart code
@@ -215,6 +220,16 @@ jobs:
             "$BUILD_TOOLS/aapt" dump badging "$APK"
             "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
             "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+
+            for REQUIRED_ASSET in \
+              "assets/flutter_assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" \
+              "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"; do
+              if ! unzip -l "$APK" | grep -Fq "$REQUIRED_ASSET"; then
+                echo "ERROR: Required GIS data asset missing from APK: $REQUIRED_ASSET"
+                exit 1
+              fi
+              echo "Verified GIS data asset in APK: $REQUIRED_ASSET"
+            done
           done
 
       # 10. Upload all ABI-specific APKs
