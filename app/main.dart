@@ -2644,11 +2644,11 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
       if (request['id'].toString() == requestId) {
         final number = request['request_number']?.toString();
         final title = (request['title'] ?? request['road_name'] ?? 'Infrastructure case').toString();
-        return (number == null ? '' : 'Case #' + number + ' · ') + title;
+        return number == null ? title : 'Case #$number · $title';
       }
     }
     final shortId = requestId.length > 8 ? requestId.substring(0, 8) : requestId;
-    return 'Case ' + shortId;
+    return 'Case $shortId';
   }
 
   String _departmentLabel(String departmentId) {
@@ -2740,7 +2740,7 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                           final title = (request['title'] ?? request['road_name'] ?? 'Infrastructure case').toString();
                           return DropdownMenuItem<String>(
                             value: request['id'].toString(),
-                            child: Text((number.isEmpty ? '' : 'Case #' + number + ' · ') + title,
+                            child: Text(number.isEmpty ? title : 'Case #$number · $title',
                               overflow: TextOverflow.ellipsis),
                           );
                         }).toList(),
@@ -2748,7 +2748,7 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                       ),
                       const SizedBox(height: 10),
                       if (widget.isDepartment)
-                        Text('Responsible department: ' + (widget.departmentId ?? 'Not assigned'),
+                        Text('Responsible department: ${widget.departmentId ?? 'Not assigned'}',
                           style: const TextStyle(fontSize: 12, color: Colors.blueGrey))
                       else
                         DropdownButtonFormField<String>(
@@ -3014,8 +3014,8 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                 final outcome = _pretty((record['inspection_outcome'] ?? 'not_inspected').toString());
                 final departmentId = record['responsible_department_id'].toString();
                 final dimensions = [
-                  if (record['restored_length_m'] != null) record['restored_length_m'].toString() + ' m length',
-                  if (record['restored_width_m'] != null) record['restored_width_m'].toString() + ' m width',
+                  if (record['restored_length_m'] != null) '${record['restored_length_m']} m length',
+                  if (record['restored_width_m'] != null) '${record['restored_width_m']} m width',
                 ].join(' · ');
                 return Container(
                   margin: const EdgeInsets.only(top: 8),
@@ -3032,8 +3032,7 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                       maxLines: 2, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
                     subtitle: Text(
-                      _departmentLabel(departmentId) + ' · ' + surfaceName + ' · inspection: ' + outcome +
-                      (dimensions.isEmpty ? '' : ' · ' + dimensions),
+                      '${_departmentLabel(departmentId)} · $surfaceName · inspection: $outcome${dimensions.isEmpty ? '' : ' · $dimensions'}',
                       style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
                     trailing: Icon(Icons.chevron_right, color: _statusColor(state)),
                   ),
