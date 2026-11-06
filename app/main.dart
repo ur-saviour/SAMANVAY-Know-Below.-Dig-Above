@@ -4081,21 +4081,8 @@ class GroundwaterTelemetryDashboard extends StatefulWidget {
 class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDashboard> {
   List<Map<String, dynamic>> stations = [];
   bool loading = true;
+  bool syncing = false;
   String errorMessage = '';
-
-  DateTime? _parseObservedAt(String value) {
-    try {
-      final pieces = value.trim().split(' ');
-      final date = pieces.first.split('-');
-      final time = pieces.length > 1 ? pieces[1].split(':') : ['0','0'];
-      return DateTime(
-        int.parse(date[2]), int.parse(date[1]), int.parse(date[0]),
-        int.parse(time[0]), int.parse(time[1]),
-      );
-    } catch (_) {
-      return null;
-    }
-  }
 
   @override
   void initState() {
@@ -4104,47 +4091,66 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
   }
 
   Future<void> _loadSnapshot() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
     try {
-      final raw = await rootBundle.loadString(
-        'assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson',
-      );
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
-        throw const FormatException('Invalid groundwater telemetry FeatureCollection.');
-      }
-      final loaded = <Map<String, dynamic>>[];
-      for (final feature in decoded['features'] as List) {
-        if (feature is! Map || feature['properties'] is! Map) continue;
-        final props = Map<String, dynamic>.from(feature['properties'] as Map);
-        props['feature_id'] = feature['id']?.toString();
-        loaded.add(props);
-      }
-      loaded.sort((a, b) {
-        final da = _parseObservedAt((a['observed_at'] ?? '').toString());
-        final db = _parseObservedAt((b['observed_at'] ?? '').toString());
-        if (da == null && db == null) return 0;
-        if (da == null) return 1;
-        if (db == null) return -1;
-        return db.compareTo(da);
-      });
+      final rows = await supabase
+          .from('latest_groundwater_station_observations')
+          .select('station_name,agency,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text,imported_at')
+          .eq('district_name', 'Coimbatore')
+          .order('observed_at_local', ascending: false)
+          .limit(300);
       if (!mounted) return;
-      setState(() { stations = loaded; loading = false; });
+      setState(() {
+        stations = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
     } catch (_) {
       if (!mounted) return;
-      setState(() { loading = false; errorMessage = 'Groundwater snapshot could not be loaded from the bundled data asset.'; });
+      setState(() {
+        loading = false;
+        errorMessage = 'Official groundwater observations are not available yet. Use the sync action after signing in.';
+      });
+    }
+  }
+
+  Future<void> _syncOfficialData() async {
+    if (syncing) return;
+    setState(() { syncing = true; errorMessage = ''; });
+    try {
+      final response = await supabase.functions.invoke('import-nwdp-coimbatore-groundwater');
+      if (response.status >= 400) {
+        final detail = response.data is Map ? response.data['error']?.toString() : null;
+        throw Exception(detail ?? 'Official groundwater import failed.');
+      }
+      await _loadSnapshot();
+      if (!mounted) return;
+      final result = response.data;
+      final message = result is Map && result['status'] == 'already_fresh'
+          ? 'Official NWDP data was synced within the last six hours.'
+          : 'Official Coimbatore groundwater records have been imported.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sync could not complete. Check your connection and sign-in, then retry.')),
+      );
+    } finally {
+      if (mounted) setState(() { syncing = false; });
     }
   }
 
   String _reading(Map<String, dynamic> station) {
-    final value = station['groundwater_level_telemetry_m'];
-    if (value is! num) return 'Not reported';
-    return value.toStringAsFixed(3) + ' m';
+    final value = station['reported_level_m'];
+    if (value is num) return value.toStringAsFixed(3) + ' m (as published)';
+    final raw = (station['reported_level_text'] ?? '').toString();
+    return raw.isEmpty || raw == '-' ? 'Not reported' : raw + ' (as published)';
   }
 
   Widget _stationTile(Map<String, dynamic> station) {
     final name = (station['station_name'] ?? 'Unnamed station').toString();
     final tehsil = (station['tehsil'] ?? 'Tehsil not supplied').toString();
-    final observed = (station['observed_at'] ?? 'Timestamp unavailable').toString();
+    final observed = (station['observed_at_local'] ?? 'Timestamp unavailable').toString();
     final rl = station['rl_msl_m'] is num
         ? ' · RL MSL ' + (station['rl_msl_m'] as num).toStringAsFixed(2) + ' m'
         : '';
@@ -4162,9 +4168,9 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
 
   @override
   Widget build(BuildContext context) {
-    final latest = stations.isNotEmpty ? (stations.first['observed_at'] ?? 'Unavailable').toString() : 'Unavailable';
-    final recent = stations.take(5).toList();
-    final remaining = stations.length > 5 ? stations.skip(5).toList() : <Map<String, dynamic>>[];
+    final latest = stations.isNotEmpty
+        ? (stations.first['observed_at_local'] ?? 'Unavailable').toString()
+        : 'Unavailable';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -4172,25 +4178,36 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
           Row(children: [
             const Icon(Icons.water_drop_outlined, color: Color(0xFF087F83)),
             const SizedBox(width: 9),
-            const Expanded(child: Text('Groundwater monitoring snapshot',
+            const Expanded(child: Text('Official groundwater station observations',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
-            IconButton(onPressed: loading ? null : _loadSnapshot,
-              icon: const Icon(Icons.refresh), tooltip: 'Reload groundwater snapshot'),
+            IconButton(onPressed: loading || syncing ? null : _loadSnapshot,
+              icon: const Icon(Icons.refresh), tooltip: 'Reload imported observations'),
           ]),
-          const Text('Coimbatore district · Tamil Nadu Surface Water and Ground Water Departments · NWDP snapshot',
+          const Text('Coimbatore district · Tamil Nadu SW GW · National Water Data Portal',
             style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: syncing ? null : _syncOfficialData,
+            icon: syncing
+                ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.cloud_download_outlined),
+            label: Text(syncing ? 'SYNCING OFFICIAL DATA…' : 'SYNC OFFICIAL NWDP DATA'),
+          )),
+          const SizedBox(height: 8),
           if (loading)
             const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
           else if (errorMessage.isNotEmpty)
             Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+          else if (stations.isEmpty)
+            const Text('No official station observations have been imported yet. Tap Sync Official NWDP Data to import the Coimbatore dataset.',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey))
           else ...[
             Row(children: [
               Expanded(child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: const Color(0xFFF1F7FA), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Stations in snapshot', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                  const Text('Stations represented', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
                   Text(stations.length.toString(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: navy)),
                 ]),
               )),
@@ -4199,22 +4216,22 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: const Color(0xFFF1F7FA), borderRadius: BorderRadius.circular(12)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Latest source observation', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
-                  Text(latest, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: navy)),
+                  const Text('Latest imported observation', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                  Text(latest, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
                 ]),
               )),
             ]),
             const SizedBox(height: 8),
-            ...recent.map(_stationTile),
-            if (remaining.isNotEmpty)
+            ...stations.take(12).map(_stationTile),
+            if (stations.length > 12)
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
-                title: Text('Show remaining ' + remaining.length.toString() + ' stations',
+                title: Text('Show remaining ' + (stations.length - 12).toString() + ' stations',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                children: remaining.map(_stationTile).toList(),
+                children: stations.skip(12).map(_stationTile).toList(),
               ),
             const SizedBox(height: 6),
-            const Text('This is a dated station snapshot, not a live feed or private borewell register. Values are shown as published; no safe/unsafe classification or cross-station ranking is inferred.',
+            const Text('These are published monitoring-station readings, not private borewell measurements or a live sensor feed. Values are displayed as supplied by the source; no legal, safety or sustainability classification is inferred.',
               style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
           ],
         ]),
