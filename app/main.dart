@@ -2639,6 +2639,7 @@ class RoadCutPermitBoard extends StatefulWidget {
 
 class _RoadCutPermitBoardState extends State<RoadCutPermitBoard> {
   List<Map<String, dynamic>> records = [];
+  List<Map<String, dynamic>> publicApprovalRecords = [];
   bool loading = true;
   String errorMessage = '';
 
@@ -3591,8 +3592,24 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
     try {
       final rows = await supabase.from('building_compliance_inspections')
           .select().order('inspected_at', ascending: false).limit(100);
+      List<Map<String, dynamic>> publishedRows = [];
+      try {
+        final publicRows = await supabase
+            .from('building_approval_public_register_records')
+            .select('source_record_id,zone_name,building_type,building_sub_type,plot_area_sqm,approval_status,release_date')
+            .eq('source_dataset', 'MCD_NEXGEN_OBPS_PLAN_RELEASE_REPORT_2023')
+            .order('release_date', ascending: false)
+            .limit(8);
+        publishedRows = List<Map<String, dynamic>>.from(publicRows);
+      } catch (_) {
+        publishedRows = [];
+      }
       if (!mounted) return;
-      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        publicApprovalRecords = publishedRows;
+        loading = false;
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() { loading = false; errorMessage = 'Building inspection records could not be loaded for this account.'; });
@@ -3758,6 +3775,42 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
         ]),
         const Text('Compare observed building details with recorded approval information. Discrepancies require competent-authority verification.',
           style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F7F8),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFD7E8E9)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('OFFICIAL PUBLIC APPROVAL REGISTER',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF087F83), letterSpacing: 0.6)),
+            const SizedBox(height: 4),
+            const Text('2,015 MCD plan-release records imported · Delhi · 2023',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+            const SizedBox(height: 3),
+            const Text('Partial MCD coverage only. The source does not provide approved floor count, building height or verified coordinates.',
+              style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            if (publicApprovalRecords.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...publicApprovalRecords.map((record) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.verified_outlined, size: 15, color: Color(0xFF087F83)),
+                  const SizedBox(width: 7),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Request #${record['source_record_id'] ?? '—'} · ${record['zone_name'] ?? 'Zone not stated'}',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: navy)),
+                    Text('${record['building_type'] ?? 'Building'} · ${record['plot_area_sqm'] ?? '—'} m² plot · ${record['approval_status'] ?? 'Status not stated'} · ${record['release_date'] ?? 'Date not stated'}',
+                      style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                  ])),
+                ]),
+              )),
+            ],
+          ]),
+        ),
         const SizedBox(height: 10),
         SizedBox(width: double.infinity, child: OutlinedButton.icon(
           onPressed: buildingCases.isEmpty ? null : _addInspection,
