@@ -3850,6 +3850,7 @@ class _MapPageState extends State<MapPage> {
   int _coimbatoreWardCount = 0;
   bool _showGroundwaterTelemetry = true;
   int _groundwaterStationCount = 0;
+  final Map<String, Map<String, dynamic>> _groundwaterStationDetails = {};
   String _deviceCoordinateLabel = '';
   String _layerStatus =
       'Underground visibility requires authorised, verified GIS records.';
@@ -3873,6 +3874,16 @@ class _MapPageState extends State<MapPage> {
     String layerId,
     Annotation? annotation,
   ) {
+    if (layerId == 'samanvay-groundwater-telemetry-points') {
+      final details = _groundwaterStationDetails[id];
+      if (details != null) {
+        final station = (details['station_name'] ?? 'Groundwater station').toString();
+        final reading = details['groundwater_level_telemetry_m'];
+        final observed = (details['observed_at'] ?? 'Timestamp unavailable').toString();
+        _showMessage('$station · telemetry: ${reading ?? 'not reported'} m · $observed');
+      }
+      return;
+    }
     if (layerId == 'samanvay-work-request-points') {
       unawaited(_openCaseFromMap(id));
     }
@@ -4332,7 +4343,7 @@ class _MapPageState extends State<MapPage> {
             circleStrokeColor: '#101B29',
             circleStrokeWidth: 1.8,
           ),
-          enableInteraction: false,
+          enableInteraction: true,
         );
       }
 
@@ -4344,8 +4355,24 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
+      final stationDetails = <String, Map<String, dynamic>>{};
+      for (final item in rawFeatures) {
+        if (item is! Map) continue;
+        final feature = Map<String, dynamic>.from(item);
+        final featureId = (feature['id'] ?? '').toString();
+        final properties = feature['properties'];
+        if (featureId.isNotEmpty && properties is Map) {
+          stationDetails[featureId] = Map<String, dynamic>.from(properties);
+        }
+      }
+
       if (mounted) {
-        setState(() => _groundwaterStationCount = rawFeatures.length);
+        setState(() {
+          _groundwaterStationCount = rawFeatures.length;
+          _groundwaterStationDetails
+            ..clear()
+            ..addAll(stationDetails);
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _groundwaterStationCount = 0);
@@ -5057,7 +5084,7 @@ class _MapPageState extends State<MapPage> {
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '$_groundwaterStationCount Coimbatore district stations · latest published reading shown by timestamp · not a borewell register',
+                        '$_groundwaterStationCount Coimbatore district stations · tap a marker for its latest reading and timestamp · not a borewell register',
                         style: const TextStyle(
                           color: Color(0xFFB8C7D5),
                           fontSize: 11,
