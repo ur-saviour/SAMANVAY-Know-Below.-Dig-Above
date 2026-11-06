@@ -167,6 +167,9 @@ jobs:
       - name: Analyze Dart code
         run: flutter analyze
 
+      - name: Run Flutter widget and unit tests
+        run: flutter test
+
       # 7. Build APK
       - name: Build release APK
         env:
