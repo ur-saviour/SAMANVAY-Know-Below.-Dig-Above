@@ -120,16 +120,20 @@ jobs:
           set -euo pipefail
           docker cp "$RUNNER_TEMP/samanvay-restore/samanvay.dump" \
             samanvay-restore-target:/tmp/samanvay.dump
-          docker exec samanvay-restore-target pg_restore \
+          docker exec -u root samanvay-restore-target \
+            chown postgres:postgres /tmp/samanvay.dump
+          docker exec -u postgres samanvay-restore-target \
+            createdb -T template0 samanvay_restore
+          docker exec -u postgres samanvay-restore-target pg_restore \
             --exit-on-error --no-owner --no-acl --jobs=2 \
-            --dbname=postgres /tmp/samanvay.dump
+            --dbname=samanvay_restore /tmp/samanvay.dump
           echo "pg_restore completed without an error."
 
       - name: Compare restored data and validate spatial database
         run: |
           set -euo pipefail
           expected="$(tr -d '\r\n' < "$RUNNER_TEMP/samanvay-restore/source-counts.csv")"
-          actual="$(docker exec samanvay-restore-target psql -U postgres -d postgres \
+          actual="$(docker exec -u postgres samanvay-restore-target psql -d samanvay_restore \
             --no-psqlrc --tuples-only --no-align --field-separator=',' \
             --command="SELECT
               (SELECT count(*) FROM public.groundwater_station_observations),
@@ -143,9 +147,9 @@ jobs:
             echo "::error::Restored key-table row counts do not match the source snapshot."
             exit 1
           }
-          docker exec samanvay-restore-target psql -U postgres -d postgres \
+          docker exec -u postgres samanvay-restore-target psql -d samanvay_restore \
             -v ON_ERROR_STOP=1 -c "SELECT PostGIS_Full_Version();"
-          docker exec samanvay-restore-target psql -U postgres -d postgres \
+          docker exec -u postgres samanvay-restore-target psql -d samanvay_restore \
             -v ON_ERROR_STOP=1 -c "SELECT count(*) AS restored_public_tables FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
           echo "PASS: database restore, key-table row counts and PostGIS validation succeeded."
 
