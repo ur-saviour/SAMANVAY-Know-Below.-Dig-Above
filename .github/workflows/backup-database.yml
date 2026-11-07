@@ -1,6 +1,11 @@
 name: Secure SAMANVAY Full Database Backup (Scheduled GitHub Archive)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/backup-database.yml
   schedule:
     - cron: "30 2 1 * *" # Monthly, on the first day at 02:30 UTC
   workflow_dispatch:
