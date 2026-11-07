@@ -7832,13 +7832,13 @@ class _MapPageState extends State<MapPage> {
       if (layers.contains('samanvay-coimbatore-ward-fill')) {
         await controller.setLayerVisibility(
           'samanvay-coimbatore-ward-fill',
-          _showCoimbatoreWardBoundaries,
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
         );
       }
       if (layers.contains('samanvay-coimbatore-ward-lines')) {
         await controller.setLayerVisibility(
           'samanvay-coimbatore-ward-lines',
-          _showCoimbatoreWardBoundaries,
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
         );
       }
 
