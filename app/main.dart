@@ -7195,7 +7195,20 @@ class _MapPageState extends State<MapPage> {
   String _scaleLabel = '';
   double _scaleWidth = 80;
   bool _is3D = true;
+  bool _undergroundMode = false;
   bool _styleReady = false;
+  bool _buildingReadinessLoaded = false;
+  bool _utilityReadinessLoaded = false;
+  bool _groundwaterReadinessLoaded = false;
+  int _approvalRecordCount = 0;
+  int _approvalMappedCount = 0;
+  int _approvalFloorCount = 0;
+  int _utilityLayerCatalogueCount = 0;
+  int _utilityLayersPending = 0;
+  int _utilityLayersUnverified = 0;
+  int _utilityLayersOperational = 0;
+  int _groundwaterCoverageJurisdictions = 0;
+  int _groundwaterTelemetryGaps = 0;
   bool _satellite = _mapTilerKey.isNotEmpty;
   bool _showRequests = true;
   bool _showUtilityZones = false;
@@ -7246,9 +7259,16 @@ class _MapPageState extends State<MapPage> {
       final details = _groundwaterStationDetails[id];
       if (details != null) {
         final station = (details['station_name'] ?? 'Groundwater station').toString();
-        final reading = details['groundwater_level_telemetry_m'];
-        final observed = (details['observed_at'] ?? 'Timestamp unavailable').toString();
-        _showMessage('$station · telemetry: ${reading ?? 'not reported'} m · $observed');
+        final district = (details['district_name'] ?? '').toString();
+        final state = (details['state_name'] ?? '').toString();
+        final reading = details['reported_level_m'];
+        final readingText = (details['reported_level_text'] ?? '').toString();
+        final observed = (details['observed_at_local'] ?? 'Timestamp unavailable').toString();
+        final place = [district, state].where((part) => part.isNotEmpty).join(', ');
+        final level = readingText.isNotEmpty
+            ? readingText
+            : reading == null ? 'not reported' : '$reading m';
+        _showMessage('$station${place.isEmpty ? '' : ' · $place'} · level: $level · observed: $observed');
       }
       return;
     }
@@ -7472,6 +7492,9 @@ class _MapPageState extends State<MapPage> {
       await _refreshMapScale();
       if (!mounted) return;
       await _loadVisibleWorkRequests();
+      if (_showGroundwaterTelemetry) {
+        await _loadGroundwaterTelemetryStations();
+      }
       if (_showUtilityZones && _canViewUtilityOverview) {
         await _loadUtilityOverview();
       }
@@ -7556,7 +7579,7 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
-      await controller.setLayerVisibility('samanvay-3d-buildings', _is3D);
+      await controller.setLayerVisibility('samanvay-3d-buildings', _is3D && !_undergroundMode);
     } catch (_) {
       // If a provider style lacks the expected source/attributes, the
       // basemap remains usable. No illustrative buildings are substituted.
@@ -7833,9 +7856,14 @@ class _MapPageState extends State<MapPage> {
     if (controller == null || !_styleReady) return;
 
     try {
+      final bounds = await controller.getVisibleRegion();
       final rows = await supabase
           .from('latest_groundwater_station_observations')
           .select('id,station_name,agency,state_name,district_name,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
+          .gte('latitude', bounds.southwest.latitude)
+          .lte('latitude', bounds.northeast.latitude)
+          .gte('longitude', bounds.southwest.longitude)
+          .lte('longitude', bounds.northeast.longitude)
           .order('state_name')
           .order('district_name')
           .limit(1000);
@@ -7928,8 +7956,11 @@ class _MapPageState extends State<MapPage> {
     try {
       // Public administrative reference data is independent of account role.
       // This 2024 ward reference layer is not a current statutory jurisdiction source.
-      await _loadCoimbatoreWardBoundaries();
-      await _loadGroundwaterTelemetryStations();
+      await Future.wait<void>([
+        _loadCoimbatoreWardBoundaries(),
+        _loadGroundwaterTelemetryStations(),
+        _loadMapReadiness(),
+      ]);
 
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -8498,6 +8529,81 @@ class _MapPageState extends State<MapPage> {
     await _loadUtilityOverview();
   }
 
+
+  Future<void> _setUndergroundMode(bool enabled) async {
+    if (_undergroundMode == enabled) return;
+
+    final controller = _controller;
+    setState(() {
+      _undergroundMode = enabled;
+      if (enabled) {
+        _showUtilityZones = _canViewUtilityOverview;
+        _showVerifiedAssets = _canViewDepartmentAssets;
+      } else {
+        _showUtilityZones = false;
+        _showVerifiedAssets = false;
+      }
+    });
+
+    if (controller == null || !_styleReady) return;
+
+    Future<void> setVisibility(String layerId, bool visible) async {
+      final layerIds = await controller.getLayerIds();
+      if (layerIds.contains(layerId)) {
+        await controller.setLayerVisibility(layerId, visible);
+      }
+    }
+
+    try {
+      if (enabled) {
+        // Hide the surface extrusions and ward outlines to make the
+        // underground operational layer visually distinct.
+        await setVisibility('samanvay-3d-buildings', false);
+        await setVisibility('samanvay-coimbatore-ward-fill', false);
+        await setVisibility('samanvay-coimbatore-ward-lines', false);
+
+        if (_canViewUtilityOverview) {
+          await _loadUtilityOverview();
+        }
+        if (_canViewDepartmentAssets) {
+          await _loadDepartmentAssets();
+        }
+
+        if (!_canViewUtilityOverview && !_canViewDepartmentAssets) {
+          if (mounted) {
+            setState(() {
+              _layerStatus =
+                  'Underground mode selected. This requester account cannot view operational underground geometry. No data shown is not proof that utilities are absent.';
+            });
+          }
+          _showMessage(
+            'Underground operational layers require an authorised infrastructure staff account.',
+          );
+        } else if (mounted) {
+          setState(() {
+            _layerStatus = _canViewDepartmentAssets
+                ? 'Underground mode: generalised national/municipal coverage plus verified geometry owned by your department. Other departments’ exact routes remain withheld.'
+                : 'Underground mode: generalised coverage cells only. Exact utility routes and depths remain withheld.';
+          });
+        }
+      } else {
+        await setVisibility('samanvay-utility-overview-cells', false);
+        await setVisibility('samanvay-verified-asset-lines', false);
+        await setVisibility('samanvay-verified-asset-points', false);
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', _showCoimbatoreWardBoundaries);
+        await setVisibility('samanvay-coimbatore-ward-lines', _showCoimbatoreWardBoundaries);
+        if (mounted) {
+          setState(() {
+            _layerStatus = 'Surface mode: 2D/3D basemap, work requests and available public reference layers.';
+          });
+        }
+      }
+    } catch (_) {
+      _showMessage('Unable to switch map mode. Refresh the map layers and retry.');
+    }
+  }
+
   Future<void> _changeBasemap(bool useSatellite) async {
     if (useSatellite && _mapTilerKey.isEmpty) {
       _showMessage(
@@ -8548,7 +8654,7 @@ class _MapPageState extends State<MapPage> {
       );
       final layers = await controller.getLayerIds();
       if (layers.contains('samanvay-3d-buildings')) {
-        await controller.setLayerVisibility('samanvay-3d-buildings', use3D);
+        await controller.setLayerVisibility('samanvay-3d-buildings', use3D && !_undergroundMode);
       }
     } catch (_) {
       _showMessage('Unable to change map perspective.');
@@ -8655,6 +8761,131 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+
+  Future<void> _loadMapReadiness() async {
+    var buildingLoaded = false;
+    var utilityLoaded = false;
+    var groundwaterLoaded = false;
+
+    var approvalCount = 0;
+    var approvalMapped = 0;
+    var approvalFloors = 0;
+    var utilityCount = 0;
+    var utilityPending = 0;
+    var utilityUnverified = 0;
+    var utilityOperational = 0;
+    var groundwaterJurisdictions = 0;
+    var groundwaterGaps = 0;
+
+    try {
+      final rawRows = await supabase
+          .from('building_approval_public_register_records')
+          .select('id,geometry_status,approved_floor_count')
+          .limit(2500);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      approvalCount = rows.length;
+      approvalMapped = rows.where((row) => row['geometry_status'] == 'verified_geocoded').length;
+      approvalFloors = rows.where((row) => row['approved_floor_count'] != null).length;
+      buildingLoaded = true;
+    } catch (_) {
+      // A missing permission or unavailable register must not block the map.
+    }
+
+    try {
+      final rawRows = await supabase
+          .schema('gis')
+          .from('utility_layer_catalog')
+          .select('id,source_status,operational_use_allowed')
+          .limit(200);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      utilityCount = rows.length;
+      utilityPending = rows.where((row) => row['source_status'] == 'authority_data_pending').length;
+      utilityUnverified = rows.where((row) => row['source_status'] == 'data_received_unverified').length;
+      utilityOperational = rows.where((row) => row['operational_use_allowed'] == true).length;
+      utilityLoaded = true;
+    } catch (_) {
+      // Metadata-only utility status is optional for requester accounts.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('telemetry_status')
+          .eq('data_domain', 'groundwater')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      groundwaterJurisdictions = rows.length;
+      groundwaterGaps = rows.where((row) {
+        final status = (row['telemetry_status'] ?? '').toString();
+        return status.contains('no_2021_2025_feed') ||
+            status.contains('unverified') ||
+            status.contains('historical');
+      }).length;
+      groundwaterLoaded = true;
+    } catch (_) {
+      // Station rendering continues even if the national coverage summary is unavailable.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _buildingReadinessLoaded = buildingLoaded;
+      _utilityReadinessLoaded = utilityLoaded;
+      _groundwaterReadinessLoaded = groundwaterLoaded;
+      _approvalRecordCount = approvalCount;
+      _approvalMappedCount = approvalMapped;
+      _approvalFloorCount = approvalFloors;
+      _utilityLayerCatalogueCount = utilityCount;
+      _utilityLayersPending = utilityPending;
+      _utilityLayersUnverified = utilityUnverified;
+      _utilityLayersOperational = utilityOperational;
+      _groundwaterCoverageJurisdictions = groundwaterJurisdictions;
+      _groundwaterTelemetryGaps = groundwaterGaps;
+    });
+  }
+
+  Widget _readinessRow({
+    required IconData icon,
+    required String title,
+    required String detail,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: Color(0xFFB8C7D5),
+                    fontSize: 10,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openLayerPanel() {
     showModalBottomSheet<void>(
       context: context,
@@ -8688,6 +8919,64 @@ class _MapPageState extends State<MapPage> {
                       style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
                     ),
                     const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D1C2C),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x5541BFB4)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'NATIONAL DATA READINESS',
+                            style: TextStyle(
+                              color: Color(0xFF55D9CE),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          _readinessRow(
+                            icon: Icons.water_drop_outlined,
+                            title: 'GROUNDWATER',
+                            color: const Color(0xFFA78BFA),
+                            detail: _groundwaterReadinessLoaded
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · $_groundwaterCoverageGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                : 'Coverage summary unavailable; station layer remains independently controlled.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.account_balance_outlined,
+                            title: 'BUILDING APPROVALS',
+                            color: const Color(0xFFFBBF24),
+                            detail: _buildingReadinessLoaded
+                                ? '$_approvalRecordCount public-register record(s) · $_approvalMapped geocoded · $_approvalFloors with approved floor count. Address-only records are not plotted at guessed locations.'
+                                : 'Public approval register summary unavailable.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.hub_outlined,
+                            title: 'UNDERGROUND UTILITY GIS',
+                            color: const Color(0xFF38BDF8),
+                            detail: _utilityReadinessLoaded
+                                ? '$_utilityLayerCatalogueCount catalogue layer(s) · $_utilityLayersPending authority-pending · $_utilityLayersUnverified received but unverified · $_utilityLayersOperational operationally enabled'
+                                : 'Utility catalogue summary unavailable or access restricted.',
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            'The 3D surface model is contextual basemap building massing, not a statutory approval model. Underground lines are drawn only from authorised, verified records. No layer, warning or empty map is excavation clearance.',
+                            style: TextStyle(
+                              color: Color(0xFFF6C66B),
+                              fontSize: 9,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     SwitchListTile(
                       value: _showRequests,
                       activeThumbColor: const Color(0xFF20D6C2),
@@ -8729,7 +9018,7 @@ class _MapPageState extends State<MapPage> {
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '$_groundwaterStationCount mapped station points across imported States/UTs · zoom out for national distribution; tap a marker for its latest published reading · not a borewell register',
+                        '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · tap for the published reading and timestamp · not a borewell register or complete station inventory',
                         style: const TextStyle(
                           color: Color(0xFFB8C7D5),
                           fontSize: 11,
@@ -9019,7 +9308,9 @@ class _MapPageState extends State<MapPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _satellite ? 'AERIAL IMAGERY' : '2D / 3D CAMERA',
+                    _undergroundMode
+                        ? 'UNDERGROUND DATA VIEW'
+                        : _is3D ? '3D SURFACE MAP' : '2D SURFACE MAP',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -9040,9 +9331,15 @@ class _MapPageState extends State<MapPage> {
                   ],
                   const SizedBox(height: 4),
                   Text(
-                    _satellite
-                        ? 'Imagery date and resolution vary by location.'
-                        : '3D perspective depends on available building data.',
+                    _undergroundMode
+                        ? (_canViewDepartmentAssets
+                            ? 'Own-department verified geometry plus generalised coverage. Other owners’ exact routes are withheld.'
+                            : _canViewUtilityOverview
+                                ? 'Generalised coverage only. Exact utility routes and depths are withheld.'
+                                : 'Operational underground geometry is restricted for this account.')
+                        : _satellite
+                            ? 'Imagery date and resolution vary by location.'
+                            : '3D building massing is available only where the basemap supplies building attributes; it is not an approval record.',
                     style: const TextStyle(
                       color: Color(0xFFB6C7D6),
                       fontSize: 9,
@@ -9178,7 +9475,7 @@ class _MapPageState extends State<MapPage> {
           if (_scaleLabel.isNotEmpty)
             Positioned(
               left: 14,
-              bottom: 183,
+              bottom: 226,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
@@ -9223,30 +9520,53 @@ class _MapPageState extends State<MapPage> {
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(color: const Color(0x5539BDB0)),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _pill(
-                    label: 'VECTOR',
-                    selected: !_satellite,
-                    onTap: () => _changeBasemap(false),
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'SURFACE',
+                        selected: !_undergroundMode,
+                        onTap: () => _setUndergroundMode(false),
+                      ),
+                      const SizedBox(width: 5),
+                      _pill(
+                        label: 'UNDERGROUND',
+                        selected: _undergroundMode,
+                        onTap: () => _setUndergroundMode(true),
+                      ),
+                    ],
                   ),
-                  _pill(
-                    label: 'SATELLITE',
-                    selected: _satellite,
-                    onTap: () => _changeBasemap(true),
-                  ),
-                  const SizedBox(width: 4),
-                  Container(width: 1, height: 24, color: const Color(0x554B647C)),
-                  const SizedBox(width: 4),
-                  _pill(
-                    label: '2D',
-                    selected: !_is3D,
-                    onTap: () => _changePerspective(false),
-                  ),
-                  _pill(
-                    label: '3D',
-                    selected: _is3D,
-                    onTap: () => _changePerspective(true),
+                  const SizedBox(height: 4),
+                  const Divider(height: 1, color: Color(0x334B647C)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'VECTOR',
+                        selected: !_satellite,
+                        onTap: () => _changeBasemap(false),
+                      ),
+                      _pill(
+                        label: 'SATELLITE',
+                        selected: _satellite,
+                        onTap: () => _changeBasemap(true),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(width: 1, height: 24, color: const Color(0x554B647C)),
+                      const SizedBox(width: 4),
+                      _pill(
+                        label: '2D',
+                        selected: !_is3D,
+                        onTap: () => _changePerspective(false),
+                      ),
+                      _pill(
+                        label: '3D',
+                        selected: _is3D,
+                        onTap: () => _changePerspective(true),
+                      ),
+                    ],
                   ),
                 ],
               ),
