@@ -7592,7 +7592,32 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
-      await controller.setLayerVisibility('samanvay-3d-buildings', _is3D && !_undergroundMode);
+      // Fine footprint edges improve the legibility of real OSM building
+      // massing at neighbourhood zoom without inventing facade geometry.
+      final refreshedLayers = await controller.getLayerIds();
+      if (!refreshedLayers.contains('samanvay-3d-building-outlines')) {
+        await controller.addLineLayer(
+          'openmaptiles',
+          'samanvay-3d-building-outlines',
+          const LineLayerProperties(
+            lineColor: '#B8D0E0',
+            lineWidth: 0.65,
+            lineOpacity: 0.48,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      await controller.setLayerVisibility(
+        'samanvay-3d-buildings',
+        _is3D && !_undergroundMode,
+      );
+      await controller.setLayerVisibility(
+        'samanvay-3d-building-outlines',
+        _is3D && !_undergroundMode,
+      );
     } catch (_) {
       // If a provider style lacks the expected source/attributes, the
       // basemap remains usable. No illustrative buildings are substituted.
