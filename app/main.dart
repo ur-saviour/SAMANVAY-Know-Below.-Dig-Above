@@ -7205,7 +7205,6 @@ class _MapPageState extends State<MapPage> {
   int _approvalFloorCount = 0;
   int _utilityLayerCatalogueCount = 0;
   int _utilityLayersPending = 0;
-  int _utilityLayersUnverified = 0;
   int _utilityLayersOperational = 0;
   int _groundwaterCoverageJurisdictions = 0;
   int _groundwaterTelemetryGaps = 0;
@@ -8793,14 +8792,13 @@ class _MapPageState extends State<MapPage> {
 
     try {
       final rawRows = await supabase
-          .schema('gis')
-          .from('utility_layer_catalog')
-          .select('id,source_status,operational_use_allowed')
-          .limit(200);
+          .from('india_data_coverage')
+          .select('id,coverage_status,operational_use_allowed')
+          .eq('data_domain', 'utility_gis')
+          .limit(50);
       final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
       utilityCount = rows.length;
-      utilityPending = rows.where((row) => row['source_status'] == 'authority_data_pending').length;
-      utilityUnverified = rows.where((row) => row['source_status'] == 'data_received_unverified').length;
+      utilityPending = rows.where((row) => row['coverage_status'] == 'authority_asset_gis_required').length;
       utilityOperational = rows.where((row) => row['operational_use_allowed'] == true).length;
       utilityLoaded = true;
     } catch (_) {
@@ -8836,7 +8834,6 @@ class _MapPageState extends State<MapPage> {
       _approvalFloorCount = approvalFloors;
       _utilityLayerCatalogueCount = utilityCount;
       _utilityLayersPending = utilityPending;
-      _utilityLayersUnverified = utilityUnverified;
       _utilityLayersOperational = utilityOperational;
       _groundwaterCoverageJurisdictions = groundwaterJurisdictions;
       _groundwaterTelemetryGaps = groundwaterGaps;
@@ -8945,7 +8942,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'GROUNDWATER',
                             color: const Color(0xFFA78BFA),
                             detail: _groundwaterReadinessLoaded
-                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · $_groundwaterCoverageGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
                                 : 'Coverage summary unavailable; station layer remains independently controlled.',
                           ),
                           _readinessRow(
@@ -8953,7 +8950,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'BUILDING APPROVALS',
                             color: const Color(0xFFFBBF24),
                             detail: _buildingReadinessLoaded
-                                ? '$_approvalRecordCount public-register record(s) · $_approvalMapped geocoded · $_approvalFloors with approved floor count. Address-only records are not plotted at guessed locations.'
+                                ? '$_approvalRecordCount public-register record(s) · $_approvalMappedCount geocoded · $_approvalFloorCount with approved floor count. Address-only records are not plotted at guessed locations.'
                                 : 'Public approval register summary unavailable.',
                           ),
                           _readinessRow(
@@ -8961,7 +8958,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'UNDERGROUND UTILITY GIS',
                             color: const Color(0xFF38BDF8),
                             detail: _utilityReadinessLoaded
-                                ? '$_utilityLayerCatalogueCount catalogue layer(s) · $_utilityLayersPending authority-pending · $_utilityLayersUnverified received but unverified · $_utilityLayersOperational operationally enabled'
+                                ? '$_utilityLayerCatalogueCount State/UT coverage entry(ies) · $_utilityLayersPending awaiting authority asset GIS · $_utilityLayersOperational operationally enabled'
                                 : 'Utility catalogue summary unavailable or access restricted.',
                           ),
                           const SizedBox(height: 5),
