@@ -237,3 +237,23 @@
 - [ ] Obtain and validate source registers and their update dates.
 
 **Verified database state:** 9 national authority references. This is an authority/source directory, not a complete list of every State/UT or municipal department.
+
+## 18. Surface 3D and underground GIS operating modes — 7 November 2026
+
+- [x] Add a dedicated Surface / Underground mode selector to the MapLibre GIS workspace.
+- [x] Preserve vector/satellite basemaps and independent 2D/3D camera controls.
+- [x] Render contextual 3D building extrusions only where the selected basemap supplies building geometry and height attributes.
+- [x] Suppress surface building extrusions and administrative outlines in Underground mode.
+- [x] Load generalised 250 m underground-coverage cells only for authenticated infrastructure staff with the existing role gate.
+- [x] Load exact verified asset geometry only through the assigned-department RPC; other departments' exact geometry remains withheld.
+- [x] Keep requester accounts out of operational underground geometry and show an explicit permission/coverage explanation.
+- [x] Add map-side readiness summaries for groundwater, building approvals and utility-GIS coverage.
+- [x] Refresh published groundwater station points against the visible map extent (maximum 1,000 features per viewport) and show the stored reading text/value and observation timestamp.
+- [x] State explicitly that an empty map, missing warning or generalised coverage cell is not excavation clearance.
+- [ ] Implement true volumetric underground 3D / subsurface cutaway rendering using owner-authorised depth, vertical datum, geometry and survey-accuracy metadata. The current underground mode is an authorised 2D GIS overlay on a navigable map, not a fabricated 3D utility model.
+- [ ] Receive and validate asset-owner utility GIS, survey evidence and data-sharing permission before enabling operational asset layers.
+- [ ] Complete Android APK compilation, package/signature checks and release artifact publication for this commit.
+- [ ] Run real-device Android map tests and browser GIS regression tests for requester, department, coordinator and admin roles.
+- [ ] Receive geocoded building approvals and approved floor/height values before plotting approval records or performing map-based compliance analysis.
+
+**Implementation commit:** `2a13790554d32cd4bc6b963b8dea554d98746d70` on `feature/alpha-03-integrated-platform`. Dart analysis passed on Android and browser workflows; browser compilation and packaging completed. Android APK compilation was still running at the time of this matrix update. The 3D basemap building extrusions are contextual OSM-derived massing, not statutory approval heights. Utility coverage metadata and empty registries do not establish that underground infrastructure is absent.
