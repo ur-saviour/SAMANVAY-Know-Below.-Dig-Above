@@ -1,21 +1,25 @@
-
-
-name: Secure SAMANVAY Database Backup
+name: Secure SAMANVAY Full Database Backup (Scheduled GitHub Archive)
 
 on:
+  schedule:
+    - cron: "30 2 1 * *" # Monthly, on the first day at 02:30 UTC
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: samanvay-github-backup
+  cancel-in-progress: false
 
 jobs:
   backup:
-    name: Create and encrypt SAMANVAY database backup
+    name: Dump, encrypt, archive and verify
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 45
     steps:
-      - name: Validate backup configuration
+      - name: Validate existing database and encryption secrets
         env:
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -23,173 +27,133 @@ jobs:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-
-          test -n "$SUPABASE_DB_HOST" || {
-            echo "Missing SUPABASE_DB_HOST secret."
-            exit 1
-          }
-
-          test -n "$SUPABASE_PROJECT_REF" || {
-            echo "Missing SUPABASE_PROJECT_REF secret."
-            exit 1
-          }
-
-          test -n "$SUPABASE_DB_PASSWORD" || {
-            echo "Missing SUPABASE_DB_PASSWORD secret."
-            exit 1
-          }
-
-          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || {
-            echo "Missing BACKUP_ENCRYPTION_PASSPHRASE secret."
-            exit 1
-          }
-
-          python - <<'PY'
-          import os
-          import re
-          import sys
-
-          host = os.environ["SUPABASE_DB_HOST"]
-          project_ref = os.environ["SUPABASE_PROJECT_REF"]
-
-          if not re.fullmatch(r"[A-Za-z0-9.-]+", host):
-              sys.exit("Invalid database hostname format.")
-
-          if not re.fullmatch(r"[a-z0-9-]+", project_ref):
-              sys.exit("Invalid Supabase project reference format.")
-
-          if len(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"]) < 32:
-              sys.exit("Encryption passphrase must contain at least 32 characters.")
-
-          print("Required secrets and configuration checks passed.")
-          PY
+          for name in SUPABASE_DB_HOST SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD BACKUP_ENCRYPTION_PASSPHRASE; do
+            test -n "${!name}" || { echo "::error::Missing required secret: $name"; exit 1; }
+          done
+          if [ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -lt 32 ]; then
+            echo "::error::Backup passphrase must be at least 32 characters."; exit 1
+          fi
+          echo "Required secret presence verified without displaying values."
 
       - name: Create PostgreSQL custom-format dump
         env:
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
+          PGCONNECT_TIMEOUT: "30"
         run: |
           set -euo pipefail
-
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
-          mkdir -p "$BACKUP_DIR"
-
-          export PGHOST="$SUPABASE_DB_HOST"
-          export PGPORT="5432"
-          export PGDATABASE="postgres"
-          export PGUSER="postgres.${SUPABASE_PROJECT_REF}"
-          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
-          export PGSSLMODE="require"
-          export PGCONNECT_TIMEOUT="30"
-
-          echo "Connecting through the Supabase Session Pooler."
-          echo "Using the project-scoped PostgreSQL username."
-
+          mkdir -p "$RUNNER_TEMP/samanvay-backup"
           docker run --rm \
-            -e PGHOST \
-            -e PGPORT \
-            -e PGDATABASE \
-            -e PGUSER \
-            -e PGPASSWORD \
-            -e PGSSLMODE \
-            -e PGCONNECT_TIMEOUT \
-            -v "$BACKUP_DIR:/backup" \
-            postgres:18-alpine \
-            pg_dump \
-              --schema=public \
-              --format=custom \
-              --no-owner \
-              --no-acl \
-              --file=/backup/samanvay-public.dump
+            -e SUPABASE_DB_HOST -e SUPABASE_PROJECT_REF -e SUPABASE_DB_PASSWORD \
+            -e PGSSLMODE -e PGCONNECT_TIMEOUT \
+            -v "$RUNNER_TEMP/samanvay-backup:/backup" \
+            postgres:18-alpine sh -euc '
+              export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+              pg_dump --host="$SUPABASE_DB_HOST" --port=5432 \
+                --username="postgres.$SUPABASE_PROJECT_REF" --dbname=postgres \
+                --format=custom --no-owner --no-acl --file=/backup/samanvay.dump
+              pg_restore --list /backup/samanvay.dump > /backup/archive-contents.txt
+            '
+          test -s "$RUNNER_TEMP/samanvay-backup/samanvay.dump"
+          echo "PostgreSQL dump and archive catalogue validation passed."
 
-          test -s "$BACKUP_DIR/samanvay-public.dump"
-
-          echo "Validating PostgreSQL backup."
-
-          docker run --rm \
-            -v "$BACKUP_DIR:/backup" \
-            postgres:18-alpine \
-            pg_restore --list /backup/samanvay-public.dump > /dev/null
-
-          echo "PostgreSQL dump created and validated."
-
-      - name: Encrypt database backup
+      - name: Encrypt dump and create SHA-256 manifest
         env:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
-          export BACKUP_DIR
-
-          python -m venv "$RUNNER_TEMP/backup-venv"
-
-          "$RUNNER_TEMP/backup-venv/bin/python" -m pip install \
-            --quiet \
-            --disable-pip-version-check \
-            cryptography
-
+          export BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
+          python3 -m venv "$RUNNER_TEMP/backup-venv"
+          "$RUNNER_TEMP/backup-venv/bin/pip" install --quiet --disable-pip-version-check 'cryptography==45.0.7'
           "$RUNNER_TEMP/backup-venv/bin/python" - <<'PY'
-          import base64
-          import hashlib
-          import os
+          import base64, hashlib, os
           from pathlib import Path
-
           from cryptography.fernet import Fernet
           from cryptography.hazmat.primitives import hashes
           from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
-          backup_dir = Path(os.environ["BACKUP_DIR"])
-          source = backup_dir / "samanvay-public.dump"
-          output = backup_dir / "SAMANVAY-public-backup.dump.fernet"
-          temporary = backup_dir / "backup-encrypted.tmp"
-
-          passphrase = os.environ["BACKUP_ENCRYPTION_PASSPHRASE"]
-
-          try:
-              if not source.is_file() or source.stat().st_size == 0:
-                  raise SystemExit("Database dump is missing or empty.")
-
-              if len(passphrase) < 32:
-                  raise SystemExit("Encryption passphrase must contain at least 32 characters.")
-
-              salt = os.urandom(16)
-
-              kdf = PBKDF2HMAC(
-                  algorithm=hashes.SHA256(),
-                  length=32,
-                  salt=salt,
-                  iterations=600000,
-              )
-
-              key = base64.urlsafe_b64encode(
-                  kdf.derive(passphrase.encode("utf-8"))
-              )
-
-              encrypted = Fernet(key).encrypt(source.read_bytes())
-
-              temporary.write_bytes(b"SAM1" + salt + encrypted)
-              temporary.replace(output)
-
-              if not output.is_file() or output.stat().st_size == 0:
-                  raise SystemExit("Encrypted backup validation failed.")
-
-              digest = hashlib.sha256(output.read_bytes()).hexdigest()
-
-              print("Encrypted backup created and checked.")
-              print("File:", output.name)
-              print("SHA-256:", digest)
-
-          finally:
-              source.unlink(missing_ok=True)
-              temporary.unlink(missing_ok=True)
+          folder = Path(os.environ["BACKUP_DIR"])
+          raw = (folder / "samanvay.dump").read_bytes()
+          salt = os.urandom(16)
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+          key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
+          encrypted = folder / "SAMANVAY-database.dump.fernet"
+          encrypted.write_bytes(b"SAM2" + salt + Fernet(key).encrypt(raw))
+          digest = hashlib.sha256(encrypted.read_bytes()).hexdigest()
+          (folder / "SHA256SUM").write_text(f"{digest}  {encrypted.name}\\n")
+          (folder / "BACKUP-METADATA.txt").write_text(
+              "SAMANVAY encrypted PostgreSQL custom-format backup\\n"
+              f"Created UTC: {__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()}\\n"
+              f"Encrypted size: {encrypted.stat().st_size} bytes\\n"
+              f"SHA-256: {digest}\\n"
+              "Encryption: Fernet / PBKDF2-HMAC-SHA256, 600000 iterations\\n"
+          )
+          (folder / "samanvay.dump").unlink()
+          print(f"Encrypted backup prepared ({encrypted.stat().st_size} bytes).")
           PY
 
-      - name: Upload encrypted backup
+      - name: Store encrypted backup as GitHub archive (90-day retention)
+        id: archive
         uses: actions/upload-artifact@v4
         with:
-          name: SAMANVAY-Encrypted-Database-Backup
-          path: ${{ runner.temp }}/samanvay-backup/SAMANVAY-public-backup.dump.fernet
+          name: SAMANVAY-Encrypted-Database-Backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/samanvay-backup/SAMANVAY-database.dump.fernet
+            ${{ runner.temp }}/samanvay-backup/SHA256SUM
+            ${{ runner.temp }}/samanvay-backup/BACKUP-METADATA.txt
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
+          compression-level: 0
+
+      - name: Download archived copy for independent integrity check
+        uses: actions/download-artifact@v4
+        with:
+          name: SAMANVAY-Encrypted-Database-Backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/verified-archive
+
+      - name: Verify archived copy, decrypt and validate PostgreSQL format
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          export VERIFY_DIR="$RUNNER_TEMP/verified-archive"
+          "$RUNNER_TEMP/backup-venv/bin/python" - <<'PY'
+          import base64, hashlib, os
+          from pathlib import Path
+          from cryptography.fernet import Fernet
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          folder = Path(os.environ["VERIFY_DIR"])
+          encrypted = folder / "SAMANVAY-database.dump.fernet"
+          expected = (folder / "SHA256SUM").read_text().split()[0]
+          actual = hashlib.sha256(encrypted.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit("Archived artifact SHA-256 mismatch.")
+          payload = encrypted.read_bytes()
+          if payload[:4] != b"SAM2":
+              raise SystemExit("Unknown encrypted archive format.")
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=payload[4:20], iterations=600000)
+          key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
+          raw = Fernet(key).decrypt(payload[20:])
+          if not raw.startswith(b"PGDMP"):
+              raise SystemExit("Decrypted content is not a PostgreSQL custom-format archive.")
+          (folder / "verified.dump").write_bytes(raw)
+          print(f"PASS: archived artifact checksum and decryption verified ({len(raw)} dump bytes).")
+          PY
+          docker run --rm -v "$RUNNER_TEMP/verified-archive:/backup" postgres:18-alpine pg_restore --list /backup/verified.dump > /dev/null
+          echo "PASS: downloaded GitHub archive decrypted and PostgreSQL archive catalogue validated."
+          echo "NOTE: This verifies archive integrity, not a full restore into a separate database."
+
+      - name: Publish backup summary
+        if: success()
+        run: |
+          {
+            echo "## SAMANVAY encrypted backup archived"
+            echo ""
+            echo "- Destination: private GitHub Actions artifact"
+            echo "- Retention: 90 days"
+            echo "- Verification: artifact download, SHA-256, decryption and pg_restore catalogue passed"
+            echo "- Full restore drill: not performed"
+            echo "- Scope: PostgreSQL database dump; Supabase Storage files and project settings are not included"
+          } >> "$GITHUB_STEP_SUMMARY"
