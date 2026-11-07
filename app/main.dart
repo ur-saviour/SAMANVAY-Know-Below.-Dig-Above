@@ -7562,7 +7562,17 @@ class _MapPageState extends State<MapPage> {
               14,
               0,
               16,
-              ['coalesce', ['get', 'render_height'], ['get', 'height'], 0],
+              [
+                'max',
+                6,
+                [
+                  'coalesce',
+                  ['to-number', ['get', 'render_height']],
+                  ['to-number', ['get', 'height']],
+                  ['*', ['to-number', ['get', 'building:levels']], 3],
+                  6,
+                ],
+              ],
             ],
             fillExtrusionBase: [
               'coalesce',
@@ -9010,7 +9020,7 @@ class _MapPageState extends State<MapPage> {
                           ),
                           const SizedBox(height: 5),
                           const Text(
-                            '3D surface buildings are contextual basemap massing, not statutory approval records. Underground 3D cells show only relative density in generalised 250 m cells—not physical depth, elevation, dimensions or routes. Exact assets remain access-controlled; an empty layer is not excavation clearance.',
+                            '3D buildings use live OpenStreetMap footprints with mapped heights/levels where available; missing heights receive a 6 m visual estimate and must not be used for compliance decisions. Underground 3D cells show relative density in generalised 250 m cells—not physical depth, elevation, dimensions or routes. Exact assets remain access-controlled; an empty layer is not excavation clearance.',
                             style: TextStyle(
                               color: Color(0xFFF6C66B),
                               fontSize: 9,
@@ -9383,7 +9393,7 @@ class _MapPageState extends State<MapPage> {
                                 : 'Operational underground geometry is restricted for this account.')
                         : _satellite
                             ? 'Imagery date and resolution vary by location.'
-                            : '3D building massing is available only where the basemap supplies building attributes; it is not an approval record.',
+                            : 'Real OpenStreetMap building footprints are extruded in 3D. Mapped height or floor tags are used where available; otherwise a clearly labelled 6 m visual estimate is used. This is not a statutory building-approval record.',
                     style: const TextStyle(
                       color: Color(0xFFB6C7D6),
                       fontSize: 9,
