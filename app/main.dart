@@ -7234,6 +7234,10 @@ class _MapPageState extends State<MapPage> {
   String _deviceCoordinateLabel = '';
   String _layerStatus =
       'Underground visibility requires authorised, verified GIS records.';
+  bool _routing = false;
+  String _routeSummary = '';
+  List<String> _routeInstructions = [];
+  Map<String, dynamic>? _activeRouteGeoJson;
 
   String get _mapStyle {
     if (_satellite && _mapTilerKey.isNotEmpty) {
@@ -7747,6 +7751,269 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  Future<LatLng> _geocodeRoutePlace(String query) async {
+    final uri = Uri.https('photon.komoot.io', '/api/', {
+      'q': query,
+      'limit': '1',
+      'lang': 'en',
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw StateError('Place lookup returned HTTP ${response.statusCode}.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['features'] is! List ||
+        (decoded['features'] as List).isEmpty) {
+      throw StateError('Could not find: $query');
+    }
+    final first = (decoded['features'] as List).first;
+    if (first is! Map || first['geometry'] is! Map) {
+      throw const FormatException('Place lookup returned invalid geometry.');
+    }
+    final coordinates = (first['geometry'] as Map)['coordinates'];
+    if (coordinates is! List || coordinates.length < 2 ||
+        coordinates[0] is! num || coordinates[1] is! num) {
+      throw const FormatException('Place lookup returned invalid coordinates.');
+    }
+    return LatLng(
+      (coordinates[1] as num).toDouble(),
+      (coordinates[0] as num).toDouble(),
+    );
+  }
+
+  Future<void> _renderActiveRoute() async {
+    final controller = _controller;
+    final route = _activeRouteGeoJson;
+    if (controller == null || !_styleReady || route == null) return;
+
+    final sources = await controller.getSourceIds();
+    if (sources.contains('samanvay-navigation-route')) {
+      await controller.setGeoJsonSource('samanvay-navigation-route', route);
+    } else {
+      await controller.addGeoJsonSource('samanvay-navigation-route', route);
+    }
+
+    final layers = await controller.getLayerIds();
+    if (!layers.contains('samanvay-navigation-route-line')) {
+      await controller.addLineLayer(
+        'samanvay-navigation-route',
+        'samanvay-navigation-route-line',
+        const LineLayerProperties(
+          lineColor: '#20D6C2',
+          lineWidth: 5,
+          lineOpacity: 0.96,
+        ),
+        enableInteraction: false,
+      );
+    }
+    await controller.setLayerVisibility('samanvay-navigation-route-line', true);
+  }
+
+  Future<void> _calculateRoute(String originText, String destinationText) async {
+    if (_routing) return;
+    if (originText.trim().isEmpty || destinationText.trim().isEmpty) {
+      _showMessage('Enter both a starting point and a destination.');
+      return;
+    }
+
+    setState(() {
+      _routing = true;
+      _routeSummary = '';
+      _routeInstructions = [];
+    });
+
+    try {
+      final origin = await _geocodeRoutePlace(originText.trim());
+      final destination = await _geocodeRoutePlace(destinationText.trim());
+      final uri = Uri.https(
+        'router.project-osrm.org',
+        '/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}',
+        {
+          'overview': 'full',
+          'geometries': 'geojson',
+          'steps': 'true',
+          'alternatives': 'true',
+        },
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (response.statusCode != 200) {
+        throw StateError('Routing service returned HTTP ${response.statusCode}.');
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['code'] != 'Ok' ||
+          decoded['routes'] is! List || (decoded['routes'] as List).isEmpty) {
+        throw StateError('No drivable route was returned for these places.');
+      }
+
+      final route = (decoded['routes'] as List).first;
+      if (route is! Map || route['geometry'] is! Map ||
+          (route['geometry'] as Map)['coordinates'] is! List) {
+        throw const FormatException('Routing service returned invalid route geometry.');
+      }
+      final coordinates = (route['geometry'] as Map)['coordinates'] as List;
+      if (coordinates.length < 2) {
+        throw const FormatException('The route contains too few coordinates.');
+      }
+
+      final featureCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {'source': 'OSRM public demonstration routing service'},
+            'geometry': Map<String, dynamic>.from(route['geometry'] as Map),
+          },
+        ],
+      };
+
+      final distanceMeters = (route['distance'] as num?)?.toDouble() ?? 0;
+      final durationSeconds = (route['duration'] as num?)?.toDouble() ?? 0;
+      final distanceLabel = distanceMeters >= 1000
+          ? '${(distanceMeters / 1000).toStringAsFixed(1)} km'
+          : '${distanceMeters.round()} m';
+      final durationMinutes = (durationSeconds / 60).round();
+      final summary = '$distanceLabel · about $durationMinutes min · driving preview';
+
+      final instructions = <String>[];
+      final legs = route['legs'];
+      if (legs is List) {
+        for (final leg in legs) {
+          if (leg is! Map || leg['steps'] is! List) continue;
+          for (final step in leg['steps'] as List) {
+            if (step is! Map) continue;
+            final maneuver = step['maneuver'];
+            final name = (step['name'] ?? '').toString().trim();
+            if (maneuver is! Map) continue;
+            final type = (maneuver['type'] ?? 'continue').toString();
+            final modifier = (maneuver['modifier'] ?? '').toString();
+            final distance = (step['distance'] as num?)?.toDouble() ?? 0;
+            final action = [type, modifier].where((v) => v.isNotEmpty).join(' ');
+            final road = name.isEmpty ? 'unnamed road' : name;
+            instructions.add('${action.isEmpty ? 'Continue' : action} on $road · ${distance.round()} m');
+            if (instructions.length >= 12) break;
+          }
+          if (instructions.length >= 12) break;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _activeRouteGeoJson = featureCollection;
+        _routeSummary = summary;
+        _routeInstructions = instructions;
+      });
+      await _renderActiveRoute();
+
+      final middle = coordinates[coordinates.length ~/ 2];
+      if (middle is List && middle.length >= 2 &&
+          middle[0] is num && middle[1] is num) {
+        await _controller?.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(
+                (middle[1] as num).toDouble(),
+                (middle[0] as num).toDouble(),
+              ),
+              zoom: 11.5,
+              tilt: _is3D && !_undergroundMode ? 42 : 0,
+              bearing: 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 900),
+        );
+      }
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Route preview'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(summary, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Preview route only. This public routing service does not provide live traffic, guaranteed turn-by-turn guidance or excavation clearance.',
+                    style: TextStyle(fontSize: 12, color: Colors.deepOrange),
+                  ),
+                  const SizedBox(height: 12),
+                  ...instructions.map((instruction) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text('• $instruction', style: const TextStyle(fontSize: 12)),
+                  )),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _showMessage('Route preview failed: ${error.toString()}');
+    } finally {
+      if (mounted) setState(() => _routing = false);
+    }
+  }
+
+  Future<void> _showDirectionsDialog() async {
+    final originController = TextEditingController();
+    final destinationController = TextEditingController();
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Plan a route'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: originController,
+              decoration: const InputDecoration(
+                labelText: 'Starting point',
+                hintText: 'e.g. Coimbatore Railway Station',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: destinationController,
+              decoration: const InputDecoration(
+                labelText: 'Destination',
+                hintText: 'e.g. Gandhipuram Bus Stand',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.directions),
+            label: const Text('Find route'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted == true) {
+      await _calculateRoute(originController.text, destinationController.text);
+    }
+    originController.dispose();
+    destinationController.dispose();
+  }
+
   Future<void> _onStyleLoaded() async {
     if (!mounted) return;
 
@@ -7773,6 +8040,7 @@ class _MapPageState extends State<MapPage> {
 
       await _ensure3DBuildings();
       await _loadMapLayers();
+      await _renderActiveRoute();
       await _refreshMapScale();
     } catch (_) {
       _showMessage('The map loaded, but one or more data layers could not be prepared.');
@@ -9268,6 +9536,11 @@ class _MapPageState extends State<MapPage> {
               );
             },
             icon: const Icon(Icons.file_upload_outlined),
+          ),
+          IconButton(
+            tooltip: 'Plan a driving route',
+            onPressed: _routing ? null : _showDirectionsDialog,
+            icon: const Icon(Icons.directions_outlined),
           ),
           IconButton(
             tooltip: 'Layer controls',
