@@ -1,86 +1,68 @@
-name: Secure SAMANVAY Database Backup to Cloudflare R2
+name: Secure SAMANVAY Database Backup (No-card GitHub Archive)
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: samanvay-r2-backup
+  group: samanvay-github-backup
   cancel-in-progress: false
 
 jobs:
   backup:
-    name: Dump, encrypt, upload and verify
+    name: Dump, encrypt, archive and verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
-      - name: Validate configuration
+      - name: Validate existing database and encryption secrets
         env:
-          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_DATABASE_URL" || { echo "::error::Missing SUPABASE_DATABASE_URL"; exit 1; }
-          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || { echo "::error::Missing BACKUP_ENCRYPTION_PASSPHRASE"; exit 1; }
-          test -n "$R2_ACCOUNT_ID" || { echo "::error::Missing R2_ACCOUNT_ID"; exit 1; }
-          test -n "$R2_ACCESS_KEY_ID" || { echo "::error::Missing R2_ACCESS_KEY_ID"; exit 1; }
-          test -n "$R2_SECRET_ACCESS_KEY" || { echo "::error::Missing R2_SECRET_ACCESS_KEY"; exit 1; }
-          test -n "$R2_BUCKET_NAME" || { echo "::error::Missing R2_BUCKET_NAME"; exit 1; }
+          for name in SUPABASE_DB_HOST SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD BACKUP_ENCRYPTION_PASSPHRASE; do
+            test -n "${!name}" || { echo "::error::Missing required secret: $name"; exit 1; }
+          done
           if [ "${#BACKUP_ENCRYPTION_PASSPHRASE}" -lt 32 ]; then
-            echo "::error::BACKUP_ENCRYPTION_PASSPHRASE must be at least 32 characters."
-            exit 1
+            echo "::error::Backup passphrase must be at least 32 characters."; exit 1
           fi
-          case "$SUPABASE_DATABASE_URL" in
-            postgresql://*|postgres://*) ;;
-            *) echo "::error::SUPABASE_DATABASE_URL must be a PostgreSQL connection URI."; exit 1 ;;
-          esac
-          echo "Required secrets are present. Values are not displayed."
+          echo "Required secret presence verified without displaying values."
 
-      - name: Install backup tools
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y python3-venv
-          docker --version
-          aws --version
-
-      - name: Create and validate full database dump
+      - name: Create PostgreSQL custom-format dump
         env:
-          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           PGSSLMODE: require
           PGCONNECT_TIMEOUT: "30"
         run: |
           set -euo pipefail
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-r2-backup"
-          mkdir -p "$BACKUP_DIR"
-          echo "Creating a full logical PostgreSQL database dump."
-          echo "Use Supabase Direct or Session Pooler connection details; do not use Transaction Pooler for pg_dump."
+          mkdir -p "$RUNNER_TEMP/samanvay-backup"
           docker run --rm \
-            -e SUPABASE_DATABASE_URL \
-            -e PGSSLMODE \
-            -e PGCONNECT_TIMEOUT \
-            -v "$BACKUP_DIR:/backup" \
-            postgres:18-alpine \
-            pg_dump --dbname="$SUPABASE_DATABASE_URL" --format=custom --no-owner --no-acl --verbose --file=/backup/samanvay-full.dump
-          test -s "$BACKUP_DIR/samanvay-full.dump"
-          docker run --rm -v "$BACKUP_DIR:/backup" postgres:18-alpine pg_restore --list /backup/samanvay-full.dump > "$BACKUP_DIR/archive-contents.txt"
-          test -s "$BACKUP_DIR/archive-contents.txt"
-          echo "Full database dump created; archive catalogue validation passed."
+            -e SUPABASE_DB_HOST -e SUPABASE_PROJECT_REF -e SUPABASE_DB_PASSWORD \
+            -e PGSSLMODE -e PGCONNECT_TIMEOUT \
+            -v "$RUNNER_TEMP/samanvay-backup:/backup" \
+            postgres:18-alpine sh -euc '
+              export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+              pg_dump --host="$SUPABASE_DB_HOST" --port=5432 \
+                --username="postgres.$SUPABASE_PROJECT_REF" --dbname=postgres \
+                --format=custom --no-owner --no-acl --file=/backup/samanvay.dump
+              pg_restore --list /backup/samanvay.dump > /backup/archive-contents.txt
+            '
+          test -s "$RUNNER_TEMP/samanvay-backup/samanvay.dump"
+          echo "PostgreSQL dump and archive catalogue validation passed."
 
-      - name: Encrypt backup and create checksum
+      - name: Encrypt dump and create SHA-256 manifest
         env:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-r2-backup"
-          export BACKUP_DIR
+          export BACKUP_DIR="$RUNNER_TEMP/samanvay-backup"
           python3 -m venv "$RUNNER_TEMP/backup-venv"
           "$RUNNER_TEMP/backup-venv/bin/pip" install --quiet --disable-pip-version-check 'cryptography==45.0.7'
           "$RUNNER_TEMP/backup-venv/bin/python" - <<'PY'
@@ -89,105 +71,87 @@ jobs:
           from cryptography.fernet import Fernet
           from cryptography.hazmat.primitives import hashes
           from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
           folder = Path(os.environ["BACKUP_DIR"])
-          source = folder / "samanvay-full.dump"
-          target = folder / "SAMANVAY-full-database.dump.fernet"
-          raw = source.read_bytes()
+          raw = (folder / "samanvay.dump").read_bytes()
           salt = os.urandom(16)
           kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
           key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
-          target.write_bytes(b"SAM2" + salt + Fernet(key).encrypt(raw))
-          digest = hashlib.sha256(target.read_bytes()).hexdigest()
-          (folder / "SHA256SUM").write_text(f"{digest}  {target.name}\n")
-          if target.stat().st_size <= 20 or not digest:
-              raise SystemExit("Encrypted archive validation failed.")
-          source.unlink()
-          print(f"Encrypted archive ready: {target.name}")
-          print(f"Encrypted archive size: {target.stat().st_size} bytes")
-          print(f"SHA-256: {digest}")
+          encrypted = folder / "SAMANVAY-database.dump.fernet"
+          encrypted.write_bytes(b"SAM2" + salt + Fernet(key).encrypt(raw))
+          digest = hashlib.sha256(encrypted.read_bytes()).hexdigest()
+          (folder / "SHA256SUM").write_text(f"{digest}  {encrypted.name}\\n")
+          (folder / "BACKUP-METADATA.txt").write_text(
+              "SAMANVAY encrypted PostgreSQL custom-format backup\\n"
+              f"Created UTC: {__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()}\\n"
+              f"Encrypted size: {encrypted.stat().st_size} bytes\\n"
+              f"SHA-256: {digest}\\n"
+              "Encryption: Fernet / PBKDF2-HMAC-SHA256, 600000 iterations\\n"
+          )
+          (folder / "samanvay.dump").unlink()
+          print(f"Encrypted backup prepared ({encrypted.stat().st_size} bytes).")
           PY
 
-      - name: Upload encrypted archive to Cloudflare R2
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          AWS_EC2_METADATA_DISABLED: "true"
-        run: |
-          set -euo pipefail
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-r2-backup"
-          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-          OBJECT_KEY="samanvay/postgres/${STAMP}-run-${GITHUB_RUN_ID}/SAMANVAY-full-database.dump.fernet"
-          aws s3 cp "$BACKUP_DIR/SAMANVAY-full-database.dump.fernet" "s3://${R2_BUCKET_NAME}/${OBJECT_KEY}" --endpoint-url "$ENDPOINT" --only-show-errors
-          aws s3 cp "$BACKUP_DIR/SHA256SUM" "s3://${R2_BUCKET_NAME}/${OBJECT_KEY}.sha256" --endpoint-url "$ENDPOINT" --only-show-errors
-          echo "R2_OBJECT_KEY=$OBJECT_KEY" >> "$GITHUB_ENV"
-          echo "R2_ENDPOINT=$ENDPOINT" >> "$GITHUB_ENV"
-          echo "Encrypted archive and checksum uploaded."
+      - name: Store encrypted backup as GitHub archive (90-day retention)
+        id: archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAMANVAY-Encrypted-Database-Backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/samanvay-backup/SAMANVAY-database.dump.fernet
+            ${{ runner.temp }}/samanvay-backup/SHA256SUM
+            ${{ runner.temp }}/samanvay-backup/BACKUP-METADATA.txt
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
 
-      - name: Download from R2 and verify remote copy
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          AWS_EC2_METADATA_DISABLED: "true"
-        run: |
-          set -euo pipefail
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-r2-backup"
-          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          mkdir -p "$BACKUP_DIR/remote-check"
-          aws s3 cp "s3://${R2_BUCKET_NAME}/${R2_OBJECT_KEY}" "$BACKUP_DIR/remote-check/SAMANVAY-full-database.dump.fernet" --endpoint-url "$ENDPOINT" --only-show-errors
-          aws s3 cp "s3://${R2_BUCKET_NAME}/${R2_OBJECT_KEY}.sha256" "$BACKUP_DIR/remote-check/SHA256SUM" --endpoint-url "$ENDPOINT" --only-show-errors
-          cd "$BACKUP_DIR/remote-check"
-          sha256sum --check SHA256SUM
-          echo "Remote R2 download matches the uploaded encrypted archive."
+      - name: Download archived copy for independent integrity check
+        uses: actions/download-artifact@v4
+        with:
+          name: SAMANVAY-Encrypted-Database-Backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/verified-archive
 
-      - name: Decrypt remote copy and validate PostgreSQL archive
+      - name: Verify archived copy, decrypt and validate PostgreSQL format
         env:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
         run: |
           set -euo pipefail
-          BACKUP_DIR="$RUNNER_TEMP/samanvay-r2-backup"
-          export BACKUP_DIR
+          export VERIFY_DIR="$RUNNER_TEMP/verified-archive"
           "$RUNNER_TEMP/backup-venv/bin/python" - <<'PY'
-          import base64, os
+          import base64, hashlib, os
           from pathlib import Path
           from cryptography.fernet import Fernet
           from cryptography.hazmat.primitives import hashes
           from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
-          folder = Path(os.environ["BACKUP_DIR"]) / "remote-check"
-          payload = (folder / "SAMANVAY-full-database.dump.fernet").read_bytes()
+          folder = Path(os.environ["VERIFY_DIR"])
+          encrypted = folder / "SAMANVAY-database.dump.fernet"
+          expected = (folder / "SHA256SUM").read_text().split()[0]
+          actual = hashlib.sha256(encrypted.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit("Archived artifact SHA-256 mismatch.")
+          payload = encrypted.read_bytes()
           if payload[:4] != b"SAM2":
-              raise SystemExit("Unknown encrypted backup format.")
-          salt, token = payload[4:20], payload[20:]
-          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+              raise SystemExit("Unknown encrypted archive format.")
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=payload[4:20], iterations=600000)
           key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
-          plaintext = Fernet(key).decrypt(token)
-          if not plaintext.startswith(b"PGDMP"):
-              raise SystemExit("Decrypted file is not a PostgreSQL custom-format archive.")
-          output = folder / "verified-remote.dump"
-          output.write_bytes(plaintext)
-          print(f"Remote archive decrypted successfully ({len(plaintext)} bytes).")
+          raw = Fernet(key).decrypt(payload[20:])
+          if not raw.startswith(b"PGDMP"):
+              raise SystemExit("Decrypted content is not a PostgreSQL custom-format archive.")
+          (folder / "verified.dump").write_bytes(raw)
+          print(f"PASS: archived artifact checksum and decryption verified ({len(raw)} dump bytes).")
           PY
-          docker run --rm -v "$BACKUP_DIR/remote-check:/backup" postgres:18-alpine pg_restore --list /backup/verified-remote.dump > /dev/null
-          echo "PASS: R2 object downloaded, SHA-256 matched, decryption succeeded, and PostgreSQL archive catalogue validated."
-          echo "NOTE: This is an archive-integrity test, not a full restore-to-separate-database test."
+          docker run --rm -v "$RUNNER_TEMP/verified-archive:/backup" postgres:18-alpine pg_restore --list /backup/verified.dump > /dev/null
+          echo "PASS: downloaded GitHub archive decrypted and PostgreSQL archive catalogue validated."
+          echo "NOTE: This verifies archive integrity, not a full restore into a separate database."
 
-      - name: Publish backup verification summary
+      - name: Publish backup summary
         if: success()
         run: |
           {
-            echo "## SAMANVAY external backup verified"
+            echo "## SAMANVAY encrypted backup archived"
             echo ""
-            echo "- Destination: Cloudflare R2"
-            echo "- Object: `$R2_OBJECT_KEY`"
-            echo "- Verification: remote download, SHA-256, decryption and pg_restore catalogue checks passed."
-            echo "- Scope: full logical PostgreSQL database dump."
-            echo "- Restore drill: not performed; this run verifies archive integrity, not recoverability in a separate database."
+            echo "- Destination: private GitHub Actions artifact"
+            echo "- Retention: 90 days"
+            echo "- Verification: artifact download, SHA-256, decryption and pg_restore catalogue passed"
+            echo "- Full restore drill: not performed"
+            echo "- Scope: PostgreSQL database dump; Supabase Storage files and project settings are not included"
           } >> "$GITHUB_STEP_SUMMARY"
