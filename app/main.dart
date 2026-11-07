@@ -8053,7 +8053,7 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
-      final layerIds = await controller.getLayerIds();
+      var layerIds = await controller.getLayerIds();
       if (!layerIds.contains('samanvay-utility-overview-cells')) {
         await controller.addFillLayer(
           'samanvay-utility-overview',
@@ -8064,10 +8064,42 @@ class _MapPageState extends State<MapPage> {
             fillOutlineColor: '#FDE68A',
           ),
         );
-      } else {
+      }
+
+      // In underground 3D mode, show only generalised 250 m density cells.
+      // Extrusion height is a relative visual index, never physical pipe depth.
+      layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.addFillExtrusionLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-3d',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#38BDF8',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['get', 'asset_count'],
+              3, 6,
+              10, 14,
+              25, 24,
+            ],
+            fillExtrusionBase: 0,
+            fillExtrusionOpacity: 0.62,
+          ),
+        );
+      }
+
+      layerIds = await controller.getLayerIds();
+      if (layerIds.contains('samanvay-utility-overview-cells')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-cells',
-          _showUtilityZones,
+          _showUtilityZones && !(_is3D && _undergroundMode),
+        );
+      }
+      if (layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          _showUtilityZones && _is3D && _undergroundMode,
         );
       }
 
@@ -8515,11 +8547,13 @@ class _MapPageState extends State<MapPage> {
     if (!enabled) {
       try {
         final layers = await controller.getLayerIds();
-        if (layers.contains('samanvay-utility-overview-cells')) {
-          await controller.setLayerVisibility(
-            'samanvay-utility-overview-cells',
-            false,
-          );
+        for (final layerId in [
+          'samanvay-utility-overview-cells',
+          'samanvay-utility-overview-3d',
+        ]) {
+          if (layers.contains(layerId)) {
+            await controller.setLayerVisibility(layerId, false);
+          }
         }
       } catch (_) {}
       return;
@@ -8587,6 +8621,7 @@ class _MapPageState extends State<MapPage> {
         }
       } else {
         await setVisibility('samanvay-utility-overview-cells', false);
+        await setVisibility('samanvay-utility-overview-3d', false);
         await setVisibility('samanvay-verified-asset-lines', false);
         await setVisibility('samanvay-verified-asset-points', false);
         await setVisibility('samanvay-3d-buildings', _is3D);
@@ -8654,6 +8689,18 @@ class _MapPageState extends State<MapPage> {
       final layers = await controller.getLayerIds();
       if (layers.contains('samanvay-3d-buildings')) {
         await controller.setLayerVisibility('samanvay-3d-buildings', use3D && !_undergroundMode);
+      }
+      if (layers.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones && !(use3D && _undergroundMode),
+        );
+      }
+      if (layers.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          _showUtilityZones && use3D && _undergroundMode,
+        );
       }
     } catch (_) {
       _showMessage('Unable to change map perspective.');
@@ -8963,7 +9010,7 @@ class _MapPageState extends State<MapPage> {
                           ),
                           const SizedBox(height: 5),
                           const Text(
-                            'The 3D surface model is contextual basemap building massing, not a statutory approval model. Underground lines are drawn only from authorised, verified records. No layer, warning or empty map is excavation clearance.',
+                            '3D surface buildings are contextual basemap massing, not statutory approval records. Underground 3D cells show only relative density in generalised 250 m cells—not physical depth, elevation, dimensions or routes. Exact assets remain access-controlled; an empty layer is not excavation clearance.',
                             style: TextStyle(
                               color: Color(0xFFF6C66B),
                               fontSize: 9,
