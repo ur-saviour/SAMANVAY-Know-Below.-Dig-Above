@@ -105,7 +105,7 @@
 
 ## 10. Release acceptance gates
 
-- [ ] Static analysis passes with no errors.
+- [x] Static analysis passes with no errors on the latest map integration commit (Android and browser CI analyzers).
 - [ ] Release APK builds and passes package/signature integrity diagnostics.
 - [ ] Runtime smoke tests pass on a real Android device for sign-in, GPS permissions, map load, map search, 2D/3D, layer toggles, request submission and upload.
 - [ ] Role tests confirm requester, department, coordinator and admin boundaries.
