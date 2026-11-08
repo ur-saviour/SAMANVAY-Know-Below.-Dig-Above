@@ -105,6 +105,7 @@ jobs:
 
           mkdir -p lib assets/reference/coimbatore
           cp app/main.dart lib/main.dart
+          cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
 
           if [ ! -s assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson ]; then
             echo "ERROR: Coimbatore ward reference GeoJSON is missing from the repository."
@@ -129,6 +130,7 @@ jobs:
           # Pin the permission plugin to the Android-36-compatible release line.
           flutter pub add permission_handler:12.0.3
           flutter pub add http
+          flutter pub add crypto:3.0.8
           python3 - <<'PY'
           from pathlib import Path
           path = Path("pubspec.yaml")
