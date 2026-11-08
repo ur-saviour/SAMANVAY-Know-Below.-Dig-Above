@@ -10,6 +10,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:csv/csv.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
@@ -1746,6 +1747,24 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 ),
               ),
             ),
+            if (widget.isDepartment) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const UtilityAssetEvidenceSubmissionPage()),
+                  ),
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text('SUBMIT SURVEY EVIDENCE'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B5B67),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                ),
+              ),
+            ],
             if (widget.isAdmin) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -5154,6 +5173,14791 @@ class _IndiaNationalAuthorityDirectoryPageState extends State<IndiaNationalAutho
   }
 }
 
+
+class UtilityAssetEvidenceSubmissionPage extends StatefulWidget {
+  const UtilityAssetEvidenceSubmissionPage({super.key});
+
+  @override
+  State<UtilityAssetEvidenceSubmissionPage> createState() =>
+      _UtilityAssetEvidenceSubmissionPageState();
+}
+
+class _UtilityAssetEvidenceSubmissionPageState
+    extends State<UtilityAssetEvidenceSubmissionPage> {
+  bool loading = true;
+  bool busy = false;
+  String errorMessage = '';
+  List<Map<String, dynamic>> assets = [];
+
+  static const Map<String, String> methods = {
+    'ground_penetrating_radar': 'Ground-penetrating radar',
+    'electromagnetic_locator': 'Electromagnetic locator',
+    'gnss_survey': 'GNSS survey',
+    'as_built_review': 'As-built record review',
+    'manual_inspection': 'Manual inspection',
+    'other': 'Other authorised survey method',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-evidence',
+        body: {'action': 'list'},
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw StateError('Evidence queue request failed.');
+      }
+      final payload = response.data;
+      final rawItems = payload is Map ? payload['items'] : null;
+      if (rawItems is! List) throw const FormatException('Invalid evidence queue response.');
+      final rows = rawItems
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        assets = rows;
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Could not load submissions belonging to your assigned department.';
+      });
+    }
+  }
+
+  String _date(dynamic value) {
+    if (value == null) return 'Not recorded';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return 'Not recorded';
+    return parsed.toLocal().toString().split(' ').first;
+  }
+
+  Color _statusColor(String status) {
+    if (status == 'owner_confirmed') return const Color(0xFFE4F4E9);
+    if (status == 'field_surveyed') return const Color(0xFFE6F0FB);
+    if (status == 'disputed') return const Color(0xFFFFE8E8);
+    return const Color(0xFFFFF0D7);
+  }
+
+  Future<Map<String, String>?> _collectMetadata() async {
+    final date = TextEditingController(
+      text: DateTime.now().toIso8601String().substring(0, 10),
+    );
+    final organisation = TextEditingController();
+    final reference = TextEditingController();
+    final notes = TextEditingController();
+    var method = 'ground_penetrating_radar';
+    try {
+      return await showDialog<Map<String, String>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialog) => AlertDialog(
+            title: const Text('Record survey evidence reference'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Enter the survey details and official evidence reference. The source document stays in your department’s controlled repository.',
+                    style: TextStyle(fontSize: 12, color: mutedInk, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: method,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Survey method',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: methods.entries.map((entry) => DropdownMenuItem(
+                      value: entry.key,
+                      child: Text(entry.value, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) {
+                      if (value != null) setDialog(() => method = value);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: date,
+                    decoration: const InputDecoration(
+                      labelText: 'Survey date (YYYY-MM-DD)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: organisation,
+                    maxLength: 200,
+                    decoration: const InputDecoration(
+                      labelText: 'Surveyor organisation',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  TextField(
+                    controller: reference,
+                    maxLength: 120,
+                    decoration: const InputDecoration(
+                      labelText: 'Official evidence reference code',
+                      hintText: 'e.g. SURVEY-REF-2026-001',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  TextField(
+                    controller: notes,
+                    minLines: 2,
+                    maxLines: 3,
+                    maxLength: 1000,
+                    decoration: const InputDecoration(
+                      labelText: 'Non-sensitive notes (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Do not enter coordinates, pipe routes, network layouts, depths, or excavation-clearance details.',
+                    style: TextStyle(fontSize: 10, color: Color(0xFF9A6700), height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final dateValue = date.text.trim();
+                  final orgValue = organisation.text.trim();
+                  final refValue = reference.text.trim();
+                  final notesValue = notes.text.trim();
+                  final dateOk = RegExp(r'^\d{4}-\d{2}-\d{2}
+  const UtilityAssetVerificationPage({super.key});
+  @override
+  State<UtilityAssetVerificationPage> createState() => _UtilityAssetVerificationPageState();
+}
+
+class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationPage> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  bool authorised = false;
+  String errorMessage = '';
+  String selectedStatus = 'all';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      final profile = userId == null ? null : await supabase.from('profiles')
+          .select('role').eq('id', userId).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      if (role != 'admin' && role != 'coordinator') {
+        if (!mounted) return;
+        setState(() { authorised = false; loading = false; });
+        return;
+      }
+      final rows = await supabase.from('utility_asset_verification_queue')
+          .select('asset_id,asset_type,owner_department,operational_status,source_type,verification_status,surveyed_at,surveyed_by_org,verified_at,verification_notes,evidence_count,created_at,import_run_id,source_title,source_organisation,authorization_reference,source_url,import_status,evidence_reference_items')
+          .order('created_at', ascending: false).limit(300);
+      if (!mounted) return;
+      setState(() {
+        authorised = true;
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'The restricted verification queue could not be loaded. Check administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _review(Map<String, dynamic> row, String decision) async {
+    final rationaleController = TextEditingController();
+    final rationale = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(decision == 'approve' ? 'Accept survey evidence receipt' : 'Reject / dispute submission'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Accepting records an administrative review of the reference and checksum only. Confirm them against the owner department’s authorised records first. This does not verify the network, publish geometry, or provide excavation clearance.'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: rationaleController,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              labelText: 'Review rationale (minimum 10 characters)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final value = rationaleController.text.trim();
+              if (value.length >= 10) Navigator.pop(dialogContext, value);
+            },
+            child: Text(decision == 'approve' ? 'Confirm evidence acceptance' : 'Record dispute'),
+          ),
+        ],
+      ),
+    );
+    rationaleController.dispose();
+    if (rationale == null || !mounted) return;
+    try {
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-review',
+        body: {
+          'asset_id': row['asset_id'].toString(),
+          'decision': decision,
+          'rationale': rationale,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw Exception('Review endpoint returned an error.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(decision == 'approve'
+          ? 'Evidence receipt accepted. Asset remains restricted pending owner verification.'
+          : 'Submission marked disputed; review audit recorded.')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review could not be completed. Confirm reviewer permissions and evidence requirements.')),
+      );
+    }
+  }
+
+  String _date(dynamic value) {
+    if (value == null) return 'Not recorded';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return 'Not recorded';
+    return parsed.toLocal().toString().split('.').first;
+  }
+
+  Color _statusColor(String status) {
+    if (status == 'verified' || status == 'owner_confirmed') return const Color(0xFFE4F4E9);
+    if (status == 'field_surveyed') return const Color(0xFFE6F0FB);
+    if (status == 'disputed') return const Color(0xFFFFE8E8);
+    return const Color(0xFFFFF0D7);
+  }
+
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE4EAF1)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: const Color(0xFF087F83)),
+        const SizedBox(width: 7),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 10, color: mutedInk)),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = records.where((row) {
+      return selectedStatus == 'all' || row['verification_status'] == selectedStatus;
+    }).toList();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Asset verification centre'),
+        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : !authorised
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Restricted area. Only authorised SAMANVAY administrators and coordinators can access this review queue.',
+                    textAlign: TextAlign.center),
+                ))
+              : errorMessage.isNotEmpty
+                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(errorMessage)))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(padding: const EdgeInsets.all(15), children: [
+                        const Card(child: Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text(
+                            'AUTHORITY REVIEW QUEUE — metadata only. This screen deliberately excludes underground asset coordinates, routes, depths, dimensions and precise geometry. A verification label is not excavation clearance.',
+                            style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                          ),
+                        )),
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _metric('RECORDS LOADED', records.length.toString(), Icons.inventory_2_outlined),
+                          _metric('WITH EVIDENCE', records.where((r) => (r['evidence_count'] as num? ?? 0) > 0).length.toString(), Icons.attach_file),
+                          _metric('VERIFIED', records.where((r) => r['verification_status'] == 'verified').length.toString(), Icons.verified_outlined),
+                        ]),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedStatus,
+                          decoration: const InputDecoration(labelText: 'Verification status', border: OutlineInputBorder()),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All statuses')),
+                            DropdownMenuItem(value: 'unverified', child: Text('Unverified')),
+                            DropdownMenuItem(value: 'field_surveyed', child: Text('Field surveyed')),
+                            DropdownMenuItem(value: 'owner_confirmed', child: Text('Owner confirmed')),
+                            DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                            DropdownMenuItem(value: 'disputed', child: Text('Disputed')),
+                            DropdownMenuItem(value: 'retired', child: Text('Retired')),
+                          ],
+                          onChanged: (value) { if (value != null) setState(() => selectedStatus = value); },
+                        ),
+                        const SizedBox(height: 12),
+                        if (filtered.isEmpty)
+                          const Card(child: Padding(
+                            padding: EdgeInsets.all(18),
+                            child: Text('No asset metadata records are available for this queue yet. Authorised owner or survey submissions are required before review can begin.'),
+                          ))
+                        else
+                          ...filtered.map((row) {
+                            final status = (row['verification_status'] ?? 'unverified').toString();
+                            final evidenceItems = (row['evidence_reference_items'] is List
+                              ? row['evidence_reference_items'] as List : const [])
+                              .whereType<Map>()
+                              .map((item) => Map<String, dynamic>.from(item))
+                              .toList();
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 9),
+                              child: Padding(
+                                padding: const EdgeInsets.all(13),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Expanded(child: Text((row['asset_type'] ?? 'unknown').toString().toUpperCase(),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy))),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                      decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(8)),
+                                      child: Text(status.replaceAll('_', ' ').toUpperCase(),
+                                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: navy)),
+                                    ),
+                                  ]),
+                                  const SizedBox(height: 7),
+                                  Text('Owner department: ' + (row['owner_department'] ?? 'Not assigned').toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Source: ' + (row['source_type'] ?? 'Not recorded').toString() +
+                                    ' · Operational status: ' + (row['operational_status'] ?? 'unknown').toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Survey date: ' + _date(row['surveyed_at']) +
+                                    ' · Evidence items: ' + (row['evidence_count'] ?? 0).toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['surveyed_by_org'] ?? '').toString().isNotEmpty)
+                                    Text('Survey organisation: ' + row['surveyed_by_org'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_title'] ?? '').toString().isNotEmpty)
+                                    Text('Submitted source: ' + row['source_title'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_organisation'] ?? '').toString().isNotEmpty)
+                                    Text('Source organisation: ' + row['source_organisation'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['authorization_reference'] ?? '').toString().isNotEmpty)
+                                    Text('Authority reference: ' + row['authorization_reference'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['import_status'] ?? '').toString().isNotEmpty)
+                                    Text('Import audit: ' + row['import_status'].toString().replaceAll('_', ' ').toUpperCase(),
+                                      style: const TextStyle(fontSize: 10, color: Color(0xFF9A6700), fontWeight: FontWeight.w700)),
+                                  if ((row['import_run_id'] ?? '').toString().isNotEmpty)
+                                    Text('Audit run: ' + row['import_run_id'].toString(),
+                                      style: const TextStyle(fontSize: 9, color: mutedInk)),
+                                  if (evidenceItems.isNotEmpty) ...[
+                                    const Divider(height: 16),
+                                    const Text('REFERENCE-ONLY SURVEY EVIDENCE',
+                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: navy)),
+                                    ...evidenceItems.map((item) => Padding(
+                                      padding: const EdgeInsets.only(top: 7),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            (item['evidence_reference_code'] ?? 'Reference').toString(),
+                                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy),
+                                          ),
+                                          Text(
+                                            '${item['survey_method']} · ${_date(item['survey_date'])} · ${item['surveyor_organisation']}',
+                                            style: const TextStyle(fontSize: 9, color: mutedInk),
+                                          ),
+                                          Text(
+                                            'SHA-256: ${item['evidence_sha256']}',
+                                            style: const TextStyle(fontSize: 8, color: mutedInk),
+                                          ),
+                                        ],
+                                      ),
+                                    )),
+                                    const Text(
+                                      'Original source material is not stored or viewable in this queue. Confirm the reference with the owner department through authorised channels.',
+                                      style: TextStyle(fontSize: 9, color: Color(0xFF9A6700), height: 1.35),
+                                    ),
+                                  ],
+                                  if ((row['verification_notes'] ?? '').toString().isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(row['verification_notes'].toString(),
+                                        style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                    ),
+                                  if (status != 'verified' && status != 'retired') ...[
+                                    const Divider(height: 18),
+                                    Wrap(spacing: 8, runSpacing: 8, children: [
+                                      FilledButton.icon(
+                                        onPressed: (row['evidence_count'] as num? ?? 0) > 0
+                                          ? () => _review(row, 'approve') : null,
+                                        icon: const Icon(Icons.verified_outlined, size: 16),
+                                        label: const Text('Approve after evidence review'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _review(row, 'reject'),
+                                        icon: const Icon(Icons.flag_outlined, size: 16),
+                                        label: const Text('Reject / dispute'),
+                                      ),
+                                    ]),
+                                    if ((row['evidence_count'] as num? ?? 0) == 0)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 6),
+                                        child: Text('Acceptance requires a recorded evidence reference and SHA-256 checksum.',
+                                          style: TextStyle(fontSize: 10, color: Color(0xFF9A6700))),
+                                      ),
+                                  ],
+                                ]),
+                              ),
+                            );
+                          }),
+                      ]),
+                    ),
+    );
+  }
+}
+
+class IndiaLgdCsvImportPage extends StatefulWidget {
+  const IndiaLgdCsvImportPage({super.key});
+  @override
+  State<IndiaLgdCsvImportPage> createState() => _IndiaLgdCsvImportPageState();
+}
+
+class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
+  final TextEditingController reportDateController = TextEditingController();
+  String unitType = 'district';
+  bool busy = false;
+  String statusMessage = '';
+
+  static const Map<String, String> unitTypes = {
+    'district': 'Districts',
+    'sub_district': 'Sub-districts',
+    'block': 'Blocks',
+    'urban_local_body': 'Urban Local Bodies',
+    'gram_panchayat': 'Gram Panchayats',
+    'village': 'Villages',
+    'ward': 'Wards',
+    'traditional_local_body': 'Traditional Local Bodies',
+  };
+
+  String _key(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  int _column(List<String> headers, List<String> aliases) {
+    for (var i = 0; i < headers.length; i++) {
+      if (aliases.contains(headers[i])) return i;
+    }
+    return -1;
+  }
+
+  String _cell(List<dynamic> row, int index) {
+    if (index < 0 || index >= row.length) return '';
+    return (row[index] ?? '').toString().trim();
+  }
+
+  Future<void> _pickAndImport() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() => statusMessage = 'Sign in before importing an official directory report.');
+      return;
+    }
+    final profile = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+    final role = (profile?['role'] ?? '').toString();
+    if (role != 'admin' && role != 'coordinator') {
+      setState(() => statusMessage = 'This import is restricted to SAMANVAY administrators and coordinators.');
+      return;
+    }
+    final reportDate = DateTime.tryParse(reportDateController.text.trim());
+    if (reportDate == null) {
+      setState(() => statusMessage = 'Enter the report date in YYYY-MM-DD format before importing.');
+      return;
+    }
+
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (picked == null) return;
+    final selectedFile = picked;
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) {
+      setState(() => statusMessage = 'The selected CSV file could not be read.');
+      return;
+    }
+
+    setState(() { busy = true; statusMessage = 'Validating the official LGD CSV...'; });
+    try {
+      var csvText = utf8.decode(bytes, allowMalformed: true);
+      if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
+      final parsed = csv.decode(csvText);
+      if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
+      final headers = parsed.first.map((v) => _key(v.toString())).toList();
+      final codeCol = _column(headers, ['lgdcode','districtlgdcode','districtcode','localbodycode','code']);
+      final nameCol = _column(headers, ['name','districtname','districtnameenglish','localbodyname','localbodynameenglish','nameenglish']);
+      final stateCol = _column(headers, ['statename','statenameenglish','state']);
+      final localNameCol = _column(headers, ['namelocal','localname','localbodynamelocal']);
+      final parentCol = unitType == 'district'
+          ? -1
+          : _column(headers, ['parentlgdcode','parentcode','parentunitcode','districtlgdcode','districtcode']);
+      if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
+        throw Exception('Required columns not found. Include LGD Code, Name and State Name.');
+      }
+
+      final rawStates = await supabase.from('india_state_uts').select('id,name').limit(100);
+      final stateIds = <String, String>{};
+      for (final state in rawStates) {
+        stateIds[_key(state['name'].toString())] = state['id'].toString();
+      }
+      final rawExisting = await supabase.from('india_administrative_units')
+          .select('id,lgd_code').limit(5000);
+      final parentIds = <String, String>{};
+      for (final row in rawExisting) {
+        final code = (row['lgd_code'] ?? '').toString();
+        if (code.isNotEmpty) parentIds[code] = row['id'].toString();
+      }
+
+      final payload = <Map<String, dynamic>>[];
+      final seenCodes = <String>{};
+      var rejected = 0;
+      for (final row in parsed.skip(1)) {
+        final code = _cell(row, codeCol);
+        final name = _cell(row, nameCol);
+        final stateName = _cell(row, stateCol);
+        final stateId = stateIds[_key(stateName)];
+        if (code.isEmpty || name.isEmpty || stateId == null || !seenCodes.add(code)) {
+          rejected++;
+          continue;
+        }
+        final parentCode = _cell(row, parentCol);
+        final parentId = parentCode.isEmpty ? null : parentIds[parentCode];
+        if (parentCode.isNotEmpty && parentId == null) {
+          rejected++;
+          continue;
+        }
+        payload.add({
+          'state_ut_id': stateId,
+          'parent_unit_id': parentId,
+          'unit_type': unitType,
+          'lgd_code': code,
+          'name': name,
+          'local_name': _cell(row, localNameCol).isEmpty ? null : _cell(row, localNameCol),
+          'source_system': 'Local Government Directory (LGD)',
+          'source_url': 'https://lgdirectory.gov.in/',
+          'source_updated_at': reportDate.toIso8601String().split('T').first,
+          'verification_status': 'imported_unverified',
+          'is_active': true,
+        });
+      }
+      if (payload.isEmpty) throw Exception('No valid rows remain after checking LGD codes and State names.');
+
+      final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
+      final batchStateId = touchedStates.length == 1 ? touchedStates.first : null;
+      Map<String, dynamic>? queuedBatch;
+      if (batchStateId != null) {
+        queuedBatch = await supabase.from('india_directory_import_batches')
+          .select('id')
+          .eq('jurisdiction_state_ut_id', batchStateId)
+          .eq('unit_type', unitType)
+          .eq('import_status', 'awaiting_authorised_export')
+          .maybeSingle();
+      }
+
+      late final String batchId;
+      final batchMetadata = {
+        'jurisdiction_state_ut_id': batchStateId,
+        'source_url': 'https://lgdirectory.gov.in/downloadDirectory.do',
+        'unit_type': unitType,
+        'source_updated_at': reportDate.toIso8601String().split('T').first,
+        'original_file_name': selectedFile.name,
+        'import_status': 'uploaded',
+        'rows_received': parsed.length - 1,
+        'rows_rejected': rejected,
+        'imported_by': userId,
+        'notes': 'Imported from an administrator-supplied LGD report converted to CSV. Records remain unverified until authority review.',
+      };
+      if (queuedBatch != null) {
+        batchId = queuedBatch['id'].toString();
+        await supabase.from('india_directory_import_batches')
+          .update(batchMetadata).eq('id', batchId);
+      } else {
+        final batch = await supabase.from('india_directory_import_batches')
+          .insert(batchMetadata).select('id').single();
+        batchId = batch['id'].toString();
+      }
+
+      for (var i = 0; i < payload.length; i += 100) {
+        final end = (i + 100 < payload.length) ? i + 100 : payload.length;
+        final chunk = payload.sublist(i, end)
+            .map((row) => {...row, 'import_batch_id': batchId})
+            .toList();
+        await supabase.from('india_administrative_units')
+            .upsert(chunk, onConflict: 'source_system,lgd_code');
+      }
+      await supabase.from('india_directory_import_batches').update({
+        'import_status': 'imported',
+        'rows_inserted': payload.length,
+        'completed_at': DateTime.now().toIso8601String(),
+      }).eq('id', batchId);
+
+      for (final stateId in touchedStates) {
+        await supabase.from('india_data_coverage').update({
+          'coverage_status': 'directory_records_imported_pending_authority_validation',
+          'operational_use_allowed': false,
+          'last_checked_at': DateTime.now().toIso8601String(),
+          'notes': 'LGD directory rows imported from ' + selectedFile.name +
+            ' dated ' + reportDate.toIso8601String().split('T').first +
+            '. Imported records remain unverified pending authority review.',
+        }).eq('state_ut_id', stateId).eq('data_domain', 'administrative_directory');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import complete: ' + payload.length.toString() +
+          ' rows inserted/updated; ' + rejected.toString() +
+          ' rows rejected. Records remain unverified until authority review.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import stopped: ' + error.toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    reportDateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Import official LGD directory')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+      const Card(child: Padding(
+        padding: EdgeInsets.all(14),
+        child: Text(
+          'ADMINISTRATOR / COORDINATOR ONLY. Generate the report on the official LGD portal yourself, complete its CAPTCHA normally, and convert the XLS/HTML report to CSV using the standard column headings. This importer does not automate or bypass the CAPTCHA.',
+          style: TextStyle(fontSize: 11, height: 1.45, color: mutedInk),
+        ),
+      )),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: unitType,
+        decoration: const InputDecoration(labelText: 'Directory entity type', border: OutlineInputBorder()),
+        items: unitTypes.entries.map((entry) => DropdownMenuItem(
+          value: entry.key, child: Text(entry.value),
+        )).toList(),
+        onChanged: busy ? null : (value) { if (value != null) setState(() => unitType = value); },
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: reportDateController,
+        enabled: !busy,
+        decoration: const InputDecoration(
+          labelText: 'Official report date',
+          hintText: 'YYYY-MM-DD',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 12),
+      const Text('Required CSV columns: LGD Code, Name, State Name. Optional: Parent LGD Code, Local Name.',
+        style: TextStyle(fontSize: 11, color: mutedInk)),
+      const SizedBox(height: 14),
+      FilledButton.icon(
+        onPressed: busy ? null : _pickAndImport,
+        icon: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.upload_file),
+        label: Text(busy ? 'IMPORTING...' : 'SELECT CSV AND IMPORT'),
+      ),
+      if (statusMessage.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(statusMessage, style: const TextStyle(fontSize: 11, height: 1.4)),
+        )),
+      ],
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => launchUrl(Uri.parse('https://lgdirectory.gov.in/downloadDirectory.do'),
+          mode: LaunchMode.externalApplication),
+        icon: const Icon(Icons.open_in_new),
+        label: const Text('Open official LGD report generator'),
+      ),
+    ]),
+  );
+}
+
+
+class BuildingApprovalRegisterBoard extends StatefulWidget {
+  const BuildingApprovalRegisterBoard({super.key});
+
+  @override
+  State<BuildingApprovalRegisterBoard> createState() => _BuildingApprovalRegisterBoardState();
+}
+
+class _BuildingApprovalRegisterBoardState extends State<BuildingApprovalRegisterBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase
+          .from('building_approval_public_register_records')
+          .select('authority,jurisdiction,source_document_title,source_url,approval_status,approved_floor_count,approved_height_m')
+          .limit(3000);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Public building approval register summary is unavailable for this account.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusCounts = <String, int>{};
+    for (final row in records) {
+      final status = (row['approval_status'] ?? 'Status not supplied').toString();
+      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+    }
+    final floorValues = records.where((r) => r['approved_floor_count'] != null).length;
+    final heightValues = records.where((r) => r['approved_height_m'] != null).length;
+    final sourceUrl = records.isNotEmpty ? (records.first['source_url'] ?? '').toString() : '';
+    final authority = records.isNotEmpty ? (records.first['authority'] ?? 'Authority not supplied').toString() : 'Municipal Corporation of Delhi';
+    final jurisdiction = records.isNotEmpty ? (records.first['jurisdiction'] ?? 'Jurisdiction not supplied').toString() : 'Delhi, India';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.apartment_outlined, color: Color(0xFF087F83)),
+            const SizedBox(width: 9),
+            const Expanded(child: Text('Public building-approval register', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh public approval register'),
+          ]),
+          const Text('Official published plan-release records imported into SAMANVAY. This is not a nationwide permit registry.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
+          else ...[
+            const SizedBox(height: 9),
+            Row(children: [
+              Expanded(child: _approvalMetric('Records', records.length.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Jurisdiction', jurisdiction)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _approvalMetric('Official floor values', floorValues.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Official height values', heightValues.toString())),
+            ]),
+            const SizedBox(height: 8),
+            Text('$authority · $jurisdiction', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: navy)),
+            const SizedBox(height: 4),
+            ...statusCounts.entries.map((entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 10, color: Colors.blueGrey))),
+                Text(entry.value.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
+              ]),
+            )),
+            const SizedBox(height: 6),
+            const Text('Source status is preserved as published. No sanctioned floors, building heights, parcel locations or legal compliance conclusions are inferred from missing fields.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            if (sourceUrl.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(sourceUrl);
+                    if (uri != null && await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 15),
+                  label: const Text('Open original authority register'),
+                ),
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _approvalMetric(String label, String value) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: const Color(0xFFF1F7FA), borderRadius: BorderRadius.circular(12)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 9, color: Colors.blueGrey)),
+      const SizedBox(height: 3),
+      Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy)),
+    ]),
+  );
+}
+
+class GroundwaterObservationBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const GroundwaterObservationBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<GroundwaterObservationBoard> createState() => _GroundwaterObservationBoardState();
+}
+
+class _GroundwaterObservationBoardState extends State<GroundwaterObservationBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+  List<Map<String, dynamic>> get groundwaterCases => widget.requests
+      .where((r) => (r['case_category'] ?? '').toString() == 'borewell_groundwater').toList();
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('groundwater_observation_records')
+          .select().order('observed_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Groundwater observations could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final n = r['request_number']?.toString();
+        final t = (r['title'] ?? r['road_name'] ?? 'Groundwater case').toString();
+        return n == null ? t : 'Case #' + n + ' · ' + t;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  Future<void> _add() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    final cases = groundwaterCases;
+    if (cases.isEmpty) { _message('No accessible borewell/groundwater cases are available.'); return; }
+    var requestId = cases.first['id'].toString();
+    var departmentId = widget.departmentId ?? cases.first['department_id']?.toString()
+      ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var wellType = 'borewell';
+    var method = 'manual_measurement';
+    var pumping = 'unknown';
+    var sourceType = 'field_observed';
+    var saving = false;
+    final site = TextEditingController();
+    final level = TextEditingController();
+    final sourceRef = TextEditingController();
+    final notes = TextEditingController();
+
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) =>
+      StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Record groundwater observation'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: requestId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Groundwater case'),
+              items: cases.map((r) {
+                final id = r['id'].toString();
+                return DropdownMenuItem(value: id, child: Text(_caseLabel(id), overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => requestId = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: departmentId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Responsible department'),
+              items: widget.departments.map((d) => DropdownMenuItem<String>(
+                value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString(),
+                  overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: saving ? null : (v) => setDialogState(() => departmentId = v),
+            ),
+            TextField(controller: site, decoration: const InputDecoration(labelText: 'Site / well reference *')),
+            DropdownButtonFormField<String>(
+              initialValue: wellType, decoration: const InputDecoration(labelText: 'Well type'),
+              items: const [
+                DropdownMenuItem(value: 'borewell', child: Text('Borewell')),
+                DropdownMenuItem(value: 'open_well', child: Text('Open well')),
+                DropdownMenuItem(value: 'observation_well', child: Text('Observation well')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => wellType = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: method, decoration: const InputDecoration(labelText: 'Observation method'),
+              items: const [
+                DropdownMenuItem(value: 'manual_measurement', child: Text('Manual measurement')),
+                DropdownMenuItem(value: 'sensor_reading', child: Text('Sensor reading')),
+                DropdownMenuItem(value: 'authority_record', child: Text('Authority record')),
+                DropdownMenuItem(value: 'field_inspection', child: Text('Field inspection')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => method = v); },
+            ),
+            TextField(controller: level, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Water level below ground (m) *')),
+            DropdownButtonFormField<String>(
+              initialValue: pumping, decoration: const InputDecoration(labelText: 'Pumping state at observation'),
+              items: const [
+                DropdownMenuItem(value: 'unknown', child: Text('Unknown')),
+                DropdownMenuItem(value: 'not_pumping', child: Text('Not pumping')),
+                DropdownMenuItem(value: 'pumping', child: Text('Pumping')),
+                DropdownMenuItem(value: 'recovery', child: Text('Recovery')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => pumping = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: sourceType, decoration: const InputDecoration(labelText: 'Source type'),
+              items: const [
+                DropdownMenuItem(value: 'field_observed', child: Text('Field observed')),
+                DropdownMenuItem(value: 'authority_document', child: Text('Authority document')),
+                DropdownMenuItem(value: 'sensor_snapshot', child: Text('Sensor snapshot')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => sourceType = v); },
+            ),
+            TextField(controller: sourceRef, decoration: const InputDecoration(labelText: 'Source / document reference')),
+            TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Measurement notes')),
+            const SizedBox(height: 8),
+            const Text('A water-level reading is not a legal or sustainability classification. Record the measurement time, method and pumping state accurately. This form does not connect to live sensors.',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          ],
+        ))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(
+            onPressed: saving ? null : () async {
+              final value = double.tryParse(level.text.trim());
+              if (departmentId == null || departmentId!.isEmpty || site.text.trim().isEmpty ||
+                  value == null || value < 0) {
+                _message('Enter a site reference and a valid non-negative water-level measurement.');
+                return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                await supabase.from('groundwater_observation_records').insert({
+                  'request_id': requestId,
+                  'responsible_department_id': departmentId,
+                  'site_reference': site.text.trim(),
+                  'well_type': wellType,
+                  'observation_method': method,
+                  'water_level_below_ground_m': value,
+                  'pumping_state': pumping,
+                  'source_type': sourceType,
+                  'source_reference': sourceRef.text.trim().isEmpty ? null : sourceRef.text.trim(),
+                  'measurement_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'created_by': user.id,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (_) {
+                setDialogState(() => saving = false);
+                _message('Unable to save. Confirm that the case is assigned to the selected department.');
+              }
+            },
+            child: saving ? const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save observation'),
+          ),
+        ],
+      )),
+    );
+    site.dispose(); level.dispose(); sourceRef.dispose(); notes.dispose();
+    if (saved == true) { await _load(); _message('Groundwater observation recorded.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.water_drop_outlined, color: Color(0xFF087F83)),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('Borewell & groundwater field observations',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ]),
+        const Text('Append dated site measurements to a borewell/groundwater case. The public station snapshot above remains separate.',
+          style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: groundwaterCases.isEmpty ? null : _add,
+          icon: const Icon(Icons.add), label: const Text('RECORD GROUNDWATER OBSERVATION'))),
+        const SizedBox(height: 8),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else if (records.isEmpty) const Text('No field observations have been recorded yet.',
+          style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+        else ...records.map((r) {
+          final dept = (r['responsible_department_id'] ?? '').toString();
+          return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFF7FAFC), borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4EAF1))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_caseLabel(r['request_id'].toString()),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              Text((r['site_reference'] ?? 'Site not specified').toString() + ' · ' +
+                (r['well_type'] ?? '').toString().replaceAll('_', ' ') + ' · ' +
+                (r['water_level_below_ground_m']?.toString() ?? '—') + ' m below ground',
+                style: const TextStyle(fontSize: 11, color: ink)),
+              Text(_departmentName(dept) + ' · ' +
+                (r['pumping_state'] ?? 'unknown').toString().replaceAll('_', ' ') + ' · ' +
+                (r['source_type'] ?? '').toString().replaceAll('_', ' '),
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+              Text('Observed: ' + (r['observed_at'] ?? '').toString(),
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            ]));
+        }),
+      ],
+    )));
+  }
+
+  String _departmentName(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return 'Department';
+  }
+}
+
+class StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const StatCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: teal, size: 28),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          Text(
+            title,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// DEPARTMENT TILE
+// ==========================================
+
+class DepartmentTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const DepartmentTile({
+    super.key,
+    required this.title,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: teal.withValues(alpha: 0.12),
+          child: Icon(icon, color: teal),
+        ),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+}
+
+
+// ==========================================
+// REQUESTS — LIVE SUPABASE MODULE
+// ==========================================
+
+class RequestsPage extends StatefulWidget {
+  const RequestsPage({super.key});
+
+  @override
+  State<RequestsPage> createState() => _RequestsPageState();
+}
+
+class _RequestsPageState extends State<RequestsPage> {
+  StreamSubscription<List<Map<String, dynamic>>>? _requestEvents;
+  List<Map<String, dynamic>> requests = [];
+  bool loading = true;
+  String? errorMessage;
+  String selectedFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    loadRequests();
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      _requestEvents = supabase
+          .from('excavation_requests')
+          .stream(primaryKey: ['id'])
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false)
+          .listen((rows) {
+        if (!mounted) return;
+        setState(() {
+          requests = List<Map<String, dynamic>>.from(rows);
+          loading = false;
+          errorMessage = null;
+        });
+      }, onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          errorMessage = 'Live updates are unavailable. Use refresh to retry.';
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _requestEvents?.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadRequests() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        loading = false;
+        errorMessage = 'Please log in again.';
+      });
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final result = await supabase
+          .from('excavation_requests')
+          .select()
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false);
+
+      if (!mounted) return;
+
+      setState(() {
+        requests = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        errorMessage = error.toString();
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredRequests {
+    if (selectedFilter == 'all') return requests;
+
+    return requests.where((request) {
+      return request['status'] == selectedFilter;
+    }).toList();
+  }
+
+  Future<void> openNewRequestForm() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NewRequestPage(),
+      ),
+    );
+
+    if (created == true) {
+      await loadRequests();
+    }
+  }
+
+  String statusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return 'Submitted';
+      case 'under_review':
+        return 'Under Review';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'in_progress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
+      default:
+        return status.replaceAll('_', ' ').toUpperCase();
+    }
+  }
+
+  Color statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'completed':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'in_progress':
+        return Colors.blue;
+      case 'under_review':
+        return Colors.orange;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  String displayDate(dynamic value) {
+    if (value == null) return 'Not specified';
+
+    final date = DateTime.tryParse(value.toString());
+    if (date == null) return value.toString();
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleRequests = filteredRequests;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Excavation Requests'),
+        actions: [
+          IconButton(
+            onPressed: loading ? null : loadRequests,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh requests',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: openNewRequestForm,
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('New Request'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: loadRequests,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 90),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.assignment_turned_in_outlined,
+                    color: Colors.white,
+                    size: 36,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Excavation Requests',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${requests.length} request(s) recorded',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              'Filter by status',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('All', 'all'),
+                  _filterChip('Submitted', 'submitted'),
+                  _filterChip('Under Review', 'under_review'),
+                  _filterChip('Approved', 'approved'),
+                  _filterChip('Rejected', 'rejected'),
+                  _filterChip('In Progress', 'in_progress'),
+                  _filterChip('Completed', 'completed'),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.all(45),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (errorMessage != null)
+              _errorView()
+            else if (visibleRequests.isEmpty)
+              _emptyView()
+            else
+              ...visibleRequests.map(
+                (request) => _requestCard(request),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, String value) {
+    final selected = selectedFilter == value;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) {
+          setState(() {
+            selectedFilter = value;
+          });
+        },
+        selectedColor: teal.withValues(alpha: 0.18),
+        checkmarkColor: teal,
+      ),
+    );
+  }
+
+  Widget _requestCard(Map<String, dynamic> request) {
+    final status = request['status']?.toString() ?? 'submitted';
+    final number = request['request_number']?.toString() ?? '-';
+    final title = request['title']?.toString() ?? 'Untitled';
+    final road = request['road_name']?.toString() ?? '';
+    final city = request['city']?.toString() ?? '';
+    final category = (request['case_category'] ?? 'legacy_excavation')
+        .toString().replaceAll('_', ' ').toUpperCase();
+    final activity = (request['work_activity'] ?? 'not specified')
+        .toString().replaceAll('_', ' ');
+    final color = statusColor(status);
+
+    return Card(
+      color: Colors.white,
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 13),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Request #$number',
+                    style: const TextStyle(
+                      color: teal,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    statusLabel(status),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 9),
+
+            _detailRow(Icons.location_on_outlined, '$road, $city'),
+            _detailRow(Icons.layers_outlined, 'Domain: $category'),
+            _detailRow(Icons.build_outlined, 'Activity: $activity'),
+
+            const SizedBox(height: 7),
+
+            _detailRow(
+              Icons.calendar_today_outlined,
+              'Start: ${displayDate(request['planned_start_date'])}',
+            ),
+
+            const SizedBox(height: 7),
+
+            _detailRow(
+              Icons.event_outlined,
+              'End: ${displayDate(request['planned_end_date'])}',
+            ),
+
+            if (request['description'] != null &&
+                request['description'].toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                request['description'].toString(),
+                style: const TextStyle(
+                  color: Colors.blueGrey,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CaseWorkspacePage(
+                      requestId: request['id'].toString(),
+                      requestTitle: title,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.forum_outlined),
+                label: const Text('OPEN CASE WORKSPACE'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: Colors.blueGrey),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.blueGrey,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyView() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 55),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.assignment_outlined,
+            size: 65,
+            color: teal,
+          ),
+          const SizedBox(height: 15),
+          const Text(
+            'No requests found',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Create your first excavation request '
+            'using the button below.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.blueGrey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorView() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 40),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 55,
+            color: Colors.redAccent,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Unable to load requests',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            errorMessage ?? 'Unknown error',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 15),
+          FilledButton.icon(
+            onPressed: loadRequests,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// NEW EXCAVATION REQUEST FORM
+// ==========================================
+
+class NewRequestPage extends StatefulWidget {
+  const NewRequestPage({super.key});
+
+  @override
+  State<NewRequestPage> createState() => _NewRequestPageState();
+}
+
+class _NewRequestPageState extends State<NewRequestPage> {
+  LatLng? selectedWorkPoint;
+  String selectedCategory = 'road_reconstruction';
+  String selectedActivity = 'new_installation';
+  final _formKey = GlobalKey<FormState>();
+
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _roadController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _workRadiusController = TextEditingController();
+
+  DateTime? startDate;
+  DateTime? endDate;
+
+  bool submitting = false;
+  String? formError;
+  Future<void> pickWorkLocation() async {
+  final LatLng? picked = await Navigator.push<LatLng>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MapLocationPickerPage(
+        initialPoint: selectedWorkPoint,
+      ),
+    ),
+  );
+
+  if (picked == null || !mounted) return;
+
+  setState(() {
+    selectedWorkPoint = picked;
+  });
+  }
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _roadController.dispose();
+    _cityController.dispose();
+    _workRadiusController.dispose();
+    super.dispose();
+  }
+
+  Future<void> chooseDate(bool isStart) async {
+    final now = DateTime.now();
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: isStart
+          ? startDate ?? now
+          : endDate ?? startDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 10),
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      if (isStart) {
+        startDate = selected;
+
+        if (endDate != null && endDate!.isBefore(selected)) {
+          endDate = null;
+        }
+      } else {
+        endDate = selected;
+      }
+    });
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) return 'Select date';
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  Future<void> submitRequest() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (selectedWorkPoint == null) {
+      setState(() {
+        formError = 'Select the work or issue location on the map to support GIS coordination.';
+      });
+      return;
+    }
+
+    final radiusText = _workRadiusController.text.trim();
+    final workRadius = radiusText.isEmpty ? null : double.tryParse(radiusText);
+    if (radiusText.isNotEmpty &&
+        (workRadius == null || workRadius < 1 || workRadius > 500)) {
+      setState(() {
+        formError = 'Work-site radius must be a number between 1 and 500 metres.';
+      });
+      return;
+    }
+
+    if (startDate != null &&
+        endDate != null &&
+        endDate!.isBefore(startDate!)) {
+      setState(() {
+        formError = 'End date cannot be before start date.';
+      });
+      return;
+    }
+
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        formError = 'Your session has expired. Please log in again.';
+      });
+      return;
+    }
+
+    setState(() {
+      submitting = true;
+      formError = null;
+    });
+
+    try {
+      final data = <String, dynamic>{
+        'requester_id': user.id,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'road_name': _roadController.text.trim(),
+        'city': _cityController.text.trim(),
+        'case_category': selectedCategory,
+        'work_activity': selectedActivity,
+        'work_radius_m': workRadius,
+        'latitude': selectedWorkPoint!.latitude,
+        'longitude': selectedWorkPoint!.longitude,
+      };
+
+      if (startDate != null) {
+        data['planned_start_date'] =
+            startDate!.toIso8601String().split('T').first;
+      }
+
+      if (endDate != null) {
+        data['planned_end_date'] =
+            endDate!.toIso8601String().split('T').first;
+      }
+
+      await supabase
+          .from('excavation_requests')
+          .insert(data)
+          .select()
+          .single();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Infrastructure case submitted successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        formError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          submitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Infrastructure Case'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const Text(
+              'Request details',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            const Text(
+              'Register a work proposal or infrastructure issue for coordinated review by the responsible departments.',
+              style: TextStyle(color: Colors.blueGrey),
+            ),
+
+            const SizedBox(height: 22),
+
+            _field(
+              controller: _titleController,
+              label: 'Project title',
+              icon: Icons.title,
+              required: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _descriptionController,
+              label: 'Work / issue description',
+              icon: Icons.description_outlined,
+              maxLines: 4,
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedCategory,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Infrastructure domain',
+                prefixIcon: Icon(Icons.account_tree_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'road_reconstruction', child: Text('Road reconstruction')),
+                DropdownMenuItem(value: 'water_supply', child: Text('Water supply')),
+                DropdownMenuItem(value: 'sewerage', child: Text('Sewerage')),
+                DropdownMenuItem(value: 'stormwater_drainage', child: Text('Stormwater and drainage')),
+                DropdownMenuItem(value: 'electricity', child: Text('Electricity')),
+                DropdownMenuItem(value: 'telecom', child: Text('Telecommunications')),
+                DropdownMenuItem(value: 'gas', child: Text('Gas network')),
+                DropdownMenuItem(value: 'borewell_groundwater', child: Text('Borewell and groundwater')),
+                DropdownMenuItem(value: 'building_planning', child: Text('Building planning / regulation')),
+                DropdownMenuItem(value: 'public_health_engineering', child: Text('Public health engineering')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedCategory = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedActivity,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Reported issue / work activity',
+                prefixIcon: Icon(Icons.build_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'new_installation', child: Text('New installation / development')),
+                DropdownMenuItem(value: 'repair', child: Text('Repair')),
+                DropdownMenuItem(value: 'maintenance', child: Text('Repair / maintenance of existing infrastructure')),
+                DropdownMenuItem(value: 'relocation', child: Text('Relocation')),
+                DropdownMenuItem(value: 'survey', child: Text('Survey')),
+                DropdownMenuItem(value: 'inspection', child: Text('Inspection')),
+                DropdownMenuItem(value: 'violation_report', child: Text('Possible violation / complaint')),
+                DropdownMenuItem(value: 'emergency_response', child: Text('Emergency response')),
+                DropdownMenuItem(value: 'repeat_excavation_coordination', child: Text('Repeated digging / joint-work coordination')),
+                DropdownMenuItem(value: 'utility_route_conflict', child: Text('Underground utility route conflict / clash')),
+                DropdownMenuItem(value: 'unplanned_road_cutting', child: Text('Unplanned road cutting / restoration issue')),
+                DropdownMenuItem(value: 'frontage_drainage_gap', child: Text('Missing or obstructed house-front drainage')),
+                DropdownMenuItem(value: 'unauthorised_borewell', child: Text('Possible unauthorised / excessive borewell')),
+                DropdownMenuItem(value: 'groundwater_overextraction', child: Text('Groundwater stress / over-extraction concern')),
+                DropdownMenuItem(value: 'building_height_violation', child: Text('Possible building height / planning violation')),
+                DropdownMenuItem(value: 'water_pipeline_leakage', child: Text('Drinking-water pipeline leakage / failure')),
+                DropdownMenuItem(value: 'water_pipeline_mapping', child: Text('Water pipeline mapping / asset-record gap')),
+                DropdownMenuItem(value: 'stormwater_encroachment', child: Text('Stormwater drain obstruction / encroachment')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedActivity = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _roadController,
+              label: 'Road name / location',
+              icon: Icons.location_on_outlined,
+              required: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _cityController,
+              label: 'City',
+              icon: Icons.location_city,
+              required: true,
+            ),
+            const SizedBox(height: 14),
+
+            OutlinedButton.icon(
+              onPressed: pickWorkLocation,
+              icon: const Icon(Icons.location_on),
+              label: Text(
+                selectedWorkPoint == null
+                    ? 'Select work location on map'
+                    : 'Change selected location',
+              ),
+             ),
+
+             if (selectedWorkPoint != null) ...[
+               const SizedBox(height: 8),
+               Text(
+                  'Latitude: ${selectedWorkPoint!.latitude.toStringAsFixed(6)}\n'
+                  'Longitude: ${selectedWorkPoint!.longitude.toStringAsFixed(6)}',
+                  style: const TextStyle(fontSize: 13),
+               ),
+              ],
+
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _workRadiusController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Approximate work-site radius (metres)',
+                helperText: 'Optional. Enter 1–500 m to enable the recorded-utility proximity check. This is not a verified work boundary or safety clearance.',
+                prefixIcon: Icon(Icons.radar_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                final text = (value ?? '').trim();
+                if (text.isEmpty) return null;
+                final number = double.tryParse(text);
+                if (number == null || number < 1 || number > 500) {
+                  return 'Enter a radius between 1 and 500 metres.';
+                }
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 22),
+
+            const Text(
+              'Planned schedule',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            _dateTile(
+              'Planned start date',
+              startDate,
+              true,
+            ),
+
+            const SizedBox(height: 12),
+
+            _dateTile(
+              'Planned end date',
+              endDate,
+              false,
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: teal.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'A case number will be generated automatically. Department assignment and official decisions are completed by authorised officers.',
+                style: TextStyle(
+                  color: navy,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+
+            if (formError != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  formError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 22),
+
+            FilledButton.icon(
+              onPressed: submitting ? null : submitRequest,
+              style: FilledButton.styleFrom(
+                backgroundColor: navy,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              icon: submitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(
+                submitting ? 'SUBMITTING...' : 'SUBMIT REQUEST',
+              ),
+            ),
+
+            const SizedBox(height: 25),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool required = false,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: const OutlineInputBorder(),
+        alignLabelWithHint: maxLines > 1,
+      ),
+      validator: (value) {
+        if (required &&
+            (value == null || value.trim().isEmpty)) {
+          return 'Please enter $label';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _dateTile(
+    String label,
+    DateTime? date,
+    bool isStart,
+  ) {
+    return OutlinedButton(
+      onPressed: submitting ? null : () => chooseDate(isStart),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.all(16),
+        alignment: Alignment.centerLeft,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_month, color: teal),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.blueGrey),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formatDate(date),
+                  style: const TextStyle(
+                    color: navy,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.edit_calendar_outlined),
+        ],
+      ),
+    );
+  }
+}
+
+
+// ==========================================
+// MAP
+// ==========================================
+
+
+class MapLocationPickerPage extends StatefulWidget {
+  final LatLng? initialPoint;
+
+  const MapLocationPickerPage({
+    super.key,
+    this.initialPoint,
+  });
+
+  @override
+  State<MapLocationPickerPage> createState() =>
+      _MapLocationPickerPageState();
+}
+
+class _MapLocationPickerPageState
+    extends State<MapLocationPickerPage> {
+  MapLibreMapController? _controller;
+  bool _ready = false;
+  bool _locating = false;
+  bool _hasLocationPermission = false;
+
+  static const String _style =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  LatLng get _initialPoint =>
+      widget.initialPoint ?? const LatLng(0, 0);
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _ready = true);
+
+    if (widget.initialPoint == null) {
+      await _goToCurrentLocation();
+    }
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _message('Location permission is needed only to centre the map on your device. You can still select a location manually.');
+    }
+    return false;
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    final controller = _controller;
+    if (controller == null || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!mounted || !granted) return;
+
+    setState(() => _locating = true);
+
+    try {
+      final location =
+          await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _message(
+          'Current location unavailable. Check GPS permissions.',
+        );
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 18,
+            tilt: 45,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1000),
+      );
+    } catch (_) {
+      _message(
+        'Unable to access GPS. You can still move the map manually.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _locating = false);
+      }
+    }
+  }
+
+  Future<void> _confirmLocation() async {
+    final controller = _controller;
+
+    if (controller == null || !_ready) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      final selected = camera?.target;
+
+      if (selected == null) {
+        _message('Unable to read the selected map coordinates.');
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.pop(context, selected);
+    } catch (_) {
+      _message('Unable to select this location.');
+    }
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF101B29),
+      appBar: AppBar(
+        title: const Text('Select Work Location'),
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Use current GPS location',
+            onPressed: _goToCurrentLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              styleString: _style,
+              initialCameraPosition: CameraPosition(
+                target: _initialPoint,
+                zoom: widget.initialPoint == null ? 2 : 17,
+                tilt: 40,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              myLocationEnabled: _hasLocationPermission,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              minMaxZoomPreference:
+                  const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          // Fixed centre marker: selected coordinate is
+          // the map centre when the user confirms.
+          const Center(
+            child: IgnorePointer(
+              child: Icon(
+                Icons.location_on,
+                size: 46,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+
+          if (!_ready)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF23C5B5),
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 20,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xF2182638),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Move the map until the required work location '
+                    'is under the centre marker.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed:
+                        _ready ? _confirmLocation : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('CONFIRM THIS LOCATION'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFF13A89E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_locating)
+            const Positioned(
+              top: 15,
+              left: 15,
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      SizedBox(width: 9),
+                      Text('Finding GPS location...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+class MapPage extends StatefulWidget {
+  const MapPage({super.key});
+
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  static const String _mapTilerKey =
+      String.fromEnvironment('MAPTILER_API_KEY');
+  static const String _vectorStyle =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  MapLibreMapController? _controller;
+  CameraPosition? _pendingBasemapCamera;
+  final TextEditingController _searchController = TextEditingController();
+  final Set<String> _openingMapCases = <String>{};
+  Timer? _viewportRefreshTimer;
+  List<Map<String, dynamic>> _placeResults = [];
+  bool _searching = false;
+  bool _utilityQueryInFlight = false;
+  bool _requestLayerInFlight = false;
+  bool _requestLayerRefreshPending = false;
+  String _scaleLabel = '';
+  double _scaleWidth = 80;
+  bool _is3D = true;
+  bool _undergroundMode = false;
+  bool _styleReady = false;
+  bool _buildingReadinessLoaded = false;
+  bool _utilityReadinessLoaded = false;
+  bool _groundwaterReadinessLoaded = false;
+  int _approvalRecordCount = 0;
+  int _approvalMappedCount = 0;
+  int _approvalFloorCount = 0;
+  int _utilityLayerCatalogueCount = 0;
+  int _utilityLayersPending = 0;
+  int _utilityLayersOperational = 0;
+  int _groundwaterCoverageJurisdictions = 0;
+  int _groundwaterTelemetryGaps = 0;
+  bool _satellite = _mapTilerKey.isNotEmpty;
+  bool _showRequests = true;
+  bool _showUtilityZones = false;
+  bool _canViewUtilityOverview = false;
+  bool _loadingLayers = false;
+  bool _locating = false;
+  bool _hasLocationPermission = false;
+  int _requestMarkerCount = 0;
+  int _utilityCellCount = 0;
+  int _verifiedAssetCount = 0;
+  int _unverifiedAssetCount = 0;
+  int _utilityConflictCount = 0;
+  String _utilityConflictStatus = 'Conflict screening has not run.';
+  List<Map<String, dynamic>> _visibleRequests = [];
+  final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
+  String _lastConflictAlertSignature = '';
+  bool _canViewDepartmentAssets = false;
+  bool _showVerifiedAssets = true;
+  bool _showCoimbatoreWardBoundaries = true;
+  int _coimbatoreWardCount = 0;
+  bool _showGroundwaterTelemetry = true;
+  int _groundwaterStationCount = 0;
+  final Map<String, Map<String, dynamic>> _groundwaterStationDetails = {};
+  String _deviceCoordinateLabel = '';
+  String _layerStatus =
+      'Underground visibility requires authorised, verified GIS records.';
+  bool _routing = false;
+  String _routeSummary = '';
+  List<String> _routeInstructions = [];
+  Map<String, dynamic>? _activeRouteGeoJson;
+
+  String get _mapStyle {
+    if (_satellite && _mapTilerKey.isNotEmpty) {
+      return 'https://api.maptiler.com/maps/hybrid/style.json?key=$_mapTilerKey';
+    }
+    return _vectorStyle;
+  }
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+    controller.onFeatureTapped.add(_onMapFeatureTapped);
+  }
+
+  void _onMapFeatureTapped(
+    math.Point<double> point,
+    LatLng coordinates,
+    String id,
+    String layerId,
+    Annotation? annotation,
+  ) {
+    if (layerId == 'samanvay-groundwater-telemetry-points') {
+      final details = _groundwaterStationDetails[id];
+      if (details != null) {
+        final station = (details['station_name'] ?? 'Groundwater station').toString();
+        final district = (details['district_name'] ?? '').toString();
+        final state = (details['state_name'] ?? '').toString();
+        final reading = details['reported_level_m'];
+        final readingText = (details['reported_level_text'] ?? '').toString();
+        final observed = (details['observed_at_local'] ?? 'Timestamp unavailable').toString();
+        final place = [district, state].where((part) => part.isNotEmpty).join(', ');
+        final level = readingText.isNotEmpty
+            ? readingText
+            : reading == null ? 'not reported' : '$reading m';
+        _showMessage('$station${place.isEmpty ? '' : ' · $place'} · level: $level · observed: $observed');
+      }
+      return;
+    }
+    if (layerId == 'samanvay-utility-conflict-markers') {
+      final details = _utilityConflictDetails[id];
+      if (details != null) {
+        final conflicts = (details['conflicts'] as List?) ?? const [];
+        final summary = conflicts.take(3).map((raw) {
+          final item = Map<String, dynamic>.from(raw as Map);
+          return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m · depth ${item['depth_m'] ?? 'n/a'} m · accuracy ${item['horizontal_accuracy_m'] ?? 'unknown'} m';
+        }).join(' | ');
+        _showMessage(
+          'POTENTIAL UTILITY PROXIMITY · Request ${details['request_number']} · '
+          '${details['candidate_count']} verified asset match(es). $summary. '
+          'Recorded depths/accuracy are advisory metadata only. Obtain owner-department clearance and field verification; this is not a safety clearance.',
+        );
+      }
+      return;
+    }
+    if (layerId == 'samanvay-work-request-points') {
+      unawaited(_openCaseFromMap(id));
+    }
+  }
+
+  Future<void> _openCaseFromMap(String requestId) async {
+    final id = requestId.trim();
+    if (id.isEmpty || !_openingMapCases.add(id)) return;
+
+    try {
+      // Re-fetch through the authenticated client. RLS remains the authority
+      // for whether this account may open the selected case.
+      final row = await supabase
+          .from('excavation_requests')
+          .select('id,title,request_number')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      if (row == null) {
+        _showMessage('This case is no longer available to your account.');
+        return;
+      }
+
+      final title = (row['title'] ?? row['request_number'] ?? 'Infrastructure case').toString();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CaseWorkspacePage(
+            requestId: id,
+            requestTitle: title,
+          ),
+        ),
+      );
+    } catch (_) {
+      _showMessage('Unable to open this case. Your account may not have access.');
+    } finally {
+      _openingMapCases.remove(id);
+    }
+  }
+
+  @override
+  void dispose() {
+    _viewportRefreshTimer?.cancel();
+    try {
+      _controller?.onFeatureTapped.remove(_onMapFeatureTapped);
+    } catch (_) {}
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Reload request markers and cross-department advisories for the current
+  // map viewport. A pending flag coalesces camera movement during pagination.
+  Future<void> _loadVisibleWorkRequests() async {
+    if (_requestLayerInFlight) {
+      _requestLayerRefreshPending = true;
+      return;
+    }
+    _requestLayerInFlight = true;
+    try {
+      do {
+        _requestLayerRefreshPending = false;
+        final controller = _controller;
+        if (controller == null || !_styleReady) break;
+
+        final visibleBounds = await controller.getVisibleRegion();
+        final centerLatitude =
+            (visibleBounds.southwest.latitude + visibleBounds.northeast.latitude) / 2;
+        final latitudeBuffer = 1000 / 110540;
+        final longitudeScale =
+            (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+        final longitudeBuffer = 1000 / (111320 * longitudeScale);
+        final minRequestLat =
+            (visibleBounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+        final maxRequestLat =
+            (visibleBounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+        final minRequestLon =
+            (visibleBounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+        final maxRequestLon =
+            (visibleBounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+
+        final loadedRequestRows = <Map<String, dynamic>>[];
+        const requestPageSize = 500;
+        var requestOffset = 0;
+        while (true) {
+          final requestPage = await supabase
+              .from('excavation_requests')
+              .select('id,request_number,title,status,latitude,longitude,work_radius_m')
+              .gte('latitude', minRequestLat)
+              .lte('latitude', maxRequestLat)
+              .gte('longitude', minRequestLon)
+              .lte('longitude', maxRequestLon)
+              .order('created_at', ascending: false)
+              .order('id')
+              .range(requestOffset, requestOffset + requestPageSize - 1);
+          final pageRows = List<Map<String, dynamic>>.from(requestPage);
+          loadedRequestRows.addAll(pageRows);
+          if (pageRows.length < requestPageSize) break;
+          requestOffset += requestPageSize;
+        }
+
+        if (!mounted) break;
+        _visibleRequests = loadedRequestRows;
+        final features = <Map<String, dynamic>>[];
+        for (final row in loadedRequestRows) {
+          final lat = (row['latitude'] as num?)?.toDouble();
+          final lon = (row['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+            continue;
+          }
+          features.add({
+            'type': 'Feature',
+            'id': row['id'].toString(),
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_id': row['id'].toString(),
+              'request_number': row['request_number']?.toString() ?? '',
+              'title': row['title']?.toString() ?? 'Infrastructure request',
+              'status': row['status']?.toString() ?? 'submitted',
+            },
+          });
+        }
+
+        final sourceIds = await controller.getSourceIds();
+        final requestCollection = {
+          'type': 'FeatureCollection',
+          'features': features,
+        };
+        if (sourceIds.contains('samanvay-work-requests')) {
+          await controller.setGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        } else {
+          await controller.addGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        }
+
+        var layerIds = await controller.getLayerIds();
+        if (!layerIds.contains('samanvay-work-request-points')) {
+          await controller.addCircleLayer(
+            'samanvay-work-requests',
+            'samanvay-work-request-points',
+            CircleLayerProperties(
+              circleRadius: 6,
+              circleColor: [
+                'match',
+                ['get', 'status'],
+                'submitted', '#38BDF8',
+                'under_review', '#F59E0B',
+                'approved', '#22C55E',
+                'in_progress', '#F97316',
+                'completed', '#64748B',
+                'resolved', '#64748B',
+                'rejected', '#EF4444',
+                '#20D6C2',
+              ],
+              circleOpacity: 0.96,
+              circleStrokeColor: '#082033',
+              circleStrokeWidth: 1.6,
+            ),
+            enableInteraction: true,
+          );
+          layerIds = await controller.getLayerIds();
+        }
+        if (layerIds.contains('samanvay-work-request-points')) {
+          await controller.setLayerVisibility(
+            'samanvay-work-request-points',
+            _showRequests,
+          );
+        }
+
+        if (mounted) {
+          setState(() => _requestMarkerCount = features.length);
+        }
+        if (_canViewUtilityOverview) {
+          await _refreshUtilityConflictOverlay();
+        }
+      } while (_requestLayerRefreshPending && mounted);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Request locations or conflict advisories could not be refreshed. Check connectivity and staff access; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    } finally {
+      _requestLayerInFlight = false;
+    }
+  }
+
+  void _handleCameraIdle() {
+    if (!_styleReady) return;
+    _viewportRefreshTimer?.cancel();
+    _viewportRefreshTimer = Timer(const Duration(milliseconds: 420), () async {
+      if (!mounted) return;
+      await _refreshMapScale();
+      if (!mounted) return;
+      await _loadVisibleWorkRequests();
+      if (_showGroundwaterTelemetry) {
+        await _loadGroundwaterTelemetryStations();
+      }
+      if (_showUtilityZones && _canViewUtilityOverview) {
+        await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && _canViewDepartmentAssets) {
+        await _loadDepartmentAssets();
+      }
+    });
+  }
+
+  Future<void> _refreshMapScale() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      if (camera == null) return;
+      final latitude = camera.target.latitude.clamp(-85.0, 85.0);
+      final metersPerPixel = (
+        156543.03392 *
+        math.cos(latitude * math.pi / 180) /
+        math.pow(2, camera.zoom)
+      ).toDouble();
+
+      if (!metersPerPixel.isFinite || metersPerPixel <= 0) return;
+      final targetMeters = metersPerPixel * 82;
+      final magnitude = math.pow(
+        10,
+        (math.log(targetMeters) / math.ln10).floor(),
+      ).toDouble();
+      final fraction = targetMeters / magnitude;
+      final niceMeters = (fraction >= 5 ? 5 : (fraction >= 2 ? 2 : 1)) * magnitude;
+      final width = (niceMeters / metersPerPixel).clamp(42.0, 112.0).toDouble();
+      final label = niceMeters >= 1000
+          ? '${(niceMeters / 1000).toStringAsFixed(niceMeters >= 10000 ? 0 : 1)} km'
+          : '${niceMeters.toStringAsFixed(niceMeters < 10 ? 1 : 0)} m';
+
+      if (!mounted) return;
+      setState(() {
+        _scaleLabel = label;
+        _scaleWidth = width;
+      });
+    } catch (_) {
+      // A missing camera reading does not block map navigation.
+    }
+  }
+
+  Future<void> _ensure3DBuildings() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      final sources = await controller.getSourceIds();
+      if (!sources.contains('openmaptiles')) return;
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-3d-buildings')) {
+        await controller.addFillExtrusionLayer(
+          'openmaptiles',
+          'samanvay-3d-buildings',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#66849A',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              14,
+              0,
+              16,
+              [
+                'max',
+                6,
+                [
+                  'coalesce',
+                  ['to-number', ['get', 'render_height']],
+                  ['to-number', ['get', 'height']],
+                  ['*', ['to-number', ['get', 'building:levels']], 3],
+                  6,
+                ],
+              ],
+            ],
+            fillExtrusionBase: [
+              'coalesce',
+              ['get', 'render_min_height'],
+              ['get', 'min_height'],
+              0,
+            ],
+            fillExtrusionOpacity: 0.84,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      // Fine footprint edges improve the legibility of real OSM building
+      // massing at neighbourhood zoom without inventing facade geometry.
+      final refreshedLayers = await controller.getLayerIds();
+      if (!refreshedLayers.contains('samanvay-3d-building-outlines')) {
+        await controller.addLineLayer(
+          'openmaptiles',
+          'samanvay-3d-building-outlines',
+          const LineLayerProperties(
+            lineColor: '#B8D0E0',
+            lineWidth: 0.65,
+            lineOpacity: 0.48,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      await controller.setLayerVisibility(
+        'samanvay-3d-buildings',
+        _is3D,
+      );
+      await controller.setLayerVisibility(
+        'samanvay-3d-building-outlines',
+        _is3D,
+      );
+    } catch (_) {
+      // If a provider style lacks the expected source/attributes, the
+      // basemap remains usable. No illustrative buildings are substituted.
+    }
+  }
+
+  Future<void> _searchPlaces(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.isEmpty) {
+      _showMessage('Enter a place, area, ward or road name to search.');
+      return;
+    }
+    if (query.length > 120) {
+      _showMessage('Search text is too long. Use a shorter place name.');
+      return;
+    }
+    // MapTiler is preferred when configured. Photon provides a no-key
+    // OpenStreetMap-based fallback so place search still works in free builds.
+
+    setState(() {
+      _searching = true;
+      _placeResults = [];
+    });
+
+    try {
+      final uri = _mapTilerKey.isNotEmpty
+          ? Uri.https(
+              'api.maptiler.com',
+              '/geocoding/$query.json',
+              {
+                'key': _mapTilerKey,
+                'limit': '6',
+                'country': 'IN',
+                'language': 'en',
+                'autocomplete': 'false',
+              },
+            )
+          : Uri.https(
+              'photon.komoot.io',
+              '/api/',
+              {
+                'q': query,
+                'limit': '6',
+                'lang': 'en',
+              },
+            );
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) {
+        throw StateError('Place search provider returned HTTP ${response.statusCode}.');
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['features'] is! List) {
+        throw const FormatException('Unexpected place search response.');
+      }
+
+      final results = <Map<String, dynamic>>[];
+      for (final rawFeature in decoded['features'] as List) {
+        if (rawFeature is! Map) continue;
+        final feature = Map<String, dynamic>.from(rawFeature);
+
+        if (_mapTilerKey.isNotEmpty) {
+          final center = feature['center'];
+          if (center is List &&
+              center.length >= 2 &&
+              center[0] is num &&
+              center[1] is num) {
+            results.add(feature);
+          }
+          continue;
+        }
+
+        // Normalize Photon GeoJSON to the same shape consumed by _selectPlace.
+        final geometry = feature['geometry'];
+        final properties = feature['properties'];
+        if (geometry is! Map || properties is! Map) continue;
+        final coordinates = geometry['coordinates'];
+        if (coordinates is! List ||
+            coordinates.length < 2 ||
+            coordinates[0] is! num ||
+            coordinates[1] is! num) {
+          continue;
+        }
+        final props = Map<String, dynamic>.from(properties);
+        final name = (props['name'] ??
+                props['street'] ??
+                props['district'] ??
+                props['city'] ??
+                'Place')
+            .toString();
+        final locationParts = [
+          name,
+          props['district'],
+          props['city'],
+          props['state'],
+          props['country'],
+        ].where((part) => part != null && part.toString().trim().isNotEmpty)
+         .map((part) => part.toString().trim())
+         .toList();
+        results.add({
+          'center': [coordinates[0], coordinates[1]],
+          'text': name,
+          'place_name': locationParts.toSet().join(', '),
+        });
+      }
+
+      if (!mounted) return;
+      setState(() => _placeResults = results);
+      if (results.isEmpty) {
+        _showMessage('No matching place was found. Try a nearby landmark or shorter query.');
+      }
+    } catch (_) {
+      _showMessage('Place search failed. Check the MapTiler key, connection and usage quota.');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _selectPlace(Map<String, dynamic> feature) async {
+    final center = feature['center'];
+    if (center is! List ||
+        center.length < 2 ||
+        center[0] is! num ||
+        center[1] is! num) {
+      _showMessage('The selected place has no usable map coordinates.');
+      return;
+    }
+
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    final longitude = (center[0] as num).toDouble();
+    final latitude = (center[1] as num).toDouble();
+    final name = (feature['place_name'] ?? feature['text'] ?? 'Selected place').toString();
+
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(latitude, longitude),
+            zoom: 16,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchController.text = name;
+        _placeResults = [];
+      });
+      FocusScope.of(context).unfocus();
+    } catch (_) {
+      _showMessage('Unable to move the map to that search result.');
+    }
+  }
+
+  Future<LatLng> _geocodeRoutePlace(String query) async {
+    final uri = Uri.https('photon.komoot.io', '/api/', {
+      'q': query,
+      'limit': '1',
+      'lang': 'en',
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw StateError('Place lookup returned HTTP ${response.statusCode}.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['features'] is! List ||
+        (decoded['features'] as List).isEmpty) {
+      throw StateError('Could not find: $query');
+    }
+    final first = (decoded['features'] as List).first;
+    if (first is! Map || first['geometry'] is! Map) {
+      throw const FormatException('Place lookup returned invalid geometry.');
+    }
+    final coordinates = (first['geometry'] as Map)['coordinates'];
+    if (coordinates is! List || coordinates.length < 2 ||
+        coordinates[0] is! num || coordinates[1] is! num) {
+      throw const FormatException('Place lookup returned invalid coordinates.');
+    }
+    return LatLng(
+      (coordinates[1] as num).toDouble(),
+      (coordinates[0] as num).toDouble(),
+    );
+  }
+
+  Future<void> _renderActiveRoute() async {
+    final controller = _controller;
+    final route = _activeRouteGeoJson;
+    if (controller == null || !_styleReady || route == null) return;
+
+    final sources = await controller.getSourceIds();
+    if (sources.contains('samanvay-navigation-route')) {
+      await controller.setGeoJsonSource('samanvay-navigation-route', route);
+    } else {
+      await controller.addGeoJsonSource('samanvay-navigation-route', route);
+    }
+
+    final layers = await controller.getLayerIds();
+    if (!layers.contains('samanvay-navigation-route-line')) {
+      await controller.addLineLayer(
+        'samanvay-navigation-route',
+        'samanvay-navigation-route-line',
+        const LineLayerProperties(
+          lineColor: '#20D6C2',
+          lineWidth: 5,
+          lineOpacity: 0.96,
+        ),
+        enableInteraction: false,
+      );
+    }
+    await controller.setLayerVisibility('samanvay-navigation-route-line', true);
+  }
+
+  Future<void> _calculateRoute(String originText, String destinationText) async {
+    if (_routing) return;
+    if (originText.trim().isEmpty || destinationText.trim().isEmpty) {
+      _showMessage('Enter both a starting point and a destination.');
+      return;
+    }
+
+    setState(() {
+      _routing = true;
+      _routeSummary = '';
+      _routeInstructions = [];
+    });
+
+    try {
+      final origin = await _geocodeRoutePlace(originText.trim());
+      final destination = await _geocodeRoutePlace(destinationText.trim());
+      final uri = Uri.https(
+        'router.project-osrm.org',
+        '/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}',
+        {
+          'overview': 'full',
+          'geometries': 'geojson',
+          'steps': 'true',
+          'alternatives': 'true',
+        },
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (response.statusCode != 200) {
+        throw StateError('Routing service returned HTTP ${response.statusCode}.');
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['code'] != 'Ok' ||
+          decoded['routes'] is! List || (decoded['routes'] as List).isEmpty) {
+        throw StateError('No drivable route was returned for these places.');
+      }
+
+      final route = (decoded['routes'] as List).first;
+      if (route is! Map || route['geometry'] is! Map ||
+          (route['geometry'] as Map)['coordinates'] is! List) {
+        throw const FormatException('Routing service returned invalid route geometry.');
+      }
+      final coordinates = (route['geometry'] as Map)['coordinates'] as List;
+      if (coordinates.length < 2) {
+        throw const FormatException('The route contains too few coordinates.');
+      }
+
+      final featureCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {'source': 'OSRM public demonstration routing service'},
+            'geometry': Map<String, dynamic>.from(route['geometry'] as Map),
+          },
+        ],
+      };
+
+      final distanceMeters = (route['distance'] as num?)?.toDouble() ?? 0;
+      final durationSeconds = (route['duration'] as num?)?.toDouble() ?? 0;
+      final distanceLabel = distanceMeters >= 1000
+          ? '${(distanceMeters / 1000).toStringAsFixed(1)} km'
+          : '${distanceMeters.round()} m';
+      final durationMinutes = (durationSeconds / 60).round();
+      final summary = '$distanceLabel · about $durationMinutes min · driving preview';
+
+      final instructions = <String>[];
+      final legs = route['legs'];
+      if (legs is List) {
+        for (final leg in legs) {
+          if (leg is! Map || leg['steps'] is! List) continue;
+          for (final step in leg['steps'] as List) {
+            if (step is! Map) continue;
+            final maneuver = step['maneuver'];
+            final name = (step['name'] ?? '').toString().trim();
+            if (maneuver is! Map) continue;
+            final type = (maneuver['type'] ?? 'continue').toString();
+            final modifier = (maneuver['modifier'] ?? '').toString();
+            final distance = (step['distance'] as num?)?.toDouble() ?? 0;
+            final action = [type, modifier].where((v) => v.isNotEmpty).join(' ');
+            final road = name.isEmpty ? 'unnamed road' : name;
+            instructions.add('${action.isEmpty ? 'Continue' : action} on $road · ${distance.round()} m');
+            if (instructions.length >= 12) break;
+          }
+          if (instructions.length >= 12) break;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _activeRouteGeoJson = featureCollection;
+        _routeSummary = summary;
+        _routeInstructions = instructions;
+      });
+      await _renderActiveRoute();
+
+      final middle = coordinates[coordinates.length ~/ 2];
+      if (middle is List && middle.length >= 2 &&
+          middle[0] is num && middle[1] is num) {
+        await _controller?.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(
+                (middle[1] as num).toDouble(),
+                (middle[0] as num).toDouble(),
+              ),
+              zoom: 11.5,
+              tilt: _is3D && !_undergroundMode ? 42 : 0,
+              bearing: 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 900),
+        );
+      }
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Route preview'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(summary, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Preview route only. This public routing service does not provide live traffic, guaranteed turn-by-turn guidance or excavation clearance.',
+                    style: TextStyle(fontSize: 12, color: Colors.deepOrange),
+                  ),
+                  const SizedBox(height: 12),
+                  ...instructions.map((instruction) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text('• $instruction', style: const TextStyle(fontSize: 12)),
+                  )),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _showMessage('Route preview failed: ${error.toString()}');
+    } finally {
+      if (mounted) setState(() => _routing = false);
+    }
+  }
+
+  Future<void> _showDirectionsDialog() async {
+    final originController = TextEditingController();
+    final destinationController = TextEditingController();
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Plan a route'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: originController,
+              decoration: const InputDecoration(
+                labelText: 'Starting point',
+                hintText: 'e.g. Coimbatore Railway Station',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: destinationController,
+              decoration: const InputDecoration(
+                labelText: 'Destination',
+                hintText: 'e.g. Gandhipuram Bus Stand',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.directions),
+            label: const Text('Find route'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted == true) {
+      await _calculateRoute(originController.text, destinationController.text);
+    }
+    originController.dispose();
+    destinationController.dispose();
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _styleReady = true);
+
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      await controller.setMapLanguage('en');
+
+      // Preserve the exact camera when switching between vector and
+      // satellite styles. Only use device GPS on the first map load.
+      final restoreCamera = _pendingBasemapCamera;
+      if (restoreCamera != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(restoreCamera),
+          duration: const Duration(milliseconds: 900),
+        );
+        _pendingBasemapCamera = null;
+      } else {
+        await _goToMyLocation();
+      }
+
+      await _ensure3DBuildings();
+      await _loadMapLayers();
+      await _renderActiveRoute();
+      await _refreshMapScale();
+    } catch (_) {
+      _showMessage('The map loaded, but one or more data layers could not be prepared.');
+    }
+  }
+
+  Future<void> _loadCoimbatoreWardBoundaries() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final text = await rootBundle.loadString(
+        'assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson',
+      );
+      final decoded = jsonDecode(text);
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection') {
+        throw const FormatException('Invalid ward reference GeoJSON.');
+      }
+      final rawFeatures = decoded['features'];
+      if (rawFeatures is! List || rawFeatures.isEmpty) {
+        throw const FormatException('Ward reference GeoJSON has no features.');
+      }
+
+      final collection = Map<String, dynamic>.from(decoded);
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-coimbatore-ward-reference')) {
+        await controller.setGeoJsonSource(
+          'samanvay-coimbatore-ward-reference',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-coimbatore-ward-reference',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.addFillLayer(
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-fill',
+          const FillLayerProperties(
+            fillColor: '#20D6C2',
+            fillOpacity: 0.045,
+            fillOutlineColor: '#45D9CE',
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.addLineLayer(
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-lines',
+          const LineLayerProperties(
+            lineColor: '#45D9CE',
+            lineWidth: 1.4,
+            lineOpacity: 0.88,
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-fill',
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
+        );
+      }
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-lines',
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _coimbatoreWardCount = rawFeatures.length);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _coimbatoreWardCount = 0);
+    }
+  }
+
+  Future<void> _loadGroundwaterTelemetryStations() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final rows = await supabase
+          .from('latest_groundwater_station_observations')
+          .select('id,station_name,agency,state_name,district_name,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
+          .gte('latitude', bounds.southwest.latitude)
+          .lte('latitude', bounds.northeast.latitude)
+          .gte('longitude', bounds.southwest.longitude)
+          .lte('longitude', bounds.northeast.longitude)
+          .order('state_name')
+          .order('district_name')
+          .limit(1000);
+
+      final features = <Map<String, dynamic>>[];
+      final stationDetails = <Map<String, dynamic>>[];
+      for (final item in rows) {
+        final properties = Map<String, dynamic>.from(item);
+        final latitude = properties['latitude'];
+        final longitude = properties['longitude'];
+        if (latitude is! num || longitude is! num) continue;
+
+        final featureId = (properties['id'] ?? '').toString();
+        if (featureId.isEmpty) continue;
+        features.add({
+          'type': 'Feature',
+          'id': featureId,
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [longitude.toDouble(), latitude.toDouble()],
+          },
+          'properties': properties,
+        });
+        stationDetails.add(Map<String, dynamic>.from(properties));
+      }
+
+      final collection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-groundwater-telemetry')) {
+        await controller.setGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.addCircleLayer(
+          'samanvay-groundwater-telemetry',
+          'samanvay-groundwater-telemetry-points',
+          const CircleLayerProperties(
+            circleRadius: 6.2,
+            circleColor: '#A78BFA',
+            circleOpacity: 0.96,
+            circleStrokeColor: '#101B29',
+            circleStrokeWidth: 1.8,
+          ),
+          enableInteraction: true,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          _showGroundwaterTelemetry,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = features.length;
+          _groundwaterStationDetails
+            ..clear()
+            ..addEntries(stationDetails.map((properties) => MapEntry(
+              (properties['id'] ?? '').toString(),
+              properties,
+            )));
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _groundwaterStationCount = 0);
+    }
+  }
+
+  Future<void> _loadMapLayers() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (mounted) setState(() => _loadingLayers = true);
+
+    try {
+      // Public administrative reference data is independent of account role.
+      // This 2024 ward reference layer is not a current statutory jurisdiction source.
+      await Future.wait<void>([
+        _loadCoimbatoreWardBoundaries(),
+        _loadGroundwaterTelemetryStations(),
+        _loadMapReadiness(),
+      ]);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw StateError('Sign in to view operational map layers.');
+      }
+
+      final profile = await supabase
+          .from('profiles')
+          .select('role,department_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final role = (profile?['role'] ?? '').toString();
+      final authorised = ['admin', 'coordinator', 'department'].contains(role);
+      final departmentAssigned = role == 'department' &&
+          profile?['department_id'] != null;
+
+      if (mounted) {
+        setState(() {
+          _canViewUtilityOverview = authorised;
+          _canViewDepartmentAssets = departmentAssigned;
+          _layerStatus = departmentAssigned
+              ? 'Department GIS view: verified assets owned by your department can be displayed.'
+              : authorised
+                  ? 'Staff GIS view: generalised utility coverage only; exact asset geometry is restricted.'
+                  : 'Requester GIS view: only requests visible to your account are shown.';
+        });
+      }
+
+      await _loadVisibleWorkRequests();
+
+      if (_showUtilityZones && authorised) {
+        await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && departmentAssigned) {
+        await _loadDepartmentAssets();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _layerStatus = 'Operational layers could not be loaded. Check your connection and account access.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLayers = false);
+    }
+  }
+
+  Future<void> _loadUtilityOverview() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview || _utilityQueryInFlight) return;
+    _utilityQueryInFlight = true;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final minLon = bounds.southwest.longitude;
+      final minLat = bounds.southwest.latitude;
+      final maxLon = bounds.northeast.longitude;
+      final maxLat = bounds.northeast.latitude;
+
+      if (minLon >= maxLon || minLat >= maxLat) {
+        _showMessage('The current map extent cannot be queried. Adjust the view and retry.');
+        return;
+      }
+
+      // This endpoint returns generalised 250 m aggregate cells, never exact utility routes.
+      final raw = await supabase.rpc(
+        'get_underground_asset_overview',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+
+      final geojson = Map<String, dynamic>.from(raw as Map);
+      final featureList = geojson['features'];
+      final count = featureList is List ? featureList.length : 0;
+
+      final sourceIds = await controller.getSourceIds();
+      if (sourceIds.contains('samanvay-utility-overview')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      }
+
+      var layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.addFillLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-cells',
+          const FillLayerProperties(
+            fillColor: '#F59E0B',
+            fillOpacity: 0.30,
+            fillOutlineColor: '#FDE68A',
+          ),
+        );
+      }
+
+      // Generalised 250 m density cells can be extruded in underground 3D mode.
+      // Extrusion height is a relative density index, never physical depth or a pipe route.
+      layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.addFillExtrusionLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-3d',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#38BDF8',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['get', 'asset_count'],
+              3, 6,
+              10, 14,
+              25, 24,
+            ],
+            fillExtrusionBase: 0,
+            fillExtrusionOpacity: 0.62,
+          ),
+        );
+      }
+
+      layerIds = await controller.getLayerIds();
+      final showDensityExtrusion =
+          _showUtilityZones && _undergroundMode && _is3D;
+      if (layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones && !showDensityExtrusion,
+        );
+      }
+      if (layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          showDensityExtrusion,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = count;
+          _layerStatus = count == 0
+              ? 'No verified aggregate records in this view. This does NOT mean underground infrastructure is absent.'
+              : '$count generalised utility coverage cell(s) returned. Exact utility geometry is not displayed in this overview.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = 0;
+          _layerStatus = 'The authorised utility overview is unavailable. No data is not proof of no utility.';
+        });
+      }
+      _showMessage('Unable to load the authorised utility overview.');
+    } finally {
+      _utilityQueryInFlight = false;
+    }
+  }
+
+  Future<void> _refreshUtilityConflictOverlay() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
+
+    final activeRequests = _visibleRequests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status);
+    }).toList();
+
+    final features = <Map<String, dynamic>>[];
+    final detailsById = <String, Map<String, dynamic>>{};
+    var eligibleRequestCount = 0;
+    var verifiedAssetsAvailable = false;
+
+    try {
+      const batchSize = 500;
+      for (var offset = 0; offset < activeRequests.length; offset += batchSize) {
+        final batch = activeRequests.skip(offset).take(batchSize).toList();
+        final requestIds = batch
+            .map((request) => (request['id'] ?? '').toString())
+            .where((id) => id.isNotEmpty)
+            .toList();
+        if (requestIds.isEmpty) continue;
+
+        // The server performs PostGIS screening against verified assets across
+        // departments and returns advisory metadata only, never asset geometry.
+        final raw = await supabase.rpc(
+          'get_map_utility_conflict_advisories',
+          params: {'p_request_ids': requestIds},
+        );
+        final response = Map<String, dynamic>.from(raw as Map);
+        verifiedAssetsAvailable =
+            response['verified_assets_available'] == true || verifiedAssetsAvailable;
+        final rawResults = response['results'];
+        if (rawResults is! List) continue;
+
+        for (final rawResult in rawResults) {
+          if (rawResult is! Map) continue;
+          final result = Map<String, dynamic>.from(rawResult);
+          final screeningStatus = (result['screening_status'] ?? '').toString();
+          if (screeningStatus == 'potential_conflict' ||
+              screeningStatus == 'screened_no_proximity_match') {
+            eligibleRequestCount++;
+          }
+          final rawConflicts = result['conflicts'];
+          if (screeningStatus != 'potential_conflict' ||
+              rawConflicts is! List || rawConflicts.isEmpty) {
+            continue;
+          }
+
+          final requestId = (result['request_id'] ?? '').toString();
+          final request = batch.firstWhere(
+            (item) => item['id']?.toString() == requestId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (request.isEmpty) continue;
+          final lat = (request['latitude'] as num?)?.toDouble();
+          final lon = (request['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null) continue;
+
+          final conflicts = rawConflicts
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          if (conflicts.isEmpty) continue;
+
+          final requestNumber =
+              (result['request_number'] ?? requestId).toString();
+          final markerId = requestId.replaceAll(
+            RegExp(r'[^A-Za-z0-9_-]'),
+            '_',
+          );
+          detailsById[markerId] = {
+            'request_number': requestNumber,
+            'candidate_count': conflicts.length,
+            'conflicts': conflicts,
+          };
+          features.add({
+            'type': 'Feature',
+            'id': markerId,
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_number': requestNumber,
+              'candidate_count': conflicts.length,
+            },
+          });
+        }
+      }
+
+      final collection = {
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-utility-conflict-candidates')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-utility-conflict-markers')) {
+        await controller.addCircleLayer(
+          'samanvay-utility-conflict-candidates',
+          'samanvay-utility-conflict-markers',
+          const CircleLayerProperties(
+            circleRadius: 9,
+            circleColor: '#EF4444',
+            circleOpacity: 0.98,
+            circleStrokeColor: '#FFFFFF',
+            circleStrokeWidth: 2.2,
+          ),
+          enableInteraction: true,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-utility-conflict-markers',
+          true,
+        );
+      }
+
+      if (!mounted) return;
+      final status = activeRequests.isEmpty
+          ? 'No active work requests are available in this map area to screen.'
+          : !verifiedAssetsAvailable
+              ? 'No verified underground utility assets are registered. Cross-department screening is unavailable; this does not mean sites are clear.'
+              : eligibleRequestCount == 0
+                  ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
+                  : features.isEmpty
+                      ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
+                      : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
+      final alertSignature = detailsById.keys.toList()..sort();
+      final signature = alertSignature.join('|');
+      final shouldNotify = signature.isNotEmpty &&
+          signature != _lastConflictAlertSignature;
+      _lastConflictAlertSignature = signature;
+      setState(() {
+        _utilityConflictCount = features.length;
+        _utilityConflictStatus = status;
+        _utilityConflictDetails
+          ..clear()
+          ..addAll(detailsById);
+      });
+      if (shouldNotify) {
+        _showMessage(
+          '${features.length} work request(s) have potential proximity to verified underground assets across departments. Tap a red marker for advisory details.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Cross-department screening could not be completed. Check staff access and GIS connectivity; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDepartmentAssets() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final centerLatitude =
+          (bounds.southwest.latitude + bounds.northeast.latitude) / 2;
+      final latitudeBuffer = 1000 / 110540;
+      final longitudeScale =
+          (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+      final longitudeBuffer = 1000 / (111320 * longitudeScale);
+      final minLon =
+          (bounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+      final minLat =
+          (bounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+      final maxLon =
+          (bounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+      final maxLat =
+          (bounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+      if (minLon >= maxLon || minLat >= maxLat) return;
+
+      // The 1 km query buffer covers maximum work radius plus survey uncertainty.
+      // This RPC remains scoped by auth.uid() to the signed-in department's own assets.
+      // Only verified features are drawn; unverified records are counted, not mapped.
+      final raw = await supabase.rpc(
+        'get_my_department_verified_assets_geojson',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+      final collection = Map<String, dynamic>.from(raw as Map);
+      final rawFeatures = collection['features'];
+      final verified = <Map<String, dynamic>>[];
+      final metadata = collection['metadata'] is Map
+          ? Map<String, dynamic>.from(collection['metadata'] as Map)
+          : <String, dynamic>{};
+      final unverified = (metadata['withheld_unverified_count'] as num?)?.toInt() ?? 0;
+
+      if (rawFeatures is List) {
+        for (final item in rawFeatures) {
+          if (item is! Map) continue;
+          final feature = Map<String, dynamic>.from(item);
+          final properties = feature['properties'];
+          if (properties is! Map) continue;
+          final props = Map<String, dynamic>.from(properties);
+          feature['id'] = (props['id'] ?? feature['id'] ?? '').toString();
+          verified.add(feature);
+        }
+      }
+
+      final verifiedCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': verified,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-verified-department-assets')) {
+        await controller.setGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-verified-asset-lines')) {
+        await controller.addLineLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-lines',
+          LineLayerProperties(
+            lineColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            lineWidth: 3.5,
+            lineOpacity: 0.96,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-lines',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (!layers.contains('samanvay-verified-asset-points')) {
+        await controller.addCircleLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-points',
+          CircleLayerProperties(
+            circleRadius: 5.5,
+            circleColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            circleStrokeColor: '#071827',
+            circleStrokeWidth: 1.8,
+            circleOpacity: 0.98,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-points',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = verified.length;
+          _unverifiedAssetCount = unverified;
+          _layerStatus = verified.isEmpty
+              ? 'No verified assets are registered in this department and map extent. $unverified unverified record(s) are withheld from the map.'
+              : '$verified verified department asset(s) mapped. $unverified unverified record(s) withheld.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = 0;
+          _layerStatus = 'Department asset layer unavailable. No unverified or estimated geometry is substituted.';
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleVerifiedAssets(bool enabled) async {
+    if (!_canViewDepartmentAssets) {
+      _showMessage('Verified asset geometry is restricted to the owning department.');
+      return;
+    }
+    setState(() => _showVerifiedAssets = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (!enabled) {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-verified-asset-lines')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-lines', false);
+      }
+      if (layers.contains('samanvay-verified-asset-points')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-points', false);
+      }
+      return;
+    }
+    await _loadDepartmentAssets();
+  }
+
+  Future<void> _toggleRequests(bool enabled) async {
+    setState(() => _showRequests = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-work-request-points')) {
+        await _loadMapLayers();
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-work-request-points',
+          enabled,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the request layer.');
+    }
+  }
+
+  Future<void> _toggleCoimbatoreWardBoundaries(bool enabled) async {
+    setState(() => _showCoimbatoreWardBoundaries = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadCoimbatoreWardBoundaries();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-fill',
+          false,
+        );
+      }
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-lines',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the Coimbatore ward reference layer.');
+    }
+  }
+
+  Future<void> _toggleGroundwaterTelemetry(bool enabled) async {
+    setState(() => _showGroundwaterTelemetry = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadGroundwaterTelemetryStations();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the groundwater telemetry layer.');
+    }
+  }
+
+  Future<void> _toggleUtilityZones(bool enabled) async {
+    if (!_canViewUtilityOverview) {
+      _showMessage('The utility overview is restricted to authorised infrastructure staff.');
+      return;
+    }
+
+    setState(() => _showUtilityZones = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (!enabled) {
+      try {
+        final layers = await controller.getLayerIds();
+        for (final layerId in [
+          'samanvay-utility-overview-cells',
+          'samanvay-utility-overview-3d',
+        ]) {
+          if (layers.contains(layerId)) {
+            await controller.setLayerVisibility(layerId, false);
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
+    await _loadUtilityOverview();
+  }
+
+
+  Future<void> _setUndergroundMode(bool enabled) async {
+    if (_undergroundMode == enabled) return;
+
+    final controller = _controller;
+    setState(() {
+      _undergroundMode = enabled;
+      if (enabled) {
+        _showUtilityZones = _canViewUtilityOverview;
+        _showVerifiedAssets = _canViewDepartmentAssets;
+      } else {
+        _showUtilityZones = false;
+        _showVerifiedAssets = false;
+      }
+    });
+
+    if (controller == null || !_styleReady) return;
+
+    Future<void> setVisibility(String layerId, bool visible) async {
+      final layerIds = await controller.getLayerIds();
+      if (layerIds.contains(layerId)) {
+        await controller.setLayerVisibility(layerId, visible);
+      }
+    }
+
+    try {
+      if (enabled) {
+        // Hide the surface extrusions and ward outlines to make the
+        // underground operational layer visually distinct.
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', false);
+        await setVisibility('samanvay-coimbatore-ward-lines', false);
+
+        if (_canViewUtilityOverview) {
+          await _loadUtilityOverview();
+        }
+        if (_canViewDepartmentAssets) {
+          await _loadDepartmentAssets();
+        }
+
+        if (!_canViewUtilityOverview && !_canViewDepartmentAssets) {
+          if (mounted) {
+            setState(() {
+              _layerStatus =
+                  'Underground mode selected. This requester account cannot view operational underground geometry. No data shown is not proof that utilities are absent.';
+            });
+          }
+          _showMessage(
+            'Underground operational layers require an authorised infrastructure staff account.',
+          );
+        } else if (mounted) {
+          setState(() {
+            _layerStatus = _canViewDepartmentAssets
+                ? 'Underground mode: generalised national/municipal coverage plus verified geometry owned by your department. Other departments’ exact routes remain withheld.'
+                : 'Underground mode: generalised coverage cells only. Exact utility routes and depths remain withheld.';
+          });
+        }
+      } else {
+        await setVisibility('samanvay-utility-overview-cells', false);
+        await setVisibility('samanvay-utility-overview-3d', false);
+        await setVisibility('samanvay-verified-asset-lines', false);
+        await setVisibility('samanvay-verified-asset-points', false);
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', _showCoimbatoreWardBoundaries);
+        await setVisibility('samanvay-coimbatore-ward-lines', _showCoimbatoreWardBoundaries);
+        if (mounted) {
+          setState(() {
+            _layerStatus = 'Surface mode: 2D/3D basemap, work requests and available public reference layers.';
+          });
+        }
+      }
+    } catch (_) {
+      _showMessage('Unable to switch map mode. Refresh the map layers and retry.');
+    }
+  }
+
+  Future<void> _changeBasemap(bool useSatellite) async {
+    if (useSatellite && _mapTilerKey.isEmpty) {
+      _showMessage(
+        'Satellite imagery is ready to connect, but MAPTILER_API_KEY is not configured in the release build.',
+      );
+      return;
+    }
+
+    if (_satellite == useSatellite) return;
+
+    try {
+      _pendingBasemapCamera = await _controller?.queryCameraPosition();
+    } catch (_) {
+      _pendingBasemapCamera = null;
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _satellite = useSatellite;
+      _styleReady = false;
+      _controller = null;
+      _requestMarkerCount = 0;
+      _utilityCellCount = 0;
+    });
+  }
+
+  Future<void> _changePerspective(bool use3D) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final current = await controller.queryCameraPosition();
+      final target = current?.target ?? const LatLng(0, 0);
+      final zoom = current?.zoom ?? 13.0;
+
+      setState(() => _is3D = use3D);
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: target,
+            zoom: zoom < 14 ? 14 : zoom,
+            tilt: use3D ? 58 : 0,
+            bearing: use3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-3d-buildings')) {
+        await controller.setLayerVisibility('samanvay-3d-buildings', use3D && !_undergroundMode);
+      }
+      if (layers.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones,
+        );
+      }
+      if (layers.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          _showUtilityZones && _undergroundMode && use3D,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change map perspective.');
+    }
+  }
+
+  Future<void> _zoom(bool zoomIn) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    await controller.animateCamera(
+      zoomIn ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut(),
+      duration: const Duration(milliseconds: 420),
+    );
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _showMessage('Location permission is required to centre the map on your device. You can continue browsing without GPS.');
+    }
+    return false;
+  }
+
+  Future<void> _goToMyLocation() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!granted) return;
+
+    setState(() => _locating = true);
+    try {
+      final location = await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _showMessage('Your device did not provide a location. Check GPS and app location permission.');
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 17.0,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1200),
+      );
+      if (mounted) {
+        setState(() {
+          _deviceCoordinateLabel =
+              '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}';
+        });
+      }
+    } catch (_) {
+      _showMessage('Unable to access device location. You can still navigate the map manually.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _openAttribution() async {
+    final uri = Uri.parse(
+      _satellite
+          ? 'https://www.maptiler.com/copyright/'
+          : 'https://openfreemap.org/',
+    );
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      _showMessage('Unable to open the map provider attribution page.');
+    }
+  }
+
+
+  Future<void> _loadMapReadiness() async {
+    var buildingLoaded = false;
+    var utilityLoaded = false;
+    var groundwaterLoaded = false;
+
+    var approvalCount = 0;
+    var approvalMapped = 0;
+    var approvalFloors = 0;
+    var utilityCount = 0;
+    var utilityPending = 0;
+    var utilityUnverified = 0;
+    var utilityOperational = 0;
+    var groundwaterJurisdictions = 0;
+    var groundwaterGaps = 0;
+
+    try {
+      final rawRows = await supabase
+          .from('building_approval_public_register_records')
+          .select('id,geometry_status,approved_floor_count')
+          .limit(2500);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      approvalCount = rows.length;
+      approvalMapped = rows.where((row) => row['geometry_status'] == 'verified_geocoded').length;
+      approvalFloors = rows.where((row) => row['approved_floor_count'] != null).length;
+      buildingLoaded = true;
+    } catch (_) {
+      // A missing permission or unavailable register must not block the map.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('id,coverage_status,operational_use_allowed')
+          .eq('data_domain', 'utility_gis')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      utilityCount = rows.length;
+      utilityPending = rows.where((row) => row['coverage_status'] == 'authority_asset_gis_required').length;
+      utilityOperational = rows.where((row) => row['operational_use_allowed'] == true).length;
+      utilityLoaded = true;
+    } catch (_) {
+      // Metadata-only utility status is optional for requester accounts.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('telemetry_status')
+          .eq('data_domain', 'groundwater')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      groundwaterJurisdictions = rows.length;
+      groundwaterGaps = rows.where((row) {
+        final status = (row['telemetry_status'] ?? '').toString();
+        return status.contains('no_2021_2025_feed') ||
+            status.contains('unverified') ||
+            status.contains('historical');
+      }).length;
+      groundwaterLoaded = true;
+    } catch (_) {
+      // Station rendering continues even if the national coverage summary is unavailable.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _buildingReadinessLoaded = buildingLoaded;
+      _utilityReadinessLoaded = utilityLoaded;
+      _groundwaterReadinessLoaded = groundwaterLoaded;
+      _approvalRecordCount = approvalCount;
+      _approvalMappedCount = approvalMapped;
+      _approvalFloorCount = approvalFloors;
+      _utilityLayerCatalogueCount = utilityCount;
+      _utilityLayersPending = utilityPending;
+      _utilityLayersOperational = utilityOperational;
+      _groundwaterCoverageJurisdictions = groundwaterJurisdictions;
+      _groundwaterTelemetryGaps = groundwaterGaps;
+    });
+  }
+
+  Widget _readinessRow({
+    required IconData icon,
+    required String title,
+    required String detail,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: Color(0xFFB8C7D5),
+                    fontSize: 10,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openLayerPanel() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF13263A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'GIS LAYERS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Layers are drawn only from records your account is authorised to access.',
+                      style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D1C2C),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x5541BFB4)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'NATIONAL DATA READINESS',
+                            style: TextStyle(
+                              color: Color(0xFF55D9CE),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          _readinessRow(
+                            icon: Icons.water_drop_outlined,
+                            title: 'GROUNDWATER',
+                            color: const Color(0xFFA78BFA),
+                            detail: _groundwaterReadinessLoaded
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                : 'Coverage summary unavailable; station layer remains independently controlled.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.account_balance_outlined,
+                            title: 'BUILDING APPROVALS',
+                            color: const Color(0xFFFBBF24),
+                            detail: _buildingReadinessLoaded
+                                ? '$_approvalRecordCount public-register record(s) · $_approvalMappedCount geocoded · $_approvalFloorCount with approved floor count. Address-only records are not plotted at guessed locations.'
+                                : 'Public approval register summary unavailable.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.hub_outlined,
+                            title: 'UNDERGROUND UTILITY GIS',
+                            color: const Color(0xFF38BDF8),
+                            detail: _utilityReadinessLoaded
+                                ? '$_utilityLayerCatalogueCount State/UT coverage entry(ies) · $_utilityLayersPending awaiting authority asset GIS · $_utilityLayersOperational operationally enabled'
+                                : 'Utility catalogue summary unavailable or access restricted.',
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            '3D buildings use live OpenStreetMap footprints with mapped heights/levels where available; missing heights receive a 6 m visual estimate and must not be used for compliance decisions. Underground 3D cells show relative density in generalised 250 m cells—not physical depth, elevation, dimensions or routes. Exact assets remain access-controlled; an empty layer is not excavation clearance.',
+                            style: TextStyle(
+                              color: Color(0xFFF6C66B),
+                              fontSize: 9,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      value: _showRequests,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('Work request locations',
+                          style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_requestMarkerCount request marker(s) visible to your account',
+                        style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleRequests(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showCoimbatoreWardBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text(
+                        'Coimbatore ward boundaries (2024 reference)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '$_coimbatoreWardCount polygons · OpenCity Public Domain dataset · reference only; confirm legal boundaries with CCMC',
+                        style: const TextStyle(
+                          color: Color(0xFFB8C7D5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleCoimbatoreWardBoundaries(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showGroundwaterTelemetry,
+                      activeThumbColor: const Color(0xFFA78BFA),
+                      title: const Text(
+                        'National groundwater monitoring stations (2021–2025)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · tap for the published reading and timestamp · not a borewell register or complete station inventory',
+                        style: const TextStyle(
+                          color: Color(0xFFB8C7D5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleGroundwaterTelemetry(value);
+                      },
+                    ),
+                    if (_canViewDepartmentAssets)
+                      SwitchListTile(
+                        value: _showVerifiedAssets,
+                        activeThumbColor: const Color(0xFF20D6C2),
+                        title: const Text('Verified department assets',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_verifiedAssetCount verified asset(s) mapped · $_unverifiedAssetCount unverified withheld',
+                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleVerifiedAssets(value);
+                        },
+                      ),
+                    if (_canViewUtilityOverview) ...[
+                       const Divider(color: Color(0x334B647C)),
+                       Row(
+                         children: [
+                           const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 18),
+                           const SizedBox(width: 8),
+                           const Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
+                           Text('$_utilityConflictCount request(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
+                         ],
+                       ),
+                       const SizedBox(height: 6),
+                       Text(_utilityConflictStatus, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4)),
+                       ..._utilityConflictDetails.values.take(5).map((detail) {
+                         final conflicts = (detail['conflicts'] as List?) ?? const [];
+                         final summary = conflicts.take(2).map((raw) {
+                           final item = Map<String, dynamic>.from(raw as Map);
+                           return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m';
+                         }).join(' | ');
+                         return ListTile(
+                           dense: true,
+                           contentPadding: EdgeInsets.zero,
+                           leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
+                           title: Text('${detail['request_number']} · ${detail['candidate_count']} potential match(es)', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                           subtitle: Text(summary, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                         );
+                       }),
+                       if (_utilityConflictDetails.length > 5)
+                         Text('And ${_utilityConflictDetails.length - 5} more. Tap red map markers for details.', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                       const SizedBox(height: 8),
+                       const Text('Cross-department screening runs on the server against verified assets. The phone receives advisory metadata only, never another department’s exact route geometry. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
+                     ],
+                     if (_canViewUtilityOverview)
+                       SwitchListTile(
+                        value: _showUtilityZones,
+                        activeThumbColor: const Color(0xFFF59E0B),
+                        title: const Text('Generalised utility coverage',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_utilityCellCount aggregate cell(s); not individual utility routes',
+                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleUtilityZones(value);
+                        },
+                      )
+                    else
+                      const ListTile(
+                        leading: Icon(Icons.lock_outline, color: Color(0xFFF6C66B)),
+                        title: Text('Utility coverage restricted',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          'Detailed infrastructure records are not available to requester accounts.',
+                          style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                      ),
+                    const Divider(color: Color(0x334B647C)),
+                    const Text(
+                      'Data integrity',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _layerStatus,
+                      style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _undergroundModelPanel() {
+    final layers = <({Color color, IconData icon, String title})>[
+      (color: const Color(0xFF38BDF8), icon: Icons.water_drop_outlined, title: 'Water & wastewater'),
+      (color: const Color(0xFF22C55E), icon: Icons.waves_outlined, title: 'Stormwater & drainage'),
+      (color: const Color(0xFFFBBF24), icon: Icons.bolt_outlined, title: 'Power & telecom'),
+      (color: const Color(0xFFFB7185), icon: Icons.hub_outlined, title: 'Gas & other networks'),
+    ];
+
+    return Container(
+      width: 258,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xF2182638),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x6645D9CE)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 5)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 17),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text('BELOW-GROUND MODEL',
+                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: const Color(0x3320D6C2), borderRadius: BorderRadius.circular(6)),
+                child: const Text('3D VIEW', style: TextStyle(color: Color(0xFF7DE9DE), fontSize: 8, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
+            style: TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          ...layers.map((layer) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Container(
+                  width: 24, height: 20,
+                  decoration: BoxDecoration(color: layer.color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                  child: Icon(layer.icon, color: layer.color, size: 14),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(layer.title,
+                  style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 9, fontWeight: FontWeight.w700))),
+                Text('REFERENCE', style: TextStyle(color: layer.color, fontSize: 7, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+              ],
+            ),
+          )),
+          const Divider(height: 9, color: Color(0x334B647C)),
+          Row(
+            children: [
+              Expanded(child: _undergroundStat('UTILITY CATALOGUE', '$_utilityLayerCatalogueCount')),
+              Expanded(child: _undergroundStat('LIVE MAP CELLS', '$_utilityCellCount')),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              Expanded(child: _undergroundStat('GROUNDWATER POINTS', '$_groundwaterStationCount')),
+              Expanded(child: _undergroundStat('APPROVALS MAPPED', '$_approvalMappedCount / $_approvalRecordCount')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '3D blocks show relative aggregate density inside generalized coverage cells. They are not pipes, surveyed alignments, asset depths or excavation-clearance data. Owner-authorised geometry is a separate restricted layer.',
+            style: TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _undergroundStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+
+  Widget _mapButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    String? tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xF2182638),
+        elevation: 5,
+        borderRadius: BorderRadius.circular(12),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, color: Colors.white, size: 21),
+        ),
+      ),
+    );
+  }
+
+  Widget _pill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF13A89E) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF101B29),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        titleSpacing: 16,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'SAMANVAY GIS',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'GEOSPATIAL INFRASTRUCTURE WORKSPACE',
+              style: TextStyle(
+                fontSize: 9,
+                letterSpacing: 1.35,
+                color: Color(0xFF9FB4C8),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Import underground survey GeoJSON',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AssetGeoJsonImportPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.file_upload_outlined),
+          ),
+          IconButton(
+            tooltip: 'Plan a driving route',
+            onPressed: _routing ? null : _showDirectionsDialog,
+            icon: const Icon(Icons.directions_outlined),
+          ),
+          IconButton(
+            tooltip: 'Layer controls',
+            onPressed: _openLayerPanel,
+            icon: const Icon(Icons.layers_outlined),
+          ),
+          IconButton(
+            tooltip: 'My device location',
+            onPressed: _goToMyLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              key: ValueKey(_satellite ? 'samanvay-satellite' : 'samanvay-vector'),
+              styleString: _mapStyle,
+              // Regional fallback only; a granted device GPS fix immediately
+              // replaces this camera. Never present 0,0 as the user's location.
+              initialCameraPosition: const CameraPosition(
+                target: LatLng(10.8, 78.6),
+                zoom: 5.7,
+                tilt: 0,
+                bearing: 0,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              onCameraIdle: _handleCameraIdle,
+              myLocationEnabled: _hasLocationPermission,
+              myLocationTrackingMode: MyLocationTrackingMode.none,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              trackCameraPosition: true,
+              minMaxZoomPreference: const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          if (!_styleReady)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF23C5B5)),
+                      SizedBox(height: 14),
+                      Text(
+                        'INITIALISING GIS ENGINE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          letterSpacing: 1.7,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 12,
+            top: 12,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 218),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xE6102031),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _satellite ? 'SATELLITE HYBRID' : 'VECTOR BASEMAP',
+                    style: const TextStyle(
+                      color: Color(0xFF9FB4C8),
+                      fontSize: 9,
+                      letterSpacing: 1.3,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _undergroundMode
+                        ? 'UNDERGROUND DATA VIEW'
+                        : _is3D ? '3D SURFACE MAP' : '2D SURFACE MAP',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (_deviceCoordinateLabel.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'DEVICE GPS  $_deviceCoordinateLabel',
+                      style: const TextStyle(
+                        color: Color(0xFF55D9CE),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _undergroundMode
+                        ? (_canViewDepartmentAssets
+                            ? 'Own-department verified geometry plus generalised coverage. Other owners’ exact routes are withheld.'
+                            : _canViewUtilityOverview
+                                ? 'Generalised coverage only. Exact utility routes and depths are withheld.'
+                                : 'Operational underground geometry is restricted for this account.')
+                        : _satellite
+                            ? 'Imagery date and resolution vary by location.'
+                            : 'Real OpenStreetMap building footprints are extruded in 3D. Mapped height or floor tags are used where available; otherwise a clearly labelled 6 m visual estimate is used. This is not a statutory building-approval record.',
+                    style: const TextStyle(
+                      color: Color(0xFFB6C7D6),
+                      fontSize: 9,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            left: 12,
+            right: 62,
+            top: 116,
+            child: Container(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x6639BDB0)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded, color: Color(0xFF55D9CE), size: 20),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _searchPlaces,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      decoration: const InputDecoration(
+                        hintText: 'Search area / ward / road',
+                        hintStyle: TextStyle(color: Color(0xFF9FB4C8), fontSize: 11),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Search place',
+                    onPressed: _searching ? null : () => _searchPlaces(_searchController.text),
+                    icon: _searching
+                        ? const SizedBox(
+                            width: 17,
+                            height: 17,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF55D9CE),
+                            ),
+                          )
+                        : const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 19),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_placeResults.isNotEmpty)
+            Positioned(
+              left: 12,
+              right: 62,
+              top: 172,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 240),
+                decoration: BoxDecoration(
+                  color: const Color(0xF2182638),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0x6639BDB0)),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  itemCount: _placeResults.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0x334B647C)),
+                  itemBuilder: (context, index) {
+                    final feature = _placeResults[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.location_on_outlined, color: Color(0xFF55D9CE), size: 20),
+                      title: Text(
+                        (feature['text'] ?? 'Place').toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        (feature['place_name'] ?? '').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 9),
+                      ),
+                      onTap: () => _selectPlace(feature),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          Positioned(
+            right: 11,
+            top: 12,
+            child: Column(
+              children: [
+                _mapButton(
+                  icon: Icons.add,
+                  tooltip: 'Zoom in',
+                  onPressed: () => _zoom(true),
+                ),
+                _mapButton(
+                  icon: Icons.remove,
+                  tooltip: 'Zoom out',
+                  onPressed: () => _zoom(false),
+                ),
+                _mapButton(
+                  icon: Icons.layers_outlined,
+                  tooltip: 'Map layers',
+                  onPressed: _openLayerPanel,
+                ),
+              ],
+            ),
+          ),
+
+          if (_scaleLabel.isNotEmpty)
+            Positioned(
+              left: 14,
+              bottom: 226,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xE6102031),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: const Color(0x5539BDB0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _scaleLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: _scaleWidth,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF55D9CE),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 118,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'SURFACE',
+                        selected: !_undergroundMode,
+                        onTap: () => _setUndergroundMode(false),
+                      ),
+                      const SizedBox(width: 5),
+                      _pill(
+                        label: 'UNDERGROUND',
+                        selected: _undergroundMode,
+                        onTap: () => _setUndergroundMode(true),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Divider(height: 1, color: Color(0x334B647C)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'VECTOR',
+                        selected: !_satellite,
+                        onTap: () => _changeBasemap(false),
+                      ),
+                      _pill(
+                        label: 'SATELLITE',
+                        selected: _satellite,
+                        onTap: () => _changeBasemap(true),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(width: 1, height: 24, color: const Color(0x554B647C)),
+                      const SizedBox(width: 4),
+                      _pill(
+                        label: '2D',
+                        selected: !_is3D,
+                        onTap: () => _changePerspective(false),
+                      ),
+                      _pill(
+                        label: '3D',
+                        selected: _is3D,
+                        onTap: () => _changePerspective(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_undergroundMode)
+            Positioned(
+              left: 12,
+              bottom: 118,
+              child: _undergroundModelPanel(),
+            ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 54,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.hub_outlined, color: Color(0xFF35C6B5), size: 19),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _loadingLayers
+                          ? 'SYNCING AUTHORISED GIS LAYERS...'
+                          : _layerStatus,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFD4E1EA),
+                        fontSize: 9,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  if (_loadingLayers)
+                    const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF35C6B5),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Refresh layers',
+                      onPressed: _loadMapLayers,
+                      icon: const Icon(Icons.refresh, color: Colors.white, size: 19),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _openAttribution,
+                    child: Text(
+                      _satellite
+                          ? '© MapTiler · © OpenStreetMap contributors'
+                          : '© OpenFreeMap · © OpenStreetMap contributors',
+                      style: const TextStyle(
+                        color: Color(0xFFE1EAF1),
+                        fontSize: 8,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_locating)
+                  const Text(
+                    'LOCATING',
+                    style: TextStyle(color: Color(0xFF35C6B5), fontSize: 8),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// AUTHORISED GIS DATA INGESTION
+// ==========================================
+
+class AssetGeoJsonImportPage extends StatefulWidget {
+  const AssetGeoJsonImportPage({super.key});
+
+  @override
+  State<AssetGeoJsonImportPage> createState() => _AssetGeoJsonImportPageState();
+}
+
+class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
+  static const Set<String> _assetTypes = {
+    'water', 'sewer', 'stormwater', 'electricity', 'telecom',
+    'gas', 'borewell', 'drain', 'other', 'unknown',
+  };
+  static const Map<String, String> _sourceTypeLabels = {
+    'utility_owner': 'Utility-owner supplied',
+    'field_survey': 'Field survey',
+    'as_built_drawing': 'Authority as-built drawing',
+  };
+  static const Set<String> _geometryTypes = {
+    'Point', 'MultiPoint', 'LineString', 'MultiLineString',
+  };
+
+  bool _checkingAccess = true;
+  bool _authorised = false;
+  bool _loadingFile = false;
+  bool _importing = false;
+  String _departmentName = '';
+  String _fileName = '';
+  String _sourceType = 'utility_owner';
+  final TextEditingController _sourceTitleController = TextEditingController();
+  final TextEditingController _sourceOrganisationController = TextEditingController();
+  final TextEditingController _authorizationReferenceController = TextEditingController();
+  final TextEditingController _dataSharingBasisController = TextEditingController();
+  final TextEditingController _sourceUrlController = TextEditingController();
+  String _status = 'Select a GeoJSON FeatureCollection from an authorised survey source.';
+  List<Map<String, dynamic>> _records = [];
+  List<String> _errors = [];
+  int _imported = 0;
+  int _failed = 0;
+  int _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+
+  @override
+  void dispose() {
+    _sourceTitleController.dispose();
+    _sourceOrganisationController.dispose();
+    _authorizationReferenceController.dispose();
+    _dataSharingBasisController.dispose();
+    _sourceUrlController.dispose();
+    super.dispose();
+  }
+
+  String? _validateSourceMetadata() {
+    if (_sourceTitleController.text.trim().length < 3 ||
+        _sourceTitleController.text.trim().length > 200) {
+      return 'Enter the official dataset or survey title (3–200 characters).';
+    }
+    if (_sourceOrganisationController.text.trim().length < 3 ||
+        _sourceOrganisationController.text.trim().length > 200) {
+      return 'Enter the responsible utility owner or survey organisation.';
+    }
+    if (_authorizationReferenceController.text.trim().length < 6 ||
+        _authorizationReferenceController.text.trim().length > 200) {
+      return 'Enter the authority permission, MOU or sharing-reference number.';
+    }
+    if (_dataSharingBasisController.text.trim().length < 10 ||
+        _dataSharingBasisController.text.trim().length > 1000) {
+      return 'Describe the data-sharing authority or permission basis (10–1000 characters).';
+    }
+    final sourceUrl = _sourceUrlController.text.trim();
+    if (sourceUrl.isNotEmpty) {
+      final uri = Uri.tryParse(sourceUrl);
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+        return 'The source URL must be a valid HTTPS address.';
+      }
+    }
+    return null;
+  }
+
+  Widget _metadataField(
+    TextEditingController controller,
+    String label, {
+    String? hint,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _checkAccess() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw StateError('Sign in to continue.');
+      final profile = await supabase.from('profiles')
+          .select('role,department_id').eq('id', user.id).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      final departmentId = profile?['department_id']?.toString();
+      if (role != 'department' || departmentId == null || departmentId.isEmpty) {
+        throw StateError('Only an assigned department account can register underground utility records. The database independently enforces this restriction.');
+      }
+      final department = await supabase.from('departments')
+          .select('name').eq('id', departmentId).maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _authorised = true;
+        _departmentName = (department?['name'] ?? 'Assigned department').toString();
+        _status = 'Access confirmed. Imported records will be stored as UNVERIFIED.';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _status = error.toString().replaceFirst('Bad state: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _checkingAccess = false);
+    }
+  }
+
+  bool _validCoordinates(dynamic value) {
+    if (value is! List || value.isEmpty) return false;
+    if (value[0] is num || (value.length > 1 && value[1] is num)) {
+      if (value.length != 2 || value[0] is! num || value[1] is! num) return false;
+      final lon = (value[0] as num).toDouble();
+      final lat = (value[1] as num).toDouble();
+      return lon.isFinite && lat.isFinite &&
+          lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
+    }
+    return value.every(_validCoordinates);
+  }
+
+  String? _validate(Map<String, dynamic> feature) {
+    if (feature['geometry'] is! Map || feature['properties'] is! Map) {
+      return 'Geometry and properties objects are required.';
+    }
+    final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
+    final type = (geometry['type'] ?? '').toString();
+    if (!_geometryTypes.contains(type)) return 'Unsupported geometry type: $type';
+    if (!_validCoordinates(geometry['coordinates'])) return 'Invalid WGS84 coordinates. GeoJSON order must be [longitude, latitude].';
+
+    final p = Map<String, dynamic>.from(feature['properties'] as Map);
+    final code = (p['asset_code'] ?? '').toString().trim();
+    final name = (p['asset_name'] ?? '').toString().trim();
+    final assetType = (p['asset_type'] ?? '').toString().trim().toLowerCase();
+    if (code.length < 2 || code.length > 100) return 'asset_code is required (2–100 characters).';
+    if (name.length < 2 || name.length > 200) return 'asset_name is required (2–200 characters).';
+    if (!_assetTypes.contains(assetType)) return 'Unsupported asset_type.';
+    if (_sourceType == 'field_survey' &&
+        (p['surveyed_at'] ?? '').toString().trim().isEmpty) {
+      return 'surveyed_at is required for a field-survey batch.';
+    }
+
+    for (final key in ['depth_m', 'horizontal_accuracy_m', 'vertical_accuracy_m', 'diameter_mm']) {
+      final raw = p[key];
+      if (raw == null || raw.toString().trim().isEmpty) continue;
+      final value = double.tryParse(raw.toString());
+      if (value == null || !value.isFinite || value < 0) return '$key must be a non-negative number.';
+    }
+    final depth = double.tryParse((p['depth_m'] ?? '').toString());
+    if (depth != null && depth > 100) return 'depth_m cannot exceed 100 metres.';
+    final diameter = double.tryParse((p['diameter_mm'] ?? '').toString());
+    if (diameter != null && (diameter <= 0 || diameter > 10000)) return 'diameter_mm must be 1–10000.';
+    return null;
+  }
+
+  Future<void> _pickFile() async {
+    if (!_authorised || _importing || _loadingFile) return;
+    setState(() {
+      _loadingFile = true;
+      _records = [];
+      _errors = [];
+      _fileName = '';
+      _imported = 0;
+      _failed = 0;
+      _progress = 0;
+    });
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['geojson', 'json'],
+      );
+      if (file == null) return;
+      final fileSize = await file.length();
+      if (fileSize == null || fileSize > 10 * 1024 * 1024) {
+        throw StateError('File size could not be confirmed or exceeds 10 MB.');
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('The selected file is empty. Export it as UTF-8 GeoJSON.');
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
+        throw const FormatException('Expected a GeoJSON FeatureCollection.');
+      }
+      final features = decoded['features'] as List;
+      if (features.isEmpty) throw StateError('No features found in the file.');
+      if (features.length > 500) throw StateError('Maximum 500 features per import batch.');
+      final records = <Map<String, dynamic>>[];
+      final errors = <String>[];
+      final seen = <String>{};
+      for (var i = 0; i < features.length; i++) {
+        final raw = features[i];
+        final feature = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+        var error = raw is Map ? _validate(feature) : 'Feature is not a JSON object.';
+        final props = feature['properties'] is Map
+            ? Map<String, dynamic>.from(feature['properties'] as Map) : <String, dynamic>{};
+        final code = (props['asset_code'] ?? '').toString().trim();
+        if (error == null && !seen.add(code)) error = 'Duplicate asset_code in this file.';
+        records.add({'feature': feature, 'error': error});
+        if (error != null) errors.add('Feature ${i + 1}: $error');
+      }
+      if (!mounted) return;
+      setState(() {
+        _fileName = file.name;
+        _records = records;
+        _errors = errors;
+        _status = 'Preview ready. ${records.length - errors.length} valid feature(s); ${errors.length} invalid feature(s). Nothing has been written yet.';
+      });
+    } catch (error) {
+      if (mounted) setState(() => _status = 'Preview failed: ${error.toString().replaceFirst('Bad state: ', '')}');
+    } finally {
+      if (mounted) setState(() => _loadingFile = false);
+    }
+  }
+
+  Future<void> _register() async {
+    if (!_authorised || _importing) return;
+    final valid = _records.where((r) => r['error'] == null).toList();
+    if (valid.isEmpty) return;
+    final sourceError = _validateSourceMetadata();
+    if (sourceError != null) {
+      setState(() => _status = sourceError);
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Register as unverified?'),
+        content: Text(
+          '${valid.length} records from "$_fileName" will be registered under $_departmentName. '
+          'Your source and permission details will be recorded in an audit log. '
+          'This declaration is not independently verified; the records remain UNVERIFIED and hidden from the map pending owner review.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Register')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() {
+      _importing = true;
+      _progress = 0;
+      _imported = 0;
+      _failed = 0;
+      _errors = [];
+      _status = 'Sending validated batch to the secured server-side registry…';
+    });
+
+    try {
+      final features = valid
+          .map((record) => Map<String, dynamic>.from(record['feature'] as Map))
+          .toList(growable: false);
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-registry',
+        body: {
+          'action': 'import',
+          'source': {
+            'source_title': _sourceTitleController.text.trim(),
+            'source_organisation': _sourceOrganisationController.text.trim(),
+            'source_type': _sourceType,
+            'authorization_reference': _authorizationReferenceController.text.trim(),
+            'data_sharing_basis': _dataSharingBasisController.text.trim(),
+            'source_url': _sourceUrlController.text.trim().isEmpty
+                ? null : _sourceUrlController.text.trim(),
+            'declared_srid': 4326,
+          },
+          'features': features,
+        },
+      );
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final imported = (data['imported'] as num?)?.toInt() ?? 0;
+      final failed = (data['rejected'] as num?)?.toInt() ?? (valid.length - imported);
+      final runId = (data['run_id'] ?? '').toString();
+      final errorText = (data['error'] ?? '').toString();
+      final errors = <String>[];
+      if (errorText.isNotEmpty) errors.add(errorText);
+
+      if (!mounted) return;
+      setState(() {
+        _imported = imported;
+        _failed = failed;
+        _progress = valid.length;
+        _errors = errors;
+        _status = 'Import run ' + (runId.isEmpty ? '(ID unavailable)' : runId) +
+            ': $_imported registered; $_failed rejected. All accepted geometry remains UNVERIFIED and hidden from the map pending independent owner review.';
+        _records = [];
+        _fileName = '';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registry import: $_imported registered; $_failed failed.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failed = valid.length;
+        _progress = 0;
+        _errors = [error.toString()];
+        _status = 'Server-side import failed. No success has been assumed; check the session and retry after resolving the error.';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GIS import failed. No records were confirmed as registered.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final validCount = _records.where((r) => r['error'] == null).length;
+    final invalidCount = _records.length - validCount;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F6FA),
+      appBar: AppBar(title: const Text('GIS Data Ingestion'), backgroundColor: navy),
+      body: _checkingAccess
+          ? const Center(child: CircularProgressIndicator())
+          : !_authorised
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.lock_outline, size: 52, color: Colors.blueGrey),
+                    const SizedBox(height: 14),
+                    const Text('Department authorisation required',
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: navy)),
+                    const SizedBox(height: 8),
+                    Text(_status, textAlign: TextAlign.center),
+                  ]),
+                ))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(18)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('AUTHORISED DATA SOURCE',
+                            style: TextStyle(color: Color(0xFF8EDFD6), fontSize: 10, letterSpacing: 1.2, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 7),
+                        Text(_departmentName,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 8),
+                        const Text('Owner-supplied and field-surveyed geometry only. Imported records remain UNVERIFIED.',
+                            style: TextStyle(color: Color(0xFFD3E0EA), height: 1.4, fontSize: 12)),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('SOURCE AUTHORITY & PROVENANCE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                        const SizedBox(height: 6),
+                        const Text('These fields create an audit declaration. They do not independently prove that the submitter has permission. The receiving authority must review the source before the records are verified.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 12),
+                        _metadataField(_sourceTitleController, 'Official source / dataset title'),
+                        _metadataField(_sourceOrganisationController, 'Utility owner / survey organisation'),
+                        DropdownButtonFormField<String>(
+                          value: _sourceType,
+                          decoration: const InputDecoration(
+                            labelText: 'Source category',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _sourceTypeLabels.entries.map((entry) =>
+                            DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          ).toList(),
+                          onChanged: _importing ? null : (value) {
+                            if (value != null) setState(() => _sourceType = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _metadataField(
+                          _authorizationReferenceController,
+                          'Authority permission / MOU reference',
+                          hint: 'Reference number only; do not enter credentials',
+                        ),
+                        _metadataField(
+                          _dataSharingBasisController,
+                          'Data-sharing authority / permission basis',
+                          hint: 'Identify the written approval, agreement or owner authorisation',
+                          maxLines: 3,
+                        ),
+                        _metadataField(
+                          _sourceUrlController,
+                          'Official source URL (optional)',
+                          hint: 'https://…',
+                        ),
+                        const Text('Coordinate reference system: EPSG:4326 only. Reproject the source file before upload; the server does not guess or transform CRSs.',
+                            style: TextStyle(color: navy, fontSize: 11, height: 1.4, fontWeight: FontWeight.w600)),
+                      ]),
+                    )),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('SUPPORTED FILE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                        const SizedBox(height: 8),
+                        const Text('GeoJSON FeatureCollection (.geojson / .json), WGS84 EPSG:4326. Point, MultiPoint, LineString and MultiLineString. Maximum 10 MB / 500 features.',
+                            style: TextStyle(color: mutedInk, height: 1.45, fontSize: 12)),
+                        const SizedBox(height: 8),
+                        const Text('Required properties: asset_code, asset_name and asset_type. Source type and permission details are entered in the audit form below.',
+                            style: TextStyle(color: navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        const Text('Optional: depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm and surveyed_at. Field-survey batches must include surveyed_at.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 14),
+                        SizedBox(width: double.infinity, child: FilledButton.icon(
+                          onPressed: _loadingFile || _importing ? null : _pickFile,
+                          icon: _loadingFile
+                              ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.folder_open_outlined),
+                          label: Text(_loadingFile ? 'READING FILE…' : 'SELECT GEOJSON SURVEY FILE'),
+                          style: FilledButton.styleFrom(backgroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+                        )),
+                      ]),
+                    )),
+                    if (_fileName.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('PRE-IMPORT VALIDATION',
+                              style: TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                          const SizedBox(height: 6),
+                          Text(_fileName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            Expanded(child: _countTile('VALID', validCount, const Color(0xFF087F83))),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('INVALID', invalidCount, Colors.red)),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('TOTAL', _records.length, navy)),
+                          ]),
+                          const SizedBox(height: 8),
+                          ..._records.asMap().entries.take(20).map((entry) {
+                            final item = entry.value;
+                            final f = item['feature'] as Map<String, dynamic>;
+                            final p = f['properties'] is Map
+                                ? Map<String, dynamic>.from(f['properties'] as Map) : <String, dynamic>{};
+                            final error = item['error']?.toString();
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(error == null ? Icons.check_circle_outline : Icons.error_outline,
+                                  color: error == null ? const Color(0xFF087F83) : Colors.red),
+                              title: Text((p['asset_code'] ?? 'Feature ${entry.key + 1}').toString(), 
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              subtitle: Text(error ?? '${p['asset_name'] ?? ''} · ${p['asset_type'] ?? ''} · ${(f['geometry'] as Map?)?['type'] ?? ''}',
+                                  style: const TextStyle(fontSize: 10)),
+                            );
+                          }),
+                          if (_records.length > 20)
+                            Text('Showing first 20 of ${_records.length} features.',
+                                style: const TextStyle(color: mutedInk, fontSize: 11)),
+                          if (_importing) ...[
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(value: _records.isEmpty ? null : _progress / validCount),
+                            Text('Processed $_progress of $validCount'),
+                          ],
+                          const SizedBox(height: 12),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: !_importing && validCount > 0 ? _register : null,
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: Text('REGISTER $validCount VALID RECORD(S) AS UNVERIFIED'),
+                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF087F83), padding: const EdgeInsets.symmetric(vertical: 14)),
+                          )),
+                        ]),
+                      )),
+                    ],
+                    if (_errors.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('VALIDATION / IMPORT ERRORS',
+                              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 8),
+                          ..._errors.take(30).map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text('• $e', style: const TextStyle(fontSize: 11, color: Colors.red)), 
+                          )),
+                        ]),
+                      )),
+                    ],
+                    const SizedBox(height: 12),
+                    Card(color: const Color(0xFFFFF7E6), child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Icon(Icons.verified_user_outlined, color: Color(0xFF9A6700)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(_status,
+                            style: const TextStyle(color: Color(0xFF664B16), fontSize: 12, height: 1.45))),
+                      ]),
+                    )),
+                    const SizedBox(height: 10),
+                    const Text('Only import records your department is authorised to submit. This tool does not independently verify geometry and does not issue excavation clearance or safety certification.',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+                  ],
+                ),
+    );
+  }
+
+  Widget _countTile(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text(value.toString(), style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// PROFILE
+// ==========================================
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  Future<void> logout(BuildContext context) async {
+    try {
+      await supabase.auth.signOut();
+    } on AuthException catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = supabase.auth.currentUser;
+    final name = user?.userMetadata?['display_name'] ?? 'User';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Profile'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(22),
+        children: [
+          const CircleAvatar(
+            radius: 42,
+            backgroundColor: teal,
+            child: Icon(
+              Icons.person,
+              size: 45,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            name.toString(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            user?.email ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 30),
+          const ListTile(
+            leading: Icon(Icons.verified_user, color: teal),
+            title: Text('Authentication'),
+            subtitle: Text('Supabase'),
+          ),
+          const SizedBox(height: 25),
+          FilledButton.icon(
+            onPressed: () => logout(context),
+            icon: const Icon(Icons.logout),
+            label: const Text('LOG OUT'),
+            style: FilledButton.styleFrom(
+              backgroundColor: navy,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// CASE WORKSPACE
+// ==========================================
+class CaseWorkspacePage extends StatefulWidget {
+  final String requestId;
+  final String requestTitle;
+  const CaseWorkspacePage({super.key, required this.requestId, required this.requestTitle});
+  @override
+  State<CaseWorkspacePage> createState() => _CaseWorkspacePageState();
+}
+
+class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
+  final _message = TextEditingController();
+  late final Stream<List<Map<String, dynamic>>> _messages;
+  bool _sending = false, _uploading = false, _aiBusy = false, _staff = false;
+  String _role = '';
+  static const _bucket = 'samanvay-case-evidence';
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = supabase.from('case_messages').stream(primaryKey: ['id'])
+      .eq('request_id', widget.requestId).order('created_at', ascending: true);
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await supabase.from('profiles').select('role')
+        .eq('id', user.id).maybeSingle();
+      final role = (row?['role'] ?? '').toString();
+      if (mounted) {
+        setState(() {
+          _role = role;
+          _staff = ['admin','coordinator','department'].contains(role);
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  void _toast(String value) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
+
+  Future<void> _send() async {
+    final user = supabase.auth.currentUser;
+    final body = _message.text.trim();
+    if (user == null || body.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await supabase.from('case_messages').insert({
+        'request_id': widget.requestId, 'sender_id': user.id, 'body': body,
+      });
+      _message.clear();
+    } on PostgrestException catch (e) {
+      _toast('Message not sent: ${e.message}');
+    } catch (_) {
+      _toast('Unable to send message. Check your case access and connection.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _upload() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || _uploading) return;
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
+      );
+      if (file == null) return;
+      final fileSize = file.lengthSync() ?? await file.length();
+      if (fileSize == null || fileSize <= 0) {
+        _toast('Unable to read that file. Select it again.');
+        return;
+      }
+      if (fileSize > 20 * 1024 * 1024) {
+        _toast('Evidence files must be 20 MB or smaller.');
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      final ext = (file.extension ?? '').toLowerCase();
+      final mime = switch (ext) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'pdf' => 'application/pdf',
+        _ => '',
+      };
+      if (mime.isEmpty) {
+        _toast('Only JPG, PNG, WEBP and PDF are supported.');
+        return;
+      }
+      final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll('..', '_');
+      final path = '${widget.requestId}/${user.id}/${DateTime.now().microsecondsSinceEpoch}_$safeName';
+      setState(() => _uploading = true);
+      await supabase.storage.from(_bucket).uploadBinary(
+        path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false));
+      try {
+        await supabase.from('case_attachments').insert({
+          'request_id': widget.requestId, 'storage_path': path,
+          'file_name': file.name, 'content_type': mime,
+          'file_size_bytes': fileSize, 
+          'attachment_type': mime == 'application/pdf' ? 'survey_evidence' : 'site_photo',
+          'uploaded_by': user.id,
+        });
+      } catch (_) {
+        try { await supabase.storage.from(_bucket).remove([path]); } catch (_) {}
+        rethrow;
+      }
+      _toast('Evidence uploaded to the private case record.');
+    } on PostgrestException catch (e) {
+      _toast('Evidence was not recorded: ${e.message}');
+    } catch (_) {
+      _toast('Upload failed. Check case access and supported file type.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _viewEvidence() async {
+    try {
+      final rows = await supabase.from('case_attachments')
+        .select('storage_path,file_name,content_type,file_size_bytes')
+        .eq('request_id', widget.requestId).order('created_at', ascending: false);
+      if (!mounted) return;
+      final files = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context, isScrollControlled: true, backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('PRIVATE CASE EVIDENCE', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: files.isEmpty
+                    ? const Center(child: Text('No evidence has been uploaded.'))
+                    : ListView.builder(
+                        itemCount: files.length,
+                        itemBuilder: (context, index) {
+                          final item = files[index];
+                          final kb = ((item['file_size_bytes'] as num?) ?? 0) / 1024;
+                          return ListTile(
+                            leading: Icon(item['content_type'] == 'application/pdf'
+                              ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
+                            title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('$kb KB · Private file'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                try {
+                                  final url = await supabase.storage.from(_bucket)
+                                    .createSignedUrl(item['storage_path'].toString(), 600);
+                                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                } catch (_) { _toast('Unable to open secure evidence link.'); }
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to list case evidence. Check your case permissions.');
+    }
+  }
+
+  Future<void> _addInspection() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !_staff) return;
+    var type = 'progress';
+    var outcome = 'pass';
+    final notes = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Record site inspection'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: type, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Inspection type'),
+                items: const [
+                  DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
+                  DropdownMenuItem(value: 'progress', child: Text('Work progress')),
+                  DropdownMenuItem(value: 'post_work', child: Text('Post-work')),
+                  DropdownMenuItem(value: 'utility_verification', child: Text('Utility verification')),
+                  DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) { if (v != null) { setDialog(() => type = v); } },
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: outcome, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Outcome'),
+                items: const [
+                  DropdownMenuItem(value: 'pass', child: Text('Pass')),
+                  DropdownMenuItem(value: 'issue_found', child: Text('Issue found')),
+                  DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
+                  DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
+                ],
+                onChanged: (v) { if (v != null) { setDialog(() => outcome = v); } },
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
+                decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, notes.text.trim().isNotEmpty),
+              child: const Text('Save inspection')),
+          ],
+        ),
+      ),
+    );
+    if (submit != true) {
+      notes.dispose();
+      return;
+    }
+    try {
+      await supabase.from('case_inspections').insert({
+        'request_id': widget.requestId, 'inspection_type': type,
+        'outcome': outcome, 'notes': notes.text.trim(), 'inspected_by': user.id,
+      });
+      _toast('Inspection saved.');
+    } on PostgrestException catch (e) {
+      _toast('Inspection not saved: ${e.message}');
+    } catch (_) {
+      _toast('Unable to save inspection. Confirm the case is assigned to your department.');
+    } finally {
+      notes.dispose();
+    }
+  }
+
+  Future<void> _runAi(String purpose) async {
+    if (!_staff || _aiBusy) return;
+    setState(() => _aiBusy = true);
+    try {
+      final result = await supabase.functions.invoke('samanvay-case-assistant',
+        body: {'request_id': widget.requestId, 'purpose': purpose});
+      final data = result.data;
+      if (data is! Map || data['assessment'] is! Map) {
+        _toast(data is Map && data['error'] == 'AI_NOT_CONFIGURED'
+          ? 'AI is deployed but needs the OPENAI_API_KEY secret.'
+          : 'No valid assessment returned by the AI service.');
+        return;
+      }
+      final assessment = Map<String,dynamic>.from(data['assessment'] as Map);
+      final assessmentId = data['assessment_id']?.toString();
+      final category = (assessment['category'] ?? 'Not provided').toString();
+      final priority = (assessment['priority_band'] ?? 'Not provided').toString();
+      final confidence = (assessment['confidence'] ?? 'Not provided').toString();
+      final assessmentTitle = switch (purpose) {
+        'summary' => 'AI case summary',
+        'coordination' => 'AI coordination analysis',
+        _ => 'AI case triage',
+      };
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(assessmentTitle),
+          content: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text((assessment['summary'] ?? 'No summary returned.').toString(),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Text('Category: $category'),
+              Text('Priority suggestion: $priority'),
+              Text('Confidence: $confidence'),
+              _arrayText('Suggested departments', assessment['suggested_departments']),
+              _arrayText('Coordination flags', assessment['coordination_flags']),
+              _arrayText('Missing information', assessment['missing_information']),
+              _arrayText('Recommended checks', assessment['recommended_checks']),
+              const SizedBox(height: 10),
+              const Text('Advisory only. Authorised officers must verify information and make official decisions.',
+                style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close')),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'dismissed');
+                },
+                child: const Text('Dismiss suggestion'),
+              ),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'accepted');
+                },
+                child: const Text('Accept suggestion'),
+              ),
+          ],
+        ),
+      );
+    } on FunctionException catch (e) {
+      _toast('AI service unavailable: ${e.reasonPhrase ?? e.status.toString()}');
+    } catch (_) {
+      _toast('AI assessment failed. Check Edge Function and provider configuration.');
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  Future<void> _runCoordinationCheck() async {
+    try {
+      final raw = await supabase.rpc(
+        'run_request_coordination_check',
+        params: {'p_request_id': widget.requestId},
+      );
+      final result = Map<String, dynamic>.from(raw as Map);
+      final possibleOverlap = result['possible_overlap'] == true;
+      final status = (result['assessment_status'] ?? '').toString();
+      final advisory = (result['advisory'] ?? 'No assessment details returned.').toString();
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            possibleOverlap ? Icons.warning_amber_rounded : Icons.info_outline,
+            color: possibleOverlap ? Colors.deepOrange : const Color(0xFF087F83),
+            size: 34,
+          ),
+          title: Text(
+            possibleOverlap
+                ? 'Possible recorded utility proximity'
+                : status == 'completed'
+                    ? 'No recorded overlap detected'
+                    : 'Coordination check incomplete',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(advisory),
+                const SizedBox(height: 12),
+                const Text(
+                  'This check uses only the records currently available to SAMANVAY. It is not a utility-location certificate, permit, site clearance or guarantee of safety. Obtain clearance from utility owners and complete required field verification before work.',
+                  style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Understood'),
+            ),
+          ],
+        ),
+      );
+    } on PostgrestException catch (e) {
+      _toast('Coordination check unavailable: ${e.message}');
+    } catch (_) {
+      _toast('Unable to run the coordination check. Confirm the case location, work radius and access permissions.');
+    }
+  }
+
+  Future<void> _viewCoordinationChecks() async {
+    try {
+      final raw = await supabase.from('case_coordination_checks')
+          .select('assessment_status,possible_overlap,advisory,checked_at')
+          .eq('request_id', widget.requestId)
+          .order('checked_at', ascending: false);
+      if (!mounted) return;
+      final checks = List<Map<String, dynamic>>.from(raw);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * 0.62,
+            child: checks.isEmpty
+                ? const Center(child: Text('No coordination checks have been run for this case.'))
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const Text('COORDINATION CHECK HISTORY',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      ...checks.map((item) {
+                        final overlap = item['possible_overlap'] == true;
+                        final date = DateTime.tryParse(item['checked_at']?.toString() ?? '');
+                        final dateLabel = date == null
+                            ? ''
+                            : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+                        return Card(
+                          child: ListTile(
+                            leading: Icon(
+                              overlap ? Icons.warning_amber_rounded : Icons.fact_check_outlined,
+                              color: overlap ? Colors.deepOrange : const Color(0xFF087F83),
+                            ),
+                            title: Text(overlap
+                                ? 'Possible recorded overlap'
+                                : (item['assessment_status'] == 'completed'
+                                    ? 'No recorded overlap detected'
+                                    : 'Check incomplete')),
+                            subtitle: Text('${item['advisory'] ?? ''}\n$dateLabel'),
+                            isThreeLine: true,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load coordination-check history.');
+    }
+  }
+
+  Future<void> _reviewAiAssessment(String assessmentId, String decision) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !['admin', 'coordinator'].contains(_role)) return;
+    try {
+      await supabase.from('case_ai_assessments').update({
+        'review_status': decision,
+        'reviewed_by': user.id,
+        'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', assessmentId).eq('review_status', 'suggested');
+      _toast(decision == 'accepted'
+        ? 'AI suggestion marked as reviewed and accepted.'
+        : 'AI suggestion dismissed.');
+    } on PostgrestException catch (e) {
+      _toast('Unable to save the review decision: ${e.message}');
+    } catch (_) {
+      _toast('Unable to save the AI review decision.');
+    }
+  }
+
+  Future<void> _viewInspections() async {
+    try {
+      final rows = await supabase.from('case_inspections')
+        .select('inspection_type,outcome,notes,inspected_at')
+        .eq('request_id', widget.requestId)
+        .order('inspected_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .62,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('INSPECTION RECORDS', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: items.isEmpty
+                    ? const Center(child: Text('No inspection records are available.'))
+                    : ListView.builder(
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final date = DateTime.tryParse(item['inspected_at']?.toString() ?? '');
+                          final day = date?.day.toString().padLeft(2, '0') ?? '';
+                          final month = date?.month.toString().padLeft(2, '0') ?? '';
+                          final year = date?.year.toString() ?? '';
+                          final dateLabel = date == null ? '' : '$day/$month/$year';
+                          final outcome = (item['outcome'] ?? '').toString().replaceAll('_', ' ');
+                          final notes = (item['notes'] ?? '').toString();
+                          return ListTile(
+                            leading: const Icon(Icons.fact_check_outlined, color: teal),
+                            title: Text((item['inspection_type'] ?? 'Inspection').toString().replaceAll('_', ' ').toUpperCase()),
+                            subtitle: Text(
+                              '$outcome${dateLabel.isEmpty ? '' : ' · $dateLabel'}\n$notes',
+                            ),
+                            isThreeLine: true,
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load inspections for this case.');
+    }
+  }
+
+  Future<void> _viewTimeline() async {
+    try {
+      final rows = await supabase.from('request_status_history')
+        .select('old_status,new_status,remarks,created_at')
+        .eq('request_id', widget.requestId)
+        .order('created_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: items.isEmpty
+              ? const Center(child: Text('No status history has been recorded yet.'))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text('CASE ACTIVITY', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ...items.map((item) {
+                      final oldStatus = (item['old_status'] ?? 'Created').toString().replaceAll('_', ' ');
+                      final newStatus = (item['new_status'] ?? '').toString().replaceAll('_', ' ');
+                      return ListTile(
+                        leading: const Icon(Icons.timeline, color: teal),
+                        title: Text('$oldStatus → $newStatus'),
+                        subtitle: Text((item['remarks'] ?? 'No remarks').toString()),
+                      );
+                    }),
+                  ],
+                ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load case activity history.');
+    }
+  }
+
+  Widget _arrayText(String label, dynamic raw) {
+    final items = raw is List ? raw.map((x) => x.toString()).toList() : <String>[];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ...items.map((x) => Padding(padding: const EdgeInsets.only(left: 8, top: 3), child: Text('• $x'))),
+      ]),
+    );
+  }
+
+  Widget _bubble(Map<String,dynamic> item, String? uid) {
+    final mine = item['sender_id']?.toString() == uid;
+    final when = DateTime.tryParse(item['created_at']?.toString() ?? '');
+    final hour = when?.hour.toString().padLeft(2,'0') ?? '';
+    final minute = when?.minute.toString().padLeft(2,'0') ?? '';
+    final time = when == null ? '' : '$hour:$minute';
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 310),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        decoration: BoxDecoration(
+          color: mine ? const Color(0xFFDDF7F2) : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: mine ? const Color(0xFFBCEBE3) : const Color(0xFFE3EAF1)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(mine ? 'You' : 'Case participant',
+            style: const TextStyle(fontSize: 9, color: mutedInk, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(item['body']?.toString() ?? '', style: const TextStyle(color: ink)),
+          if (time.isNotEmpty) Align(alignment: Alignment.bottomRight,
+            child: Text(time, style: const TextStyle(fontSize: 9, color: mutedInk))),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = supabase.auth.currentUser?.id;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F6FA),
+      appBar: AppBar(
+        title: Text(widget.requestTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(tooltip: 'View evidence', onPressed: _viewEvidence, icon: const Icon(Icons.attach_file)),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'upload') _upload();
+              if (v == 'view') _viewEvidence();
+              if (v == 'run_check') _runCoordinationCheck();
+              if (v == 'check_history') _viewCoordinationChecks();
+              if (v == 'inspection') _addInspection();
+              if (v == 'inspections') _viewInspections();
+              if (v == 'timeline') _viewTimeline();
+              if (v == 'ai_triage') _runAi('triage');
+              if (v == 'ai_summary') _runAi('summary');
+              if (v == 'ai_coordination') _runAi('coordination');
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
+              const PopupMenuItem(value: 'view', child: Text('View evidence')),
+              const PopupMenuItem(value: 'run_check', child: Text('Run utility coordination check')),
+              const PopupMenuItem(value: 'check_history', child: Text('View coordination-check history')),
+              const PopupMenuItem(value: 'inspections', child: Text('View inspections')),
+              const PopupMenuItem(value: 'timeline', child: Text('Case activity history')),
+              if (_staff) ...[
+                const PopupMenuItem(value: 'inspection', child: Text('Record inspection')),
+                const PopupMenuItem(value: 'ai_triage', child: Text('AI: classify and prioritise case')),
+                const PopupMenuItem(value: 'ai_summary', child: Text('AI: summarise case')),
+                const PopupMenuItem(value: 'ai_coordination', child: Text('AI: coordination risks and missing information')),
+              ],
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(10),
+          color: const Color(0xFFE7F1F7),
+          child: Row(children: [
+            const Icon(Icons.shield_outlined, color: Color(0xFF087F83), size: 18),
+            const SizedBox(width: 8),
+            const Expanded(child: Text(
+              'Case messages and evidence are restricted to authenticated participants.',
+              style: TextStyle(fontSize: 10, color: Color(0xFF42627E)))),
+            if (_uploading || _aiBusy) const SizedBox(width: 15, height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          ]),
+        ),
+        Expanded(
+          child: StreamBuilder<List<Map<String,dynamic>>>(
+            stream: _messages,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('Discussion is unavailable for this account.'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final rows = snapshot.data!;
+              if (rows.isEmpty) return const Center(child: Text('No messages yet. Start the case discussion.'));
+              return ListView.builder(
+                padding: const EdgeInsets.all(14), itemCount: rows.length,
+                itemBuilder: (context, index) => _bubble(rows[index], uid));
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+            color: Colors.white,
+            child: Row(children: [
+              IconButton(tooltip: 'Upload evidence', onPressed: _uploading ? null : _upload,
+                icon: const Icon(Icons.attach_file, color: Color(0xFF087F83))),
+              Expanded(child: TextField(
+                controller: _message, minLines: 1, maxLines: 4, maxLength: 4000,
+                decoration: const InputDecoration(
+                  hintText: 'Write a case message…', counterText: '', isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10)),
+              )),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                onPressed: _sending ? null : _send,
+                icon: _sending
+                  ? const SizedBox(width: 17, height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded)),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// REALTIME USER NOTIFICATIONS
+// ==========================================
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key});
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  late final Stream<List<Map<String,dynamic>>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = supabase.auth.currentUser;
+    _stream = user == null
+      ? Stream.value(<Map<String,dynamic>>[])
+      : supabase.from('user_notifications').stream(primaryKey: ['id'])
+        .eq('recipient_id', user.id).order('created_at', ascending: false);
+  }
+
+  Future<void> _openNotification(Map<String,dynamic> item) async {
+    await _markRead(item);
+    final requestId = item['request_id']?.toString();
+    if (requestId == null || requestId.isEmpty || !mounted) return;
+    var title = 'Infrastructure case';
+    try {
+      final row = await supabase.from('excavation_requests')
+        .select('title').eq('id', requestId).maybeSingle();
+      title = (row?['title'] ?? title).toString();
+    } catch (_) {}
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaseWorkspacePage(
+          requestId: requestId,
+          requestTitle: title,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _markRead(Map<String,dynamic> item) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || item['read_at'] != null) return;
+    try {
+      await supabase.from('user_notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', item['id'].toString()).eq('recipient_id', user.id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to mark notification as read.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: StreamBuilder<List<Map<String,dynamic>>>(
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text('Notifications could not be loaded.'));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final rows = snapshot.data!;
+          final unread = rows.where((x) => x['read_at'] == null).length;
+          if (rows.isEmpty) return const Center(child: Text('You are all caught up.'));
+          final total = rows.length;
+          return ListView(padding: const EdgeInsets.all(14), children: [
+            Text('$unread unread · $total total',
+              style: const TextStyle(color: mutedInk, fontSize: 12, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            ...rows.map((item) {
+              final fresh = item['read_at'] == null;
+              final date = DateTime.tryParse(item['created_at']?.toString() ?? '');
+              final day = date?.day.toString().padLeft(2,'0') ?? '';
+              final month = date?.month.toString().padLeft(2,'0') ?? '';
+              final year = date?.year.toString() ?? '';
+              final dateText = date == null ? '' : '$day/$month/$year';
+              final notificationBody = (item['body'] ?? '').toString();
+              final type = (item['notification_type'] ?? '').toString();
+              final icon = switch (type) {
+                'assignment' => Icons.account_tree_outlined,
+                'review' => Icons.rate_review_outlined,
+                'status' => Icons.sync_alt,
+                'message' => Icons.forum_outlined,
+                _ => Icons.notifications_outlined,
+              };
+              return Card(
+                color: fresh ? const Color(0xFFEAF8F6) : Colors.white,
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: fresh ? const Color(0xFFD1F0EA) : const Color(0xFFEAF0F5),
+                    child: Icon(icon, color: const Color(0xFF087F83))),
+                  title: Text(item['title']?.toString() ?? 'SAMANVAY update',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('$notificationBody\n$dateText'),
+                  isThreeLine: true,
+                  trailing: fresh
+                    ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
+                    : const Icon(Icons.check, color: mutedInk, size: 18),
+                  onTap: () => _openNotification(item),
+                ),
+              );
+            }),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
+// ==========================================
+// ADMINISTRATION CONSOLE
+// ==========================================
+class AdminManagementPage extends StatefulWidget {
+  const AdminManagementPage({super.key});
+  @override
+  State<AdminManagementPage> createState() => _AdminManagementPageState();
+}
+
+class _AdminManagementPageState extends State<AdminManagementPage> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _audit = [];
+  List<Map<String, dynamic>> _routes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _toast(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final userRows = await supabase.rpc('admin_user_directory');
+      final departmentRows = await supabase.from('departments')
+          .select('id,name,description').order('name');
+      final auditRows = await supabase.from('admin_audit_events')
+          .select('event_type,details,created_at')
+          .order('created_at', ascending: false).limit(40);
+      final routeRows = await supabase.from('department_service_domains')
+          .select('department_id,case_category,route_priority')
+          .order('case_category');
+      if (!mounted) return;
+      setState(() {
+        _users = List<Map<String, dynamic>>.from(userRows as List);
+        _departments = List<Map<String, dynamic>>.from(departmentRows);
+        _audit = List<Map<String, dynamic>>.from(auditRows);
+        _routes = List<Map<String, dynamic>>.from(routeRows);
+        _loading = false;
+      });
+    } on PostgrestException catch (error) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = error.message; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load administration records. Verify administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _editUser(Map<String, dynamic> user) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final userId = user['user_id'].toString();
+    if (userId == currentUserId) {
+      _toast('Your own administrator role cannot be changed here.');
+      return;
+    }
+
+    String selectedRole = (user['role'] ?? 'requester').toString();
+    String? selectedDepartment = user['department_id']?.toString();
+    if (selectedRole == 'department' && selectedDepartment == null && _departments.isNotEmpty) {
+      selectedDepartment = _departments.first['id'].toString();
+    }
+
+    final result = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Update account access'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((user['display_name'] ?? 'SAMANVAY user').toString(),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(
+                  'Account reference: ${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
+                  style: const TextStyle(fontSize: 10, color: mutedInk),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Platform role', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'requester', child: Text('Requester')),
+                    DropdownMenuItem(value: 'department', child: Text('Department officer')),
+                    DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                    DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() {
+                      selectedRole = value;
+                      if (value != 'department') selectedDepartment = null;
+                      if (value == 'department' && _departments.isNotEmpty) {
+                        selectedDepartment ??= _departments.first['id'].toString();
+                      }
+                    });
+                  },
+                ),
+                if (selectedRole == 'department') ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedDepartment,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Assigned department', border: OutlineInputBorder()),
+                    items: _departments.map((item) => DropdownMenuItem<String>(
+                      value: item['id'].toString(),
+                      child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) => setDialogState(() => selectedDepartment = value),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Changes are checked and recorded by the database. Users cannot assign roles to themselves.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: selectedRole == 'department' && selectedDepartment == null
+                ? null
+                : () => Navigator.pop(dialogContext, {
+                    'role': selectedRole,
+                    'department_id': selectedDepartment,
+                  }),
+              child: const Text('Save access'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    try {
+      await supabase.rpc('admin_update_profile_role', params: {
+        'p_user_id': userId,
+        'p_role': result['role'],
+        'p_department_id': result['department_id'],
+      });
+      _toast('Account access updated and audit entry recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Access update rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to update account access.');
+    }
+  }
+
+  Future<void> _addDepartment() async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add department / routing group'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'Department name', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(labelText: 'Description / responsibility', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Use the official department name for the relevant city/state jurisdiction. Creating a routing group does not establish statutory authority.',
+                style: TextStyle(fontSize: 11, color: mutedInk),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, nameController.text.trim().isNotEmpty),
+            child: const Text('Create department'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        await supabase.rpc('admin_create_department', params: {
+          'p_name': nameController.text.trim(),
+          'p_description': descriptionController.text.trim(),
+        });
+        _toast('Department added.');
+        await _load();
+      } on PostgrestException catch (error) {
+        _toast('Department not created: ${error.message}');
+      } catch (_) {
+        _toast('Unable to create department.');
+      }
+    }
+    nameController.dispose();
+    descriptionController.dispose();
+  }
+
+
+  Future<void> _manageServiceRoute() async {
+    if (_departments.isEmpty) {
+      _toast('Create a department before configuring a service route.');
+      return;
+    }
+    const categories = <String, String>{
+      'road_reconstruction': 'Road reconstruction',
+      'water_supply': 'Water supply',
+      'sewerage': 'Sewerage',
+      'stormwater_drainage': 'Stormwater and drainage',
+      'electricity': 'Electricity',
+      'telecom': 'Telecommunications',
+      'gas': 'Gas network',
+      'borewell_groundwater': 'Borewell and groundwater',
+      'building_planning': 'Building planning / regulation',
+      'public_health_engineering': 'Public health engineering',
+      'other': 'Other infrastructure issue',
+    };
+    String category = categories.keys.first;
+    String departmentId = _departments.first['id'].toString();
+    String priority = 'primary';
+    bool enabled = true;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Configure service routing'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Infrastructure domain'),
+                  items: categories.entries.map((entry) => DropdownMenuItem<String>(
+                    value: entry.key, child: Text(entry.value),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Department / routing group'),
+                  items: _departments.map((item) => DropdownMenuItem<String>(
+                    value: item['id'].toString(),
+                    child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => departmentId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(labelText: 'Suggestion level'),
+                  items: const [
+                    DropdownMenuItem(value: 'primary', child: Text('Primary suggestion')),
+                    DropdownMenuItem(value: 'supporting', child: Text('Supporting department')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => priority = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: enabled,
+                  title: const Text('Enable this routing suggestion'),
+                  onChanged: (value) => setDialogState(() => enabled = value),
+                ),
+                const Text(
+                  'This configures a suggestion only. It does not automatically assign a case or establish statutory authority.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save routing')),
+          ],
+        ),
+      ),
+    );
+    if (save != true) return;
+    try {
+      await supabase.rpc('admin_set_service_domain_route', params: {
+        'p_department_id': departmentId,
+        'p_case_category': category,
+        'p_route_priority': priority,
+        'p_enabled': enabled,
+      });
+      _toast('Service routing updated and audit event recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Routing update rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to update service routing.');
+    }
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: navy)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: const TextStyle(fontSize: 11, color: mutedInk)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Administration'),
+        actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0B1728), Color(0xFF14515E)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 30),
+                  SizedBox(height: 10),
+                  Text('PLATFORM GOVERNANCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                  SizedBox(height: 5),
+                  Text(
+                    'Manage platform access, routing groups and audit history. Statutory authority remains with the responsible government organisation.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (_error != null)
+              Card(child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              )),
+            if (_loading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(28), child: CircularProgressIndicator(),
+              ))
+            else ...[
+              _sectionTitle('User and access directory', '${_users.length} account(s)'),
+              ..._users.map((user) {
+                final isSelf = user['user_id']?.toString() == currentUserId;
+                final role = (user['role'] ?? 'requester').toString();
+                final name = (user['display_name'] ?? 'SAMANVAY user').toString();
+                final dept = user['department_name']?.toString();
+                final subtitle = '${role.toUpperCase()}'
+                  '${dept == null ? '' : ' · $dept'}'
+                  '${isSelf ? ' · CURRENT ACCOUNT' : ''}';
+                final icon = role == 'admin' ? Icons.admin_panel_settings_outlined :
+                  role == 'coordinator' ? Icons.hub_outlined :
+                  role == 'department' ? Icons.account_tree_outlined : Icons.person_outline;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFE7F8F6),
+                      child: Icon(icon, color: const Color(0xFF087F83)),
+                    ),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(subtitle, style: const TextStyle(fontSize: 10)),
+                    trailing: IconButton(
+                      tooltip: isSelf ? 'Own role is locked' : 'Edit role and department',
+                      onPressed: isSelf ? null : () => _editUser(user),
+                      icon: Icon(isSelf ? Icons.lock_outline : Icons.edit_outlined),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Departments and routing groups', '${_departments.length} group(s)')),
+                  FilledButton.icon(
+                    onPressed: _addDepartment,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                  ),
+                ],
+              ),
+              ..._departments.map((department) => Card(
+                margin: const EdgeInsets.only(bottom: 7),
+                child: ListTile(
+                  leading: const Icon(Icons.account_tree_outlined, color: Color(0xFF087F83)),
+                  title: Text(department['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(
+                    (department['description'] ?? 'No description recorded').toString(),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Case-domain routing', '${_routes.length} suggestion(s)')),
+                  FilledButton.icon(
+                    onPressed: _manageServiceRoute,
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text('Configure'),
+                  ),
+                ],
+              ),
+              ..._routes.map((route) {
+                final department = _departments.firstWhere(
+                  (item) => item['id'].toString() == route['department_id'].toString(),
+                  orElse: () => {'name': 'Unknown department'},
+                );
+                final categoryName = route['case_category'].toString().replaceAll('_', ' ').toUpperCase();
+                final priorityName = route['route_priority'] == 'primary' ? 'PRIMARY' : 'SUPPORTING';
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.route_outlined, color: Color(0xFF087F83)),
+                    title: Text(department['name'].toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('$categoryName · $priorityName',
+                      style: const TextStyle(fontSize: 10)),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              _sectionTitle('Administrative audit trail', '${_audit.length} recent event(s)'),
+              if (_audit.isEmpty)
+                const Card(child: Padding(
+                  padding: EdgeInsets.all(15),
+                  child: Text('No administrative changes have been recorded yet.'),
+                ))
+              else
+                ..._audit.map((event) {
+                  final details = event['details'] is Map
+                    ? Map<String, dynamic>.from(event['details'] as Map)
+                    : <String, dynamic>{};
+                  final when = DateTime.tryParse(event['created_at']?.toString() ?? '');
+                  final dateText = when == null ? '' :
+                    '${when.day.toString().padLeft(2, '0')}/${when.month.toString().padLeft(2, '0')}/${when.year}';
+                  final type = (event['event_type'] ?? '').toString();
+                  final label = type == 'profile_role_changed'
+                    ? 'Account role / department updated'
+                    : 'Department routing group created';
+                  final detail = (details['department_name'] ?? details['new_role'] ?? '').toString();
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.history, color: mutedInk),
+                      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('$detail${dateText.isEmpty ? '' : ' · $dateText'}'),
+                    ),
+                  );
+                }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+).hasMatch(dateValue);
+                  final refOk = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._/-]{2,119}
+  const UtilityAssetVerificationPage({super.key});
+  @override
+  State<UtilityAssetVerificationPage> createState() => _UtilityAssetVerificationPageState();
+}
+
+class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationPage> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  bool authorised = false;
+  String errorMessage = '';
+  String selectedStatus = 'all';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      final profile = userId == null ? null : await supabase.from('profiles')
+          .select('role').eq('id', userId).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      if (role != 'admin' && role != 'coordinator') {
+        if (!mounted) return;
+        setState(() { authorised = false; loading = false; });
+        return;
+      }
+      final rows = await supabase.from('utility_asset_verification_queue')
+          .select('asset_id,asset_type,owner_department,operational_status,source_type,verification_status,surveyed_at,surveyed_by_org,verified_at,verification_notes,evidence_count,created_at,import_run_id,source_title,source_organisation,authorization_reference,source_url,import_status')
+          .order('created_at', ascending: false).limit(300);
+      if (!mounted) return;
+      setState(() {
+        authorised = true;
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'The restricted verification queue could not be loaded. Check administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _review(Map<String, dynamic> row, String decision) async {
+    final rationaleController = TextEditingController();
+    final rationale = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(decision == 'approve' ? 'Approve verified submission' : 'Reject / dispute submission'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Record a clear review rationale. Approval requires at least one survey evidence item and confirms that the submitted evidence was independently checked.'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: rationaleController,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              labelText: 'Review rationale (minimum 10 characters)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final value = rationaleController.text.trim();
+              if (value.length >= 10) Navigator.pop(dialogContext, value);
+            },
+            child: Text(decision == 'approve' ? 'Confirm approval' : 'Record dispute'),
+          ),
+        ],
+      ),
+    );
+    rationaleController.dispose();
+    if (rationale == null || !mounted) return;
+    try {
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-review',
+        body: {
+          'asset_id': row['asset_id'].toString(),
+          'decision': decision,
+          'rationale': rationale,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw Exception('Review endpoint returned an error.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(decision == 'approve'
+          ? 'Submission approved and review audit recorded.'
+          : 'Submission marked disputed; review audit recorded.')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review could not be completed. Confirm reviewer permissions and evidence requirements.')),
+      );
+    }
+  }
+
+  String _date(dynamic value) {
+    if (value == null) return 'Not recorded';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return 'Not recorded';
+    return parsed.toLocal().toString().split('.').first;
+  }
+
+  Color _statusColor(String status) {
+    if (status == 'verified' || status == 'owner_confirmed') return const Color(0xFFE4F4E9);
+    if (status == 'field_surveyed') return const Color(0xFFE6F0FB);
+    if (status == 'disputed') return const Color(0xFFFFE8E8);
+    return const Color(0xFFFFF0D7);
+  }
+
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE4EAF1)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: const Color(0xFF087F83)),
+        const SizedBox(width: 7),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 10, color: mutedInk)),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = records.where((row) {
+      return selectedStatus == 'all' || row['verification_status'] == selectedStatus;
+    }).toList();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Asset verification centre'),
+        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : !authorised
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Restricted area. Only authorised SAMANVAY administrators and coordinators can access this review queue.',
+                    textAlign: TextAlign.center),
+                ))
+              : errorMessage.isNotEmpty
+                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(errorMessage)))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(padding: const EdgeInsets.all(15), children: [
+                        const Card(child: Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text(
+                            'AUTHORITY REVIEW QUEUE — metadata only. This screen deliberately excludes underground asset coordinates, routes, depths, dimensions and precise geometry. A verification label is not excavation clearance.',
+                            style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                          ),
+                        )),
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _metric('RECORDS LOADED', records.length.toString(), Icons.inventory_2_outlined),
+                          _metric('WITH EVIDENCE', records.where((r) => (r['evidence_count'] as num? ?? 0) > 0).length.toString(), Icons.attach_file),
+                          _metric('VERIFIED', records.where((r) => r['verification_status'] == 'verified').length.toString(), Icons.verified_outlined),
+                        ]),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedStatus,
+                          decoration: const InputDecoration(labelText: 'Verification status', border: OutlineInputBorder()),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All statuses')),
+                            DropdownMenuItem(value: 'unverified', child: Text('Unverified')),
+                            DropdownMenuItem(value: 'field_surveyed', child: Text('Field surveyed')),
+                            DropdownMenuItem(value: 'owner_confirmed', child: Text('Owner confirmed')),
+                            DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                            DropdownMenuItem(value: 'disputed', child: Text('Disputed')),
+                            DropdownMenuItem(value: 'retired', child: Text('Retired')),
+                          ],
+                          onChanged: (value) { if (value != null) setState(() => selectedStatus = value); },
+                        ),
+                        const SizedBox(height: 12),
+                        if (filtered.isEmpty)
+                          const Card(child: Padding(
+                            padding: EdgeInsets.all(18),
+                            child: Text('No asset metadata records are available for this queue yet. Authorised owner or survey submissions are required before review can begin.'),
+                          ))
+                        else
+                          ...filtered.map((row) {
+                            final status = (row['verification_status'] ?? 'unverified').toString();
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 9),
+                              child: Padding(
+                                padding: const EdgeInsets.all(13),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Expanded(child: Text((row['asset_type'] ?? 'unknown').toString().toUpperCase(),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy))),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                      decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(8)),
+                                      child: Text(status.replaceAll('_', ' ').toUpperCase(),
+                                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: navy)),
+                                    ),
+                                  ]),
+                                  const SizedBox(height: 7),
+                                  Text('Owner department: ' + (row['owner_department'] ?? 'Not assigned').toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Source: ' + (row['source_type'] ?? 'Not recorded').toString() +
+                                    ' · Operational status: ' + (row['operational_status'] ?? 'unknown').toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Survey date: ' + _date(row['surveyed_at']) +
+                                    ' · Evidence items: ' + (row['evidence_count'] ?? 0).toString(),
+                                    style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['surveyed_by_org'] ?? '').toString().isNotEmpty)
+                                    Text('Survey organisation: ' + row['surveyed_by_org'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_title'] ?? '').toString().isNotEmpty)
+                                    Text('Submitted source: ' + row['source_title'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_organisation'] ?? '').toString().isNotEmpty)
+                                    Text('Source organisation: ' + row['source_organisation'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['authorization_reference'] ?? '').toString().isNotEmpty)
+                                    Text('Authority reference: ' + row['authorization_reference'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['import_status'] ?? '').toString().isNotEmpty)
+                                    Text('Import audit: ' + row['import_status'].toString().replaceAll('_', ' ').toUpperCase(),
+                                      style: const TextStyle(fontSize: 10, color: Color(0xFF9A6700), fontWeight: FontWeight.w700)),
+                                  if ((row['import_run_id'] ?? '').toString().isNotEmpty)
+                                    Text('Audit run: ' + row['import_run_id'].toString(),
+                                      style: const TextStyle(fontSize: 9, color: mutedInk)),
+                                  if ((row['verification_notes'] ?? '').toString().isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(row['verification_notes'].toString(),
+                                        style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                    ),
+                                  if (status != 'verified' && status != 'retired') ...[
+                                    const Divider(height: 18),
+                                    Wrap(spacing: 8, runSpacing: 8, children: [
+                                      FilledButton.icon(
+                                        onPressed: (row['evidence_count'] as num? ?? 0) > 0
+                                          ? () => _review(row, 'approve') : null,
+                                        icon: const Icon(Icons.verified_outlined, size: 16),
+                                        label: const Text('Approve after evidence review'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _review(row, 'reject'),
+                                        icon: const Icon(Icons.flag_outlined, size: 16),
+                                        label: const Text('Reject / dispute'),
+                                      ),
+                                    ]),
+                                    if ((row['evidence_count'] as num? ?? 0) == 0)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 6),
+                                        child: Text('Approval is disabled until survey evidence is recorded.',
+                                          style: TextStyle(fontSize: 10, color: Color(0xFF9A6700))),
+                                      ),
+                                  ],
+                                ]),
+                              ),
+                            );
+                          }),
+                      ]),
+                    ),
+    );
+  }
+}
+
+class IndiaLgdCsvImportPage extends StatefulWidget {
+  const IndiaLgdCsvImportPage({super.key});
+  @override
+  State<IndiaLgdCsvImportPage> createState() => _IndiaLgdCsvImportPageState();
+}
+
+class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
+  final TextEditingController reportDateController = TextEditingController();
+  String unitType = 'district';
+  bool busy = false;
+  String statusMessage = '';
+
+  static const Map<String, String> unitTypes = {
+    'district': 'Districts',
+    'sub_district': 'Sub-districts',
+    'block': 'Blocks',
+    'urban_local_body': 'Urban Local Bodies',
+    'gram_panchayat': 'Gram Panchayats',
+    'village': 'Villages',
+    'ward': 'Wards',
+    'traditional_local_body': 'Traditional Local Bodies',
+  };
+
+  String _key(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  int _column(List<String> headers, List<String> aliases) {
+    for (var i = 0; i < headers.length; i++) {
+      if (aliases.contains(headers[i])) return i;
+    }
+    return -1;
+  }
+
+  String _cell(List<dynamic> row, int index) {
+    if (index < 0 || index >= row.length) return '';
+    return (row[index] ?? '').toString().trim();
+  }
+
+  Future<void> _pickAndImport() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() => statusMessage = 'Sign in before importing an official directory report.');
+      return;
+    }
+    final profile = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+    final role = (profile?['role'] ?? '').toString();
+    if (role != 'admin' && role != 'coordinator') {
+      setState(() => statusMessage = 'This import is restricted to SAMANVAY administrators and coordinators.');
+      return;
+    }
+    final reportDate = DateTime.tryParse(reportDateController.text.trim());
+    if (reportDate == null) {
+      setState(() => statusMessage = 'Enter the report date in YYYY-MM-DD format before importing.');
+      return;
+    }
+
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (picked == null) return;
+    final selectedFile = picked;
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) {
+      setState(() => statusMessage = 'The selected CSV file could not be read.');
+      return;
+    }
+
+    setState(() { busy = true; statusMessage = 'Validating the official LGD CSV...'; });
+    try {
+      var csvText = utf8.decode(bytes, allowMalformed: true);
+      if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
+      final parsed = csv.decode(csvText);
+      if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
+      final headers = parsed.first.map((v) => _key(v.toString())).toList();
+      final codeCol = _column(headers, ['lgdcode','districtlgdcode','districtcode','localbodycode','code']);
+      final nameCol = _column(headers, ['name','districtname','districtnameenglish','localbodyname','localbodynameenglish','nameenglish']);
+      final stateCol = _column(headers, ['statename','statenameenglish','state']);
+      final localNameCol = _column(headers, ['namelocal','localname','localbodynamelocal']);
+      final parentCol = unitType == 'district'
+          ? -1
+          : _column(headers, ['parentlgdcode','parentcode','parentunitcode','districtlgdcode','districtcode']);
+      if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
+        throw Exception('Required columns not found. Include LGD Code, Name and State Name.');
+      }
+
+      final rawStates = await supabase.from('india_state_uts').select('id,name').limit(100);
+      final stateIds = <String, String>{};
+      for (final state in rawStates) {
+        stateIds[_key(state['name'].toString())] = state['id'].toString();
+      }
+      final rawExisting = await supabase.from('india_administrative_units')
+          .select('id,lgd_code').limit(5000);
+      final parentIds = <String, String>{};
+      for (final row in rawExisting) {
+        final code = (row['lgd_code'] ?? '').toString();
+        if (code.isNotEmpty) parentIds[code] = row['id'].toString();
+      }
+
+      final payload = <Map<String, dynamic>>[];
+      final seenCodes = <String>{};
+      var rejected = 0;
+      for (final row in parsed.skip(1)) {
+        final code = _cell(row, codeCol);
+        final name = _cell(row, nameCol);
+        final stateName = _cell(row, stateCol);
+        final stateId = stateIds[_key(stateName)];
+        if (code.isEmpty || name.isEmpty || stateId == null || !seenCodes.add(code)) {
+          rejected++;
+          continue;
+        }
+        final parentCode = _cell(row, parentCol);
+        final parentId = parentCode.isEmpty ? null : parentIds[parentCode];
+        if (parentCode.isNotEmpty && parentId == null) {
+          rejected++;
+          continue;
+        }
+        payload.add({
+          'state_ut_id': stateId,
+          'parent_unit_id': parentId,
+          'unit_type': unitType,
+          'lgd_code': code,
+          'name': name,
+          'local_name': _cell(row, localNameCol).isEmpty ? null : _cell(row, localNameCol),
+          'source_system': 'Local Government Directory (LGD)',
+          'source_url': 'https://lgdirectory.gov.in/',
+          'source_updated_at': reportDate.toIso8601String().split('T').first,
+          'verification_status': 'imported_unverified',
+          'is_active': true,
+        });
+      }
+      if (payload.isEmpty) throw Exception('No valid rows remain after checking LGD codes and State names.');
+
+      final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
+      final batchStateId = touchedStates.length == 1 ? touchedStates.first : null;
+      Map<String, dynamic>? queuedBatch;
+      if (batchStateId != null) {
+        queuedBatch = await supabase.from('india_directory_import_batches')
+          .select('id')
+          .eq('jurisdiction_state_ut_id', batchStateId)
+          .eq('unit_type', unitType)
+          .eq('import_status', 'awaiting_authorised_export')
+          .maybeSingle();
+      }
+
+      late final String batchId;
+      final batchMetadata = {
+        'jurisdiction_state_ut_id': batchStateId,
+        'source_url': 'https://lgdirectory.gov.in/downloadDirectory.do',
+        'unit_type': unitType,
+        'source_updated_at': reportDate.toIso8601String().split('T').first,
+        'original_file_name': selectedFile.name,
+        'import_status': 'uploaded',
+        'rows_received': parsed.length - 1,
+        'rows_rejected': rejected,
+        'imported_by': userId,
+        'notes': 'Imported from an administrator-supplied LGD report converted to CSV. Records remain unverified until authority review.',
+      };
+      if (queuedBatch != null) {
+        batchId = queuedBatch['id'].toString();
+        await supabase.from('india_directory_import_batches')
+          .update(batchMetadata).eq('id', batchId);
+      } else {
+        final batch = await supabase.from('india_directory_import_batches')
+          .insert(batchMetadata).select('id').single();
+        batchId = batch['id'].toString();
+      }
+
+      for (var i = 0; i < payload.length; i += 100) {
+        final end = (i + 100 < payload.length) ? i + 100 : payload.length;
+        final chunk = payload.sublist(i, end)
+            .map((row) => {...row, 'import_batch_id': batchId})
+            .toList();
+        await supabase.from('india_administrative_units')
+            .upsert(chunk, onConflict: 'source_system,lgd_code');
+      }
+      await supabase.from('india_directory_import_batches').update({
+        'import_status': 'imported',
+        'rows_inserted': payload.length,
+        'completed_at': DateTime.now().toIso8601String(),
+      }).eq('id', batchId);
+
+      for (final stateId in touchedStates) {
+        await supabase.from('india_data_coverage').update({
+          'coverage_status': 'directory_records_imported_pending_authority_validation',
+          'operational_use_allowed': false,
+          'last_checked_at': DateTime.now().toIso8601String(),
+          'notes': 'LGD directory rows imported from ' + selectedFile.name +
+            ' dated ' + reportDate.toIso8601String().split('T').first +
+            '. Imported records remain unverified pending authority review.',
+        }).eq('state_ut_id', stateId).eq('data_domain', 'administrative_directory');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import complete: ' + payload.length.toString() +
+          ' rows inserted/updated; ' + rejected.toString() +
+          ' rows rejected. Records remain unverified until authority review.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import stopped: ' + error.toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    reportDateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Import official LGD directory')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+      const Card(child: Padding(
+        padding: EdgeInsets.all(14),
+        child: Text(
+          'ADMINISTRATOR / COORDINATOR ONLY. Generate the report on the official LGD portal yourself, complete its CAPTCHA normally, and convert the XLS/HTML report to CSV using the standard column headings. This importer does not automate or bypass the CAPTCHA.',
+          style: TextStyle(fontSize: 11, height: 1.45, color: mutedInk),
+        ),
+      )),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: unitType,
+        decoration: const InputDecoration(labelText: 'Directory entity type', border: OutlineInputBorder()),
+        items: unitTypes.entries.map((entry) => DropdownMenuItem(
+          value: entry.key, child: Text(entry.value),
+        )).toList(),
+        onChanged: busy ? null : (value) { if (value != null) setState(() => unitType = value); },
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: reportDateController,
+        enabled: !busy,
+        decoration: const InputDecoration(
+          labelText: 'Official report date',
+          hintText: 'YYYY-MM-DD',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 12),
+      const Text('Required CSV columns: LGD Code, Name, State Name. Optional: Parent LGD Code, Local Name.',
+        style: TextStyle(fontSize: 11, color: mutedInk)),
+      const SizedBox(height: 14),
+      FilledButton.icon(
+        onPressed: busy ? null : _pickAndImport,
+        icon: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.upload_file),
+        label: Text(busy ? 'IMPORTING...' : 'SELECT CSV AND IMPORT'),
+      ),
+      if (statusMessage.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(statusMessage, style: const TextStyle(fontSize: 11, height: 1.4)),
+        )),
+      ],
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => launchUrl(Uri.parse('https://lgdirectory.gov.in/downloadDirectory.do'),
+          mode: LaunchMode.externalApplication),
+        icon: const Icon(Icons.open_in_new),
+        label: const Text('Open official LGD report generator'),
+      ),
+    ]),
+  );
+}
+
+
+class BuildingApprovalRegisterBoard extends StatefulWidget {
+  const BuildingApprovalRegisterBoard({super.key});
+
+  @override
+  State<BuildingApprovalRegisterBoard> createState() => _BuildingApprovalRegisterBoardState();
+}
+
+class _BuildingApprovalRegisterBoardState extends State<BuildingApprovalRegisterBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase
+          .from('building_approval_public_register_records')
+          .select('authority,jurisdiction,source_document_title,source_url,approval_status,approved_floor_count,approved_height_m')
+          .limit(3000);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Public building approval register summary is unavailable for this account.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusCounts = <String, int>{};
+    for (final row in records) {
+      final status = (row['approval_status'] ?? 'Status not supplied').toString();
+      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+    }
+    final floorValues = records.where((r) => r['approved_floor_count'] != null).length;
+    final heightValues = records.where((r) => r['approved_height_m'] != null).length;
+    final sourceUrl = records.isNotEmpty ? (records.first['source_url'] ?? '').toString() : '';
+    final authority = records.isNotEmpty ? (records.first['authority'] ?? 'Authority not supplied').toString() : 'Municipal Corporation of Delhi';
+    final jurisdiction = records.isNotEmpty ? (records.first['jurisdiction'] ?? 'Jurisdiction not supplied').toString() : 'Delhi, India';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.apartment_outlined, color: Color(0xFF087F83)),
+            const SizedBox(width: 9),
+            const Expanded(child: Text('Public building-approval register', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh public approval register'),
+          ]),
+          const Text('Official published plan-release records imported into SAMANVAY. This is not a nationwide permit registry.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
+          else ...[
+            const SizedBox(height: 9),
+            Row(children: [
+              Expanded(child: _approvalMetric('Records', records.length.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Jurisdiction', jurisdiction)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _approvalMetric('Official floor values', floorValues.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Official height values', heightValues.toString())),
+            ]),
+            const SizedBox(height: 8),
+            Text('$authority · $jurisdiction', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: navy)),
+            const SizedBox(height: 4),
+            ...statusCounts.entries.map((entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 10, color: Colors.blueGrey))),
+                Text(entry.value.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
+              ]),
+            )),
+            const SizedBox(height: 6),
+            const Text('Source status is preserved as published. No sanctioned floors, building heights, parcel locations or legal compliance conclusions are inferred from missing fields.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            if (sourceUrl.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(sourceUrl);
+                    if (uri != null && await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 15),
+                  label: const Text('Open original authority register'),
+                ),
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _approvalMetric(String label, String value) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: const Color(0xFFF1F7FA), borderRadius: BorderRadius.circular(12)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 9, color: Colors.blueGrey)),
+      const SizedBox(height: 3),
+      Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy)),
+    ]),
+  );
+}
+
+class GroundwaterObservationBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const GroundwaterObservationBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<GroundwaterObservationBoard> createState() => _GroundwaterObservationBoardState();
+}
+
+class _GroundwaterObservationBoardState extends State<GroundwaterObservationBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+  List<Map<String, dynamic>> get groundwaterCases => widget.requests
+      .where((r) => (r['case_category'] ?? '').toString() == 'borewell_groundwater').toList();
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('groundwater_observation_records')
+          .select().order('observed_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Groundwater observations could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final n = r['request_number']?.toString();
+        final t = (r['title'] ?? r['road_name'] ?? 'Groundwater case').toString();
+        return n == null ? t : 'Case #' + n + ' · ' + t;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  Future<void> _add() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    final cases = groundwaterCases;
+    if (cases.isEmpty) { _message('No accessible borewell/groundwater cases are available.'); return; }
+    var requestId = cases.first['id'].toString();
+    var departmentId = widget.departmentId ?? cases.first['department_id']?.toString()
+      ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var wellType = 'borewell';
+    var method = 'manual_measurement';
+    var pumping = 'unknown';
+    var sourceType = 'field_observed';
+    var saving = false;
+    final site = TextEditingController();
+    final level = TextEditingController();
+    final sourceRef = TextEditingController();
+    final notes = TextEditingController();
+
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) =>
+      StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Record groundwater observation'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: requestId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Groundwater case'),
+              items: cases.map((r) {
+                final id = r['id'].toString();
+                return DropdownMenuItem(value: id, child: Text(_caseLabel(id), overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => requestId = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: departmentId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Responsible department'),
+              items: widget.departments.map((d) => DropdownMenuItem<String>(
+                value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString(),
+                  overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: saving ? null : (v) => setDialogState(() => departmentId = v),
+            ),
+            TextField(controller: site, decoration: const InputDecoration(labelText: 'Site / well reference *')),
+            DropdownButtonFormField<String>(
+              initialValue: wellType, decoration: const InputDecoration(labelText: 'Well type'),
+              items: const [
+                DropdownMenuItem(value: 'borewell', child: Text('Borewell')),
+                DropdownMenuItem(value: 'open_well', child: Text('Open well')),
+                DropdownMenuItem(value: 'observation_well', child: Text('Observation well')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => wellType = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: method, decoration: const InputDecoration(labelText: 'Observation method'),
+              items: const [
+                DropdownMenuItem(value: 'manual_measurement', child: Text('Manual measurement')),
+                DropdownMenuItem(value: 'sensor_reading', child: Text('Sensor reading')),
+                DropdownMenuItem(value: 'authority_record', child: Text('Authority record')),
+                DropdownMenuItem(value: 'field_inspection', child: Text('Field inspection')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => method = v); },
+            ),
+            TextField(controller: level, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Water level below ground (m) *')),
+            DropdownButtonFormField<String>(
+              initialValue: pumping, decoration: const InputDecoration(labelText: 'Pumping state at observation'),
+              items: const [
+                DropdownMenuItem(value: 'unknown', child: Text('Unknown')),
+                DropdownMenuItem(value: 'not_pumping', child: Text('Not pumping')),
+                DropdownMenuItem(value: 'pumping', child: Text('Pumping')),
+                DropdownMenuItem(value: 'recovery', child: Text('Recovery')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => pumping = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: sourceType, decoration: const InputDecoration(labelText: 'Source type'),
+              items: const [
+                DropdownMenuItem(value: 'field_observed', child: Text('Field observed')),
+                DropdownMenuItem(value: 'authority_document', child: Text('Authority document')),
+                DropdownMenuItem(value: 'sensor_snapshot', child: Text('Sensor snapshot')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => sourceType = v); },
+            ),
+            TextField(controller: sourceRef, decoration: const InputDecoration(labelText: 'Source / document reference')),
+            TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Measurement notes')),
+            const SizedBox(height: 8),
+            const Text('A water-level reading is not a legal or sustainability classification. Record the measurement time, method and pumping state accurately. This form does not connect to live sensors.',
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          ],
+        ))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(
+            onPressed: saving ? null : () async {
+              final value = double.tryParse(level.text.trim());
+              if (departmentId == null || departmentId!.isEmpty || site.text.trim().isEmpty ||
+                  value == null || value < 0) {
+                _message('Enter a site reference and a valid non-negative water-level measurement.');
+                return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                await supabase.from('groundwater_observation_records').insert({
+                  'request_id': requestId,
+                  'responsible_department_id': departmentId,
+                  'site_reference': site.text.trim(),
+                  'well_type': wellType,
+                  'observation_method': method,
+                  'water_level_below_ground_m': value,
+                  'pumping_state': pumping,
+                  'source_type': sourceType,
+                  'source_reference': sourceRef.text.trim().isEmpty ? null : sourceRef.text.trim(),
+                  'measurement_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'created_by': user.id,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (_) {
+                setDialogState(() => saving = false);
+                _message('Unable to save. Confirm that the case is assigned to the selected department.');
+              }
+            },
+            child: saving ? const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save observation'),
+          ),
+        ],
+      )),
+    );
+    site.dispose(); level.dispose(); sourceRef.dispose(); notes.dispose();
+    if (saved == true) { await _load(); _message('Groundwater observation recorded.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.water_drop_outlined, color: Color(0xFF087F83)),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('Borewell & groundwater field observations',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ]),
+        const Text('Append dated site measurements to a borewell/groundwater case. The public station snapshot above remains separate.',
+          style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: groundwaterCases.isEmpty ? null : _add,
+          icon: const Icon(Icons.add), label: const Text('RECORD GROUNDWATER OBSERVATION'))),
+        const SizedBox(height: 8),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else if (records.isEmpty) const Text('No field observations have been recorded yet.',
+          style: TextStyle(fontSize: 12, color: Colors.blueGrey))
+        else ...records.map((r) {
+          final dept = (r['responsible_department_id'] ?? '').toString();
+          return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFF7FAFC), borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4EAF1))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_caseLabel(r['request_id'].toString()),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              Text((r['site_reference'] ?? 'Site not specified').toString() + ' · ' +
+                (r['well_type'] ?? '').toString().replaceAll('_', ' ') + ' · ' +
+                (r['water_level_below_ground_m']?.toString() ?? '—') + ' m below ground',
+                style: const TextStyle(fontSize: 11, color: ink)),
+              Text(_departmentName(dept) + ' · ' +
+                (r['pumping_state'] ?? 'unknown').toString().replaceAll('_', ' ') + ' · ' +
+                (r['source_type'] ?? '').toString().replaceAll('_', ' '),
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+              Text('Observed: ' + (r['observed_at'] ?? '').toString(),
+                style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            ]));
+        }),
+      ],
+    )));
+  }
+
+  String _departmentName(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return 'Department';
+  }
+}
+
+class StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const StatCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: teal, size: 28),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          Text(
+            title,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// DEPARTMENT TILE
+// ==========================================
+
+class DepartmentTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const DepartmentTile({
+    super.key,
+    required this.title,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: teal.withValues(alpha: 0.12),
+          child: Icon(icon, color: teal),
+        ),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+}
+
+
+// ==========================================
+// REQUESTS — LIVE SUPABASE MODULE
+// ==========================================
+
+class RequestsPage extends StatefulWidget {
+  const RequestsPage({super.key});
+
+  @override
+  State<RequestsPage> createState() => _RequestsPageState();
+}
+
+class _RequestsPageState extends State<RequestsPage> {
+  StreamSubscription<List<Map<String, dynamic>>>? _requestEvents;
+  List<Map<String, dynamic>> requests = [];
+  bool loading = true;
+  String? errorMessage;
+  String selectedFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    loadRequests();
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      _requestEvents = supabase
+          .from('excavation_requests')
+          .stream(primaryKey: ['id'])
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false)
+          .listen((rows) {
+        if (!mounted) return;
+        setState(() {
+          requests = List<Map<String, dynamic>>.from(rows);
+          loading = false;
+          errorMessage = null;
+        });
+      }, onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          errorMessage = 'Live updates are unavailable. Use refresh to retry.';
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _requestEvents?.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadRequests() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        loading = false;
+        errorMessage = 'Please log in again.';
+      });
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final result = await supabase
+          .from('excavation_requests')
+          .select()
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false);
+
+      if (!mounted) return;
+
+      setState(() {
+        requests = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        errorMessage = error.toString();
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredRequests {
+    if (selectedFilter == 'all') return requests;
+
+    return requests.where((request) {
+      return request['status'] == selectedFilter;
+    }).toList();
+  }
+
+  Future<void> openNewRequestForm() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NewRequestPage(),
+      ),
+    );
+
+    if (created == true) {
+      await loadRequests();
+    }
+  }
+
+  String statusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return 'Submitted';
+      case 'under_review':
+        return 'Under Review';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'in_progress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
+      default:
+        return status.replaceAll('_', ' ').toUpperCase();
+    }
+  }
+
+  Color statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'completed':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'in_progress':
+        return Colors.blue;
+      case 'under_review':
+        return Colors.orange;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  String displayDate(dynamic value) {
+    if (value == null) return 'Not specified';
+
+    final date = DateTime.tryParse(value.toString());
+    if (date == null) return value.toString();
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleRequests = filteredRequests;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Excavation Requests'),
+        actions: [
+          IconButton(
+            onPressed: loading ? null : loadRequests,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh requests',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: openNewRequestForm,
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('New Request'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: loadRequests,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 90),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.assignment_turned_in_outlined,
+                    color: Colors.white,
+                    size: 36,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Excavation Requests',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${requests.length} request(s) recorded',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              'Filter by status',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('All', 'all'),
+                  _filterChip('Submitted', 'submitted'),
+                  _filterChip('Under Review', 'under_review'),
+                  _filterChip('Approved', 'approved'),
+                  _filterChip('Rejected', 'rejected'),
+                  _filterChip('In Progress', 'in_progress'),
+                  _filterChip('Completed', 'completed'),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.all(45),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (errorMessage != null)
+              _errorView()
+            else if (visibleRequests.isEmpty)
+              _emptyView()
+            else
+              ...visibleRequests.map(
+                (request) => _requestCard(request),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, String value) {
+    final selected = selectedFilter == value;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) {
+          setState(() {
+            selectedFilter = value;
+          });
+        },
+        selectedColor: teal.withValues(alpha: 0.18),
+        checkmarkColor: teal,
+      ),
+    );
+  }
+
+  Widget _requestCard(Map<String, dynamic> request) {
+    final status = request['status']?.toString() ?? 'submitted';
+    final number = request['request_number']?.toString() ?? '-';
+    final title = request['title']?.toString() ?? 'Untitled';
+    final road = request['road_name']?.toString() ?? '';
+    final city = request['city']?.toString() ?? '';
+    final category = (request['case_category'] ?? 'legacy_excavation')
+        .toString().replaceAll('_', ' ').toUpperCase();
+    final activity = (request['work_activity'] ?? 'not specified')
+        .toString().replaceAll('_', ' ');
+    final color = statusColor(status);
+
+    return Card(
+      color: Colors.white,
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 13),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Request #$number',
+                    style: const TextStyle(
+                      color: teal,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    statusLabel(status),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 9),
+
+            _detailRow(Icons.location_on_outlined, '$road, $city'),
+            _detailRow(Icons.layers_outlined, 'Domain: $category'),
+            _detailRow(Icons.build_outlined, 'Activity: $activity'),
+
+            const SizedBox(height: 7),
+
+            _detailRow(
+              Icons.calendar_today_outlined,
+              'Start: ${displayDate(request['planned_start_date'])}',
+            ),
+
+            const SizedBox(height: 7),
+
+            _detailRow(
+              Icons.event_outlined,
+              'End: ${displayDate(request['planned_end_date'])}',
+            ),
+
+            if (request['description'] != null &&
+                request['description'].toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                request['description'].toString(),
+                style: const TextStyle(
+                  color: Colors.blueGrey,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CaseWorkspacePage(
+                      requestId: request['id'].toString(),
+                      requestTitle: title,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.forum_outlined),
+                label: const Text('OPEN CASE WORKSPACE'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: Colors.blueGrey),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.blueGrey,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyView() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 55),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.assignment_outlined,
+            size: 65,
+            color: teal,
+          ),
+          const SizedBox(height: 15),
+          const Text(
+            'No requests found',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Create your first excavation request '
+            'using the button below.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.blueGrey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorView() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 40),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 55,
+            color: Colors.redAccent,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Unable to load requests',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            errorMessage ?? 'Unknown error',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 15),
+          FilledButton.icon(
+            onPressed: loadRequests,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// NEW EXCAVATION REQUEST FORM
+// ==========================================
+
+class NewRequestPage extends StatefulWidget {
+  const NewRequestPage({super.key});
+
+  @override
+  State<NewRequestPage> createState() => _NewRequestPageState();
+}
+
+class _NewRequestPageState extends State<NewRequestPage> {
+  LatLng? selectedWorkPoint;
+  String selectedCategory = 'road_reconstruction';
+  String selectedActivity = 'new_installation';
+  final _formKey = GlobalKey<FormState>();
+
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _roadController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _workRadiusController = TextEditingController();
+
+  DateTime? startDate;
+  DateTime? endDate;
+
+  bool submitting = false;
+  String? formError;
+  Future<void> pickWorkLocation() async {
+  final LatLng? picked = await Navigator.push<LatLng>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MapLocationPickerPage(
+        initialPoint: selectedWorkPoint,
+      ),
+    ),
+  );
+
+  if (picked == null || !mounted) return;
+
+  setState(() {
+    selectedWorkPoint = picked;
+  });
+  }
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _roadController.dispose();
+    _cityController.dispose();
+    _workRadiusController.dispose();
+    super.dispose();
+  }
+
+  Future<void> chooseDate(bool isStart) async {
+    final now = DateTime.now();
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: isStart
+          ? startDate ?? now
+          : endDate ?? startDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 10),
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      if (isStart) {
+        startDate = selected;
+
+        if (endDate != null && endDate!.isBefore(selected)) {
+          endDate = null;
+        }
+      } else {
+        endDate = selected;
+      }
+    });
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) return 'Select date';
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  Future<void> submitRequest() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (selectedWorkPoint == null) {
+      setState(() {
+        formError = 'Select the work or issue location on the map to support GIS coordination.';
+      });
+      return;
+    }
+
+    final radiusText = _workRadiusController.text.trim();
+    final workRadius = radiusText.isEmpty ? null : double.tryParse(radiusText);
+    if (radiusText.isNotEmpty &&
+        (workRadius == null || workRadius < 1 || workRadius > 500)) {
+      setState(() {
+        formError = 'Work-site radius must be a number between 1 and 500 metres.';
+      });
+      return;
+    }
+
+    if (startDate != null &&
+        endDate != null &&
+        endDate!.isBefore(startDate!)) {
+      setState(() {
+        formError = 'End date cannot be before start date.';
+      });
+      return;
+    }
+
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        formError = 'Your session has expired. Please log in again.';
+      });
+      return;
+    }
+
+    setState(() {
+      submitting = true;
+      formError = null;
+    });
+
+    try {
+      final data = <String, dynamic>{
+        'requester_id': user.id,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'road_name': _roadController.text.trim(),
+        'city': _cityController.text.trim(),
+        'case_category': selectedCategory,
+        'work_activity': selectedActivity,
+        'work_radius_m': workRadius,
+        'latitude': selectedWorkPoint!.latitude,
+        'longitude': selectedWorkPoint!.longitude,
+      };
+
+      if (startDate != null) {
+        data['planned_start_date'] =
+            startDate!.toIso8601String().split('T').first;
+      }
+
+      if (endDate != null) {
+        data['planned_end_date'] =
+            endDate!.toIso8601String().split('T').first;
+      }
+
+      await supabase
+          .from('excavation_requests')
+          .insert(data)
+          .select()
+          .single();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Infrastructure case submitted successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        formError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          submitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Infrastructure Case'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const Text(
+              'Request details',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            const Text(
+              'Register a work proposal or infrastructure issue for coordinated review by the responsible departments.',
+              style: TextStyle(color: Colors.blueGrey),
+            ),
+
+            const SizedBox(height: 22),
+
+            _field(
+              controller: _titleController,
+              label: 'Project title',
+              icon: Icons.title,
+              required: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _descriptionController,
+              label: 'Work / issue description',
+              icon: Icons.description_outlined,
+              maxLines: 4,
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedCategory,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Infrastructure domain',
+                prefixIcon: Icon(Icons.account_tree_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'road_reconstruction', child: Text('Road reconstruction')),
+                DropdownMenuItem(value: 'water_supply', child: Text('Water supply')),
+                DropdownMenuItem(value: 'sewerage', child: Text('Sewerage')),
+                DropdownMenuItem(value: 'stormwater_drainage', child: Text('Stormwater and drainage')),
+                DropdownMenuItem(value: 'electricity', child: Text('Electricity')),
+                DropdownMenuItem(value: 'telecom', child: Text('Telecommunications')),
+                DropdownMenuItem(value: 'gas', child: Text('Gas network')),
+                DropdownMenuItem(value: 'borewell_groundwater', child: Text('Borewell and groundwater')),
+                DropdownMenuItem(value: 'building_planning', child: Text('Building planning / regulation')),
+                DropdownMenuItem(value: 'public_health_engineering', child: Text('Public health engineering')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedCategory = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedActivity,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Reported issue / work activity',
+                prefixIcon: Icon(Icons.build_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'new_installation', child: Text('New installation / development')),
+                DropdownMenuItem(value: 'repair', child: Text('Repair')),
+                DropdownMenuItem(value: 'maintenance', child: Text('Repair / maintenance of existing infrastructure')),
+                DropdownMenuItem(value: 'relocation', child: Text('Relocation')),
+                DropdownMenuItem(value: 'survey', child: Text('Survey')),
+                DropdownMenuItem(value: 'inspection', child: Text('Inspection')),
+                DropdownMenuItem(value: 'violation_report', child: Text('Possible violation / complaint')),
+                DropdownMenuItem(value: 'emergency_response', child: Text('Emergency response')),
+                DropdownMenuItem(value: 'repeat_excavation_coordination', child: Text('Repeated digging / joint-work coordination')),
+                DropdownMenuItem(value: 'utility_route_conflict', child: Text('Underground utility route conflict / clash')),
+                DropdownMenuItem(value: 'unplanned_road_cutting', child: Text('Unplanned road cutting / restoration issue')),
+                DropdownMenuItem(value: 'frontage_drainage_gap', child: Text('Missing or obstructed house-front drainage')),
+                DropdownMenuItem(value: 'unauthorised_borewell', child: Text('Possible unauthorised / excessive borewell')),
+                DropdownMenuItem(value: 'groundwater_overextraction', child: Text('Groundwater stress / over-extraction concern')),
+                DropdownMenuItem(value: 'building_height_violation', child: Text('Possible building height / planning violation')),
+                DropdownMenuItem(value: 'water_pipeline_leakage', child: Text('Drinking-water pipeline leakage / failure')),
+                DropdownMenuItem(value: 'water_pipeline_mapping', child: Text('Water pipeline mapping / asset-record gap')),
+                DropdownMenuItem(value: 'stormwater_encroachment', child: Text('Stormwater drain obstruction / encroachment')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedActivity = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _roadController,
+              label: 'Road name / location',
+              icon: Icons.location_on_outlined,
+              required: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _cityController,
+              label: 'City',
+              icon: Icons.location_city,
+              required: true,
+            ),
+            const SizedBox(height: 14),
+
+            OutlinedButton.icon(
+              onPressed: pickWorkLocation,
+              icon: const Icon(Icons.location_on),
+              label: Text(
+                selectedWorkPoint == null
+                    ? 'Select work location on map'
+                    : 'Change selected location',
+              ),
+             ),
+
+             if (selectedWorkPoint != null) ...[
+               const SizedBox(height: 8),
+               Text(
+                  'Latitude: ${selectedWorkPoint!.latitude.toStringAsFixed(6)}\n'
+                  'Longitude: ${selectedWorkPoint!.longitude.toStringAsFixed(6)}',
+                  style: const TextStyle(fontSize: 13),
+               ),
+              ],
+
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _workRadiusController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Approximate work-site radius (metres)',
+                helperText: 'Optional. Enter 1–500 m to enable the recorded-utility proximity check. This is not a verified work boundary or safety clearance.',
+                prefixIcon: Icon(Icons.radar_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                final text = (value ?? '').trim();
+                if (text.isEmpty) return null;
+                final number = double.tryParse(text);
+                if (number == null || number < 1 || number > 500) {
+                  return 'Enter a radius between 1 and 500 metres.';
+                }
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 22),
+
+            const Text(
+              'Planned schedule',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: navy,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            _dateTile(
+              'Planned start date',
+              startDate,
+              true,
+            ),
+
+            const SizedBox(height: 12),
+
+            _dateTile(
+              'Planned end date',
+              endDate,
+              false,
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: teal.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'A case number will be generated automatically. Department assignment and official decisions are completed by authorised officers.',
+                style: TextStyle(
+                  color: navy,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+
+            if (formError != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  formError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 22),
+
+            FilledButton.icon(
+              onPressed: submitting ? null : submitRequest,
+              style: FilledButton.styleFrom(
+                backgroundColor: navy,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              icon: submitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(
+                submitting ? 'SUBMITTING...' : 'SUBMIT REQUEST',
+              ),
+            ),
+
+            const SizedBox(height: 25),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool required = false,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: const OutlineInputBorder(),
+        alignLabelWithHint: maxLines > 1,
+      ),
+      validator: (value) {
+        if (required &&
+            (value == null || value.trim().isEmpty)) {
+          return 'Please enter $label';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _dateTile(
+    String label,
+    DateTime? date,
+    bool isStart,
+  ) {
+    return OutlinedButton(
+      onPressed: submitting ? null : () => chooseDate(isStart),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.all(16),
+        alignment: Alignment.centerLeft,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_month, color: teal),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.blueGrey),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formatDate(date),
+                  style: const TextStyle(
+                    color: navy,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.edit_calendar_outlined),
+        ],
+      ),
+    );
+  }
+}
+
+
+// ==========================================
+// MAP
+// ==========================================
+
+
+class MapLocationPickerPage extends StatefulWidget {
+  final LatLng? initialPoint;
+
+  const MapLocationPickerPage({
+    super.key,
+    this.initialPoint,
+  });
+
+  @override
+  State<MapLocationPickerPage> createState() =>
+      _MapLocationPickerPageState();
+}
+
+class _MapLocationPickerPageState
+    extends State<MapLocationPickerPage> {
+  MapLibreMapController? _controller;
+  bool _ready = false;
+  bool _locating = false;
+  bool _hasLocationPermission = false;
+
+  static const String _style =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  LatLng get _initialPoint =>
+      widget.initialPoint ?? const LatLng(0, 0);
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _ready = true);
+
+    if (widget.initialPoint == null) {
+      await _goToCurrentLocation();
+    }
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _message('Location permission is needed only to centre the map on your device. You can still select a location manually.');
+    }
+    return false;
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    final controller = _controller;
+    if (controller == null || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!mounted || !granted) return;
+
+    setState(() => _locating = true);
+
+    try {
+      final location =
+          await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _message(
+          'Current location unavailable. Check GPS permissions.',
+        );
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 18,
+            tilt: 45,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1000),
+      );
+    } catch (_) {
+      _message(
+        'Unable to access GPS. You can still move the map manually.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _locating = false);
+      }
+    }
+  }
+
+  Future<void> _confirmLocation() async {
+    final controller = _controller;
+
+    if (controller == null || !_ready) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      final selected = camera?.target;
+
+      if (selected == null) {
+        _message('Unable to read the selected map coordinates.');
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.pop(context, selected);
+    } catch (_) {
+      _message('Unable to select this location.');
+    }
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF101B29),
+      appBar: AppBar(
+        title: const Text('Select Work Location'),
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Use current GPS location',
+            onPressed: _goToCurrentLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              styleString: _style,
+              initialCameraPosition: CameraPosition(
+                target: _initialPoint,
+                zoom: widget.initialPoint == null ? 2 : 17,
+                tilt: 40,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              myLocationEnabled: _hasLocationPermission,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              minMaxZoomPreference:
+                  const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          // Fixed centre marker: selected coordinate is
+          // the map centre when the user confirms.
+          const Center(
+            child: IgnorePointer(
+              child: Icon(
+                Icons.location_on,
+                size: 46,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+
+          if (!_ready)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF23C5B5),
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 20,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xF2182638),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Move the map until the required work location '
+                    'is under the centre marker.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed:
+                        _ready ? _confirmLocation : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('CONFIRM THIS LOCATION'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFF13A89E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_locating)
+            const Positioned(
+              top: 15,
+              left: 15,
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      SizedBox(width: 9),
+                      Text('Finding GPS location...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+class MapPage extends StatefulWidget {
+  const MapPage({super.key});
+
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  static const String _mapTilerKey =
+      String.fromEnvironment('MAPTILER_API_KEY');
+  static const String _vectorStyle =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  MapLibreMapController? _controller;
+  CameraPosition? _pendingBasemapCamera;
+  final TextEditingController _searchController = TextEditingController();
+  final Set<String> _openingMapCases = <String>{};
+  Timer? _viewportRefreshTimer;
+  List<Map<String, dynamic>> _placeResults = [];
+  bool _searching = false;
+  bool _utilityQueryInFlight = false;
+  bool _requestLayerInFlight = false;
+  bool _requestLayerRefreshPending = false;
+  String _scaleLabel = '';
+  double _scaleWidth = 80;
+  bool _is3D = true;
+  bool _undergroundMode = false;
+  bool _styleReady = false;
+  bool _buildingReadinessLoaded = false;
+  bool _utilityReadinessLoaded = false;
+  bool _groundwaterReadinessLoaded = false;
+  int _approvalRecordCount = 0;
+  int _approvalMappedCount = 0;
+  int _approvalFloorCount = 0;
+  int _utilityLayerCatalogueCount = 0;
+  int _utilityLayersPending = 0;
+  int _utilityLayersOperational = 0;
+  int _groundwaterCoverageJurisdictions = 0;
+  int _groundwaterTelemetryGaps = 0;
+  bool _satellite = _mapTilerKey.isNotEmpty;
+  bool _showRequests = true;
+  bool _showUtilityZones = false;
+  bool _canViewUtilityOverview = false;
+  bool _loadingLayers = false;
+  bool _locating = false;
+  bool _hasLocationPermission = false;
+  int _requestMarkerCount = 0;
+  int _utilityCellCount = 0;
+  int _verifiedAssetCount = 0;
+  int _unverifiedAssetCount = 0;
+  int _utilityConflictCount = 0;
+  String _utilityConflictStatus = 'Conflict screening has not run.';
+  List<Map<String, dynamic>> _visibleRequests = [];
+  final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
+  String _lastConflictAlertSignature = '';
+  bool _canViewDepartmentAssets = false;
+  bool _showVerifiedAssets = true;
+  bool _showCoimbatoreWardBoundaries = true;
+  int _coimbatoreWardCount = 0;
+  bool _showGroundwaterTelemetry = true;
+  int _groundwaterStationCount = 0;
+  final Map<String, Map<String, dynamic>> _groundwaterStationDetails = {};
+  String _deviceCoordinateLabel = '';
+  String _layerStatus =
+      'Underground visibility requires authorised, verified GIS records.';
+  bool _routing = false;
+  String _routeSummary = '';
+  List<String> _routeInstructions = [];
+  Map<String, dynamic>? _activeRouteGeoJson;
+
+  String get _mapStyle {
+    if (_satellite && _mapTilerKey.isNotEmpty) {
+      return 'https://api.maptiler.com/maps/hybrid/style.json?key=$_mapTilerKey';
+    }
+    return _vectorStyle;
+  }
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+    controller.onFeatureTapped.add(_onMapFeatureTapped);
+  }
+
+  void _onMapFeatureTapped(
+    math.Point<double> point,
+    LatLng coordinates,
+    String id,
+    String layerId,
+    Annotation? annotation,
+  ) {
+    if (layerId == 'samanvay-groundwater-telemetry-points') {
+      final details = _groundwaterStationDetails[id];
+      if (details != null) {
+        final station = (details['station_name'] ?? 'Groundwater station').toString();
+        final district = (details['district_name'] ?? '').toString();
+        final state = (details['state_name'] ?? '').toString();
+        final reading = details['reported_level_m'];
+        final readingText = (details['reported_level_text'] ?? '').toString();
+        final observed = (details['observed_at_local'] ?? 'Timestamp unavailable').toString();
+        final place = [district, state].where((part) => part.isNotEmpty).join(', ');
+        final level = readingText.isNotEmpty
+            ? readingText
+            : reading == null ? 'not reported' : '$reading m';
+        _showMessage('$station${place.isEmpty ? '' : ' · $place'} · level: $level · observed: $observed');
+      }
+      return;
+    }
+    if (layerId == 'samanvay-utility-conflict-markers') {
+      final details = _utilityConflictDetails[id];
+      if (details != null) {
+        final conflicts = (details['conflicts'] as List?) ?? const [];
+        final summary = conflicts.take(3).map((raw) {
+          final item = Map<String, dynamic>.from(raw as Map);
+          return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m · depth ${item['depth_m'] ?? 'n/a'} m · accuracy ${item['horizontal_accuracy_m'] ?? 'unknown'} m';
+        }).join(' | ');
+        _showMessage(
+          'POTENTIAL UTILITY PROXIMITY · Request ${details['request_number']} · '
+          '${details['candidate_count']} verified asset match(es). $summary. '
+          'Recorded depths/accuracy are advisory metadata only. Obtain owner-department clearance and field verification; this is not a safety clearance.',
+        );
+      }
+      return;
+    }
+    if (layerId == 'samanvay-work-request-points') {
+      unawaited(_openCaseFromMap(id));
+    }
+  }
+
+  Future<void> _openCaseFromMap(String requestId) async {
+    final id = requestId.trim();
+    if (id.isEmpty || !_openingMapCases.add(id)) return;
+
+    try {
+      // Re-fetch through the authenticated client. RLS remains the authority
+      // for whether this account may open the selected case.
+      final row = await supabase
+          .from('excavation_requests')
+          .select('id,title,request_number')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      if (row == null) {
+        _showMessage('This case is no longer available to your account.');
+        return;
+      }
+
+      final title = (row['title'] ?? row['request_number'] ?? 'Infrastructure case').toString();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CaseWorkspacePage(
+            requestId: id,
+            requestTitle: title,
+          ),
+        ),
+      );
+    } catch (_) {
+      _showMessage('Unable to open this case. Your account may not have access.');
+    } finally {
+      _openingMapCases.remove(id);
+    }
+  }
+
+  @override
+  void dispose() {
+    _viewportRefreshTimer?.cancel();
+    try {
+      _controller?.onFeatureTapped.remove(_onMapFeatureTapped);
+    } catch (_) {}
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Reload request markers and cross-department advisories for the current
+  // map viewport. A pending flag coalesces camera movement during pagination.
+  Future<void> _loadVisibleWorkRequests() async {
+    if (_requestLayerInFlight) {
+      _requestLayerRefreshPending = true;
+      return;
+    }
+    _requestLayerInFlight = true;
+    try {
+      do {
+        _requestLayerRefreshPending = false;
+        final controller = _controller;
+        if (controller == null || !_styleReady) break;
+
+        final visibleBounds = await controller.getVisibleRegion();
+        final centerLatitude =
+            (visibleBounds.southwest.latitude + visibleBounds.northeast.latitude) / 2;
+        final latitudeBuffer = 1000 / 110540;
+        final longitudeScale =
+            (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+        final longitudeBuffer = 1000 / (111320 * longitudeScale);
+        final minRequestLat =
+            (visibleBounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+        final maxRequestLat =
+            (visibleBounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+        final minRequestLon =
+            (visibleBounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+        final maxRequestLon =
+            (visibleBounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+
+        final loadedRequestRows = <Map<String, dynamic>>[];
+        const requestPageSize = 500;
+        var requestOffset = 0;
+        while (true) {
+          final requestPage = await supabase
+              .from('excavation_requests')
+              .select('id,request_number,title,status,latitude,longitude,work_radius_m')
+              .gte('latitude', minRequestLat)
+              .lte('latitude', maxRequestLat)
+              .gte('longitude', minRequestLon)
+              .lte('longitude', maxRequestLon)
+              .order('created_at', ascending: false)
+              .order('id')
+              .range(requestOffset, requestOffset + requestPageSize - 1);
+          final pageRows = List<Map<String, dynamic>>.from(requestPage);
+          loadedRequestRows.addAll(pageRows);
+          if (pageRows.length < requestPageSize) break;
+          requestOffset += requestPageSize;
+        }
+
+        if (!mounted) break;
+        _visibleRequests = loadedRequestRows;
+        final features = <Map<String, dynamic>>[];
+        for (final row in loadedRequestRows) {
+          final lat = (row['latitude'] as num?)?.toDouble();
+          final lon = (row['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+            continue;
+          }
+          features.add({
+            'type': 'Feature',
+            'id': row['id'].toString(),
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_id': row['id'].toString(),
+              'request_number': row['request_number']?.toString() ?? '',
+              'title': row['title']?.toString() ?? 'Infrastructure request',
+              'status': row['status']?.toString() ?? 'submitted',
+            },
+          });
+        }
+
+        final sourceIds = await controller.getSourceIds();
+        final requestCollection = {
+          'type': 'FeatureCollection',
+          'features': features,
+        };
+        if (sourceIds.contains('samanvay-work-requests')) {
+          await controller.setGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        } else {
+          await controller.addGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        }
+
+        var layerIds = await controller.getLayerIds();
+        if (!layerIds.contains('samanvay-work-request-points')) {
+          await controller.addCircleLayer(
+            'samanvay-work-requests',
+            'samanvay-work-request-points',
+            CircleLayerProperties(
+              circleRadius: 6,
+              circleColor: [
+                'match',
+                ['get', 'status'],
+                'submitted', '#38BDF8',
+                'under_review', '#F59E0B',
+                'approved', '#22C55E',
+                'in_progress', '#F97316',
+                'completed', '#64748B',
+                'resolved', '#64748B',
+                'rejected', '#EF4444',
+                '#20D6C2',
+              ],
+              circleOpacity: 0.96,
+              circleStrokeColor: '#082033',
+              circleStrokeWidth: 1.6,
+            ),
+            enableInteraction: true,
+          );
+          layerIds = await controller.getLayerIds();
+        }
+        if (layerIds.contains('samanvay-work-request-points')) {
+          await controller.setLayerVisibility(
+            'samanvay-work-request-points',
+            _showRequests,
+          );
+        }
+
+        if (mounted) {
+          setState(() => _requestMarkerCount = features.length);
+        }
+        if (_canViewUtilityOverview) {
+          await _refreshUtilityConflictOverlay();
+        }
+      } while (_requestLayerRefreshPending && mounted);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Request locations or conflict advisories could not be refreshed. Check connectivity and staff access; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    } finally {
+      _requestLayerInFlight = false;
+    }
+  }
+
+  void _handleCameraIdle() {
+    if (!_styleReady) return;
+    _viewportRefreshTimer?.cancel();
+    _viewportRefreshTimer = Timer(const Duration(milliseconds: 420), () async {
+      if (!mounted) return;
+      await _refreshMapScale();
+      if (!mounted) return;
+      await _loadVisibleWorkRequests();
+      if (_showGroundwaterTelemetry) {
+        await _loadGroundwaterTelemetryStations();
+      }
+      if (_showUtilityZones && _canViewUtilityOverview) {
+        await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && _canViewDepartmentAssets) {
+        await _loadDepartmentAssets();
+      }
+    });
+  }
+
+  Future<void> _refreshMapScale() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      if (camera == null) return;
+      final latitude = camera.target.latitude.clamp(-85.0, 85.0);
+      final metersPerPixel = (
+        156543.03392 *
+        math.cos(latitude * math.pi / 180) /
+        math.pow(2, camera.zoom)
+      ).toDouble();
+
+      if (!metersPerPixel.isFinite || metersPerPixel <= 0) return;
+      final targetMeters = metersPerPixel * 82;
+      final magnitude = math.pow(
+        10,
+        (math.log(targetMeters) / math.ln10).floor(),
+      ).toDouble();
+      final fraction = targetMeters / magnitude;
+      final niceMeters = (fraction >= 5 ? 5 : (fraction >= 2 ? 2 : 1)) * magnitude;
+      final width = (niceMeters / metersPerPixel).clamp(42.0, 112.0).toDouble();
+      final label = niceMeters >= 1000
+          ? '${(niceMeters / 1000).toStringAsFixed(niceMeters >= 10000 ? 0 : 1)} km'
+          : '${niceMeters.toStringAsFixed(niceMeters < 10 ? 1 : 0)} m';
+
+      if (!mounted) return;
+      setState(() {
+        _scaleLabel = label;
+        _scaleWidth = width;
+      });
+    } catch (_) {
+      // A missing camera reading does not block map navigation.
+    }
+  }
+
+  Future<void> _ensure3DBuildings() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      final sources = await controller.getSourceIds();
+      if (!sources.contains('openmaptiles')) return;
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-3d-buildings')) {
+        await controller.addFillExtrusionLayer(
+          'openmaptiles',
+          'samanvay-3d-buildings',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#66849A',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              14,
+              0,
+              16,
+              [
+                'max',
+                6,
+                [
+                  'coalesce',
+                  ['to-number', ['get', 'render_height']],
+                  ['to-number', ['get', 'height']],
+                  ['*', ['to-number', ['get', 'building:levels']], 3],
+                  6,
+                ],
+              ],
+            ],
+            fillExtrusionBase: [
+              'coalesce',
+              ['get', 'render_min_height'],
+              ['get', 'min_height'],
+              0,
+            ],
+            fillExtrusionOpacity: 0.84,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      // Fine footprint edges improve the legibility of real OSM building
+      // massing at neighbourhood zoom without inventing facade geometry.
+      final refreshedLayers = await controller.getLayerIds();
+      if (!refreshedLayers.contains('samanvay-3d-building-outlines')) {
+        await controller.addLineLayer(
+          'openmaptiles',
+          'samanvay-3d-building-outlines',
+          const LineLayerProperties(
+            lineColor: '#B8D0E0',
+            lineWidth: 0.65,
+            lineOpacity: 0.48,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      await controller.setLayerVisibility(
+        'samanvay-3d-buildings',
+        _is3D,
+      );
+      await controller.setLayerVisibility(
+        'samanvay-3d-building-outlines',
+        _is3D,
+      );
+    } catch (_) {
+      // If a provider style lacks the expected source/attributes, the
+      // basemap remains usable. No illustrative buildings are substituted.
+    }
+  }
+
+  Future<void> _searchPlaces(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.isEmpty) {
+      _showMessage('Enter a place, area, ward or road name to search.');
+      return;
+    }
+    if (query.length > 120) {
+      _showMessage('Search text is too long. Use a shorter place name.');
+      return;
+    }
+    // MapTiler is preferred when configured. Photon provides a no-key
+    // OpenStreetMap-based fallback so place search still works in free builds.
+
+    setState(() {
+      _searching = true;
+      _placeResults = [];
+    });
+
+    try {
+      final uri = _mapTilerKey.isNotEmpty
+          ? Uri.https(
+              'api.maptiler.com',
+              '/geocoding/$query.json',
+              {
+                'key': _mapTilerKey,
+                'limit': '6',
+                'country': 'IN',
+                'language': 'en',
+                'autocomplete': 'false',
+              },
+            )
+          : Uri.https(
+              'photon.komoot.io',
+              '/api/',
+              {
+                'q': query,
+                'limit': '6',
+                'lang': 'en',
+              },
+            );
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) {
+        throw StateError('Place search provider returned HTTP ${response.statusCode}.');
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['features'] is! List) {
+        throw const FormatException('Unexpected place search response.');
+      }
+
+      final results = <Map<String, dynamic>>[];
+      for (final rawFeature in decoded['features'] as List) {
+        if (rawFeature is! Map) continue;
+        final feature = Map<String, dynamic>.from(rawFeature);
+
+        if (_mapTilerKey.isNotEmpty) {
+          final center = feature['center'];
+          if (center is List &&
+              center.length >= 2 &&
+              center[0] is num &&
+              center[1] is num) {
+            results.add(feature);
+          }
+          continue;
+        }
+
+        // Normalize Photon GeoJSON to the same shape consumed by _selectPlace.
+        final geometry = feature['geometry'];
+        final properties = feature['properties'];
+        if (geometry is! Map || properties is! Map) continue;
+        final coordinates = geometry['coordinates'];
+        if (coordinates is! List ||
+            coordinates.length < 2 ||
+            coordinates[0] is! num ||
+            coordinates[1] is! num) {
+          continue;
+        }
+        final props = Map<String, dynamic>.from(properties);
+        final name = (props['name'] ??
+                props['street'] ??
+                props['district'] ??
+                props['city'] ??
+                'Place')
+            .toString();
+        final locationParts = [
+          name,
+          props['district'],
+          props['city'],
+          props['state'],
+          props['country'],
+        ].where((part) => part != null && part.toString().trim().isNotEmpty)
+         .map((part) => part.toString().trim())
+         .toList();
+        results.add({
+          'center': [coordinates[0], coordinates[1]],
+          'text': name,
+          'place_name': locationParts.toSet().join(', '),
+        });
+      }
+
+      if (!mounted) return;
+      setState(() => _placeResults = results);
+      if (results.isEmpty) {
+        _showMessage('No matching place was found. Try a nearby landmark or shorter query.');
+      }
+    } catch (_) {
+      _showMessage('Place search failed. Check the MapTiler key, connection and usage quota.');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _selectPlace(Map<String, dynamic> feature) async {
+    final center = feature['center'];
+    if (center is! List ||
+        center.length < 2 ||
+        center[0] is! num ||
+        center[1] is! num) {
+      _showMessage('The selected place has no usable map coordinates.');
+      return;
+    }
+
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    final longitude = (center[0] as num).toDouble();
+    final latitude = (center[1] as num).toDouble();
+    final name = (feature['place_name'] ?? feature['text'] ?? 'Selected place').toString();
+
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(latitude, longitude),
+            zoom: 16,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchController.text = name;
+        _placeResults = [];
+      });
+      FocusScope.of(context).unfocus();
+    } catch (_) {
+      _showMessage('Unable to move the map to that search result.');
+    }
+  }
+
+  Future<LatLng> _geocodeRoutePlace(String query) async {
+    final uri = Uri.https('photon.komoot.io', '/api/', {
+      'q': query,
+      'limit': '1',
+      'lang': 'en',
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw StateError('Place lookup returned HTTP ${response.statusCode}.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['features'] is! List ||
+        (decoded['features'] as List).isEmpty) {
+      throw StateError('Could not find: $query');
+    }
+    final first = (decoded['features'] as List).first;
+    if (first is! Map || first['geometry'] is! Map) {
+      throw const FormatException('Place lookup returned invalid geometry.');
+    }
+    final coordinates = (first['geometry'] as Map)['coordinates'];
+    if (coordinates is! List || coordinates.length < 2 ||
+        coordinates[0] is! num || coordinates[1] is! num) {
+      throw const FormatException('Place lookup returned invalid coordinates.');
+    }
+    return LatLng(
+      (coordinates[1] as num).toDouble(),
+      (coordinates[0] as num).toDouble(),
+    );
+  }
+
+  Future<void> _renderActiveRoute() async {
+    final controller = _controller;
+    final route = _activeRouteGeoJson;
+    if (controller == null || !_styleReady || route == null) return;
+
+    final sources = await controller.getSourceIds();
+    if (sources.contains('samanvay-navigation-route')) {
+      await controller.setGeoJsonSource('samanvay-navigation-route', route);
+    } else {
+      await controller.addGeoJsonSource('samanvay-navigation-route', route);
+    }
+
+    final layers = await controller.getLayerIds();
+    if (!layers.contains('samanvay-navigation-route-line')) {
+      await controller.addLineLayer(
+        'samanvay-navigation-route',
+        'samanvay-navigation-route-line',
+        const LineLayerProperties(
+          lineColor: '#20D6C2',
+          lineWidth: 5,
+          lineOpacity: 0.96,
+        ),
+        enableInteraction: false,
+      );
+    }
+    await controller.setLayerVisibility('samanvay-navigation-route-line', true);
+  }
+
+  Future<void> _calculateRoute(String originText, String destinationText) async {
+    if (_routing) return;
+    if (originText.trim().isEmpty || destinationText.trim().isEmpty) {
+      _showMessage('Enter both a starting point and a destination.');
+      return;
+    }
+
+    setState(() {
+      _routing = true;
+      _routeSummary = '';
+      _routeInstructions = [];
+    });
+
+    try {
+      final origin = await _geocodeRoutePlace(originText.trim());
+      final destination = await _geocodeRoutePlace(destinationText.trim());
+      final uri = Uri.https(
+        'router.project-osrm.org',
+        '/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}',
+        {
+          'overview': 'full',
+          'geometries': 'geojson',
+          'steps': 'true',
+          'alternatives': 'true',
+        },
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (response.statusCode != 200) {
+        throw StateError('Routing service returned HTTP ${response.statusCode}.');
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['code'] != 'Ok' ||
+          decoded['routes'] is! List || (decoded['routes'] as List).isEmpty) {
+        throw StateError('No drivable route was returned for these places.');
+      }
+
+      final route = (decoded['routes'] as List).first;
+      if (route is! Map || route['geometry'] is! Map ||
+          (route['geometry'] as Map)['coordinates'] is! List) {
+        throw const FormatException('Routing service returned invalid route geometry.');
+      }
+      final coordinates = (route['geometry'] as Map)['coordinates'] as List;
+      if (coordinates.length < 2) {
+        throw const FormatException('The route contains too few coordinates.');
+      }
+
+      final featureCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {'source': 'OSRM public demonstration routing service'},
+            'geometry': Map<String, dynamic>.from(route['geometry'] as Map),
+          },
+        ],
+      };
+
+      final distanceMeters = (route['distance'] as num?)?.toDouble() ?? 0;
+      final durationSeconds = (route['duration'] as num?)?.toDouble() ?? 0;
+      final distanceLabel = distanceMeters >= 1000
+          ? '${(distanceMeters / 1000).toStringAsFixed(1)} km'
+          : '${distanceMeters.round()} m';
+      final durationMinutes = (durationSeconds / 60).round();
+      final summary = '$distanceLabel · about $durationMinutes min · driving preview';
+
+      final instructions = <String>[];
+      final legs = route['legs'];
+      if (legs is List) {
+        for (final leg in legs) {
+          if (leg is! Map || leg['steps'] is! List) continue;
+          for (final step in leg['steps'] as List) {
+            if (step is! Map) continue;
+            final maneuver = step['maneuver'];
+            final name = (step['name'] ?? '').toString().trim();
+            if (maneuver is! Map) continue;
+            final type = (maneuver['type'] ?? 'continue').toString();
+            final modifier = (maneuver['modifier'] ?? '').toString();
+            final distance = (step['distance'] as num?)?.toDouble() ?? 0;
+            final action = [type, modifier].where((v) => v.isNotEmpty).join(' ');
+            final road = name.isEmpty ? 'unnamed road' : name;
+            instructions.add('${action.isEmpty ? 'Continue' : action} on $road · ${distance.round()} m');
+            if (instructions.length >= 12) break;
+          }
+          if (instructions.length >= 12) break;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _activeRouteGeoJson = featureCollection;
+        _routeSummary = summary;
+        _routeInstructions = instructions;
+      });
+      await _renderActiveRoute();
+
+      final middle = coordinates[coordinates.length ~/ 2];
+      if (middle is List && middle.length >= 2 &&
+          middle[0] is num && middle[1] is num) {
+        await _controller?.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(
+                (middle[1] as num).toDouble(),
+                (middle[0] as num).toDouble(),
+              ),
+              zoom: 11.5,
+              tilt: _is3D && !_undergroundMode ? 42 : 0,
+              bearing: 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 900),
+        );
+      }
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Route preview'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(summary, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Preview route only. This public routing service does not provide live traffic, guaranteed turn-by-turn guidance or excavation clearance.',
+                    style: TextStyle(fontSize: 12, color: Colors.deepOrange),
+                  ),
+                  const SizedBox(height: 12),
+                  ...instructions.map((instruction) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text('• $instruction', style: const TextStyle(fontSize: 12)),
+                  )),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _showMessage('Route preview failed: ${error.toString()}');
+    } finally {
+      if (mounted) setState(() => _routing = false);
+    }
+  }
+
+  Future<void> _showDirectionsDialog() async {
+    final originController = TextEditingController();
+    final destinationController = TextEditingController();
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Plan a route'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: originController,
+              decoration: const InputDecoration(
+                labelText: 'Starting point',
+                hintText: 'e.g. Coimbatore Railway Station',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: destinationController,
+              decoration: const InputDecoration(
+                labelText: 'Destination',
+                hintText: 'e.g. Gandhipuram Bus Stand',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.directions),
+            label: const Text('Find route'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted == true) {
+      await _calculateRoute(originController.text, destinationController.text);
+    }
+    originController.dispose();
+    destinationController.dispose();
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _styleReady = true);
+
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      await controller.setMapLanguage('en');
+
+      // Preserve the exact camera when switching between vector and
+      // satellite styles. Only use device GPS on the first map load.
+      final restoreCamera = _pendingBasemapCamera;
+      if (restoreCamera != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(restoreCamera),
+          duration: const Duration(milliseconds: 900),
+        );
+        _pendingBasemapCamera = null;
+      } else {
+        await _goToMyLocation();
+      }
+
+      await _ensure3DBuildings();
+      await _loadMapLayers();
+      await _renderActiveRoute();
+      await _refreshMapScale();
+    } catch (_) {
+      _showMessage('The map loaded, but one or more data layers could not be prepared.');
+    }
+  }
+
+  Future<void> _loadCoimbatoreWardBoundaries() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final text = await rootBundle.loadString(
+        'assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson',
+      );
+      final decoded = jsonDecode(text);
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection') {
+        throw const FormatException('Invalid ward reference GeoJSON.');
+      }
+      final rawFeatures = decoded['features'];
+      if (rawFeatures is! List || rawFeatures.isEmpty) {
+        throw const FormatException('Ward reference GeoJSON has no features.');
+      }
+
+      final collection = Map<String, dynamic>.from(decoded);
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-coimbatore-ward-reference')) {
+        await controller.setGeoJsonSource(
+          'samanvay-coimbatore-ward-reference',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-coimbatore-ward-reference',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.addFillLayer(
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-fill',
+          const FillLayerProperties(
+            fillColor: '#20D6C2',
+            fillOpacity: 0.045,
+            fillOutlineColor: '#45D9CE',
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.addLineLayer(
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-lines',
+          const LineLayerProperties(
+            lineColor: '#45D9CE',
+            lineWidth: 1.4,
+            lineOpacity: 0.88,
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-fill',
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
+        );
+      }
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-lines',
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _coimbatoreWardCount = rawFeatures.length);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _coimbatoreWardCount = 0);
+    }
+  }
+
+  Future<void> _loadGroundwaterTelemetryStations() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final rows = await supabase
+          .from('latest_groundwater_station_observations')
+          .select('id,station_name,agency,state_name,district_name,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
+          .gte('latitude', bounds.southwest.latitude)
+          .lte('latitude', bounds.northeast.latitude)
+          .gte('longitude', bounds.southwest.longitude)
+          .lte('longitude', bounds.northeast.longitude)
+          .order('state_name')
+          .order('district_name')
+          .limit(1000);
+
+      final features = <Map<String, dynamic>>[];
+      final stationDetails = <Map<String, dynamic>>[];
+      for (final item in rows) {
+        final properties = Map<String, dynamic>.from(item);
+        final latitude = properties['latitude'];
+        final longitude = properties['longitude'];
+        if (latitude is! num || longitude is! num) continue;
+
+        final featureId = (properties['id'] ?? '').toString();
+        if (featureId.isEmpty) continue;
+        features.add({
+          'type': 'Feature',
+          'id': featureId,
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [longitude.toDouble(), latitude.toDouble()],
+          },
+          'properties': properties,
+        });
+        stationDetails.add(Map<String, dynamic>.from(properties));
+      }
+
+      final collection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-groundwater-telemetry')) {
+        await controller.setGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.addCircleLayer(
+          'samanvay-groundwater-telemetry',
+          'samanvay-groundwater-telemetry-points',
+          const CircleLayerProperties(
+            circleRadius: 6.2,
+            circleColor: '#A78BFA',
+            circleOpacity: 0.96,
+            circleStrokeColor: '#101B29',
+            circleStrokeWidth: 1.8,
+          ),
+          enableInteraction: true,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          _showGroundwaterTelemetry,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = features.length;
+          _groundwaterStationDetails
+            ..clear()
+            ..addEntries(stationDetails.map((properties) => MapEntry(
+              (properties['id'] ?? '').toString(),
+              properties,
+            )));
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _groundwaterStationCount = 0);
+    }
+  }
+
+  Future<void> _loadMapLayers() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (mounted) setState(() => _loadingLayers = true);
+
+    try {
+      // Public administrative reference data is independent of account role.
+      // This 2024 ward reference layer is not a current statutory jurisdiction source.
+      await Future.wait<void>([
+        _loadCoimbatoreWardBoundaries(),
+        _loadGroundwaterTelemetryStations(),
+        _loadMapReadiness(),
+      ]);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw StateError('Sign in to view operational map layers.');
+      }
+
+      final profile = await supabase
+          .from('profiles')
+          .select('role,department_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final role = (profile?['role'] ?? '').toString();
+      final authorised = ['admin', 'coordinator', 'department'].contains(role);
+      final departmentAssigned = role == 'department' &&
+          profile?['department_id'] != null;
+
+      if (mounted) {
+        setState(() {
+          _canViewUtilityOverview = authorised;
+          _canViewDepartmentAssets = departmentAssigned;
+          _layerStatus = departmentAssigned
+              ? 'Department GIS view: verified assets owned by your department can be displayed.'
+              : authorised
+                  ? 'Staff GIS view: generalised utility coverage only; exact asset geometry is restricted.'
+                  : 'Requester GIS view: only requests visible to your account are shown.';
+        });
+      }
+
+      await _loadVisibleWorkRequests();
+
+      if (_showUtilityZones && authorised) {
+        await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && departmentAssigned) {
+        await _loadDepartmentAssets();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _layerStatus = 'Operational layers could not be loaded. Check your connection and account access.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLayers = false);
+    }
+  }
+
+  Future<void> _loadUtilityOverview() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview || _utilityQueryInFlight) return;
+    _utilityQueryInFlight = true;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final minLon = bounds.southwest.longitude;
+      final minLat = bounds.southwest.latitude;
+      final maxLon = bounds.northeast.longitude;
+      final maxLat = bounds.northeast.latitude;
+
+      if (minLon >= maxLon || minLat >= maxLat) {
+        _showMessage('The current map extent cannot be queried. Adjust the view and retry.');
+        return;
+      }
+
+      // This endpoint returns generalised 250 m aggregate cells, never exact utility routes.
+      final raw = await supabase.rpc(
+        'get_underground_asset_overview',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+
+      final geojson = Map<String, dynamic>.from(raw as Map);
+      final featureList = geojson['features'];
+      final count = featureList is List ? featureList.length : 0;
+
+      final sourceIds = await controller.getSourceIds();
+      if (sourceIds.contains('samanvay-utility-overview')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      }
+
+      var layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.addFillLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-cells',
+          const FillLayerProperties(
+            fillColor: '#F59E0B',
+            fillOpacity: 0.30,
+            fillOutlineColor: '#FDE68A',
+          ),
+        );
+      }
+
+      // Generalised 250 m density cells can be extruded in underground 3D mode.
+      // Extrusion height is a relative density index, never physical depth or a pipe route.
+      layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.addFillExtrusionLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-3d',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#38BDF8',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['get', 'asset_count'],
+              3, 6,
+              10, 14,
+              25, 24,
+            ],
+            fillExtrusionBase: 0,
+            fillExtrusionOpacity: 0.62,
+          ),
+        );
+      }
+
+      layerIds = await controller.getLayerIds();
+      final showDensityExtrusion =
+          _showUtilityZones && _undergroundMode && _is3D;
+      if (layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones && !showDensityExtrusion,
+        );
+      }
+      if (layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          showDensityExtrusion,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = count;
+          _layerStatus = count == 0
+              ? 'No verified aggregate records in this view. This does NOT mean underground infrastructure is absent.'
+              : '$count generalised utility coverage cell(s) returned. Exact utility geometry is not displayed in this overview.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = 0;
+          _layerStatus = 'The authorised utility overview is unavailable. No data is not proof of no utility.';
+        });
+      }
+      _showMessage('Unable to load the authorised utility overview.');
+    } finally {
+      _utilityQueryInFlight = false;
+    }
+  }
+
+  Future<void> _refreshUtilityConflictOverlay() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
+
+    final activeRequests = _visibleRequests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status);
+    }).toList();
+
+    final features = <Map<String, dynamic>>[];
+    final detailsById = <String, Map<String, dynamic>>{};
+    var eligibleRequestCount = 0;
+    var verifiedAssetsAvailable = false;
+
+    try {
+      const batchSize = 500;
+      for (var offset = 0; offset < activeRequests.length; offset += batchSize) {
+        final batch = activeRequests.skip(offset).take(batchSize).toList();
+        final requestIds = batch
+            .map((request) => (request['id'] ?? '').toString())
+            .where((id) => id.isNotEmpty)
+            .toList();
+        if (requestIds.isEmpty) continue;
+
+        // The server performs PostGIS screening against verified assets across
+        // departments and returns advisory metadata only, never asset geometry.
+        final raw = await supabase.rpc(
+          'get_map_utility_conflict_advisories',
+          params: {'p_request_ids': requestIds},
+        );
+        final response = Map<String, dynamic>.from(raw as Map);
+        verifiedAssetsAvailable =
+            response['verified_assets_available'] == true || verifiedAssetsAvailable;
+        final rawResults = response['results'];
+        if (rawResults is! List) continue;
+
+        for (final rawResult in rawResults) {
+          if (rawResult is! Map) continue;
+          final result = Map<String, dynamic>.from(rawResult);
+          final screeningStatus = (result['screening_status'] ?? '').toString();
+          if (screeningStatus == 'potential_conflict' ||
+              screeningStatus == 'screened_no_proximity_match') {
+            eligibleRequestCount++;
+          }
+          final rawConflicts = result['conflicts'];
+          if (screeningStatus != 'potential_conflict' ||
+              rawConflicts is! List || rawConflicts.isEmpty) {
+            continue;
+          }
+
+          final requestId = (result['request_id'] ?? '').toString();
+          final request = batch.firstWhere(
+            (item) => item['id']?.toString() == requestId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (request.isEmpty) continue;
+          final lat = (request['latitude'] as num?)?.toDouble();
+          final lon = (request['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null) continue;
+
+          final conflicts = rawConflicts
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          if (conflicts.isEmpty) continue;
+
+          final requestNumber =
+              (result['request_number'] ?? requestId).toString();
+          final markerId = requestId.replaceAll(
+            RegExp(r'[^A-Za-z0-9_-]'),
+            '_',
+          );
+          detailsById[markerId] = {
+            'request_number': requestNumber,
+            'candidate_count': conflicts.length,
+            'conflicts': conflicts,
+          };
+          features.add({
+            'type': 'Feature',
+            'id': markerId,
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_number': requestNumber,
+              'candidate_count': conflicts.length,
+            },
+          });
+        }
+      }
+
+      final collection = {
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-utility-conflict-candidates')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-utility-conflict-markers')) {
+        await controller.addCircleLayer(
+          'samanvay-utility-conflict-candidates',
+          'samanvay-utility-conflict-markers',
+          const CircleLayerProperties(
+            circleRadius: 9,
+            circleColor: '#EF4444',
+            circleOpacity: 0.98,
+            circleStrokeColor: '#FFFFFF',
+            circleStrokeWidth: 2.2,
+          ),
+          enableInteraction: true,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-utility-conflict-markers',
+          true,
+        );
+      }
+
+      if (!mounted) return;
+      final status = activeRequests.isEmpty
+          ? 'No active work requests are available in this map area to screen.'
+          : !verifiedAssetsAvailable
+              ? 'No verified underground utility assets are registered. Cross-department screening is unavailable; this does not mean sites are clear.'
+              : eligibleRequestCount == 0
+                  ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
+                  : features.isEmpty
+                      ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
+                      : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
+      final alertSignature = detailsById.keys.toList()..sort();
+      final signature = alertSignature.join('|');
+      final shouldNotify = signature.isNotEmpty &&
+          signature != _lastConflictAlertSignature;
+      _lastConflictAlertSignature = signature;
+      setState(() {
+        _utilityConflictCount = features.length;
+        _utilityConflictStatus = status;
+        _utilityConflictDetails
+          ..clear()
+          ..addAll(detailsById);
+      });
+      if (shouldNotify) {
+        _showMessage(
+          '${features.length} work request(s) have potential proximity to verified underground assets across departments. Tap a red marker for advisory details.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Cross-department screening could not be completed. Check staff access and GIS connectivity; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDepartmentAssets() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final centerLatitude =
+          (bounds.southwest.latitude + bounds.northeast.latitude) / 2;
+      final latitudeBuffer = 1000 / 110540;
+      final longitudeScale =
+          (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+      final longitudeBuffer = 1000 / (111320 * longitudeScale);
+      final minLon =
+          (bounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+      final minLat =
+          (bounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+      final maxLon =
+          (bounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+      final maxLat =
+          (bounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+      if (minLon >= maxLon || minLat >= maxLat) return;
+
+      // The 1 km query buffer covers maximum work radius plus survey uncertainty.
+      // This RPC remains scoped by auth.uid() to the signed-in department's own assets.
+      // Only verified features are drawn; unverified records are counted, not mapped.
+      final raw = await supabase.rpc(
+        'get_my_department_verified_assets_geojson',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+      final collection = Map<String, dynamic>.from(raw as Map);
+      final rawFeatures = collection['features'];
+      final verified = <Map<String, dynamic>>[];
+      final metadata = collection['metadata'] is Map
+          ? Map<String, dynamic>.from(collection['metadata'] as Map)
+          : <String, dynamic>{};
+      final unverified = (metadata['withheld_unverified_count'] as num?)?.toInt() ?? 0;
+
+      if (rawFeatures is List) {
+        for (final item in rawFeatures) {
+          if (item is! Map) continue;
+          final feature = Map<String, dynamic>.from(item);
+          final properties = feature['properties'];
+          if (properties is! Map) continue;
+          final props = Map<String, dynamic>.from(properties);
+          feature['id'] = (props['id'] ?? feature['id'] ?? '').toString();
+          verified.add(feature);
+        }
+      }
+
+      final verifiedCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': verified,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-verified-department-assets')) {
+        await controller.setGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-verified-asset-lines')) {
+        await controller.addLineLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-lines',
+          LineLayerProperties(
+            lineColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            lineWidth: 3.5,
+            lineOpacity: 0.96,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-lines',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (!layers.contains('samanvay-verified-asset-points')) {
+        await controller.addCircleLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-points',
+          CircleLayerProperties(
+            circleRadius: 5.5,
+            circleColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            circleStrokeColor: '#071827',
+            circleStrokeWidth: 1.8,
+            circleOpacity: 0.98,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-points',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = verified.length;
+          _unverifiedAssetCount = unverified;
+          _layerStatus = verified.isEmpty
+              ? 'No verified assets are registered in this department and map extent. $unverified unverified record(s) are withheld from the map.'
+              : '$verified verified department asset(s) mapped. $unverified unverified record(s) withheld.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = 0;
+          _layerStatus = 'Department asset layer unavailable. No unverified or estimated geometry is substituted.';
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleVerifiedAssets(bool enabled) async {
+    if (!_canViewDepartmentAssets) {
+      _showMessage('Verified asset geometry is restricted to the owning department.');
+      return;
+    }
+    setState(() => _showVerifiedAssets = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (!enabled) {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-verified-asset-lines')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-lines', false);
+      }
+      if (layers.contains('samanvay-verified-asset-points')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-points', false);
+      }
+      return;
+    }
+    await _loadDepartmentAssets();
+  }
+
+  Future<void> _toggleRequests(bool enabled) async {
+    setState(() => _showRequests = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-work-request-points')) {
+        await _loadMapLayers();
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-work-request-points',
+          enabled,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the request layer.');
+    }
+  }
+
+  Future<void> _toggleCoimbatoreWardBoundaries(bool enabled) async {
+    setState(() => _showCoimbatoreWardBoundaries = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadCoimbatoreWardBoundaries();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-fill',
+          false,
+        );
+      }
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-lines',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the Coimbatore ward reference layer.');
+    }
+  }
+
+  Future<void> _toggleGroundwaterTelemetry(bool enabled) async {
+    setState(() => _showGroundwaterTelemetry = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadGroundwaterTelemetryStations();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the groundwater telemetry layer.');
+    }
+  }
+
+  Future<void> _toggleUtilityZones(bool enabled) async {
+    if (!_canViewUtilityOverview) {
+      _showMessage('The utility overview is restricted to authorised infrastructure staff.');
+      return;
+    }
+
+    setState(() => _showUtilityZones = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (!enabled) {
+      try {
+        final layers = await controller.getLayerIds();
+        for (final layerId in [
+          'samanvay-utility-overview-cells',
+          'samanvay-utility-overview-3d',
+        ]) {
+          if (layers.contains(layerId)) {
+            await controller.setLayerVisibility(layerId, false);
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
+    await _loadUtilityOverview();
+  }
+
+
+  Future<void> _setUndergroundMode(bool enabled) async {
+    if (_undergroundMode == enabled) return;
+
+    final controller = _controller;
+    setState(() {
+      _undergroundMode = enabled;
+      if (enabled) {
+        _showUtilityZones = _canViewUtilityOverview;
+        _showVerifiedAssets = _canViewDepartmentAssets;
+      } else {
+        _showUtilityZones = false;
+        _showVerifiedAssets = false;
+      }
+    });
+
+    if (controller == null || !_styleReady) return;
+
+    Future<void> setVisibility(String layerId, bool visible) async {
+      final layerIds = await controller.getLayerIds();
+      if (layerIds.contains(layerId)) {
+        await controller.setLayerVisibility(layerId, visible);
+      }
+    }
+
+    try {
+      if (enabled) {
+        // Hide the surface extrusions and ward outlines to make the
+        // underground operational layer visually distinct.
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', false);
+        await setVisibility('samanvay-coimbatore-ward-lines', false);
+
+        if (_canViewUtilityOverview) {
+          await _loadUtilityOverview();
+        }
+        if (_canViewDepartmentAssets) {
+          await _loadDepartmentAssets();
+        }
+
+        if (!_canViewUtilityOverview && !_canViewDepartmentAssets) {
+          if (mounted) {
+            setState(() {
+              _layerStatus =
+                  'Underground mode selected. This requester account cannot view operational underground geometry. No data shown is not proof that utilities are absent.';
+            });
+          }
+          _showMessage(
+            'Underground operational layers require an authorised infrastructure staff account.',
+          );
+        } else if (mounted) {
+          setState(() {
+            _layerStatus = _canViewDepartmentAssets
+                ? 'Underground mode: generalised national/municipal coverage plus verified geometry owned by your department. Other departments’ exact routes remain withheld.'
+                : 'Underground mode: generalised coverage cells only. Exact utility routes and depths remain withheld.';
+          });
+        }
+      } else {
+        await setVisibility('samanvay-utility-overview-cells', false);
+        await setVisibility('samanvay-utility-overview-3d', false);
+        await setVisibility('samanvay-verified-asset-lines', false);
+        await setVisibility('samanvay-verified-asset-points', false);
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', _showCoimbatoreWardBoundaries);
+        await setVisibility('samanvay-coimbatore-ward-lines', _showCoimbatoreWardBoundaries);
+        if (mounted) {
+          setState(() {
+            _layerStatus = 'Surface mode: 2D/3D basemap, work requests and available public reference layers.';
+          });
+        }
+      }
+    } catch (_) {
+      _showMessage('Unable to switch map mode. Refresh the map layers and retry.');
+    }
+  }
+
+  Future<void> _changeBasemap(bool useSatellite) async {
+    if (useSatellite && _mapTilerKey.isEmpty) {
+      _showMessage(
+        'Satellite imagery is ready to connect, but MAPTILER_API_KEY is not configured in the release build.',
+      );
+      return;
+    }
+
+    if (_satellite == useSatellite) return;
+
+    try {
+      _pendingBasemapCamera = await _controller?.queryCameraPosition();
+    } catch (_) {
+      _pendingBasemapCamera = null;
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _satellite = useSatellite;
+      _styleReady = false;
+      _controller = null;
+      _requestMarkerCount = 0;
+      _utilityCellCount = 0;
+    });
+  }
+
+  Future<void> _changePerspective(bool use3D) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final current = await controller.queryCameraPosition();
+      final target = current?.target ?? const LatLng(0, 0);
+      final zoom = current?.zoom ?? 13.0;
+
+      setState(() => _is3D = use3D);
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: target,
+            zoom: zoom < 14 ? 14 : zoom,
+            tilt: use3D ? 58 : 0,
+            bearing: use3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-3d-buildings')) {
+        await controller.setLayerVisibility('samanvay-3d-buildings', use3D && !_undergroundMode);
+      }
+      if (layers.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones,
+        );
+      }
+      if (layers.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          _showUtilityZones && _undergroundMode && use3D,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change map perspective.');
+    }
+  }
+
+  Future<void> _zoom(bool zoomIn) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    await controller.animateCamera(
+      zoomIn ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut(),
+      duration: const Duration(milliseconds: 420),
+    );
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _showMessage('Location permission is required to centre the map on your device. You can continue browsing without GPS.');
+    }
+    return false;
+  }
+
+  Future<void> _goToMyLocation() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!granted) return;
+
+    setState(() => _locating = true);
+    try {
+      final location = await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _showMessage('Your device did not provide a location. Check GPS and app location permission.');
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 17.0,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1200),
+      );
+      if (mounted) {
+        setState(() {
+          _deviceCoordinateLabel =
+              '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}';
+        });
+      }
+    } catch (_) {
+      _showMessage('Unable to access device location. You can still navigate the map manually.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _openAttribution() async {
+    final uri = Uri.parse(
+      _satellite
+          ? 'https://www.maptiler.com/copyright/'
+          : 'https://openfreemap.org/',
+    );
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      _showMessage('Unable to open the map provider attribution page.');
+    }
+  }
+
+
+  Future<void> _loadMapReadiness() async {
+    var buildingLoaded = false;
+    var utilityLoaded = false;
+    var groundwaterLoaded = false;
+
+    var approvalCount = 0;
+    var approvalMapped = 0;
+    var approvalFloors = 0;
+    var utilityCount = 0;
+    var utilityPending = 0;
+    var utilityUnverified = 0;
+    var utilityOperational = 0;
+    var groundwaterJurisdictions = 0;
+    var groundwaterGaps = 0;
+
+    try {
+      final rawRows = await supabase
+          .from('building_approval_public_register_records')
+          .select('id,geometry_status,approved_floor_count')
+          .limit(2500);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      approvalCount = rows.length;
+      approvalMapped = rows.where((row) => row['geometry_status'] == 'verified_geocoded').length;
+      approvalFloors = rows.where((row) => row['approved_floor_count'] != null).length;
+      buildingLoaded = true;
+    } catch (_) {
+      // A missing permission or unavailable register must not block the map.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('id,coverage_status,operational_use_allowed')
+          .eq('data_domain', 'utility_gis')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      utilityCount = rows.length;
+      utilityPending = rows.where((row) => row['coverage_status'] == 'authority_asset_gis_required').length;
+      utilityOperational = rows.where((row) => row['operational_use_allowed'] == true).length;
+      utilityLoaded = true;
+    } catch (_) {
+      // Metadata-only utility status is optional for requester accounts.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('telemetry_status')
+          .eq('data_domain', 'groundwater')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      groundwaterJurisdictions = rows.length;
+      groundwaterGaps = rows.where((row) {
+        final status = (row['telemetry_status'] ?? '').toString();
+        return status.contains('no_2021_2025_feed') ||
+            status.contains('unverified') ||
+            status.contains('historical');
+      }).length;
+      groundwaterLoaded = true;
+    } catch (_) {
+      // Station rendering continues even if the national coverage summary is unavailable.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _buildingReadinessLoaded = buildingLoaded;
+      _utilityReadinessLoaded = utilityLoaded;
+      _groundwaterReadinessLoaded = groundwaterLoaded;
+      _approvalRecordCount = approvalCount;
+      _approvalMappedCount = approvalMapped;
+      _approvalFloorCount = approvalFloors;
+      _utilityLayerCatalogueCount = utilityCount;
+      _utilityLayersPending = utilityPending;
+      _utilityLayersOperational = utilityOperational;
+      _groundwaterCoverageJurisdictions = groundwaterJurisdictions;
+      _groundwaterTelemetryGaps = groundwaterGaps;
+    });
+  }
+
+  Widget _readinessRow({
+    required IconData icon,
+    required String title,
+    required String detail,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: Color(0xFFB8C7D5),
+                    fontSize: 10,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openLayerPanel() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF13263A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'GIS LAYERS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Layers are drawn only from records your account is authorised to access.',
+                      style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D1C2C),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x5541BFB4)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'NATIONAL DATA READINESS',
+                            style: TextStyle(
+                              color: Color(0xFF55D9CE),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          _readinessRow(
+                            icon: Icons.water_drop_outlined,
+                            title: 'GROUNDWATER',
+                            color: const Color(0xFFA78BFA),
+                            detail: _groundwaterReadinessLoaded
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                : 'Coverage summary unavailable; station layer remains independently controlled.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.account_balance_outlined,
+                            title: 'BUILDING APPROVALS',
+                            color: const Color(0xFFFBBF24),
+                            detail: _buildingReadinessLoaded
+                                ? '$_approvalRecordCount public-register record(s) · $_approvalMappedCount geocoded · $_approvalFloorCount with approved floor count. Address-only records are not plotted at guessed locations.'
+                                : 'Public approval register summary unavailable.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.hub_outlined,
+                            title: 'UNDERGROUND UTILITY GIS',
+                            color: const Color(0xFF38BDF8),
+                            detail: _utilityReadinessLoaded
+                                ? '$_utilityLayerCatalogueCount State/UT coverage entry(ies) · $_utilityLayersPending awaiting authority asset GIS · $_utilityLayersOperational operationally enabled'
+                                : 'Utility catalogue summary unavailable or access restricted.',
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            '3D buildings use live OpenStreetMap footprints with mapped heights/levels where available; missing heights receive a 6 m visual estimate and must not be used for compliance decisions. Underground 3D cells show relative density in generalised 250 m cells—not physical depth, elevation, dimensions or routes. Exact assets remain access-controlled; an empty layer is not excavation clearance.',
+                            style: TextStyle(
+                              color: Color(0xFFF6C66B),
+                              fontSize: 9,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      value: _showRequests,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('Work request locations',
+                          style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_requestMarkerCount request marker(s) visible to your account',
+                        style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleRequests(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showCoimbatoreWardBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text(
+                        'Coimbatore ward boundaries (2024 reference)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '$_coimbatoreWardCount polygons · OpenCity Public Domain dataset · reference only; confirm legal boundaries with CCMC',
+                        style: const TextStyle(
+                          color: Color(0xFFB8C7D5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleCoimbatoreWardBoundaries(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showGroundwaterTelemetry,
+                      activeThumbColor: const Color(0xFFA78BFA),
+                      title: const Text(
+                        'National groundwater monitoring stations (2021–2025)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · tap for the published reading and timestamp · not a borewell register or complete station inventory',
+                        style: const TextStyle(
+                          color: Color(0xFFB8C7D5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleGroundwaterTelemetry(value);
+                      },
+                    ),
+                    if (_canViewDepartmentAssets)
+                      SwitchListTile(
+                        value: _showVerifiedAssets,
+                        activeThumbColor: const Color(0xFF20D6C2),
+                        title: const Text('Verified department assets',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_verifiedAssetCount verified asset(s) mapped · $_unverifiedAssetCount unverified withheld',
+                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleVerifiedAssets(value);
+                        },
+                      ),
+                    if (_canViewUtilityOverview) ...[
+                       const Divider(color: Color(0x334B647C)),
+                       Row(
+                         children: [
+                           const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 18),
+                           const SizedBox(width: 8),
+                           const Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
+                           Text('$_utilityConflictCount request(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
+                         ],
+                       ),
+                       const SizedBox(height: 6),
+                       Text(_utilityConflictStatus, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4)),
+                       ..._utilityConflictDetails.values.take(5).map((detail) {
+                         final conflicts = (detail['conflicts'] as List?) ?? const [];
+                         final summary = conflicts.take(2).map((raw) {
+                           final item = Map<String, dynamic>.from(raw as Map);
+                           return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m';
+                         }).join(' | ');
+                         return ListTile(
+                           dense: true,
+                           contentPadding: EdgeInsets.zero,
+                           leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
+                           title: Text('${detail['request_number']} · ${detail['candidate_count']} potential match(es)', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                           subtitle: Text(summary, style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                         );
+                       }),
+                       if (_utilityConflictDetails.length > 5)
+                         Text('And ${_utilityConflictDetails.length - 5} more. Tap red map markers for details.', style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 10)),
+                       const SizedBox(height: 8),
+                       const Text('Cross-department screening runs on the server against verified assets. The phone receives advisory metadata only, never another department’s exact route geometry. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
+                     ],
+                     if (_canViewUtilityOverview)
+                       SwitchListTile(
+                        value: _showUtilityZones,
+                        activeThumbColor: const Color(0xFFF59E0B),
+                        title: const Text('Generalised utility coverage',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_utilityCellCount aggregate cell(s); not individual utility routes',
+                          style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleUtilityZones(value);
+                        },
+                      )
+                    else
+                      const ListTile(
+                        leading: Icon(Icons.lock_outline, color: Color(0xFFF6C66B)),
+                        title: Text('Utility coverage restricted',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          'Detailed infrastructure records are not available to requester accounts.',
+                          style: TextStyle(color: Color(0xFFB8C7D5), fontSize: 11),
+                        ),
+                      ),
+                    const Divider(color: Color(0x334B647C)),
+                    const Text(
+                      'Data integrity',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _layerStatus,
+                      style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 11, height: 1.4),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _undergroundModelPanel() {
+    final layers = <({Color color, IconData icon, String title})>[
+      (color: const Color(0xFF38BDF8), icon: Icons.water_drop_outlined, title: 'Water & wastewater'),
+      (color: const Color(0xFF22C55E), icon: Icons.waves_outlined, title: 'Stormwater & drainage'),
+      (color: const Color(0xFFFBBF24), icon: Icons.bolt_outlined, title: 'Power & telecom'),
+      (color: const Color(0xFFFB7185), icon: Icons.hub_outlined, title: 'Gas & other networks'),
+    ];
+
+    return Container(
+      width: 258,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xF2182638),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x6645D9CE)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 5)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 17),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text('BELOW-GROUND MODEL',
+                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: const Color(0x3320D6C2), borderRadius: BorderRadius.circular(6)),
+                child: const Text('3D VIEW', style: TextStyle(color: Color(0xFF7DE9DE), fontSize: 8, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
+            style: TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          ...layers.map((layer) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Container(
+                  width: 24, height: 20,
+                  decoration: BoxDecoration(color: layer.color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                  child: Icon(layer.icon, color: layer.color, size: 14),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(layer.title,
+                  style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 9, fontWeight: FontWeight.w700))),
+                Text('REFERENCE', style: TextStyle(color: layer.color, fontSize: 7, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+              ],
+            ),
+          )),
+          const Divider(height: 9, color: Color(0x334B647C)),
+          Row(
+            children: [
+              Expanded(child: _undergroundStat('UTILITY CATALOGUE', '$_utilityLayerCatalogueCount')),
+              Expanded(child: _undergroundStat('LIVE MAP CELLS', '$_utilityCellCount')),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              Expanded(child: _undergroundStat('GROUNDWATER POINTS', '$_groundwaterStationCount')),
+              Expanded(child: _undergroundStat('APPROVALS MAPPED', '$_approvalMappedCount / $_approvalRecordCount')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '3D blocks show relative aggregate density inside generalized coverage cells. They are not pipes, surveyed alignments, asset depths or excavation-clearance data. Owner-authorised geometry is a separate restricted layer.',
+            style: TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _undergroundStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+
+  Widget _mapButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    String? tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xF2182638),
+        elevation: 5,
+        borderRadius: BorderRadius.circular(12),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, color: Colors.white, size: 21),
+        ),
+      ),
+    );
+  }
+
+  Widget _pill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF13A89E) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF101B29),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        titleSpacing: 16,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'SAMANVAY GIS',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'GEOSPATIAL INFRASTRUCTURE WORKSPACE',
+              style: TextStyle(
+                fontSize: 9,
+                letterSpacing: 1.35,
+                color: Color(0xFF9FB4C8),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Import underground survey GeoJSON',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AssetGeoJsonImportPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.file_upload_outlined),
+          ),
+          IconButton(
+            tooltip: 'Plan a driving route',
+            onPressed: _routing ? null : _showDirectionsDialog,
+            icon: const Icon(Icons.directions_outlined),
+          ),
+          IconButton(
+            tooltip: 'Layer controls',
+            onPressed: _openLayerPanel,
+            icon: const Icon(Icons.layers_outlined),
+          ),
+          IconButton(
+            tooltip: 'My device location',
+            onPressed: _goToMyLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              key: ValueKey(_satellite ? 'samanvay-satellite' : 'samanvay-vector'),
+              styleString: _mapStyle,
+              // Regional fallback only; a granted device GPS fix immediately
+              // replaces this camera. Never present 0,0 as the user's location.
+              initialCameraPosition: const CameraPosition(
+                target: LatLng(10.8, 78.6),
+                zoom: 5.7,
+                tilt: 0,
+                bearing: 0,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              onCameraIdle: _handleCameraIdle,
+              myLocationEnabled: _hasLocationPermission,
+              myLocationTrackingMode: MyLocationTrackingMode.none,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              trackCameraPosition: true,
+              minMaxZoomPreference: const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          if (!_styleReady)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF23C5B5)),
+                      SizedBox(height: 14),
+                      Text(
+                        'INITIALISING GIS ENGINE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          letterSpacing: 1.7,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 12,
+            top: 12,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 218),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xE6102031),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _satellite ? 'SATELLITE HYBRID' : 'VECTOR BASEMAP',
+                    style: const TextStyle(
+                      color: Color(0xFF9FB4C8),
+                      fontSize: 9,
+                      letterSpacing: 1.3,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _undergroundMode
+                        ? 'UNDERGROUND DATA VIEW'
+                        : _is3D ? '3D SURFACE MAP' : '2D SURFACE MAP',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (_deviceCoordinateLabel.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'DEVICE GPS  $_deviceCoordinateLabel',
+                      style: const TextStyle(
+                        color: Color(0xFF55D9CE),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _undergroundMode
+                        ? (_canViewDepartmentAssets
+                            ? 'Own-department verified geometry plus generalised coverage. Other owners’ exact routes are withheld.'
+                            : _canViewUtilityOverview
+                                ? 'Generalised coverage only. Exact utility routes and depths are withheld.'
+                                : 'Operational underground geometry is restricted for this account.')
+                        : _satellite
+                            ? 'Imagery date and resolution vary by location.'
+                            : 'Real OpenStreetMap building footprints are extruded in 3D. Mapped height or floor tags are used where available; otherwise a clearly labelled 6 m visual estimate is used. This is not a statutory building-approval record.',
+                    style: const TextStyle(
+                      color: Color(0xFFB6C7D6),
+                      fontSize: 9,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            left: 12,
+            right: 62,
+            top: 116,
+            child: Container(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x6639BDB0)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded, color: Color(0xFF55D9CE), size: 20),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _searchPlaces,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      decoration: const InputDecoration(
+                        hintText: 'Search area / ward / road',
+                        hintStyle: TextStyle(color: Color(0xFF9FB4C8), fontSize: 11),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Search place',
+                    onPressed: _searching ? null : () => _searchPlaces(_searchController.text),
+                    icon: _searching
+                        ? const SizedBox(
+                            width: 17,
+                            height: 17,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF55D9CE),
+                            ),
+                          )
+                        : const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 19),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_placeResults.isNotEmpty)
+            Positioned(
+              left: 12,
+              right: 62,
+              top: 172,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 240),
+                decoration: BoxDecoration(
+                  color: const Color(0xF2182638),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0x6639BDB0)),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  itemCount: _placeResults.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0x334B647C)),
+                  itemBuilder: (context, index) {
+                    final feature = _placeResults[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.location_on_outlined, color: Color(0xFF55D9CE), size: 20),
+                      title: Text(
+                        (feature['text'] ?? 'Place').toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        (feature['place_name'] ?? '').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Color(0xFFB8C7D5), fontSize: 9),
+                      ),
+                      onTap: () => _selectPlace(feature),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          Positioned(
+            right: 11,
+            top: 12,
+            child: Column(
+              children: [
+                _mapButton(
+                  icon: Icons.add,
+                  tooltip: 'Zoom in',
+                  onPressed: () => _zoom(true),
+                ),
+                _mapButton(
+                  icon: Icons.remove,
+                  tooltip: 'Zoom out',
+                  onPressed: () => _zoom(false),
+                ),
+                _mapButton(
+                  icon: Icons.layers_outlined,
+                  tooltip: 'Map layers',
+                  onPressed: _openLayerPanel,
+                ),
+              ],
+            ),
+          ),
+
+          if (_scaleLabel.isNotEmpty)
+            Positioned(
+              left: 14,
+              bottom: 226,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xE6102031),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: const Color(0x5539BDB0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _scaleLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: _scaleWidth,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF55D9CE),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 118,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'SURFACE',
+                        selected: !_undergroundMode,
+                        onTap: () => _setUndergroundMode(false),
+                      ),
+                      const SizedBox(width: 5),
+                      _pill(
+                        label: 'UNDERGROUND',
+                        selected: _undergroundMode,
+                        onTap: () => _setUndergroundMode(true),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Divider(height: 1, color: Color(0x334B647C)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'VECTOR',
+                        selected: !_satellite,
+                        onTap: () => _changeBasemap(false),
+                      ),
+                      _pill(
+                        label: 'SATELLITE',
+                        selected: _satellite,
+                        onTap: () => _changeBasemap(true),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(width: 1, height: 24, color: const Color(0x554B647C)),
+                      const SizedBox(width: 4),
+                      _pill(
+                        label: '2D',
+                        selected: !_is3D,
+                        onTap: () => _changePerspective(false),
+                      ),
+                      _pill(
+                        label: '3D',
+                        selected: _is3D,
+                        onTap: () => _changePerspective(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_undergroundMode)
+            Positioned(
+              left: 12,
+              bottom: 118,
+              child: _undergroundModelPanel(),
+            ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 54,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.hub_outlined, color: Color(0xFF35C6B5), size: 19),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _loadingLayers
+                          ? 'SYNCING AUTHORISED GIS LAYERS...'
+                          : _layerStatus,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFD4E1EA),
+                        fontSize: 9,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  if (_loadingLayers)
+                    const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF35C6B5),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Refresh layers',
+                      onPressed: _loadMapLayers,
+                      icon: const Icon(Icons.refresh, color: Colors.white, size: 19),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _openAttribution,
+                    child: Text(
+                      _satellite
+                          ? '© MapTiler · © OpenStreetMap contributors'
+                          : '© OpenFreeMap · © OpenStreetMap contributors',
+                      style: const TextStyle(
+                        color: Color(0xFFE1EAF1),
+                        fontSize: 8,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_locating)
+                  const Text(
+                    'LOCATING',
+                    style: TextStyle(color: Color(0xFF35C6B5), fontSize: 8),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// AUTHORISED GIS DATA INGESTION
+// ==========================================
+
+class AssetGeoJsonImportPage extends StatefulWidget {
+  const AssetGeoJsonImportPage({super.key});
+
+  @override
+  State<AssetGeoJsonImportPage> createState() => _AssetGeoJsonImportPageState();
+}
+
+class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
+  static const Set<String> _assetTypes = {
+    'water', 'sewer', 'stormwater', 'electricity', 'telecom',
+    'gas', 'borewell', 'drain', 'other', 'unknown',
+  };
+  static const Map<String, String> _sourceTypeLabels = {
+    'utility_owner': 'Utility-owner supplied',
+    'field_survey': 'Field survey',
+    'as_built_drawing': 'Authority as-built drawing',
+  };
+  static const Set<String> _geometryTypes = {
+    'Point', 'MultiPoint', 'LineString', 'MultiLineString',
+  };
+
+  bool _checkingAccess = true;
+  bool _authorised = false;
+  bool _loadingFile = false;
+  bool _importing = false;
+  String _departmentName = '';
+  String _fileName = '';
+  String _sourceType = 'utility_owner';
+  final TextEditingController _sourceTitleController = TextEditingController();
+  final TextEditingController _sourceOrganisationController = TextEditingController();
+  final TextEditingController _authorizationReferenceController = TextEditingController();
+  final TextEditingController _dataSharingBasisController = TextEditingController();
+  final TextEditingController _sourceUrlController = TextEditingController();
+  String _status = 'Select a GeoJSON FeatureCollection from an authorised survey source.';
+  List<Map<String, dynamic>> _records = [];
+  List<String> _errors = [];
+  int _imported = 0;
+  int _failed = 0;
+  int _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+
+  @override
+  void dispose() {
+    _sourceTitleController.dispose();
+    _sourceOrganisationController.dispose();
+    _authorizationReferenceController.dispose();
+    _dataSharingBasisController.dispose();
+    _sourceUrlController.dispose();
+    super.dispose();
+  }
+
+  String? _validateSourceMetadata() {
+    if (_sourceTitleController.text.trim().length < 3 ||
+        _sourceTitleController.text.trim().length > 200) {
+      return 'Enter the official dataset or survey title (3–200 characters).';
+    }
+    if (_sourceOrganisationController.text.trim().length < 3 ||
+        _sourceOrganisationController.text.trim().length > 200) {
+      return 'Enter the responsible utility owner or survey organisation.';
+    }
+    if (_authorizationReferenceController.text.trim().length < 6 ||
+        _authorizationReferenceController.text.trim().length > 200) {
+      return 'Enter the authority permission, MOU or sharing-reference number.';
+    }
+    if (_dataSharingBasisController.text.trim().length < 10 ||
+        _dataSharingBasisController.text.trim().length > 1000) {
+      return 'Describe the data-sharing authority or permission basis (10–1000 characters).';
+    }
+    final sourceUrl = _sourceUrlController.text.trim();
+    if (sourceUrl.isNotEmpty) {
+      final uri = Uri.tryParse(sourceUrl);
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+        return 'The source URL must be a valid HTTPS address.';
+      }
+    }
+    return null;
+  }
+
+  Widget _metadataField(
+    TextEditingController controller,
+    String label, {
+    String? hint,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _checkAccess() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw StateError('Sign in to continue.');
+      final profile = await supabase.from('profiles')
+          .select('role,department_id').eq('id', user.id).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      final departmentId = profile?['department_id']?.toString();
+      if (role != 'department' || departmentId == null || departmentId.isEmpty) {
+        throw StateError('Only an assigned department account can register underground utility records. The database independently enforces this restriction.');
+      }
+      final department = await supabase.from('departments')
+          .select('name').eq('id', departmentId).maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _authorised = true;
+        _departmentName = (department?['name'] ?? 'Assigned department').toString();
+        _status = 'Access confirmed. Imported records will be stored as UNVERIFIED.';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _status = error.toString().replaceFirst('Bad state: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _checkingAccess = false);
+    }
+  }
+
+  bool _validCoordinates(dynamic value) {
+    if (value is! List || value.isEmpty) return false;
+    if (value[0] is num || (value.length > 1 && value[1] is num)) {
+      if (value.length != 2 || value[0] is! num || value[1] is! num) return false;
+      final lon = (value[0] as num).toDouble();
+      final lat = (value[1] as num).toDouble();
+      return lon.isFinite && lat.isFinite &&
+          lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
+    }
+    return value.every(_validCoordinates);
+  }
+
+  String? _validate(Map<String, dynamic> feature) {
+    if (feature['geometry'] is! Map || feature['properties'] is! Map) {
+      return 'Geometry and properties objects are required.';
+    }
+    final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
+    final type = (geometry['type'] ?? '').toString();
+    if (!_geometryTypes.contains(type)) return 'Unsupported geometry type: $type';
+    if (!_validCoordinates(geometry['coordinates'])) return 'Invalid WGS84 coordinates. GeoJSON order must be [longitude, latitude].';
+
+    final p = Map<String, dynamic>.from(feature['properties'] as Map);
+    final code = (p['asset_code'] ?? '').toString().trim();
+    final name = (p['asset_name'] ?? '').toString().trim();
+    final assetType = (p['asset_type'] ?? '').toString().trim().toLowerCase();
+    if (code.length < 2 || code.length > 100) return 'asset_code is required (2–100 characters).';
+    if (name.length < 2 || name.length > 200) return 'asset_name is required (2–200 characters).';
+    if (!_assetTypes.contains(assetType)) return 'Unsupported asset_type.';
+    if (_sourceType == 'field_survey' &&
+        (p['surveyed_at'] ?? '').toString().trim().isEmpty) {
+      return 'surveyed_at is required for a field-survey batch.';
+    }
+
+    for (final key in ['depth_m', 'horizontal_accuracy_m', 'vertical_accuracy_m', 'diameter_mm']) {
+      final raw = p[key];
+      if (raw == null || raw.toString().trim().isEmpty) continue;
+      final value = double.tryParse(raw.toString());
+      if (value == null || !value.isFinite || value < 0) return '$key must be a non-negative number.';
+    }
+    final depth = double.tryParse((p['depth_m'] ?? '').toString());
+    if (depth != null && depth > 100) return 'depth_m cannot exceed 100 metres.';
+    final diameter = double.tryParse((p['diameter_mm'] ?? '').toString());
+    if (diameter != null && (diameter <= 0 || diameter > 10000)) return 'diameter_mm must be 1–10000.';
+    return null;
+  }
+
+  Future<void> _pickFile() async {
+    if (!_authorised || _importing || _loadingFile) return;
+    setState(() {
+      _loadingFile = true;
+      _records = [];
+      _errors = [];
+      _fileName = '';
+      _imported = 0;
+      _failed = 0;
+      _progress = 0;
+    });
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['geojson', 'json'],
+      );
+      if (file == null) return;
+      final fileSize = await file.length();
+      if (fileSize == null || fileSize > 10 * 1024 * 1024) {
+        throw StateError('File size could not be confirmed or exceeds 10 MB.');
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('The selected file is empty. Export it as UTF-8 GeoJSON.');
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
+        throw const FormatException('Expected a GeoJSON FeatureCollection.');
+      }
+      final features = decoded['features'] as List;
+      if (features.isEmpty) throw StateError('No features found in the file.');
+      if (features.length > 500) throw StateError('Maximum 500 features per import batch.');
+      final records = <Map<String, dynamic>>[];
+      final errors = <String>[];
+      final seen = <String>{};
+      for (var i = 0; i < features.length; i++) {
+        final raw = features[i];
+        final feature = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+        var error = raw is Map ? _validate(feature) : 'Feature is not a JSON object.';
+        final props = feature['properties'] is Map
+            ? Map<String, dynamic>.from(feature['properties'] as Map) : <String, dynamic>{};
+        final code = (props['asset_code'] ?? '').toString().trim();
+        if (error == null && !seen.add(code)) error = 'Duplicate asset_code in this file.';
+        records.add({'feature': feature, 'error': error});
+        if (error != null) errors.add('Feature ${i + 1}: $error');
+      }
+      if (!mounted) return;
+      setState(() {
+        _fileName = file.name;
+        _records = records;
+        _errors = errors;
+        _status = 'Preview ready. ${records.length - errors.length} valid feature(s); ${errors.length} invalid feature(s). Nothing has been written yet.';
+      });
+    } catch (error) {
+      if (mounted) setState(() => _status = 'Preview failed: ${error.toString().replaceFirst('Bad state: ', '')}');
+    } finally {
+      if (mounted) setState(() => _loadingFile = false);
+    }
+  }
+
+  Future<void> _register() async {
+    if (!_authorised || _importing) return;
+    final valid = _records.where((r) => r['error'] == null).toList();
+    if (valid.isEmpty) return;
+    final sourceError = _validateSourceMetadata();
+    if (sourceError != null) {
+      setState(() => _status = sourceError);
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Register as unverified?'),
+        content: Text(
+          '${valid.length} records from "$_fileName" will be registered under $_departmentName. '
+          'Your source and permission details will be recorded in an audit log. '
+          'This declaration is not independently verified; the records remain UNVERIFIED and hidden from the map pending owner review.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Register')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() {
+      _importing = true;
+      _progress = 0;
+      _imported = 0;
+      _failed = 0;
+      _errors = [];
+      _status = 'Sending validated batch to the secured server-side registry…';
+    });
+
+    try {
+      final features = valid
+          .map((record) => Map<String, dynamic>.from(record['feature'] as Map))
+          .toList(growable: false);
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-registry',
+        body: {
+          'action': 'import',
+          'source': {
+            'source_title': _sourceTitleController.text.trim(),
+            'source_organisation': _sourceOrganisationController.text.trim(),
+            'source_type': _sourceType,
+            'authorization_reference': _authorizationReferenceController.text.trim(),
+            'data_sharing_basis': _dataSharingBasisController.text.trim(),
+            'source_url': _sourceUrlController.text.trim().isEmpty
+                ? null : _sourceUrlController.text.trim(),
+            'declared_srid': 4326,
+          },
+          'features': features,
+        },
+      );
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final imported = (data['imported'] as num?)?.toInt() ?? 0;
+      final failed = (data['rejected'] as num?)?.toInt() ?? (valid.length - imported);
+      final runId = (data['run_id'] ?? '').toString();
+      final errorText = (data['error'] ?? '').toString();
+      final errors = <String>[];
+      if (errorText.isNotEmpty) errors.add(errorText);
+
+      if (!mounted) return;
+      setState(() {
+        _imported = imported;
+        _failed = failed;
+        _progress = valid.length;
+        _errors = errors;
+        _status = 'Import run ' + (runId.isEmpty ? '(ID unavailable)' : runId) +
+            ': $_imported registered; $_failed rejected. All accepted geometry remains UNVERIFIED and hidden from the map pending independent owner review.';
+        _records = [];
+        _fileName = '';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registry import: $_imported registered; $_failed failed.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failed = valid.length;
+        _progress = 0;
+        _errors = [error.toString()];
+        _status = 'Server-side import failed. No success has been assumed; check the session and retry after resolving the error.';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GIS import failed. No records were confirmed as registered.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final validCount = _records.where((r) => r['error'] == null).length;
+    final invalidCount = _records.length - validCount;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F6FA),
+      appBar: AppBar(title: const Text('GIS Data Ingestion'), backgroundColor: navy),
+      body: _checkingAccess
+          ? const Center(child: CircularProgressIndicator())
+          : !_authorised
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.lock_outline, size: 52, color: Colors.blueGrey),
+                    const SizedBox(height: 14),
+                    const Text('Department authorisation required',
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: navy)),
+                    const SizedBox(height: 8),
+                    Text(_status, textAlign: TextAlign.center),
+                  ]),
+                ))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(18)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('AUTHORISED DATA SOURCE',
+                            style: TextStyle(color: Color(0xFF8EDFD6), fontSize: 10, letterSpacing: 1.2, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 7),
+                        Text(_departmentName,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 8),
+                        const Text('Owner-supplied and field-surveyed geometry only. Imported records remain UNVERIFIED.',
+                            style: TextStyle(color: Color(0xFFD3E0EA), height: 1.4, fontSize: 12)),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('SOURCE AUTHORITY & PROVENANCE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                        const SizedBox(height: 6),
+                        const Text('These fields create an audit declaration. They do not independently prove that the submitter has permission. The receiving authority must review the source before the records are verified.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 12),
+                        _metadataField(_sourceTitleController, 'Official source / dataset title'),
+                        _metadataField(_sourceOrganisationController, 'Utility owner / survey organisation'),
+                        DropdownButtonFormField<String>(
+                          value: _sourceType,
+                          decoration: const InputDecoration(
+                            labelText: 'Source category',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _sourceTypeLabels.entries.map((entry) =>
+                            DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          ).toList(),
+                          onChanged: _importing ? null : (value) {
+                            if (value != null) setState(() => _sourceType = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _metadataField(
+                          _authorizationReferenceController,
+                          'Authority permission / MOU reference',
+                          hint: 'Reference number only; do not enter credentials',
+                        ),
+                        _metadataField(
+                          _dataSharingBasisController,
+                          'Data-sharing authority / permission basis',
+                          hint: 'Identify the written approval, agreement or owner authorisation',
+                          maxLines: 3,
+                        ),
+                        _metadataField(
+                          _sourceUrlController,
+                          'Official source URL (optional)',
+                          hint: 'https://…',
+                        ),
+                        const Text('Coordinate reference system: EPSG:4326 only. Reproject the source file before upload; the server does not guess or transform CRSs.',
+                            style: TextStyle(color: navy, fontSize: 11, height: 1.4, fontWeight: FontWeight.w600)),
+                      ]),
+                    )),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('SUPPORTED FILE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                        const SizedBox(height: 8),
+                        const Text('GeoJSON FeatureCollection (.geojson / .json), WGS84 EPSG:4326. Point, MultiPoint, LineString and MultiLineString. Maximum 10 MB / 500 features.',
+                            style: TextStyle(color: mutedInk, height: 1.45, fontSize: 12)),
+                        const SizedBox(height: 8),
+                        const Text('Required properties: asset_code, asset_name and asset_type. Source type and permission details are entered in the audit form below.',
+                            style: TextStyle(color: navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        const Text('Optional: depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm and surveyed_at. Field-survey batches must include surveyed_at.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 14),
+                        SizedBox(width: double.infinity, child: FilledButton.icon(
+                          onPressed: _loadingFile || _importing ? null : _pickFile,
+                          icon: _loadingFile
+                              ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.folder_open_outlined),
+                          label: Text(_loadingFile ? 'READING FILE…' : 'SELECT GEOJSON SURVEY FILE'),
+                          style: FilledButton.styleFrom(backgroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+                        )),
+                      ]),
+                    )),
+                    if (_fileName.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('PRE-IMPORT VALIDATION',
+                              style: TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                          const SizedBox(height: 6),
+                          Text(_fileName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            Expanded(child: _countTile('VALID', validCount, const Color(0xFF087F83))),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('INVALID', invalidCount, Colors.red)),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('TOTAL', _records.length, navy)),
+                          ]),
+                          const SizedBox(height: 8),
+                          ..._records.asMap().entries.take(20).map((entry) {
+                            final item = entry.value;
+                            final f = item['feature'] as Map<String, dynamic>;
+                            final p = f['properties'] is Map
+                                ? Map<String, dynamic>.from(f['properties'] as Map) : <String, dynamic>{};
+                            final error = item['error']?.toString();
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(error == null ? Icons.check_circle_outline : Icons.error_outline,
+                                  color: error == null ? const Color(0xFF087F83) : Colors.red),
+                              title: Text((p['asset_code'] ?? 'Feature ${entry.key + 1}').toString(), 
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              subtitle: Text(error ?? '${p['asset_name'] ?? ''} · ${p['asset_type'] ?? ''} · ${(f['geometry'] as Map?)?['type'] ?? ''}',
+                                  style: const TextStyle(fontSize: 10)),
+                            );
+                          }),
+                          if (_records.length > 20)
+                            Text('Showing first 20 of ${_records.length} features.',
+                                style: const TextStyle(color: mutedInk, fontSize: 11)),
+                          if (_importing) ...[
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(value: _records.isEmpty ? null : _progress / validCount),
+                            Text('Processed $_progress of $validCount'),
+                          ],
+                          const SizedBox(height: 12),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: !_importing && validCount > 0 ? _register : null,
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: Text('REGISTER $validCount VALID RECORD(S) AS UNVERIFIED'),
+                            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF087F83), padding: const EdgeInsets.symmetric(vertical: 14)),
+                          )),
+                        ]),
+                      )),
+                    ],
+                    if (_errors.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('VALIDATION / IMPORT ERRORS',
+                              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 8),
+                          ..._errors.take(30).map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text('• $e', style: const TextStyle(fontSize: 11, color: Colors.red)), 
+                          )),
+                        ]),
+                      )),
+                    ],
+                    const SizedBox(height: 12),
+                    Card(color: const Color(0xFFFFF7E6), child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Icon(Icons.verified_user_outlined, color: Color(0xFF9A6700)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(_status,
+                            style: const TextStyle(color: Color(0xFF664B16), fontSize: 12, height: 1.45))),
+                      ]),
+                    )),
+                    const SizedBox(height: 10),
+                    const Text('Only import records your department is authorised to submit. This tool does not independently verify geometry and does not issue excavation clearance or safety certification.',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+                  ],
+                ),
+    );
+  }
+
+  Widget _countTile(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text(value.toString(), style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// PROFILE
+// ==========================================
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  Future<void> logout(BuildContext context) async {
+    try {
+      await supabase.auth.signOut();
+    } on AuthException catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = supabase.auth.currentUser;
+    final name = user?.userMetadata?['display_name'] ?? 'User';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Profile'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(22),
+        children: [
+          const CircleAvatar(
+            radius: 42,
+            backgroundColor: teal,
+            child: Icon(
+              Icons.person,
+              size: 45,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            name.toString(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.bold,
+              color: navy,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            user?.email ?? '',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 30),
+          const ListTile(
+            leading: Icon(Icons.verified_user, color: teal),
+            title: Text('Authentication'),
+            subtitle: Text('Supabase'),
+          ),
+          const SizedBox(height: 25),
+          FilledButton.icon(
+            onPressed: () => logout(context),
+            icon: const Icon(Icons.logout),
+            label: const Text('LOG OUT'),
+            style: FilledButton.styleFrom(
+              backgroundColor: navy,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// CASE WORKSPACE
+// ==========================================
+class CaseWorkspacePage extends StatefulWidget {
+  final String requestId;
+  final String requestTitle;
+  const CaseWorkspacePage({super.key, required this.requestId, required this.requestTitle});
+  @override
+  State<CaseWorkspacePage> createState() => _CaseWorkspacePageState();
+}
+
+class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
+  final _message = TextEditingController();
+  late final Stream<List<Map<String, dynamic>>> _messages;
+  bool _sending = false, _uploading = false, _aiBusy = false, _staff = false;
+  String _role = '';
+  static const _bucket = 'samanvay-case-evidence';
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = supabase.from('case_messages').stream(primaryKey: ['id'])
+      .eq('request_id', widget.requestId).order('created_at', ascending: true);
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await supabase.from('profiles').select('role')
+        .eq('id', user.id).maybeSingle();
+      final role = (row?['role'] ?? '').toString();
+      if (mounted) {
+        setState(() {
+          _role = role;
+          _staff = ['admin','coordinator','department'].contains(role);
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  void _toast(String value) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
+
+  Future<void> _send() async {
+    final user = supabase.auth.currentUser;
+    final body = _message.text.trim();
+    if (user == null || body.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await supabase.from('case_messages').insert({
+        'request_id': widget.requestId, 'sender_id': user.id, 'body': body,
+      });
+      _message.clear();
+    } on PostgrestException catch (e) {
+      _toast('Message not sent: ${e.message}');
+    } catch (_) {
+      _toast('Unable to send message. Check your case access and connection.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _upload() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || _uploading) return;
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
+      );
+      if (file == null) return;
+      final fileSize = file.lengthSync() ?? await file.length();
+      if (fileSize == null || fileSize <= 0) {
+        _toast('Unable to read that file. Select it again.');
+        return;
+      }
+      if (fileSize > 20 * 1024 * 1024) {
+        _toast('Evidence files must be 20 MB or smaller.');
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      final ext = (file.extension ?? '').toLowerCase();
+      final mime = switch (ext) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'pdf' => 'application/pdf',
+        _ => '',
+      };
+      if (mime.isEmpty) {
+        _toast('Only JPG, PNG, WEBP and PDF are supported.');
+        return;
+      }
+      final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll('..', '_');
+      final path = '${widget.requestId}/${user.id}/${DateTime.now().microsecondsSinceEpoch}_$safeName';
+      setState(() => _uploading = true);
+      await supabase.storage.from(_bucket).uploadBinary(
+        path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false));
+      try {
+        await supabase.from('case_attachments').insert({
+          'request_id': widget.requestId, 'storage_path': path,
+          'file_name': file.name, 'content_type': mime,
+          'file_size_bytes': fileSize, 
+          'attachment_type': mime == 'application/pdf' ? 'survey_evidence' : 'site_photo',
+          'uploaded_by': user.id,
+        });
+      } catch (_) {
+        try { await supabase.storage.from(_bucket).remove([path]); } catch (_) {}
+        rethrow;
+      }
+      _toast('Evidence uploaded to the private case record.');
+    } on PostgrestException catch (e) {
+      _toast('Evidence was not recorded: ${e.message}');
+    } catch (_) {
+      _toast('Upload failed. Check case access and supported file type.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _viewEvidence() async {
+    try {
+      final rows = await supabase.from('case_attachments')
+        .select('storage_path,file_name,content_type,file_size_bytes')
+        .eq('request_id', widget.requestId).order('created_at', ascending: false);
+      if (!mounted) return;
+      final files = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context, isScrollControlled: true, backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('PRIVATE CASE EVIDENCE', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: files.isEmpty
+                    ? const Center(child: Text('No evidence has been uploaded.'))
+                    : ListView.builder(
+                        itemCount: files.length,
+                        itemBuilder: (context, index) {
+                          final item = files[index];
+                          final kb = ((item['file_size_bytes'] as num?) ?? 0) / 1024;
+                          return ListTile(
+                            leading: Icon(item['content_type'] == 'application/pdf'
+                              ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
+                            title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('$kb KB · Private file'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                try {
+                                  final url = await supabase.storage.from(_bucket)
+                                    .createSignedUrl(item['storage_path'].toString(), 600);
+                                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                } catch (_) { _toast('Unable to open secure evidence link.'); }
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to list case evidence. Check your case permissions.');
+    }
+  }
+
+  Future<void> _addInspection() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !_staff) return;
+    var type = 'progress';
+    var outcome = 'pass';
+    final notes = TextEditingController();
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Record site inspection'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: type, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Inspection type'),
+                items: const [
+                  DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
+                  DropdownMenuItem(value: 'progress', child: Text('Work progress')),
+                  DropdownMenuItem(value: 'post_work', child: Text('Post-work')),
+                  DropdownMenuItem(value: 'utility_verification', child: Text('Utility verification')),
+                  DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) { if (v != null) { setDialog(() => type = v); } },
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: outcome, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Outcome'),
+                items: const [
+                  DropdownMenuItem(value: 'pass', child: Text('Pass')),
+                  DropdownMenuItem(value: 'issue_found', child: Text('Issue found')),
+                  DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
+                  DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
+                ],
+                onChanged: (v) { if (v != null) { setDialog(() => outcome = v); } },
+              ),
+              const SizedBox(height: 10),
+              TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
+                decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, notes.text.trim().isNotEmpty),
+              child: const Text('Save inspection')),
+          ],
+        ),
+      ),
+    );
+    if (submit != true) {
+      notes.dispose();
+      return;
+    }
+    try {
+      await supabase.from('case_inspections').insert({
+        'request_id': widget.requestId, 'inspection_type': type,
+        'outcome': outcome, 'notes': notes.text.trim(), 'inspected_by': user.id,
+      });
+      _toast('Inspection saved.');
+    } on PostgrestException catch (e) {
+      _toast('Inspection not saved: ${e.message}');
+    } catch (_) {
+      _toast('Unable to save inspection. Confirm the case is assigned to your department.');
+    } finally {
+      notes.dispose();
+    }
+  }
+
+  Future<void> _runAi(String purpose) async {
+    if (!_staff || _aiBusy) return;
+    setState(() => _aiBusy = true);
+    try {
+      final result = await supabase.functions.invoke('samanvay-case-assistant',
+        body: {'request_id': widget.requestId, 'purpose': purpose});
+      final data = result.data;
+      if (data is! Map || data['assessment'] is! Map) {
+        _toast(data is Map && data['error'] == 'AI_NOT_CONFIGURED'
+          ? 'AI is deployed but needs the OPENAI_API_KEY secret.'
+          : 'No valid assessment returned by the AI service.');
+        return;
+      }
+      final assessment = Map<String,dynamic>.from(data['assessment'] as Map);
+      final assessmentId = data['assessment_id']?.toString();
+      final category = (assessment['category'] ?? 'Not provided').toString();
+      final priority = (assessment['priority_band'] ?? 'Not provided').toString();
+      final confidence = (assessment['confidence'] ?? 'Not provided').toString();
+      final assessmentTitle = switch (purpose) {
+        'summary' => 'AI case summary',
+        'coordination' => 'AI coordination analysis',
+        _ => 'AI case triage',
+      };
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(assessmentTitle),
+          content: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text((assessment['summary'] ?? 'No summary returned.').toString(),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Text('Category: $category'),
+              Text('Priority suggestion: $priority'),
+              Text('Confidence: $confidence'),
+              _arrayText('Suggested departments', assessment['suggested_departments']),
+              _arrayText('Coordination flags', assessment['coordination_flags']),
+              _arrayText('Missing information', assessment['missing_information']),
+              _arrayText('Recommended checks', assessment['recommended_checks']),
+              const SizedBox(height: 10),
+              const Text('Advisory only. Authorised officers must verify information and make official decisions.',
+                style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close')),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'dismissed');
+                },
+                child: const Text('Dismiss suggestion'),
+              ),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'accepted');
+                },
+                child: const Text('Accept suggestion'),
+              ),
+          ],
+        ),
+      );
+    } on FunctionException catch (e) {
+      _toast('AI service unavailable: ${e.reasonPhrase ?? e.status.toString()}');
+    } catch (_) {
+      _toast('AI assessment failed. Check Edge Function and provider configuration.');
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  Future<void> _runCoordinationCheck() async {
+    try {
+      final raw = await supabase.rpc(
+        'run_request_coordination_check',
+        params: {'p_request_id': widget.requestId},
+      );
+      final result = Map<String, dynamic>.from(raw as Map);
+      final possibleOverlap = result['possible_overlap'] == true;
+      final status = (result['assessment_status'] ?? '').toString();
+      final advisory = (result['advisory'] ?? 'No assessment details returned.').toString();
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            possibleOverlap ? Icons.warning_amber_rounded : Icons.info_outline,
+            color: possibleOverlap ? Colors.deepOrange : const Color(0xFF087F83),
+            size: 34,
+          ),
+          title: Text(
+            possibleOverlap
+                ? 'Possible recorded utility proximity'
+                : status == 'completed'
+                    ? 'No recorded overlap detected'
+                    : 'Coordination check incomplete',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(advisory),
+                const SizedBox(height: 12),
+                const Text(
+                  'This check uses only the records currently available to SAMANVAY. It is not a utility-location certificate, permit, site clearance or guarantee of safety. Obtain clearance from utility owners and complete required field verification before work.',
+                  style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Understood'),
+            ),
+          ],
+        ),
+      );
+    } on PostgrestException catch (e) {
+      _toast('Coordination check unavailable: ${e.message}');
+    } catch (_) {
+      _toast('Unable to run the coordination check. Confirm the case location, work radius and access permissions.');
+    }
+  }
+
+  Future<void> _viewCoordinationChecks() async {
+    try {
+      final raw = await supabase.from('case_coordination_checks')
+          .select('assessment_status,possible_overlap,advisory,checked_at')
+          .eq('request_id', widget.requestId)
+          .order('checked_at', ascending: false);
+      if (!mounted) return;
+      final checks = List<Map<String, dynamic>>.from(raw);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * 0.62,
+            child: checks.isEmpty
+                ? const Center(child: Text('No coordination checks have been run for this case.'))
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const Text('COORDINATION CHECK HISTORY',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      ...checks.map((item) {
+                        final overlap = item['possible_overlap'] == true;
+                        final date = DateTime.tryParse(item['checked_at']?.toString() ?? '');
+                        final dateLabel = date == null
+                            ? ''
+                            : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+                        return Card(
+                          child: ListTile(
+                            leading: Icon(
+                              overlap ? Icons.warning_amber_rounded : Icons.fact_check_outlined,
+                              color: overlap ? Colors.deepOrange : const Color(0xFF087F83),
+                            ),
+                            title: Text(overlap
+                                ? 'Possible recorded overlap'
+                                : (item['assessment_status'] == 'completed'
+                                    ? 'No recorded overlap detected'
+                                    : 'Check incomplete')),
+                            subtitle: Text('${item['advisory'] ?? ''}\n$dateLabel'),
+                            isThreeLine: true,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load coordination-check history.');
+    }
+  }
+
+  Future<void> _reviewAiAssessment(String assessmentId, String decision) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !['admin', 'coordinator'].contains(_role)) return;
+    try {
+      await supabase.from('case_ai_assessments').update({
+        'review_status': decision,
+        'reviewed_by': user.id,
+        'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', assessmentId).eq('review_status', 'suggested');
+      _toast(decision == 'accepted'
+        ? 'AI suggestion marked as reviewed and accepted.'
+        : 'AI suggestion dismissed.');
+    } on PostgrestException catch (e) {
+      _toast('Unable to save the review decision: ${e.message}');
+    } catch (_) {
+      _toast('Unable to save the AI review decision.');
+    }
+  }
+
+  Future<void> _viewInspections() async {
+    try {
+      final rows = await supabase.from('case_inspections')
+        .select('inspection_type,outcome,notes,inspected_at')
+        .eq('request_id', widget.requestId)
+        .order('inspected_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .62,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('INSPECTION RECORDS', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: items.isEmpty
+                    ? const Center(child: Text('No inspection records are available.'))
+                    : ListView.builder(
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final date = DateTime.tryParse(item['inspected_at']?.toString() ?? '');
+                          final day = date?.day.toString().padLeft(2, '0') ?? '';
+                          final month = date?.month.toString().padLeft(2, '0') ?? '';
+                          final year = date?.year.toString() ?? '';
+                          final dateLabel = date == null ? '' : '$day/$month/$year';
+                          final outcome = (item['outcome'] ?? '').toString().replaceAll('_', ' ');
+                          final notes = (item['notes'] ?? '').toString();
+                          return ListTile(
+                            leading: const Icon(Icons.fact_check_outlined, color: teal),
+                            title: Text((item['inspection_type'] ?? 'Inspection').toString().replaceAll('_', ' ').toUpperCase()),
+                            subtitle: Text(
+                              '$outcome${dateLabel.isEmpty ? '' : ' · $dateLabel'}\n$notes',
+                            ),
+                            isThreeLine: true,
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load inspections for this case.');
+    }
+  }
+
+  Future<void> _viewTimeline() async {
+    try {
+      final rows = await supabase.from('request_status_history')
+        .select('old_status,new_status,remarks,created_at')
+        .eq('request_id', widget.requestId)
+        .order('created_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: items.isEmpty
+              ? const Center(child: Text('No status history has been recorded yet.'))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text('CASE ACTIVITY', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ...items.map((item) {
+                      final oldStatus = (item['old_status'] ?? 'Created').toString().replaceAll('_', ' ');
+                      final newStatus = (item['new_status'] ?? '').toString().replaceAll('_', ' ');
+                      return ListTile(
+                        leading: const Icon(Icons.timeline, color: teal),
+                        title: Text('$oldStatus → $newStatus'),
+                        subtitle: Text((item['remarks'] ?? 'No remarks').toString()),
+                      );
+                    }),
+                  ],
+                ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load case activity history.');
+    }
+  }
+
+  Widget _arrayText(String label, dynamic raw) {
+    final items = raw is List ? raw.map((x) => x.toString()).toList() : <String>[];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ...items.map((x) => Padding(padding: const EdgeInsets.only(left: 8, top: 3), child: Text('• $x'))),
+      ]),
+    );
+  }
+
+  Widget _bubble(Map<String,dynamic> item, String? uid) {
+    final mine = item['sender_id']?.toString() == uid;
+    final when = DateTime.tryParse(item['created_at']?.toString() ?? '');
+    final hour = when?.hour.toString().padLeft(2,'0') ?? '';
+    final minute = when?.minute.toString().padLeft(2,'0') ?? '';
+    final time = when == null ? '' : '$hour:$minute';
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 310),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        decoration: BoxDecoration(
+          color: mine ? const Color(0xFFDDF7F2) : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: mine ? const Color(0xFFBCEBE3) : const Color(0xFFE3EAF1)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(mine ? 'You' : 'Case participant',
+            style: const TextStyle(fontSize: 9, color: mutedInk, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(item['body']?.toString() ?? '', style: const TextStyle(color: ink)),
+          if (time.isNotEmpty) Align(alignment: Alignment.bottomRight,
+            child: Text(time, style: const TextStyle(fontSize: 9, color: mutedInk))),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = supabase.auth.currentUser?.id;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F6FA),
+      appBar: AppBar(
+        title: Text(widget.requestTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(tooltip: 'View evidence', onPressed: _viewEvidence, icon: const Icon(Icons.attach_file)),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'upload') _upload();
+              if (v == 'view') _viewEvidence();
+              if (v == 'run_check') _runCoordinationCheck();
+              if (v == 'check_history') _viewCoordinationChecks();
+              if (v == 'inspection') _addInspection();
+              if (v == 'inspections') _viewInspections();
+              if (v == 'timeline') _viewTimeline();
+              if (v == 'ai_triage') _runAi('triage');
+              if (v == 'ai_summary') _runAi('summary');
+              if (v == 'ai_coordination') _runAi('coordination');
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
+              const PopupMenuItem(value: 'view', child: Text('View evidence')),
+              const PopupMenuItem(value: 'run_check', child: Text('Run utility coordination check')),
+              const PopupMenuItem(value: 'check_history', child: Text('View coordination-check history')),
+              const PopupMenuItem(value: 'inspections', child: Text('View inspections')),
+              const PopupMenuItem(value: 'timeline', child: Text('Case activity history')),
+              if (_staff) ...[
+                const PopupMenuItem(value: 'inspection', child: Text('Record inspection')),
+                const PopupMenuItem(value: 'ai_triage', child: Text('AI: classify and prioritise case')),
+                const PopupMenuItem(value: 'ai_summary', child: Text('AI: summarise case')),
+                const PopupMenuItem(value: 'ai_coordination', child: Text('AI: coordination risks and missing information')),
+              ],
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(10),
+          color: const Color(0xFFE7F1F7),
+          child: Row(children: [
+            const Icon(Icons.shield_outlined, color: Color(0xFF087F83), size: 18),
+            const SizedBox(width: 8),
+            const Expanded(child: Text(
+              'Case messages and evidence are restricted to authenticated participants.',
+              style: TextStyle(fontSize: 10, color: Color(0xFF42627E)))),
+            if (_uploading || _aiBusy) const SizedBox(width: 15, height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          ]),
+        ),
+        Expanded(
+          child: StreamBuilder<List<Map<String,dynamic>>>(
+            stream: _messages,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('Discussion is unavailable for this account.'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final rows = snapshot.data!;
+              if (rows.isEmpty) return const Center(child: Text('No messages yet. Start the case discussion.'));
+              return ListView.builder(
+                padding: const EdgeInsets.all(14), itemCount: rows.length,
+                itemBuilder: (context, index) => _bubble(rows[index], uid));
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+            color: Colors.white,
+            child: Row(children: [
+              IconButton(tooltip: 'Upload evidence', onPressed: _uploading ? null : _upload,
+                icon: const Icon(Icons.attach_file, color: Color(0xFF087F83))),
+              Expanded(child: TextField(
+                controller: _message, minLines: 1, maxLines: 4, maxLength: 4000,
+                decoration: const InputDecoration(
+                  hintText: 'Write a case message…', counterText: '', isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10)),
+              )),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                onPressed: _sending ? null : _send,
+                icon: _sending
+                  ? const SizedBox(width: 17, height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded)),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// REALTIME USER NOTIFICATIONS
+// ==========================================
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key});
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  late final Stream<List<Map<String,dynamic>>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = supabase.auth.currentUser;
+    _stream = user == null
+      ? Stream.value(<Map<String,dynamic>>[])
+      : supabase.from('user_notifications').stream(primaryKey: ['id'])
+        .eq('recipient_id', user.id).order('created_at', ascending: false);
+  }
+
+  Future<void> _openNotification(Map<String,dynamic> item) async {
+    await _markRead(item);
+    final requestId = item['request_id']?.toString();
+    if (requestId == null || requestId.isEmpty || !mounted) return;
+    var title = 'Infrastructure case';
+    try {
+      final row = await supabase.from('excavation_requests')
+        .select('title').eq('id', requestId).maybeSingle();
+      title = (row?['title'] ?? title).toString();
+    } catch (_) {}
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaseWorkspacePage(
+          requestId: requestId,
+          requestTitle: title,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _markRead(Map<String,dynamic> item) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || item['read_at'] != null) return;
+    try {
+      await supabase.from('user_notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', item['id'].toString()).eq('recipient_id', user.id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to mark notification as read.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: StreamBuilder<List<Map<String,dynamic>>>(
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text('Notifications could not be loaded.'));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final rows = snapshot.data!;
+          final unread = rows.where((x) => x['read_at'] == null).length;
+          if (rows.isEmpty) return const Center(child: Text('You are all caught up.'));
+          final total = rows.length;
+          return ListView(padding: const EdgeInsets.all(14), children: [
+            Text('$unread unread · $total total',
+              style: const TextStyle(color: mutedInk, fontSize: 12, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            ...rows.map((item) {
+              final fresh = item['read_at'] == null;
+              final date = DateTime.tryParse(item['created_at']?.toString() ?? '');
+              final day = date?.day.toString().padLeft(2,'0') ?? '';
+              final month = date?.month.toString().padLeft(2,'0') ?? '';
+              final year = date?.year.toString() ?? '';
+              final dateText = date == null ? '' : '$day/$month/$year';
+              final notificationBody = (item['body'] ?? '').toString();
+              final type = (item['notification_type'] ?? '').toString();
+              final icon = switch (type) {
+                'assignment' => Icons.account_tree_outlined,
+                'review' => Icons.rate_review_outlined,
+                'status' => Icons.sync_alt,
+                'message' => Icons.forum_outlined,
+                _ => Icons.notifications_outlined,
+              };
+              return Card(
+                color: fresh ? const Color(0xFFEAF8F6) : Colors.white,
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: fresh ? const Color(0xFFD1F0EA) : const Color(0xFFEAF0F5),
+                    child: Icon(icon, color: const Color(0xFF087F83))),
+                  title: Text(item['title']?.toString() ?? 'SAMANVAY update',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('$notificationBody\n$dateText'),
+                  isThreeLine: true,
+                  trailing: fresh
+                    ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
+                    : const Icon(Icons.check, color: mutedInk, size: 18),
+                  onTap: () => _openNotification(item),
+                ),
+              );
+            }),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
+// ==========================================
+// ADMINISTRATION CONSOLE
+// ==========================================
+class AdminManagementPage extends StatefulWidget {
+  const AdminManagementPage({super.key});
+  @override
+  State<AdminManagementPage> createState() => _AdminManagementPageState();
+}
+
+class _AdminManagementPageState extends State<AdminManagementPage> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _audit = [];
+  List<Map<String, dynamic>> _routes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _toast(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final userRows = await supabase.rpc('admin_user_directory');
+      final departmentRows = await supabase.from('departments')
+          .select('id,name,description').order('name');
+      final auditRows = await supabase.from('admin_audit_events')
+          .select('event_type,details,created_at')
+          .order('created_at', ascending: false).limit(40);
+      final routeRows = await supabase.from('department_service_domains')
+          .select('department_id,case_category,route_priority')
+          .order('case_category');
+      if (!mounted) return;
+      setState(() {
+        _users = List<Map<String, dynamic>>.from(userRows as List);
+        _departments = List<Map<String, dynamic>>.from(departmentRows);
+        _audit = List<Map<String, dynamic>>.from(auditRows);
+        _routes = List<Map<String, dynamic>>.from(routeRows);
+        _loading = false;
+      });
+    } on PostgrestException catch (error) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = error.message; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load administration records. Verify administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _editUser(Map<String, dynamic> user) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final userId = user['user_id'].toString();
+    if (userId == currentUserId) {
+      _toast('Your own administrator role cannot be changed here.');
+      return;
+    }
+
+    String selectedRole = (user['role'] ?? 'requester').toString();
+    String? selectedDepartment = user['department_id']?.toString();
+    if (selectedRole == 'department' && selectedDepartment == null && _departments.isNotEmpty) {
+      selectedDepartment = _departments.first['id'].toString();
+    }
+
+    final result = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Update account access'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((user['display_name'] ?? 'SAMANVAY user').toString(),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(
+                  'Account reference: ${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
+                  style: const TextStyle(fontSize: 10, color: mutedInk),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Platform role', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'requester', child: Text('Requester')),
+                    DropdownMenuItem(value: 'department', child: Text('Department officer')),
+                    DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                    DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() {
+                      selectedRole = value;
+                      if (value != 'department') selectedDepartment = null;
+                      if (value == 'department' && _departments.isNotEmpty) {
+                        selectedDepartment ??= _departments.first['id'].toString();
+                      }
+                    });
+                  },
+                ),
+                if (selectedRole == 'department') ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedDepartment,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Assigned department', border: OutlineInputBorder()),
+                    items: _departments.map((item) => DropdownMenuItem<String>(
+                      value: item['id'].toString(),
+                      child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) => setDialogState(() => selectedDepartment = value),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Changes are checked and recorded by the database. Users cannot assign roles to themselves.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: selectedRole == 'department' && selectedDepartment == null
+                ? null
+                : () => Navigator.pop(dialogContext, {
+                    'role': selectedRole,
+                    'department_id': selectedDepartment,
+                  }),
+              child: const Text('Save access'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    try {
+      await supabase.rpc('admin_update_profile_role', params: {
+        'p_user_id': userId,
+        'p_role': result['role'],
+        'p_department_id': result['department_id'],
+      });
+      _toast('Account access updated and audit entry recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Access update rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to update account access.');
+    }
+  }
+
+  Future<void> _addDepartment() async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add department / routing group'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'Department name', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(labelText: 'Description / responsibility', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Use the official department name for the relevant city/state jurisdiction. Creating a routing group does not establish statutory authority.',
+                style: TextStyle(fontSize: 11, color: mutedInk),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, nameController.text.trim().isNotEmpty),
+            child: const Text('Create department'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        await supabase.rpc('admin_create_department', params: {
+          'p_name': nameController.text.trim(),
+          'p_description': descriptionController.text.trim(),
+        });
+        _toast('Department added.');
+        await _load();
+      } on PostgrestException catch (error) {
+        _toast('Department not created: ${error.message}');
+      } catch (_) {
+        _toast('Unable to create department.');
+      }
+    }
+    nameController.dispose();
+    descriptionController.dispose();
+  }
+
+
+  Future<void> _manageServiceRoute() async {
+    if (_departments.isEmpty) {
+      _toast('Create a department before configuring a service route.');
+      return;
+    }
+    const categories = <String, String>{
+      'road_reconstruction': 'Road reconstruction',
+      'water_supply': 'Water supply',
+      'sewerage': 'Sewerage',
+      'stormwater_drainage': 'Stormwater and drainage',
+      'electricity': 'Electricity',
+      'telecom': 'Telecommunications',
+      'gas': 'Gas network',
+      'borewell_groundwater': 'Borewell and groundwater',
+      'building_planning': 'Building planning / regulation',
+      'public_health_engineering': 'Public health engineering',
+      'other': 'Other infrastructure issue',
+    };
+    String category = categories.keys.first;
+    String departmentId = _departments.first['id'].toString();
+    String priority = 'primary';
+    bool enabled = true;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Configure service routing'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Infrastructure domain'),
+                  items: categories.entries.map((entry) => DropdownMenuItem<String>(
+                    value: entry.key, child: Text(entry.value),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Department / routing group'),
+                  items: _departments.map((item) => DropdownMenuItem<String>(
+                    value: item['id'].toString(),
+                    child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => departmentId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(labelText: 'Suggestion level'),
+                  items: const [
+                    DropdownMenuItem(value: 'primary', child: Text('Primary suggestion')),
+                    DropdownMenuItem(value: 'supporting', child: Text('Supporting department')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => priority = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: enabled,
+                  title: const Text('Enable this routing suggestion'),
+                  onChanged: (value) => setDialogState(() => enabled = value),
+                ),
+                const Text(
+                  'This configures a suggestion only. It does not automatically assign a case or establish statutory authority.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save routing')),
+          ],
+        ),
+      ),
+    );
+    if (save != true) return;
+    try {
+      await supabase.rpc('admin_set_service_domain_route', params: {
+        'p_department_id': departmentId,
+        'p_case_category': category,
+        'p_route_priority': priority,
+        'p_enabled': enabled,
+      });
+      _toast('Service routing updated and audit event recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Routing update rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to update service routing.');
+    }
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: navy)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: const TextStyle(fontSize: 11, color: mutedInk)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Administration'),
+        actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0B1728), Color(0xFF14515E)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 30),
+                  SizedBox(height: 10),
+                  Text('PLATFORM GOVERNANCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                  SizedBox(height: 5),
+                  Text(
+                    'Manage platform access, routing groups and audit history. Statutory authority remains with the responsible government organisation.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (_error != null)
+              Card(child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              )),
+            if (_loading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(28), child: CircularProgressIndicator(),
+              ))
+            else ...[
+              _sectionTitle('User and access directory', '${_users.length} account(s)'),
+              ..._users.map((user) {
+                final isSelf = user['user_id']?.toString() == currentUserId;
+                final role = (user['role'] ?? 'requester').toString();
+                final name = (user['display_name'] ?? 'SAMANVAY user').toString();
+                final dept = user['department_name']?.toString();
+                final subtitle = '${role.toUpperCase()}'
+                  '${dept == null ? '' : ' · $dept'}'
+                  '${isSelf ? ' · CURRENT ACCOUNT' : ''}';
+                final icon = role == 'admin' ? Icons.admin_panel_settings_outlined :
+                  role == 'coordinator' ? Icons.hub_outlined :
+                  role == 'department' ? Icons.account_tree_outlined : Icons.person_outline;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFE7F8F6),
+                      child: Icon(icon, color: const Color(0xFF087F83)),
+                    ),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(subtitle, style: const TextStyle(fontSize: 10)),
+                    trailing: IconButton(
+                      tooltip: isSelf ? 'Own role is locked' : 'Edit role and department',
+                      onPressed: isSelf ? null : () => _editUser(user),
+                      icon: Icon(isSelf ? Icons.lock_outline : Icons.edit_outlined),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Departments and routing groups', '${_departments.length} group(s)')),
+                  FilledButton.icon(
+                    onPressed: _addDepartment,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                  ),
+                ],
+              ),
+              ..._departments.map((department) => Card(
+                margin: const EdgeInsets.only(bottom: 7),
+                child: ListTile(
+                  leading: const Icon(Icons.account_tree_outlined, color: Color(0xFF087F83)),
+                  title: Text(department['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(
+                    (department['description'] ?? 'No description recorded').toString(),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Case-domain routing', '${_routes.length} suggestion(s)')),
+                  FilledButton.icon(
+                    onPressed: _manageServiceRoute,
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text('Configure'),
+                  ),
+                ],
+              ),
+              ..._routes.map((route) {
+                final department = _departments.firstWhere(
+                  (item) => item['id'].toString() == route['department_id'].toString(),
+                  orElse: () => {'name': 'Unknown department'},
+                );
+                final categoryName = route['case_category'].toString().replaceAll('_', ' ').toUpperCase();
+                final priorityName = route['route_priority'] == 'primary' ? 'PRIMARY' : 'SUPPORTING';
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.route_outlined, color: Color(0xFF087F83)),
+                    title: Text(department['name'].toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('$categoryName · $priorityName',
+                      style: const TextStyle(fontSize: 10)),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              _sectionTitle('Administrative audit trail', '${_audit.length} recent event(s)'),
+              if (_audit.isEmpty)
+                const Card(child: Padding(
+                  padding: EdgeInsets.all(15),
+                  child: Text('No administrative changes have been recorded yet.'),
+                ))
+              else
+                ..._audit.map((event) {
+                  final details = event['details'] is Map
+                    ? Map<String, dynamic>.from(event['details'] as Map)
+                    : <String, dynamic>{};
+                  final when = DateTime.tryParse(event['created_at']?.toString() ?? '');
+                  final dateText = when == null ? '' :
+                    '${when.day.toString().padLeft(2, '0')}/${when.month.toString().padLeft(2, '0')}/${when.year}';
+                  final type = (event['event_type'] ?? '').toString();
+                  final label = type == 'profile_role_changed'
+                    ? 'Account role / department updated'
+                    : 'Department routing group created';
+                  final detail = (details['department_name'] ?? details['new_role'] ?? '').toString();
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.history, color: mutedInk),
+                      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('$detail${dateText.isEmpty ? '' : ' · $dateText'}'),
+                    ),
+                  );
+                }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+).hasMatch(refValue);
+                  if (!dateOk || orgValue.length < 3 || !refOk || notesValue.length > 1000) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Enter a valid date, organisation and evidence reference code.')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(dialogContext, {
+                    'survey_method': method,
+                    'survey_date': dateValue,
+                    'surveyor_organisation': orgValue,
+                    'evidence_reference_code': refValue,
+                    'notes': notesValue,
+                  });
+                },
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      date.dispose();
+      organisation.dispose();
+      reference.dispose();
+      notes.dispose();
+    }
+  }
+
+  Future<void> _recordEvidence(Map<String, dynamic> asset) async {
+    if (busy) return;
+    final metadata = await _collectMetadata();
+    if (metadata == null || !mounted) return;
+
+    setState(() => busy = true);
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      );
+      if (file == null) return;
+
+      final fileSize = file.lengthSync() ?? await file.length();
+      if (fileSize == null || fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
+        throw StateError('Select a readable, non-empty reference document no larger than 20 MB.');
+      }
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('The selected file is empty.');
+      // The bytes are hashed on this device only; they are never uploaded or sent.
+      final checksum = sha256.convert(bytes).toString();
+
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-evidence',
+        body: {
+          'action': 'submit',
+          'asset_id': asset['asset_id'].toString(),
+          ...metadata,
+          'evidence_sha256': checksum,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw StateError('Evidence metadata was not accepted.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Evidence reference and checksum recorded. Original file remains on your device / department system.'),
+        ),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Evidence reference could not be recorded. Check the asset assignment, date, reference code and file selection.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Widget _assetCard(Map<String, dynamic> row) {
+    final status = (row['verification_status'] ?? 'unverified').toString();
+    final rawEvidence = row['evidence'] is List ? row['evidence'] as List : const [];
+    final evidence = rawEvidence
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(child: Text(
+                (row['asset_type'] ?? 'unknown').toString().toUpperCase(),
+                style: const TextStyle(fontWeight: FontWeight.w900, color: navy),
+              )),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _statusColor(status),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  status.replaceAll('_', ' ').toUpperCase(),
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: navy),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Submission created: ${_date(row['created_at'])} · Evidence references: ${row['evidence_count'] ?? 0}',
+              style: const TextStyle(fontSize: 11, color: mutedInk),
+            ),
+            if (evidence.isNotEmpty)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(left: 8, right: 8, bottom: 6),
+                title: const Text('Recorded survey references', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                subtitle: Text('${evidence.length} reference record(s)'),
+                children: evidence.map((item) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text((item['evidence_reference_code'] ?? 'Reference').toString()),
+                  subtitle: Text(
+                    '${methods[item['survey_method']] ?? item['survey_method']} · ${_date(item['survey_date'])}\nSHA-256: ${(item['evidence_sha256'] ?? '').toString()}',
+                    style: const TextStyle(fontSize: 9, color: mutedInk),
+                  ),
+                )).toList(),
+              ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: busy ? null : () => _recordEvidence(row),
+                icon: const Icon(Icons.fingerprint_outlined),
+                label: const Text('Record another survey evidence reference'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Department survey evidence'),
+        actions: [
+          IconButton(
+            onPressed: loading || busy ? null : _load,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('OWNER-DEPARTMENT EVIDENCE REGISTER', style: TextStyle(fontWeight: FontWeight.w900, color: navy)),
+                          SizedBox(height: 7),
+                          Text(
+                            'Select an eligible submission, enter its survey details and choose the source document so its SHA-256 checksum can be calculated locally. The document itself is not uploaded. SAMANVAY stores only the reference code, checksum and non-sensitive metadata.',
+                            style: TextStyle(fontSize: 11, color: mutedInk, height: 1.45),
+                          ),
+                          SizedBox(height: 7),
+                          Text(
+                            'Keep the original file in your department’s authorised records system. Do not submit utility maps, coordinates, routes, depths or excavation-clearance information here.',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF9A6700), height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (errorMessage.isNotEmpty)
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(errorMessage),
+                    ))
+                  else if (assets.isEmpty)
+                    const Card(child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text(
+                        'No eligible asset submissions are currently assigned to this department. Asset registration must be submitted by an authorised owner account first.',
+                        style: TextStyle(height: 1.4),
+                      ),
+                    ))
+                  else ...[
+                    Text('${assets.length} eligible submission(s)', style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                    const SizedBox(height: 9),
+                    ...assets.map(_assetCard),
+                  ],
+                  if (busy)
+                    const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                ],
+              ),
+            ),
+    );
+  }
+}
 
 class UtilityAssetVerificationPage extends StatefulWidget {
   const UtilityAssetVerificationPage({super.key});
