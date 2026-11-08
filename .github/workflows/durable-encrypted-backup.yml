@@ -1,0 +1,203 @@
+name: SAMANVAY Durable Encrypted Database Archive
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/alpha-03-integrated-platform
+    paths:
+      - '.github/workflows/durable-encrypted-backup.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: samanvay-durable-encrypted-backup
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    name: Encrypt, publish and verify durable GitHub Release archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Validate existing secrets without printing them
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_DB_HOST SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD BACKUP_ENCRYPTION_PASSPHRASE; do
+            test -n "${!name}" || { echo "::error::Missing required secret: $name"; exit 1; }
+          done
+          test "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 32
+          echo "Secret presence and minimum passphrase length verified."
+
+      - name: Create fresh PostgreSQL custom-format backup
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
+          PGCONNECT_TIMEOUT: "30"
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/samanvay-durable"
+          docker run --rm \
+            -e SUPABASE_DB_HOST -e SUPABASE_PROJECT_REF -e SUPABASE_DB_PASSWORD \
+            -e PGSSLMODE -e PGCONNECT_TIMEOUT \
+            -v "$RUNNER_TEMP/samanvay-durable:/backup" \
+            postgres:18-alpine sh -euc '
+              export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+              pg_dump --host="$SUPABASE_DB_HOST" --port=5432 \
+                --username="postgres.$SUPABASE_PROJECT_REF" --dbname=postgres \
+                --format=custom --no-owner --no-acl --file=/backup/samanvay.dump
+              pg_restore --list /backup/samanvay.dump >/backup/archive-contents.txt
+            '
+          test -s "$RUNNER_TEMP/samanvay-durable/samanvay.dump"
+          echo "Fresh database dump created and PostgreSQL archive catalogue validated."
+
+      - name: Encrypt dump and create integrity manifest
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          export BACKUP_DIR="$RUNNER_TEMP/samanvay-durable"
+          python3 -m venv "$RUNNER_TEMP/archive-venv"
+          "$RUNNER_TEMP/archive-venv/bin/pip" install --quiet --disable-pip-version-check 'cryptography==45.0.7'
+          "$RUNNER_TEMP/archive-venv/bin/python" - <<'PY'
+          import base64, hashlib, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from cryptography.fernet import Fernet
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          folder = Path(os.environ["BACKUP_DIR"])
+          raw_path = folder / "samanvay.dump"
+          raw = raw_path.read_bytes()
+          salt = os.urandom(16)
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600000)
+          key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
+          target = folder / "SAMANVAY-database.dump.fernet"
+          target.write_bytes(b"SAM2" + salt + Fernet(key).encrypt(raw))
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          (folder / "SHA256SUM").write_text(f"{digest}  {target.name}\\n")
+          (folder / "BACKUP-METADATA.txt").write_text(
+              "SAMANVAY encrypted PostgreSQL backup\\n"
+              f"Created UTC: {datetime.now(timezone.utc).isoformat()}\\n"
+              f"Encrypted bytes: {target.stat().st_size}\\n"
+              f"SHA-256: {digest}\\n"
+              "Encryption: Fernet / PBKDF2-HMAC-SHA256, 600000 iterations\\n"
+              "Archive contains database content; no decryption secret is included.\\n"
+          )
+          raw_path.unlink()
+          print(f"Encrypted backup created: {target.stat().st_size} bytes.")
+          PY
+          test ! -e "$RUNNER_TEMP/samanvay-durable/samanvay.dump"
+
+      - name: Verify encryption, checksum and PostgreSQL format before publication
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          export VERIFY_DIR="$RUNNER_TEMP/samanvay-durable"
+          "$RUNNER_TEMP/archive-venv/bin/python" - <<'PY'
+          import base64, hashlib, os
+          from pathlib import Path
+          from cryptography.fernet import Fernet
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          folder = Path(os.environ["VERIFY_DIR"])
+          encrypted = folder / "SAMANVAY-database.dump.fernet"
+          expected = (folder / "SHA256SUM").read_text().split()[0]
+          if hashlib.sha256(encrypted.read_bytes()).hexdigest() != expected:
+              raise SystemExit("SHA-256 mismatch before publication.")
+          payload = encrypted.read_bytes()
+          if payload[:4] != b"SAM2":
+              raise SystemExit("Unknown archive envelope.")
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=payload[4:20], iterations=600000)
+          key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
+          raw = Fernet(key).decrypt(payload[20:])
+          if not raw.startswith(b"PGDMP"):
+              raise SystemExit("Decrypted payload is not a PostgreSQL custom-format dump.")
+          (folder / "verified.dump").write_bytes(raw)
+          print(f"PASS: local checksum and decryption verified ({len(raw)} dump bytes).")
+          PY
+          docker run --rm -v "$RUNNER_TEMP/samanvay-durable:/backup" postgres:18-alpine pg_restore --list /backup/verified.dump >/dev/null
+          rm -f "$RUNNER_TEMP/samanvay-durable/verified.dump"
+          echo "PASS: PostgreSQL archive catalogue verified."
+
+      - name: Publish encrypted archive as a durable GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: samanvay-db-archive-${{ github.run_id }}
+          name: SAMANVAY Encrypted Database Archive ${{ github.run_number }}
+          body: |
+            Encrypted off-site PostgreSQL archive for SAMANVAY.
+            - Encrypted before upload; no plaintext dump or decryption secret is published.
+            - SHA-256 manifest and metadata included.
+            - Restore drill is tracked separately in GitHub Actions.
+            - Archive includes PostgreSQL database content, not Supabase Storage objects, project settings or external API secrets.
+            - Keep the existing BACKUP_ENCRYPTION_PASSPHRASE secret safe; losing it makes this archive unrecoverable.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            ${{ runner.temp }}/samanvay-durable/SAMANVAY-database.dump.fernet
+            ${{ runner.temp }}/samanvay-durable/SHA256SUM
+            ${{ runner.temp }}/samanvay-durable/BACKUP-METADATA.txt
+
+      - name: Download release asset and verify the published copy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          TAG="samanvay-db-archive-${{ github.run_id }}"
+          mkdir -p "$RUNNER_TEMP/published-archive"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/published-archive" \
+            --pattern 'SAMANVAY-database.dump.fernet' \
+            --pattern 'SHA256SUM' \
+            --pattern 'BACKUP-METADATA.txt'
+          cd "$RUNNER_TEMP/published-archive"
+          sha256sum -c SHA256SUM
+          export VERIFY_DIR="$PWD"
+          "$RUNNER_TEMP/archive-venv/bin/python" - <<'PY'
+          import base64, os
+          from pathlib import Path
+          from cryptography.fernet import Fernet
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+          folder = Path(os.environ["VERIFY_DIR"])
+          payload = (folder / "SAMANVAY-database.dump.fernet").read_bytes()
+          if payload[:4] != b"SAM2":
+              raise SystemExit("Unknown published archive format.")
+          kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=payload[4:20], iterations=600000)
+          key = base64.urlsafe_b64encode(kdf.derive(os.environ["BACKUP_ENCRYPTION_PASSPHRASE"].encode()))
+          raw = Fernet(key).decrypt(payload[20:])
+          if not raw.startswith(b"PGDMP"):
+              raise SystemExit("Published archive did not decrypt to PostgreSQL custom format.")
+          (folder / "published-verified.dump").write_bytes(raw)
+          print(f"PASS: published release asset downloaded and decrypted ({len(raw)} dump bytes).")
+          PY
+          docker run --rm -v "$RUNNER_TEMP/published-archive:/backup" postgres:18-alpine pg_restore --list /backup/published-verified.dump >/dev/null
+          echo "PASS: durable GitHub Release asset verified after download."
+
+      - name: Publish verification summary
+        if: success()
+        run: |
+          {
+            echo "## SAMANVAY durable encrypted archive — PASS"
+            echo ""
+            echo "- Destination: GitHub Release asset (persistent release storage)"
+            echo "- Protection: Fernet encryption derived from the existing GitHub secret"
+            echo "- Verification: local checksum, decryption, pg_restore catalogue, published-asset download, checksum and decryption"
+            echo "- No plaintext database dump was uploaded."
+            echo "- This is an encrypted backup archive, not a queryable telemetry warehouse."
+            echo "- Supabase Storage objects and project settings are not included."
+          } >> "$GITHUB_STEP_SUMMARY"
