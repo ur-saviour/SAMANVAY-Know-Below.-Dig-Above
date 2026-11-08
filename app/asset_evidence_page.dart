@@ -194,11 +194,12 @@ class _UtilityAssetEvidenceSubmissionPageState
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       );
       if (file == null) return;
-      if (file.size <= 0 || file.size > 20 * 1024 * 1024) {
+      final fileSize = file.lengthSync() ?? await file.length();
+      if (fileSize == null || fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
         throw StateError('Select a non-empty reference document no larger than 20 MB.');
       }
       final bytes = await file.readAsBytes();
-      if (bytes.isEmpty || bytes.length != file.size) {
+      if (bytes.isEmpty || bytes.length != fileSize) {
         throw StateError('The selected file could not be read completely.');
       }
 
