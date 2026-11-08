@@ -5185,7 +5185,7 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
         return;
       }
       final rows = await supabase.from('utility_asset_verification_queue')
-          .select('asset_id,asset_type,owner_department,operational_status,source_type,verification_status,surveyed_at,surveyed_by_org,verified_at,verification_notes,evidence_count,created_at')
+          .select('asset_id,asset_type,owner_department,operational_status,source_type,verification_status,surveyed_at,surveyed_by_org,verified_at,verification_notes,evidence_count,created_at,import_run_id,source_title,source_organisation,authorization_reference,source_url,import_status')
           .order('created_at', ascending: false).limit(300);
       if (!mounted) return;
       setState(() {
@@ -5321,6 +5321,21 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                   if ((row['surveyed_by_org'] ?? '').toString().isNotEmpty)
                                     Text('Survey organisation: ' + row['surveyed_by_org'].toString(),
                                       style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_title'] ?? '').toString().isNotEmpty)
+                                    Text('Submitted source: ' + row['source_title'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_organisation'] ?? '').toString().isNotEmpty)
+                                    Text('Source organisation: ' + row['source_organisation'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['authorization_reference'] ?? '').toString().isNotEmpty)
+                                    Text('Authority reference: ' + row['authorization_reference'].toString(),
+                                      style: const TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['import_status'] ?? '').toString().isNotEmpty)
+                                    Text('Import audit: ' + row['import_status'].toString().replaceAll('_', ' ').toUpperCase(),
+                                      style: const TextStyle(fontSize: 10, color: Color(0xFF9A6700), fontWeight: FontWeight.w700)),
+                                  if ((row['import_run_id'] ?? '').toString().isNotEmpty)
+                                    Text('Audit run: ' + row['import_run_id'].toString(),
+                                      style: const TextStyle(fontSize: 9, color: mutedInk)),
                                   if ((row['verification_notes'] ?? '').toString().isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 6),
