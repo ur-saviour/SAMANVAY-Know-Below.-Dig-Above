@@ -1714,6 +1714,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             const SizedBox(height: 16),
             const NationalDataCoverageBoard(),
             const SizedBox(height: 16),
+            const BuildingApprovalRegisterBoard(),
+            const SizedBox(height: 16),
             const GroundwaterTelemetryDashboard(),
             const SizedBox(height: 16),
             GroundwaterObservationBoard(
@@ -4142,6 +4144,7 @@ class GroundwaterTelemetryDashboard extends StatefulWidget {
 class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDashboard> {
   List<Map<String, dynamic>> jurisdictions = [];
   List<Map<String, dynamic>> stations = [];
+  List<Map<String, dynamic>> districtAssessments = [];
   Map<String, dynamic>? assessment;
   String? selectedStateId;
   String selectedStateName = 'Tamil Nadu';
@@ -4172,10 +4175,20 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
       final rawAssessment = await supabase.from('groundwater_state_assessments')
           .select('assessment_year,agency,total_annual_recharge_bcm,annual_extractable_resource_bcm,total_annual_extraction_bcm,stage_of_extraction_pct,source_document_url,source_reference')
           .eq('state_ut_id', nextId).order('assessment_year', ascending: false).limit(1);
+      final rawDistrictAssessments = await supabase
+          .from('groundwater_resource_assessments')
+          .select('district_name,total_annual_recharge_ham,annual_extractable_resource_ham,annual_extraction_ham,stage_of_extraction_pct,source_reference,source_document_url')
+          .eq('state_name', stateName)
+          .eq('assessment_year', 2025)
+          .eq('geography_level', 'district')
+          .ilike('source_reference', 'National Compilation on Dynamic Ground Water Resources of India, 2025, Annexure II%')
+          .order('stage_of_extraction_pct', ascending: false)
+          .limit(100);
       if (!mounted) return;
       setState(() {
         jurisdictions = loaded; selectedStateId = nextId; selectedStateName = stateName;
         stations = List<Map<String, dynamic>>.from(rawStations);
+        districtAssessments = List<Map<String, dynamic>>.from(rawDistrictAssessments);
         assessment = rawAssessment.isEmpty ? null : Map<String, dynamic>.from(rawAssessment.first);
         loading = false;
       });
@@ -4206,6 +4219,22 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: navy)),
       ])));
+
+  Widget _districtAssessmentTile(Map<String, dynamic> district) {
+    final name = (district['district_name'] ?? 'District not named').toString();
+    final recharge = _number(district['total_annual_recharge_ham'], digits: 0);
+    final extractable = _number(district['annual_extractable_resource_ham'], digits: 0);
+    final extraction = _number(district['annual_extraction_ham'], digits: 0);
+    final stage = _number(district['stage_of_extraction_pct'], suffix: '%');
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+      subtitle: Text('Recharge $recharge ha.m · Extractable $extractable ha.m · Extraction $extraction ha.m',
+        style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+      trailing: Text(stage, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: ink)),
+    );
+  }
 
   Widget _stationTile(Map<String, dynamic> station) {
     final name = (station['station_name'] ?? 'Unnamed station').toString();
@@ -4254,6 +4283,25 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
             const SizedBox(width: 8),
             _metric('Annual extraction', assessment == null ? 'Not reported' : _number(assessment?['total_annual_extraction_bcm'], suffix: ' BCM')),
           ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            const Expanded(child: Text('CGWB 2025 district resource assessments', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
+            Text('${districtAssessments.length} districts', style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          ]),
+          const Text('Official CGWB Annexure II values · hectare-metres (ha.m). These are annual resource assessments, not live readings or individual borewell permissions.',
+            style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          if (districtAssessments.isEmpty)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No Annexure II district rows are currently registered for this jurisdiction. This is a coverage gap, not evidence that district assessments do not exist.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)))
+          else ...[
+            const SizedBox(height: 5),
+            ...districtAssessments.take(6).map(_districtAssessmentTile),
+            if (districtAssessments.length > 6)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text('Show remaining ${districtAssessments.length - 6} districts', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                children: districtAssessments.skip(6).map(_districtAssessmentTile).toList(),
+              ),
+          ],
           const SizedBox(height: 12),
           Row(children: [
             const Expanded(child: Text('Published monitoring stations', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
@@ -5558,6 +5606,133 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
         icon: const Icon(Icons.open_in_new),
         label: const Text('Open official LGD report generator'),
       ),
+    ]),
+  );
+}
+
+
+class BuildingApprovalRegisterBoard extends StatefulWidget {
+  const BuildingApprovalRegisterBoard({super.key});
+
+  @override
+  State<BuildingApprovalRegisterBoard> createState() => _BuildingApprovalRegisterBoardState();
+}
+
+class _BuildingApprovalRegisterBoardState extends State<BuildingApprovalRegisterBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase
+          .from('building_approval_public_register_records')
+          .select('authority,jurisdiction,source_document_title,source_url,approval_status,approved_floor_count,approved_height_m')
+          .limit(3000);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Public building approval register summary is unavailable for this account.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusCounts = <String, int>{};
+    for (final row in records) {
+      final status = (row['approval_status'] ?? 'Status not supplied').toString();
+      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+    }
+    final floorValues = records.where((r) => r['approved_floor_count'] != null).length;
+    final heightValues = records.where((r) => r['approved_height_m'] != null).length;
+    final sourceUrl = records.isNotEmpty ? (records.first['source_url'] ?? '').toString() : '';
+    final authority = records.isNotEmpty ? (records.first['authority'] ?? 'Authority not supplied').toString() : 'Municipal Corporation of Delhi';
+    final jurisdiction = records.isNotEmpty ? (records.first['jurisdiction'] ?? 'Jurisdiction not supplied').toString() : 'Delhi, India';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.apartment_outlined, color: Color(0xFF087F83)),
+            const SizedBox(width: 9),
+            const Expanded(child: Text('Public building-approval register', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh public approval register'),
+          ]),
+          const Text('Official published plan-release records imported into SAMANVAY. This is not a nationwide permit registry.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
+          else ...[
+            const SizedBox(height: 9),
+            Row(children: [
+              Expanded(child: _approvalMetric('Records', records.length.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Jurisdiction', jurisdiction)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _approvalMetric('Official floor values', floorValues.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Official height values', heightValues.toString())),
+            ]),
+            const SizedBox(height: 8),
+            Text('$authority · $jurisdiction', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: navy)),
+            const SizedBox(height: 4),
+            ...statusCounts.entries.map((entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 10, color: Colors.blueGrey))),
+                Text(entry.value.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy)),
+              ]),
+            )),
+            const SizedBox(height: 6),
+            const Text('Source status is preserved as published. No sanctioned floors, building heights, parcel locations or legal compliance conclusions are inferred from missing fields.', style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            if (sourceUrl.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(sourceUrl);
+                    if (uri != null && await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 15),
+                  label: const Text('Open original authority register'),
+                ),
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _approvalMetric(String label, String value) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: const Color(0xFFF1F7FA), borderRadius: BorderRadius.circular(12)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 9, color: Colors.blueGrey)),
+      const SizedBox(height: 3),
+      Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy)),
     ]),
   );
 }
