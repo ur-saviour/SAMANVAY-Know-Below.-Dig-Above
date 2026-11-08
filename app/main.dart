@@ -8544,8 +8544,8 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
-      // In underground 3D mode, show only generalised 250 m density cells.
-      // Extrusion height is a relative visual index, never physical pipe depth.
+      // Generalised 250 m density cells can be extruded in underground 3D mode.
+      // Extrusion height is a relative density index, never physical depth or a pipe route.
       layerIds = await controller.getLayerIds();
       if (!layerIds.contains('samanvay-utility-overview-3d')) {
         await controller.addFillExtrusionLayer(
@@ -8568,16 +8568,18 @@ class _MapPageState extends State<MapPage> {
       }
 
       layerIds = await controller.getLayerIds();
+      final showDensityExtrusion =
+          _showUtilityZones && _undergroundMode && _is3D;
       if (layerIds.contains('samanvay-utility-overview-cells')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-cells',
-          _showUtilityZones,
+          _showUtilityZones && !showDensityExtrusion,
         );
       }
       if (layerIds.contains('samanvay-utility-overview-3d')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-3d',
-          false,
+          showDensityExtrusion,
         );
       }
 
@@ -9178,7 +9180,7 @@ class _MapPageState extends State<MapPage> {
       if (layers.contains('samanvay-utility-overview-3d')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-3d',
-          false,
+          _showUtilityZones && _undergroundMode && use3D,
         );
       }
     } catch (_) {
@@ -9682,7 +9684,7 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
           const SizedBox(height: 5),
-          const Text('CONCEPTUAL SYSTEM LAYERS · NOT TO SCALE',
+          const Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
             style: TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           ...layers.map((layer) => Padding(
@@ -9717,7 +9719,7 @@ class _MapPageState extends State<MapPage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'The coloured bands are a visual guide, not georeferenced assets. Only authorised, generalised coverage cells and published groundwater stations are plotted. No pipe route or physical depth is inferred.',
+            '3D blocks show relative aggregate density inside generalized coverage cells. They are not pipes, surveyed alignments, asset depths or excavation-clearance data. Owner-authorised geometry is a separate restricted layer.',
             style: TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35),
           ),
         ],
