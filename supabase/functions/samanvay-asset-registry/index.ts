@@ -171,7 +171,7 @@ function sha256Hex(bytes: Uint8Array): Promise<string> {
   );
 }
 
-async function registerBatch(config: ReturnType<typeof keys>, actorId: string, assets: Json[]): Promise<Json> {
+async function registerBatch(config: ReturnType<typeof keys>, actorId: string, assets: Json[], runId: string): Promise<Json> {
   const response = await fetch(config.url + "/rest/v1/rpc/register_underground_assets_batch_server", {
     method: "POST",
     headers: {
@@ -179,7 +179,7 @@ async function registerBatch(config: ReturnType<typeof keys>, actorId: string, a
       Authorization: "Bearer " + config.secret,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ p_actor_id: actorId, p_assets: assets }),
+    body: JSON.stringify({ p_actor_id: actorId, p_assets: assets, p_import_run_id: runId }),
     signal: AbortSignal.timeout(60000),
   });
   if (!response.ok) {
@@ -323,7 +323,7 @@ Deno.serve(async (request: Request) => {
   let auditError = "All records were rejected by server-side validation.";
   try {
     if (prepared.length > 0) {
-      const result = await registerBatch(config, authUser.id, prepared);
+      const result = await registerBatch(config, authUser.id, prepared, runId);
       const batchImported = Number(result.imported ?? 0);
       const batchFailed = Number(result.failed ?? 0);
       if (!Number.isSafeInteger(batchImported) || !Number.isSafeInteger(batchFailed) ||
