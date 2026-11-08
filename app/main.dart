@@ -5202,6 +5202,67 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
     }
   }
 
+  Future<void> _review(Map<String, dynamic> row, String decision) async {
+    final rationaleController = TextEditingController();
+    final rationale = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(decision == 'approve' ? 'Approve verified submission' : 'Reject / dispute submission'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Record a clear review rationale. Approval requires at least one survey evidence item and confirms that the submitted evidence was independently checked.'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: rationaleController,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              labelText: 'Review rationale (minimum 10 characters)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final value = rationaleController.text.trim();
+              if (value.length >= 10) Navigator.pop(dialogContext, value);
+            },
+            child: Text(decision == 'approve' ? 'Confirm approval' : 'Record dispute'),
+          ),
+        ],
+      ),
+    );
+    rationaleController.dispose();
+    if (rationale == null || !mounted) return;
+    try {
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-review',
+        body: {
+          'asset_id': row['asset_id'].toString(),
+          'decision': decision,
+          'rationale': rationale,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw Exception('Review endpoint returned an error.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(decision == 'approve'
+          ? 'Submission approved and review audit recorded.'
+          : 'Submission marked disputed; review audit recorded.')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review could not be completed. Confirm reviewer permissions and evidence requirements.')),
+      );
+    }
+  }
+
   String _date(dynamic value) {
     if (value == null) return 'Not recorded';
     final parsed = DateTime.tryParse(value.toString());
@@ -5342,6 +5403,28 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                       child: Text(row['verification_notes'].toString(),
                                         style: const TextStyle(fontSize: 10, color: mutedInk)),
                                     ),
+                                  if (status != 'verified' && status != 'retired') ...[
+                                    const Divider(height: 18),
+                                    Wrap(spacing: 8, runSpacing: 8, children: [
+                                      FilledButton.icon(
+                                        onPressed: (row['evidence_count'] as num? ?? 0) > 0
+                                          ? () => _review(row, 'approve') : null,
+                                        icon: const Icon(Icons.verified_outlined, size: 16),
+                                        label: const Text('Approve after evidence review'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _review(row, 'reject'),
+                                        icon: const Icon(Icons.flag_outlined, size: 16),
+                                        label: const Text('Reject / dispute'),
+                                      ),
+                                    ]),
+                                    if ((row['evidence_count'] as num? ?? 0) == 0)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 6),
+                                        child: Text('Approval is disabled until survey evidence is recorded.',
+                                          style: TextStyle(fontSize: 10, color: Color(0xFF9A6700))),
+                                      ),
+                                  ],
                                 ]),
                               ),
                             );
