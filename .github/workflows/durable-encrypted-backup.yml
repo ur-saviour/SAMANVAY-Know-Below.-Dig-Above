@@ -83,14 +83,14 @@ jobs:
           target = folder / "SAMANVAY-database.dump.fernet"
           target.write_bytes(b"SAM2" + salt + Fernet(key).encrypt(raw))
           digest = hashlib.sha256(target.read_bytes()).hexdigest()
-          (folder / "SHA256SUM").write_text(f"{digest}  {target.name}\\n")
+          (folder / "SHA256SUM").write_text(f"{digest}  {target.name}\n")
           (folder / "BACKUP-METADATA.txt").write_text(
-              "SAMANVAY encrypted PostgreSQL backup\\n"
-              f"Created UTC: {datetime.now(timezone.utc).isoformat()}\\n"
-              f"Encrypted bytes: {target.stat().st_size}\\n"
-              f"SHA-256: {digest}\\n"
-              "Encryption: Fernet / PBKDF2-HMAC-SHA256, 600000 iterations\\n"
-              "Archive contains database content; no decryption secret is included.\\n"
+              "SAMANVAY encrypted PostgreSQL backup\n"
+              f"Created UTC: {datetime.now(timezone.utc).isoformat()}\n"
+              f"Encrypted bytes: {target.stat().st_size}\n"
+              f"SHA-256: {digest}\n"
+              "Encryption: Fernet / PBKDF2-HMAC-SHA256, 600000 iterations\n"
+              "Archive contains database content; no decryption secret is included.\n"
           )
           raw_path.unlink()
           print(f"Encrypted backup created: {target.stat().st_size} bytes.")
@@ -160,7 +160,7 @@ jobs:
           set -euo pipefail
           TAG="samanvay-db-archive-${{ github.run_id }}"
           mkdir -p "$RUNNER_TEMP/published-archive"
-          gh release download "$TAG" --dir "$RUNNER_TEMP/published-archive" \
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/published-archive" \
             --pattern 'SAMANVAY-database.dump.fernet' \
             --pattern 'SHA256SUM' \
             --pattern 'BACKUP-METADATA.txt'
