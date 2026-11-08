@@ -46,6 +46,7 @@ jobs:
 
           mkdir -p lib assets/reference
           cp app/main.dart lib/main.dart
+          cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp -R app/assets/reference/. assets/reference/
 
           python3 - <<'PY'
@@ -67,6 +68,7 @@ jobs:
           flutter pub add csv
           flutter pub add permission_handler
           flutter pub add http
+          flutter pub add crypto:3.0.8
           python3 - <<'PY'
           from pathlib import Path
           path = Path("pubspec.yaml")
