@@ -10304,9 +10304,10 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
     'water', 'sewer', 'stormwater', 'electricity', 'telecom',
     'gas', 'borewell', 'drain', 'other', 'unknown',
   };
-  static const Set<String> _sourceTypes = {
-    'utility_owner', 'field_survey', 'as_built_drawing',
-    'public_dataset', 'estimated', 'other',
+  static const Map<String, String> _sourceTypeLabels = {
+    'utility_owner': 'Utility-owner supplied',
+    'field_survey': 'Field survey',
+    'as_built_drawing': 'Authority as-built drawing',
   };
   static const Set<String> _geometryTypes = {
     'Point', 'MultiPoint', 'LineString', 'MultiLineString',
@@ -10318,6 +10319,12 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
   bool _importing = false;
   String _departmentName = '';
   String _fileName = '';
+  String _sourceType = 'utility_owner';
+  final TextEditingController _sourceTitleController = TextEditingController();
+  final TextEditingController _sourceOrganisationController = TextEditingController();
+  final TextEditingController _authorizationReferenceController = TextEditingController();
+  final TextEditingController _dataSharingBasisController = TextEditingController();
+  final TextEditingController _sourceUrlController = TextEditingController();
   String _status = 'Select a GeoJSON FeatureCollection from an authorised survey source.';
   List<Map<String, dynamic>> _records = [];
   List<String> _errors = [];
@@ -10329,6 +10336,64 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
   void initState() {
     super.initState();
     _checkAccess();
+  }
+
+  @override
+  void dispose() {
+    _sourceTitleController.dispose();
+    _sourceOrganisationController.dispose();
+    _authorizationReferenceController.dispose();
+    _dataSharingBasisController.dispose();
+    _sourceUrlController.dispose();
+    super.dispose();
+  }
+
+  String? _validateSourceMetadata() {
+    if (_sourceTitleController.text.trim().length < 3 ||
+        _sourceTitleController.text.trim().length > 200) {
+      return 'Enter the official dataset or survey title (3–200 characters).';
+    }
+    if (_sourceOrganisationController.text.trim().length < 3 ||
+        _sourceOrganisationController.text.trim().length > 200) {
+      return 'Enter the responsible utility owner or survey organisation.';
+    }
+    if (_authorizationReferenceController.text.trim().length < 6 ||
+        _authorizationReferenceController.text.trim().length > 200) {
+      return 'Enter the authority permission, MOU or sharing-reference number.';
+    }
+    if (_dataSharingBasisController.text.trim().length < 10 ||
+        _dataSharingBasisController.text.trim().length > 1000) {
+      return 'Describe the data-sharing authority or permission basis (10–1000 characters).';
+    }
+    final sourceUrl = _sourceUrlController.text.trim();
+    if (sourceUrl.isNotEmpty) {
+      final uri = Uri.tryParse(sourceUrl);
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+        return 'The source URL must be a valid HTTPS address.';
+      }
+    }
+    return null;
+  }
+
+  Widget _metadataField(
+    TextEditingController controller,
+    String label, {
+    String? hint,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
   }
 
   Future<void> _checkAccess() async {
@@ -10360,13 +10425,15 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
   }
 
   bool _validCoordinates(dynamic value) {
-    if (value is! List || value.length < 2) return false;
-    if (value[0] is num && value[1] is num) {
+    if (value is! List || value.isEmpty) return false;
+    if (value[0] is num || (value.length > 1 && value[1] is num)) {
+      if (value.length != 2 || value[0] is! num || value[1] is! num) return false;
       final lon = (value[0] as num).toDouble();
       final lat = (value[1] as num).toDouble();
-      return lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
+      return lon.isFinite && lat.isFinite &&
+          lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
     }
-    return value.isNotEmpty && value.every(_validCoordinates);
+    return value.every(_validCoordinates);
   }
 
   String? _validate(Map<String, dynamic> feature) {
@@ -10382,11 +10449,13 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
     final code = (p['asset_code'] ?? '').toString().trim();
     final name = (p['asset_name'] ?? '').toString().trim();
     final assetType = (p['asset_type'] ?? '').toString().trim().toLowerCase();
-    final sourceType = (p['source_type'] ?? '').toString().trim().toLowerCase();
     if (code.length < 2 || code.length > 100) return 'asset_code is required (2–100 characters).';
     if (name.length < 2 || name.length > 200) return 'asset_name is required (2–200 characters).';
     if (!_assetTypes.contains(assetType)) return 'Unsupported asset_type.';
-    if (!_sourceTypes.contains(sourceType)) return 'Unsupported source_type.';
+    if (_sourceType == 'field_survey' &&
+        (p['surveyed_at'] ?? '').toString().trim().isEmpty) {
+      return 'surveyed_at is required for a field-survey batch.';
+    }
 
     for (final key in ['depth_m', 'horizontal_accuracy_m', 'vertical_accuracy_m', 'diameter_mm']) {
       final raw = p[key];
@@ -10463,6 +10532,11 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
     if (!_authorised || _importing) return;
     final valid = _records.where((r) => r['error'] == null).toList();
     if (valid.isEmpty) return;
+    final sourceError = _validateSourceMetadata();
+    if (sourceError != null) {
+      setState(() => _status = sourceError);
+      return;
+    }
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -10470,7 +10544,8 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
         title: const Text('Register as unverified?'),
         content: Text(
           '${valid.length} records from "$_fileName" will be registered under $_departmentName. '
-          'They remain UNVERIFIED until an authorised verification process is completed.',
+          'Your source and permission details will be recorded in an audit log. '
+          'This declaration is not independently verified; the records remain UNVERIFIED and hidden from the map pending owner review.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
@@ -10495,20 +10570,28 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
           .toList(growable: false);
       final response = await supabase.functions.invoke(
         'samanvay-asset-registry',
-        body: {'action': 'import', 'features': features},
+        body: {
+          'action': 'import',
+          'source': {
+            'source_title': _sourceTitleController.text.trim(),
+            'source_organisation': _sourceOrganisationController.text.trim(),
+            'source_type': _sourceType,
+            'authorization_reference': _authorizationReferenceController.text.trim(),
+            'data_sharing_basis': _dataSharingBasisController.text.trim(),
+            'source_url': _sourceUrlController.text.trim().isEmpty
+                ? null : _sourceUrlController.text.trim(),
+            'declared_srid': 4326,
+          },
+          'features': features,
+        },
       );
       final data = Map<String, dynamic>.from(response.data as Map);
       final imported = (data['imported'] as num?)?.toInt() ?? 0;
-      final failed = (data['failed'] as num?)?.toInt() ?? (valid.length - imported);
-      final resultRows = data['results'] is List ? data['results'] as List : const [];
+      final failed = (data['rejected'] as num?)?.toInt() ?? (valid.length - imported);
+      final runId = (data['run_id'] ?? '').toString();
+      final errorText = (data['error'] ?? '').toString();
       final errors = <String>[];
-      for (final row in resultRows) {
-        if (row is! Map) continue;
-        final item = Map<String, dynamic>.from(row);
-        if (item['error'] != null) {
-          errors.add('${item['asset_code'] ?? 'Unknown feature'}: ${item['error']}');
-        }
-      }
+      if (errorText.isNotEmpty) errors.add(errorText);
 
       if (!mounted) return;
       setState(() {
@@ -10516,8 +10599,8 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
         _failed = failed;
         _progress = valid.length;
         _errors = errors;
-        _status = 'Server registration complete: $_imported stored as UNVERIFIED; $_failed failed. '
-            'Only authorised department-owned records are accepted.';
+        _status = 'Import run ' + (runId.isEmpty ? '(ID unavailable)' : runId) +
+            ': $_imported registered; $_failed rejected. All accepted geometry remains UNVERIFIED and hidden from the map pending independent owner review.';
         _records = [];
         _fileName = '';
         _importing = false;
@@ -10582,16 +10665,66 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                     Card(child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('SOURCE AUTHORITY & PROVENANCE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                        const SizedBox(height: 6),
+                        const Text('These fields create an audit declaration. They do not independently prove that the submitter has permission. The receiving authority must review the source before the records are verified.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 12),
+                        _metadataField(_sourceTitleController, 'Official source / dataset title'),
+                        _metadataField(_sourceOrganisationController, 'Utility owner / survey organisation'),
+                        DropdownButtonFormField<String>(
+                          value: _sourceType,
+                          decoration: const InputDecoration(
+                            labelText: 'Source category',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _sourceTypeLabels.entries.map((entry) =>
+                            DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          ).toList(),
+                          onChanged: _importing ? null : (value) {
+                            if (value != null) setState(() => _sourceType = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _metadataField(
+                          _authorizationReferenceController,
+                          'Authority permission / MOU reference',
+                          hint: 'Reference number only; do not enter credentials',
+                        ),
+                        _metadataField(
+                          _dataSharingBasisController,
+                          'Data-sharing authority / permission basis',
+                          hint: 'Identify the written approval, agreement or owner authorisation',
+                          maxLines: 3,
+                        ),
+                        _metadataField(
+                          _sourceUrlController,
+                          'Official source URL (optional)',
+                          hint: 'https://…',
+                        ),
+                        const Text('Coordinate reference system: EPSG:4326 only. Reproject the source file before upload; the server does not guess or transform CRSs.',
+                            style: TextStyle(color: navy, fontSize: 11, height: 1.4, fontWeight: FontWeight.w600)),
+                      ]),
+                    )),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('SUPPORTED FILE',
                             style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
                         const SizedBox(height: 8),
                         const Text('GeoJSON FeatureCollection (.geojson / .json), WGS84 EPSG:4326. Point, MultiPoint, LineString and MultiLineString. Maximum 10 MB / 500 features.',
                             style: TextStyle(color: mutedInk, height: 1.45, fontSize: 12)),
                         const SizedBox(height: 8),
-                        const Text('Required properties: asset_code, asset_name, asset_type, source_type.',
+                        const Text('Required properties: asset_code, asset_name and asset_type. Source type and permission details are entered in the audit form below.',
                             style: TextStyle(color: navy, fontSize: 12, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 6),
-                        const Text('Optional: source_reference, depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm, surveyed_at, surveyed_by_org, verification_notes.',
+                        const Text('Optional: depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm and surveyed_at. Field-survey batches must include surveyed_at.',
                             style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
                         const SizedBox(height: 14),
                         SizedBox(width: double.infinity, child: FilledButton.icon(
