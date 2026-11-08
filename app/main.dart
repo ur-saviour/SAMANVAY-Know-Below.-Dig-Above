@@ -7787,11 +7787,11 @@ class _MapPageState extends State<MapPage> {
 
       await controller.setLayerVisibility(
         'samanvay-3d-buildings',
-        _is3D && !_undergroundMode,
+        _is3D,
       );
       await controller.setLayerVisibility(
         'samanvay-3d-building-outlines',
-        _is3D && !_undergroundMode,
+        _is3D,
       );
     } catch (_) {
       // If a provider style lacks the expected source/attributes, the
@@ -8571,13 +8571,13 @@ class _MapPageState extends State<MapPage> {
       if (layerIds.contains('samanvay-utility-overview-cells')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-cells',
-          _showUtilityZones && !(_is3D && _undergroundMode),
+          _showUtilityZones,
         );
       }
       if (layerIds.contains('samanvay-utility-overview-3d')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-3d',
-          _showUtilityZones && _is3D && _undergroundMode,
+          false,
         );
       }
 
@@ -9069,7 +9069,8 @@ class _MapPageState extends State<MapPage> {
       if (enabled) {
         // Hide the surface extrusions and ward outlines to make the
         // underground operational layer visually distinct.
-        await setVisibility('samanvay-3d-buildings', false);
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-3d-building-outlines', _is3D);
         await setVisibility('samanvay-coimbatore-ward-fill', false);
         await setVisibility('samanvay-coimbatore-ward-lines', false);
 
@@ -9171,13 +9172,13 @@ class _MapPageState extends State<MapPage> {
       if (layers.contains('samanvay-utility-overview-cells')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-cells',
-          _showUtilityZones && !(use3D && _undergroundMode),
+          _showUtilityZones,
         );
       }
       if (layers.contains('samanvay-utility-overview-3d')) {
         await controller.setLayerVisibility(
           'samanvay-utility-overview-3d',
-          _showUtilityZones && use3D && _undergroundMode,
+          false,
         );
       }
     } catch (_) {
