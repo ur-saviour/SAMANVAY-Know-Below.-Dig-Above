@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'asset_evidence_page.dart';
 import 'public_excavation_tracker_page.dart';
 import 'ai_assistant_page.dart';
+import 'coordinated_work_calendar_page.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -13911,6 +13912,9 @@ class _ProfilePageState extends State<ProfilePage> {
           _showEvidence),
         _tile(Icons.campaign_outlined, 'Public works tracker', 'Published excavation and no-dig notices',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()))),
+        _tile(Icons.calendar_month_outlined, 'Coordinated works calendar', 'Compare planned works across departments and identify possible schedule overlaps',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CoordinatedWorkCalendarPage())),
+          color: const Color(0xFF35C6B5)),
         _tile(Icons.notifications_none_rounded, 'Notifications', 'Read assignment, review and case updates',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage()))),
         _tile(Icons.public_rounded, 'India data coverage', 'Explore imported coverage and data gaps',
