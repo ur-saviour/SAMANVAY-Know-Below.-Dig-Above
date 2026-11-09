@@ -9,9 +9,7 @@ const cors = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/i;
 function json(status: number, body: Json): Response {
-  return new Response(JSON.stringify(body), {
-    status, headers: { ...cors, "Content-Type": "application/json" },
-  });
+  return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
 function keys() {
   const url = Deno.env.get("SUPABASE_URL");
@@ -28,11 +26,7 @@ function text(value: unknown, min: number, max: number): string | null {
 async function rpc(config: ReturnType<typeof keys>, name: string, body: Json): Promise<unknown> {
   const response = await fetch(config.url + "/rest/v1/rpc/" + name, {
     method: "POST",
-    headers: {
-      apikey: config.service,
-      Authorization: "Bearer " + config.service,
-      "Content-Type": "application/json",
-    },
+    headers: { apikey: config.service, Authorization: "Bearer " + config.service, "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(20000),
   });
@@ -79,30 +73,32 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === "list") {
     try {
-      const items = await rpc(config, "list_department_asset_evidence_queue_server", {
-        p_actor_id: user.id,
-      });
+      const items = await rpc(config, "list_department_asset_evidence_queue_server", { p_actor_id: user.id });
       return json(200, { ok: true, items });
-    } catch {
-      return json(503, { error: "EVIDENCE_QUEUE_UNAVAILABLE" });
-    }
+    } catch { return json(503, { error: "EVIDENCE_QUEUE_UNAVAILABLE" }); }
   }
-
   if (body.action !== "submit") return json(400, { error: "UNSUPPORTED_ACTION" });
+
   const assetId = typeof body.asset_id === "string" ? body.asset_id : "";
   const method = text(body.survey_method, 3, 40);
   const surveyDate = text(body.survey_date, 10, 10);
   const organisation = text(body.surveyor_organisation, 3, 200);
   const reference = text(body.evidence_reference_code, 3, 120);
   const checksum = typeof body.evidence_sha256 === "string" ? body.evidence_sha256.trim().toLowerCase() : "";
+  const storagePath = typeof body.evidence_storage_path === "string" ? body.evidence_storage_path.trim() : "";
   const notes = body.notes === null || body.notes === undefined ? null : text(body.notes, 0, 1000);
+  const pathParts = storagePath.split("/");
+  const validPath = UUID.test(assetId) && pathParts.length === 3 &&
+    pathParts[0] === assetId && pathParts[1] === user.id &&
+    /^[A-Za-z0-9._-]{1,180}\.(pdf|jpg|jpeg|png|webp)$/i.test(pathParts[2] ?? "");
   if (!UUID.test(assetId) || !method || !surveyDate || !/^\d{4}-\d{2}-\d{2}$/.test(surveyDate) ||
-      !organisation || !reference || !SHA256.test(checksum) ||
+      !organisation || !reference || !SHA256.test(checksum) || !validPath ||
       (body.notes !== null && body.notes !== undefined && notes === null)) {
-    return json(400, { error: "EVIDENCE_METADATA_INVALID" });
+    return json(400, { error: "EVIDENCE_METADATA_OR_PRIVATE_FILE_PATH_INVALID" });
   }
+
   try {
-    const evidenceId = await rpc(config, "register_asset_survey_evidence_server", {
+    const evidenceId = await rpc(config, "register_asset_survey_evidence_with_file_server", {
       p_actor_id: user.id,
       p_asset_id: assetId,
       p_survey_method: method,
@@ -110,10 +106,11 @@ Deno.serve(async (req: Request) => {
       p_surveyor_organisation: organisation,
       p_evidence_reference_code: reference,
       p_evidence_sha256: checksum,
+      p_storage_path: storagePath,
       p_notes: notes,
     });
     return json(200, { ok: true, evidence_id: evidenceId });
   } catch {
-    return json(409, { error: "EVIDENCE_NOT_RECORDED", detail: "Confirm the asset belongs to your department, the import run is pending review, and the evidence reference has not already been used." });
+    return json(409, { error: "EVIDENCE_NOT_RECORDED", detail: "Confirm the file was uploaded to the private evidence bucket and the asset belongs to your assigned department." });
   }
 });
