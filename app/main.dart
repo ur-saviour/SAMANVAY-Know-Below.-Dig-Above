@@ -1702,7 +1702,10 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       ),
       body: RefreshIndicator(
         onRefresh: loadRequests,
-        child: ListView(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1540),
+            child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(18),
           children: [
@@ -2026,7 +2029,9 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 ),
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -11471,6 +11476,132 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Widget _desktopGisMetric(String label, String value, IconData icon, Color accent) {
+    return Expanded(child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF102B40),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: const Color(0xFF294763)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: accent, size: 17),
+        const SizedBox(height: 7),
+        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 8, fontWeight: FontWeight.w700, height: 1.25)),
+      ]),
+    ));
+  }
+
+  Widget _desktopGisLayerToggle({
+    required String title,
+    required String detail,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) => SwitchListTile.adaptive(
+    dense: true,
+    contentPadding: EdgeInsets.zero,
+    activeThumbColor: const Color(0xFF55D9CE),
+    title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+    subtitle: Text(detail, style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 8, height: 1.3)),
+    value: value,
+    onChanged: onChanged,
+  );
+
+  Widget _desktopGISCommandPanel() => Container(
+    width: 292,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xF20B1B2D),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0x6645D9CE)),
+      boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 7))],
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 31, height: 31,
+          decoration: BoxDecoration(color: const Color(0x2220D6C2), borderRadius: BorderRadius.circular(9)),
+          child: const Icon(Icons.hub_rounded, color: Color(0xFF55D9CE), size: 18)),
+        const SizedBox(width: 9),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('NATIONAL GIS COMMAND', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7)),
+          SizedBox(height: 2),
+          Text('INDIA · AUTHORISED MAP VIEW', style: TextStyle(color: Color(0xFF55D9CE), fontSize: 7, fontWeight: FontWeight.w800, letterSpacing: .55)),
+        ])),
+        IconButton(tooltip: 'Open layer catalogue', visualDensity: VisualDensity.compact,
+          onPressed: _openLayerPanel, icon: const Icon(Icons.tune_rounded, color: Color(0xFFB8C7D5), size: 18)),
+      ]),
+      const SizedBox(height: 9),
+      const Text('LIVE COUNTS · CURRENT MAP EXTENT',
+        style: TextStyle(color: Color(0xFF9FB4C8), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)),
+      const SizedBox(height: 7),
+      Row(children: [
+        _desktopGisMetric('VISIBLE CASES', '$_requestMarkerCount', Icons.assignment_outlined, const Color(0xFF55D9CE)),
+        const SizedBox(width: 7),
+        _desktopGisMetric('GROUNDWATER POINTS', '$_groundwaterStationCount', Icons.water_drop_outlined, const Color(0xFFA78BFA)),
+      ]),
+      const SizedBox(height: 7),
+      Row(children: [
+        _desktopGisMetric('VERIFIED OWNER ASSETS', _canViewDepartmentAssets ? '$_verifiedAssetCount' : 'Restricted',
+          Icons.verified_user_outlined, const Color(0xFF38BDF8)),
+        const SizedBox(width: 7),
+        _desktopGisMetric('GENERAL COVERAGE CELLS', _canViewUtilityOverview ? '$_utilityCellCount' : 'Restricted',
+          Icons.grid_view_rounded, const Color(0xFFFBBF24)),
+      ]),
+      if (_canViewConflictScreening) ...[
+        const SizedBox(height: 8),
+        Text('$_utilityConflictCount advisory conflict candidate(s)',
+          style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 9, fontWeight: FontWeight.w800)),
+      ],
+      const Divider(color: Color(0x334B647C), height: 18),
+      const Text('MAP LAYERS',
+        style: TextStyle(color: Color(0xFF55D9CE), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)),
+      Expanded(child: SingleChildScrollView(child: Column(children: [
+        _desktopGisLayerToggle(title: 'Work request locations',
+          detail: 'Visible cases permitted for this account', value: _showRequests,
+          onChanged: (value) => _toggleRequests(value)),
+        _desktopGisLayerToggle(title: 'Groundwater monitoring',
+          detail: 'Published observations in the current extent', value: _showGroundwaterTelemetry,
+          onChanged: (value) => _toggleGroundwaterTelemetry(value)),
+        _desktopGisLayerToggle(title: 'Coimbatore ward reference',
+          detail: '2024 public-domain reference; not legal certification', value: _showCoimbatoreWardBoundaries,
+          onChanged: (value) => _toggleCoimbatoreWardBoundaries(value)),
+        if (_canViewDepartmentAssets)
+          _desktopGisLayerToggle(title: 'Verified department-owned assets',
+            detail: 'Authorised owner-department geometry only', value: _showVerifiedAssets,
+            onChanged: (value) => _toggleVerifiedAssets(value)),
+        if (_canViewUtilityOverview)
+          _desktopGisLayerToggle(title: 'Generalised utility coverage',
+            detail: 'Aggregate cells only; no individual routes or depths', value: _showUtilityZones,
+            onChanged: (value) => _toggleUtilityZones(value)),
+        if (_canViewConflictScreening)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Text(_utilityConflictStatus,
+              style: const TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35))),
+        const Divider(color: Color(0x334B647C), height: 14),
+        Wrap(spacing: 7, runSpacing: 7, children: [
+          OutlinedButton.icon(onPressed: _openJurisdictionNavigator,
+            icon: const Icon(Icons.account_tree_outlined, size: 15), label: const Text('Jurisdiction'),
+            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF8DECE2),
+              side: const BorderSide(color: Color(0x6655D9CE)),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+              textStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+          OutlinedButton.icon(onPressed: _openLayerPanel,
+            icon: const Icon(Icons.layers_outlined, size: 15), label: const Text('All layers'),
+            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF8DECE2),
+              side: const BorderSide(color: Color(0x6655D9CE)),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+              textStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+        ]),
+        const SizedBox(height: 7),
+        const Text('Coverage counts are not underground asset counts. Exact utility geometry remains restricted. Missing or unverified data is never excavation clearance.',
+          style: TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35)),
+      ]))),
+    ]),
+  );
+
   Widget _trustClassRow({
     required Color color,
     required String label,
@@ -11557,6 +11688,7 @@ class _MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
+    final desktopLayout = MediaQuery.sizeOf(context).width >= 1180;
     return Scaffold(
       backgroundColor: const Color(0xFF101B29),
       appBar: AppBar(
@@ -11745,10 +11877,13 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
+          if (desktopLayout)
+            Positioned(left: 12, top: 150, bottom: 88, child: _desktopGISCommandPanel()),
+
           Positioned(
-            left: 12,
+            left: desktopLayout ? 320 : 12,
             right: 62,
-            top: 116,
+            top: desktopLayout ? 12 : 116,
             child: Container(
               padding: const EdgeInsets.only(left: 12, right: 4),
               decoration: BoxDecoration(
@@ -11803,9 +11938,9 @@ class _MapPageState extends State<MapPage> {
 
           if (_placeResults.isNotEmpty)
             Positioned(
-              left: 12,
+              left: desktopLayout ? 320 : 12,
               right: 62,
-              top: 172,
+              top: desktopLayout ? 68 : 172,
               child: Container(
                 constraints: const BoxConstraints(maxHeight: 240),
                 decoration: BoxDecoration(
@@ -11909,7 +12044,7 @@ class _MapPageState extends State<MapPage> {
             ),
 
           Positioned(
-            left: 12,
+            left: desktopLayout ? 320 : 12,
             right: 12,
             bottom: 118,
             child: Container(
@@ -11974,13 +12109,13 @@ class _MapPageState extends State<MapPage> {
 
           if (_undergroundMode)
             Positioned(
-              left: 12,
+              left: desktopLayout ? 320 : 12,
               bottom: 118,
               child: _undergroundModelPanel(),
             ),
 
           Positioned(
-            left: 12,
+            left: desktopLayout ? 320 : 12,
             right: 12,
             bottom: 54,
             child: Container(
@@ -12030,7 +12165,7 @@ class _MapPageState extends State<MapPage> {
           ),
 
           Positioned(
-            left: 12,
+            left: desktopLayout ? 320 : 12,
             right: 12,
             bottom: 12,
             child: Row(
