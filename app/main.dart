@@ -1617,6 +1617,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         title: const Text('SAMANVAY'),
         actions: [
           IconButton(
+            tooltip: 'My profile',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfilePage()),
+            ),
+            icon: const Icon(Icons.person_outline_rounded),
+          ),
+          IconButton(
             tooltip: 'Refresh',
             onPressed: loading ? null : loadRequests,
             icon: const Icon(Icons.refresh),
@@ -10375,7 +10382,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'GROUNDWATER',
                             color: const Color(0xFFA78BFA),
                             detail: _groundwaterReadinessLoaded
-                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · latest source timestamp: $_groundwaterFreshnessLabel · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · latest timestamp among loaded records (max 1,000): $_groundwaterFreshnessLabel · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
                                 : 'Coverage summary unavailable; station layer remains independently controlled.',
                           ),
                           _readinessRow(
@@ -10631,7 +10638,7 @@ class _MapPageState extends State<MapPage> {
           const Text('GROUNDWATER SOURCE FRESHNESS',
             style: TextStyle(color: Color(0xFF55D9CE), fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
-          Text('Latest source timestamp in this map extent: $_groundwaterFreshnessLabel',
+          Text('Latest timestamp among loaded records (up to 1,000 in this map extent): $_groundwaterFreshnessLabel',
             style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 8, height: 1.35)),
           Text('Publisher: $_groundwaterLatestAgency · source-reported values; coordinate accuracy is not independently validated here.',
             style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, height: 1.35)),
@@ -11831,6 +11838,7 @@ class _ProfilePageState extends State<ProfilePage> {
     var requestRows = <Map<String, dynamic>>[];
     var requestsAvailable = true;
     var evidenceCount = 0, unreadCount = 0;
+    var evidenceAvailable = true, notificationsAvailable = true;
     try {
       // Requesters see their own submissions. Staff counts are based on the
       // cases already visible under their database-enforced RLS policies.
@@ -11846,12 +11854,16 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       evidenceCount = List.from(await supabase.from('case_attachments')
           .select('id').eq('uploaded_by', user.id).limit(1000)).length;
-    } catch (_) {}
+    } catch (_) {
+      evidenceAvailable = false;
+    }
     try {
       unreadCount = List.from(await supabase.from('user_notifications')
           .select('id').eq('recipient_id', user.id)
           .filter('read_at', 'is', null).limit(1000)).length;
-    } catch (_) {}
+    } catch (_) {
+      notificationsAvailable = false;
+    }
 
     final completedCount = requestRows.where((item) {
       final status = (item['status'] ?? '').toString().toLowerCase();
@@ -11866,12 +11878,13 @@ class _ProfilePageState extends State<ProfilePage> {
     return {
       'name': (row['display_name'] ?? user.userMetadata?['display_name'] ?? 'SAMANVAY user').toString(),
       'email': user.email ?? '', 'role': role,
-      'department': department,
+      'department': department, 'department_id': id,
       'requests_label': role == 'requester' ? 'My requests' : 'Visible cases',
       'requests': requestsAvailable ? requestRows.length : null,
       'active': requestsAvailable ? activeCount : null,
       'completed': requestsAvailable ? completedCount : null,
-      'evidence': evidenceCount, 'unread': unreadCount,
+      'evidence': evidenceAvailable ? evidenceCount : null,
+      'unread': notificationsAvailable ? unreadCount : null,
     };
   }
 
@@ -12003,6 +12016,31 @@ class _ProfilePageState extends State<ProfilePage> {
       ));
 
       final data = snapshot.data!;
+      final accountRole = data['role'].toString();
+      final departmentId = data['department_id']?.toString();
+      final workspaceTitle = switch (accountRole) {
+        'requester' => 'My requests',
+        'department' => 'Department cases',
+        'coordinator' => 'Coordination workspace',
+        'admin' => 'Administration workspace',
+        _ => 'Assigned workspace',
+      };
+      final workspaceSubtitle = switch (accountRole) {
+        'requester' => 'Review your submitted requests and their status',
+        'department' => 'Review requests and evidence assigned to your department',
+        'coordinator' => 'Coordinate cases across departments',
+        'admin' => 'Open platform operations and administration',
+        _ => 'Open the workspace available to your account',
+      };
+      final Widget workspacePage = switch (accountRole) {
+        'requester' => const RequestsPage(),
+        'department' => departmentId == null || departmentId.isEmpty
+            ? const _PortalError(message: 'No department is assigned to this account.')
+            : DepartmentPortal(departmentId: departmentId),
+        'coordinator' => const CoordinatorPortal(),
+        'admin' => const AdminPortal(),
+        _ => const RequestsPage(),
+      };
       return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [
         Container(
           padding: const EdgeInsets.all(21),
@@ -12046,18 +12084,18 @@ class _ProfilePageState extends State<ProfilePage> {
               'Completed', data['completed']?.toString() ?? '—',
               Icons.task_alt_rounded)),
             SizedBox(width: tileWidth, child: _metric(
-              'Evidence', data['evidence'].toString(),
+              'Evidence', data['evidence']?.toString() ?? '—',
               Icons.attach_file_rounded)),
             SizedBox(width: tileWidth, child: _metric(
-              'Unread', data['unread'].toString(),
+              'Unread', data['unread']?.toString() ?? '—',
               Icons.notifications_active_outlined)),
           ]);
         }),
         const SizedBox(height: 20),
         const Text('Workspace and support', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
-        _tile(Icons.assignment_outlined, 'My requests', 'Review submitted requests and status',
-          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RequestsPage()))),
+        _tile(Icons.assignment_outlined, workspaceTitle, workspaceSubtitle,
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => workspacePage))),
         _tile(Icons.attach_file_rounded, 'Evidence submissions', 'View files you uploaded to private case records',
           _showEvidence),
         _tile(Icons.campaign_outlined, 'Public works tracker', 'Published excavation and no-dig notices',
