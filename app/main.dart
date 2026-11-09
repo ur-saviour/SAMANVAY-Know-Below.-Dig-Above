@@ -1730,6 +1730,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               isDepartment: widget.isDepartment,
               departmentId: widget.departmentId,
             ),
+            const SizedBox(height: 14),
+            CommandCentreActivityBoard(isAdmin: widget.isAdmin),
             const SizedBox(height: 7),
             const Text(
               'Live metrics reflect records visible to this role and the current query window. They are not national totals.',
@@ -2798,6 +2800,156 @@ class _DashboardPageState extends State<DashboardPage> {
 
 
 // RLS-backed authoring and review desk for public excavation notices.
+// Live activity feed. Status events follow case visibility RLS;
+// admin audit events are queried only for an authenticated admin portal.
+class CommandCentreActivityBoard extends StatefulWidget {
+  final bool isAdmin;
+  const CommandCentreActivityBoard({super.key, required this.isAdmin});
+  @override
+  State<CommandCentreActivityBoard> createState() => _CommandCentreActivityBoardState();
+}
+
+class _CommandCentreActivityBoardState extends State<CommandCentreActivityBoard> {
+  List<Map<String, dynamic>> statusEvents = [];
+  List<Map<String, dynamic>> auditEvents = [];
+  bool loading = true;
+  bool statusUnavailable = false;
+  bool auditUnavailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() { loading = true; statusUnavailable = false; auditUnavailable = false; });
+    try {
+      final rows = await supabase.from('request_status_history')
+        .select('request_id,old_status,new_status,created_at')
+        .order('created_at', ascending: false).limit(15);
+      if (mounted) statusEvents = List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      if (mounted) statusUnavailable = true;
+    }
+
+    if (widget.isAdmin) {
+      try {
+        final rows = await supabase.from('admin_audit_events')
+          .select('event_type,created_at')
+          .order('created_at', ascending: false).limit(15);
+        if (mounted) auditEvents = List<Map<String, dynamic>>.from(rows);
+      } catch (_) {
+        if (mounted) auditUnavailable = true;
+      }
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  String _date(dynamic raw) {
+    final date = DateTime.tryParse((raw ?? '').toString())?.toLocal();
+    if (date == null) return 'Date not available';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return day + '/' + month + '/' + date.year.toString() + ' · ' + hour + ':' + minute;
+  }
+
+  String _label(dynamic value) =>
+    (value ?? 'not recorded').toString().replaceAll('_', ' ').toUpperCase();
+
+  Widget _event({
+    required IconData icon,
+    required Color accent,
+    required String title,
+    required String subtitle,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 9),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(width: 30, height: 30,
+        decoration: BoxDecoration(color: accent.withValues(alpha: .13), shape: BoxShape.circle),
+        child: Icon(icon, color: accent, size: 16)),
+      const SizedBox(width: 10),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(subtitle, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, height: 1.35)),
+      ])),
+    ]),
+  );
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: const Color(0xFF294863))),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.timeline_rounded, color: cyanAccent, size: 19),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Command-centre activity',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800))),
+        IconButton(onPressed: loading ? null : refresh,
+          tooltip: 'Refresh activity', icon: const Icon(Icons.refresh_rounded, color: cyanAccent)),
+      ]),
+      const Text('Recent case status transitions visible to this account. Audit events are restricted to administrators.',
+        style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.35)),
+      const SizedBox(height: 11),
+      Row(children: [
+        Expanded(child: Text('CASE TIMELINE · ' + statusEvents.length.toString(),
+          style: const TextStyle(color: cyanAccent, fontSize: 9, letterSpacing: .7, fontWeight: FontWeight.w900))),
+        if (widget.isAdmin)
+          Text('ADMIN AUDIT · ' + auditEvents.length.toString(),
+            style: const TextStyle(color: Color(0xFF9FBCFF), fontSize: 9, letterSpacing: .5, fontWeight: FontWeight.w900)),
+      ]),
+      const Divider(color: Color(0xFF294863), height: 18),
+      if (loading && statusEvents.isEmpty && auditEvents.isEmpty)
+        const Center(child: Padding(padding: EdgeInsets.all(12),
+          child: CircularProgressIndicator(color: cyanAccent)))
+      else if (statusUnavailable)
+        const Text('Case timeline is unavailable for this account. Check the case-access policy.',
+          style: TextStyle(color: Color(0xFFFFB4AB), fontSize: 10))
+      else if (statusEvents.isEmpty)
+        const Text('No case status transitions are recorded yet.',
+          style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10))
+      else
+        ...statusEvents.map((event) {
+          final requestId = (event['request_id'] ?? '').toString();
+          final caseLabel = requestId.length >= 8 ? requestId.substring(0, 8).toUpperCase() : 'CASE';
+          final oldStatus = event['old_status'] == null ? 'CREATED' : _label(event['old_status']);
+          final newStatus = _label(event['new_status']);
+          return _event(
+            icon: Icons.sync_alt_rounded,
+            accent: const Color(0xFF66D6CB),
+            title: caseLabel + ' · ' + oldStatus + ' → ' + newStatus,
+            subtitle: _date(event['created_at']),
+          );
+        }),
+      if (widget.isAdmin) ...[
+        const Divider(color: Color(0xFF294863), height: 20),
+        const Text('ADMIN AUDIT LOG',
+          style: TextStyle(color: Color(0xFF9FBCFF), fontSize: 9, letterSpacing: .7, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        if (auditUnavailable)
+          const Text('Audit records could not be loaded. They are not substituted with case events.',
+            style: TextStyle(color: Color(0xFFFFB4AB), fontSize: 10))
+        else if (auditEvents.isEmpty)
+          const Text('No administrator audit events are recorded yet.',
+            style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10))
+        else
+          ...auditEvents.map((event) => _event(
+            icon: Icons.admin_panel_settings_outlined,
+            accent: const Color(0xFF9FBCFF),
+            title: _label(event['event_type']),
+            subtitle: _date(event['created_at']),
+          )),
+      ],
+    ]),
+  );
+}
+
+
 class PublicWorksOperationsBoard extends StatefulWidget {
   final List<Map<String, dynamic>> departments;
   final bool isDepartment;
