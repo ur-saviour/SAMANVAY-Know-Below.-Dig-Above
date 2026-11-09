@@ -8766,7 +8766,10 @@ class _MapPageState extends State<MapPage> {
               final suffix = verified
                   ? ' · authority verified'
                   : ' · imported, verification pending';
-              return name + (code.isEmpty ? '' : ' · LGD ' + code) + suffix;
+              final sourceDate = (row['source_updated_at'] ?? '').toString().trim();
+              final datedSuffix = sourceDate.isEmpty ? '' : ' · report ' + sourceDate;
+              return name + (code.isEmpty ? '' : ' · LGD ' + code) +
+                  suffix + datedSuffix;
             }
 
             Future<void> loadDistricts(String selectedId) async {
@@ -8785,10 +8788,12 @@ class _MapPageState extends State<MapPage> {
               try {
                 final rows = await supabase
                     .from('india_administrative_units')
-                    .select('id,name,lgd_code,verification_status,parent_unit_id')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                     .eq('state_ut_id', selectedId)
                     .eq('unit_type', 'district')
+                    .eq('source_system', 'Local Government Directory (LGD)')
                     .eq('is_active', true)
+                    .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(1000);
                 if (!sheetContext.mounted) return;
@@ -8823,11 +8828,13 @@ class _MapPageState extends State<MapPage> {
               try {
                 final rows = await supabase
                     .from('india_administrative_units')
-                    .select('id,name,lgd_code,verification_status,parent_unit_id')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                     .eq('state_ut_id', stateId!)
                     .eq('parent_unit_id', parentId)
                     .eq('unit_type', 'urban_local_body')
+                    .eq('source_system', 'Local Government Directory (LGD)')
                     .eq('is_active', true)
+                    .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(1000);
                 if (!sheetContext.mounted) return;
@@ -8858,11 +8865,13 @@ class _MapPageState extends State<MapPage> {
               try {
                 final rows = await supabase
                     .from('india_administrative_units')
-                    .select('id,name,lgd_code,verification_status,parent_unit_id')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                     .eq('state_ut_id', stateId!)
                     .eq('parent_unit_id', parentId)
                     .eq('unit_type', 'ward')
+                    .eq('source_system', 'Local Government Directory (LGD)')
                     .eq('is_active', true)
+                    .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(2000);
                 if (!sheetContext.mounted) return;
