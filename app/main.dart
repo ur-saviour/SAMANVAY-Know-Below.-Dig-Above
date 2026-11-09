@@ -2398,7 +2398,6 @@ class _AuthPageState extends State<AuthPage> {
                       foregroundColor: cyanAccent,
                       side: const BorderSide(color: Color(0xFF2D6A87)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: Color(0xFFB9CCDF)),
                     ),
                   ),
                 ],
