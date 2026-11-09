@@ -6409,7 +6409,7 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
           .where((code) => code.isNotEmpty)
           .toSet()
           .toList();
-      final parentIds = <String, String>{};
+      final parentIds = <String, Map<String, dynamic>>{};
       const parentLookupBatchSize = 200;
       for (var offset = 0; offset < parentCodes.length; offset += parentLookupBatchSize) {
         final end = (offset + parentLookupBatchSize < parentCodes.length)
