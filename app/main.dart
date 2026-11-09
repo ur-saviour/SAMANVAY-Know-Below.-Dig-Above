@@ -1973,14 +1973,6 @@ class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
-  String selectedRole = 'requester';
-
-  final List<Map<String, String>> availableRoles = [
-    {'value': 'requester', 'label': 'Requester'},
-    {'value': 'department', 'label': 'Department Officer'},
-    {'value': 'coordinator', 'label': 'Coordinator'},
-    {'value': 'admin', 'label': 'Administrator'},
-  ];
   String message = '';
   bool messageIsSuccess = false;
 
@@ -2118,6 +2110,7 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF061426),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -2141,7 +2134,7 @@ class _AuthPageState extends State<AuthPage> {
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
-                      color: navy,
+                      color: Colors.white,
                       letterSpacing: 2,
                     ),
                   ),
@@ -2152,7 +2145,7 @@ class _AuthPageState extends State<AuthPage> {
                     'Municipal Infrastructure Coordination',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.blueGrey,
+                      color: const Color(0xFFB6C7D6),
                     ),
                   ),
 
@@ -2165,7 +2158,7 @@ class _AuthPageState extends State<AuthPage> {
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: navy,
+                      color: Colors.white,
                     ),
                   ),
 
@@ -2194,44 +2187,50 @@ class _AuthPageState extends State<AuthPage> {
 
                     const SizedBox(height: 16),
                   ],
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Select account type',
-                      prefixIcon: Icon(
-                        Icons.admin_panel_settings_outlined,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: availableRoles.map((role) {
-                      return DropdownMenuItem<String>(
-                        value: role['value'],
-                        child: Text(role['label']!),
-                      );
-                    }).toList(),
-                    onChanged: loading
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() {
-                                selectedRole = value;
-                              });
-                            }
-                          },
-                  ),
-
-                  const SizedBox(height: 8),
-
                   const Text(
-                    'Privileged roles require administrator authorization.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blueGrey,
-                    ),
+                    'PORTAL ACCESS',
+                    style: TextStyle(color: Color(0xFF8FDCE7), fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
                   ),
-
+                  const SizedBox(height: 8),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final twoColumns = constraints.maxWidth >= 600;
+                    final cardWidth = twoColumns ? (constraints.maxWidth - 9) / 2 : constraints.maxWidth;
+                    Widget roleCard(String title, String detail, IconData icon, bool standard) {
+                      return Container(
+                        width: cardWidth,
+                        padding: const EdgeInsets.all(11),
+                        decoration: BoxDecoration(
+                          color: standard ? const Color(0xFF12384B) : const Color(0xFF102943),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: standard ? cyanAccent.withValues(alpha: .65) : const Color(0xFF294763)),
+                        ),
+                        child: Row(children: [
+                          Icon(icon, color: standard ? cyanAccent : const Color(0xFFB5C8D8), size: 20),
+                          const SizedBox(width: 9),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(title, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 3),
+                            Text(detail, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, height: 1.25)),
+                          ])),
+                          Icon(standard ? Icons.check_circle : Icons.lock_outline,
+                            color: standard ? cyanAccent : const Color(0xFF849BB0), size: 16),
+                        ]),
+                      );
+                    }
+                    return Wrap(spacing: 9, runSpacing: 9, children: [
+                      roleCard('Requester', 'Standard self-service access', Icons.person_outline, true),
+                      roleCard('Department officer', 'Assigned by an administrator', Icons.account_balance_outlined, false),
+                      roleCard('Coordinator', 'Privileged coordination access', Icons.hub_outlined, false),
+                      roleCard('Administrator', 'Platform administration access', Icons.admin_panel_settings_outlined, false),
+                    ]);
+                  }),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Your actual role and department are loaded from your authorised SAMANVAY profile. Privileged access cannot be self-selected during signup.',
+                    style: TextStyle(fontSize: 10, color: Color(0xFFB6C7D6), height: 1.35),
+                  ),
                   const SizedBox(height: 16),
+                                    const SizedBox(height: 16),
                   TextFormField(
                     controller: _emailController,
                     keyboardType:
@@ -2321,7 +2320,7 @@ class _AuthPageState extends State<AuthPage> {
                   FilledButton(
                     onPressed: loading ? null : submit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: navy,
+                      backgroundColor: electricBlue,
                       padding:
                           const EdgeInsets.symmetric(
                         vertical: 16,
@@ -2358,7 +2357,8 @@ class _AuthPageState extends State<AuthPage> {
                         'RESEND CONFIRMATION EMAIL',
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: navy,
+                        foregroundColor: cyanAccent,
+                        side: const BorderSide(color: Color(0xFF2D6A87)),
                         padding:
                             const EdgeInsets.symmetric(
                           vertical: 14,
@@ -2395,7 +2395,8 @@ class _AuthPageState extends State<AuthPage> {
                     icon: const Icon(Icons.campaign_outlined),
                     label: const Text('VIEW PUBLIC WORK NOTICES'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: navy,
+                      foregroundColor: cyanAccent,
+                      side: const BorderSide(color: Color(0xFF2D6A87)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: const BorderSide(color: Color(0xFFB9CCDF)),
                     ),
@@ -6468,6 +6469,7 @@ class _RequestsPageState extends State<RequestsPage> {
     final visibleRequests = filteredRequests;
 
     return Scaffold(
+      backgroundColor: const Color(0xFF061426),
       appBar: AppBar(
         title: const Text('Excavation Requests'),
         actions: [
@@ -6480,7 +6482,7 @@ class _RequestsPageState extends State<RequestsPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: openNewRequestForm,
-        backgroundColor: navy,
+        backgroundColor: electricBlue,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text('New Request'),
@@ -12159,6 +12161,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF061426),
       appBar: AppBar(title: const Text('Notifications')),
       body: StreamBuilder<List<Map<String,dynamic>>>(
         stream: _stream,
@@ -12171,7 +12174,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           final total = rows.length;
           return ListView(padding: const EdgeInsets.all(14), children: [
             Text('$unread unread · $total total',
-              style: const TextStyle(color: mutedInk, fontSize: 12, fontWeight: FontWeight.w700)),
+              style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 12, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             ...rows.map((item) {
               final fresh = item['read_at'] == null;
@@ -12190,18 +12193,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 _ => Icons.notifications_outlined,
               };
               return Card(
-                color: fresh ? const Color(0xFFEAF8F6) : Colors.white,
+                color: fresh ? const Color(0xFF123C4A) : panelNavy,
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: fresh ? const Color(0xFFD1F0EA) : const Color(0xFFEAF0F5),
-                    child: Icon(icon, color: const Color(0xFF087F83))),
+                    backgroundColor: const Color(0x3320D6C2),
+                    child: Icon(icon, color: cyanAccent)),
                   title: Text(item['title']?.toString() ?? 'SAMANVAY update',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('$notificationBody\n$dateText'),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                  subtitle: Text('$notificationBody\n$dateText', style: const TextStyle(color: Color(0xFFB6C7D6))),
                   isThreeLine: true,
                   trailing: fresh
                     ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
-                    : const Icon(Icons.check, color: mutedInk, size: 18),
+                    : const Icon(Icons.check, color: Color(0xFFB6C7D6), size: 18),
                   onTap: () => _openNotification(item),
                 ),
               );
