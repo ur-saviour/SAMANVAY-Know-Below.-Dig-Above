@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'joint_work_coordination_page.dart';
 
 /// Read-only, RLS-scoped planner for coordinating planned infrastructure works.
 /// Proximity flags are planning advisories only; they are not utility clearance.
@@ -382,6 +383,15 @@ class _CoordinatedWorkCalendarPageState
       appBar: AppBar(
         title: const Text('Coordinated Works Calendar'),
         actions: [
+          IconButton(
+            tooltip: 'Joint-work proposals',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const JointWorkCoordinationPage(),
+              ),
+            ),
+            icon: const Icon(Icons.hub_outlined),
+          ),
           IconButton(
             tooltip: 'Refresh schedule',
             onPressed: _loading ? null : _load,
