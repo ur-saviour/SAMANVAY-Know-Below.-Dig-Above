@@ -99,11 +99,41 @@ jobs:
           manifest.write_text(content)
           PY
 
+          # Verify the generated Android namespace and application ID.
+          if [ -f android/app/build.gradle.kts ]; then
+            grep -Eq 'namespace[[:space:]]*=[[:space:]]*"org.samanvay.samanvay"' android/app/build.gradle.kts || {
+              echo "ERROR: Android namespace is not org.samanvay.samanvay."
+              exit 1
+            }
+            grep -Eq 'applicationId[[:space:]]*=[[:space:]]*"org.samanvay.samanvay"' android/app/build.gradle.kts || {
+              echo "ERROR: Android applicationId is not org.samanvay.samanvay."
+              exit 1
+            }
+          elif [ -f android/app/build.gradle ]; then
+            grep -Eq "namespace[[:space:]]+'org.samanvay.samanvay'" android/app/build.gradle || {
+              echo "ERROR: Android namespace is not org.samanvay.samanvay."
+              exit 1
+            }
+            grep -Eq "applicationId[[:space:]]+'org.samanvay.samanvay'" android/app/build.gradle || {
+              echo "ERROR: Android applicationId is not org.samanvay.samanvay."
+              exit 1
+            }
+          else
+            echo "ERROR: Android app Gradle file was not generated."
+            exit 1
+          fi
+          echo "PASS: Android namespace and applicationId verified."
+
           cp /tmp/samanvay_scaffold/pubspec.yaml .
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
 
           mkdir -p lib assets/reference/coimbatore
+          if [ ! -d app/assets/reference ]; then
+            echo "ERROR: Source GIS reference directory app/assets/reference is missing."
+            exit 1
+          fi
+          cp -R app/assets/reference/. assets/reference/
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
@@ -223,6 +253,12 @@ jobs:
             file "$APK"
             unzip -t "$APK" >/dev/null
             "$BUILD_TOOLS/aapt" dump badging "$APK"
+            PACKAGE_NAME="$("$BUILD_TOOLS/aapt" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+            if [ "$PACKAGE_NAME" != "org.samanvay.samanvay" ]; then
+              echo "ERROR: Unexpected APK package name: $PACKAGE_NAME"
+              exit 1
+            fi
+            echo "PASS: APK package name is $PACKAGE_NAME"
             "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
             "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
 
