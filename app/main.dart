@@ -15,6 +15,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'asset_evidence_page.dart';
 import 'public_excavation_tracker_page.dart';
+import 'ai_assistant_page.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -1609,6 +1610,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         'Authorised user';
 
     return Scaffold(
+      backgroundColor: const Color(0xFF061426),
       appBar: AppBar(
         title: const Text('SAMANVAY'),
         actions: [
@@ -1678,7 +1680,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.bold,
-                color: navy,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 10),
@@ -1722,6 +1724,11 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             ),
             const SizedBox(height: 10),
             domainBreakdown(),
+            const SizedBox(height: 7),
+            const Text(
+              'Live metrics reflect records visible to this role and the current query window. They are not national totals.',
+              style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.35),
+            ),
             const SizedBox(height: 16),
             RoadCutPermitBoard(
               requests: requests,
@@ -1772,6 +1779,22 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               repeatedWorkCoordinationPanel(),
             ],
             const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SamanvayAiAssistantPage()),
+                ),
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('OPEN SAMANVAY AI ASSISTANT'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF347FF2),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -2404,25 +2427,70 @@ class _MainScreenState extends State<MainScreen> {
     PublicExcavationTrackerPage(), ProfilePage(),
   ];
 
+  static const destinations = <NavigationRailDestination>[
+    NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: Text('Home')),
+    NavigationRailDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment_rounded), label: Text('Cases')),
+    NavigationRailDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: Text('GIS')),
+    NavigationRailDestination(icon: Icon(Icons.campaign_outlined), selectedIcon: Icon(Icons.campaign_rounded), label: Text('Public works')),
+    NavigationRailDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: Text('Profile')),
+  ];
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: IndexedStack(index: selectedIndex, children: pages),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: selectedIndex,
-      onDestinationSelected: (index) => setState(() => selectedIndex = index),
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.assignment_outlined),
-          selectedIcon: Icon(Icons.assignment_rounded), label: 'Cases'),
-        NavigationDestination(icon: Icon(Icons.map_outlined),
-          selectedIcon: Icon(Icons.map_rounded), label: 'GIS'),
-        NavigationDestination(icon: Icon(Icons.campaign_outlined),
-          selectedIcon: Icon(Icons.campaign_rounded), label: 'Public works'),
-        NavigationDestination(icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
-      ],
-    ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      final extended = constraints.maxWidth >= 1200;
+      return Scaffold(
+        backgroundColor: const Color(0xFF061426),
+        body: Row(children: [
+          if (wide) ...[
+            Container(
+              color: navy,
+              child: SafeArea(
+                child: NavigationRail(
+                  extended: extended,
+                  minWidth: 76,
+                  minExtendedWidth: 205,
+                  backgroundColor: navy,
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: (index) => setState(() => selectedIndex = index),
+                  labelType: extended ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                  indicatorColor: cyanAccent.withValues(alpha: .18),
+                  selectedIconTheme: const IconThemeData(color: cyanAccent),
+                  unselectedIconTheme: const IconThemeData(color: Color(0xFFB8C9D8)),
+                  selectedLabelTextStyle: const TextStyle(color: cyanAccent, fontWeight: FontWeight.w800, fontSize: 10),
+                  unselectedLabelTextStyle: const TextStyle(color: Color(0xFFB8C9D8), fontSize: 10),
+                  leading: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 14, 8, 20),
+                    child: extended
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 2),
+                          const Text('KNOW BELOW. DIG ABOVE.', style: TextStyle(color: cyanAccent, fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w800)),
+                        ])
+                      : const Icon(Icons.hub_rounded, color: cyanAccent, size: 27),
+                  ),
+                  destinations: destinations,
+                ),
+              ),
+            ),
+            const VerticalDivider(width: 1, thickness: 1, color: Color(0xFF1D3853)),
+          ],
+          Expanded(child: IndexedStack(index: selectedIndex, children: pages)),
+        ]),
+        bottomNavigationBar: wide ? null : NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) => setState(() => selectedIndex = index),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment_rounded), label: 'Cases'),
+            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: 'GIS'),
+            NavigationDestination(icon: Icon(Icons.campaign_outlined), selectedIcon: Icon(Icons.campaign_rounded), label: 'Public works'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+          ],
+        ),
+      );
+    },
   );
 }
 
@@ -2528,16 +2596,16 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget metric(String title, String value, IconData icon, Color color) =>
     Expanded(child: Container(
       padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(color: Colors.white,
+      decoration: BoxDecoration(color: panelNavy,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE3EAF1))),
+        border: Border.all(color: const Color(0xFF25415E))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, color: color, size: 20),
         const SizedBox(height: 10),
         Text(value, style: GoogleFonts.robotoMono(
-          color: ink, fontSize: 21, fontWeight: FontWeight.w700)),
+          color: Colors.white, fontSize: 21, fontWeight: FontWeight.w700)),
         Text(title, style: GoogleFonts.inter(
-          color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
+          color: const Color(0xFFB6C7D6), fontSize: 10, fontWeight: FontWeight.w600)),
       ]),
     ));
 
@@ -2549,6 +2617,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final active = requests.length - count('completed') - count('rejected');
 
     return Scaffold(
+      backgroundColor: const Color(0xFF061426),
       appBar: AppBar(
         title: const Text('SAMANVAY'),
         actions: [
@@ -2607,7 +2676,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 23),
           Text('Operational overview', style: GoogleFonts.spaceGrotesk(
-            color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text('Your submitted infrastructure cases',
             style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
@@ -9894,6 +9963,25 @@ class _MapPageState extends State<MapPage> {
             ),
           )),
           const Divider(height: 9, color: Color(0x334B647C)),
+          const Text('DATA TRUST CLASSES',
+            style: TextStyle(color: Color(0xFF55D9CE), fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 5),
+          _trustClassRow(
+            color: const Color(0xFF55D9CE),
+            label: 'VERIFIED OWNER GEOMETRY',
+            value: _canViewDepartmentAssets ? 'OWNER-DEPT VIEW · $_verifiedAssetCount' : 'OWNER-DEPT ACCESS ONLY',
+          ),
+          _trustClassRow(
+            color: const Color(0xFF38BDF8),
+            label: 'GENERALISED COVERAGE',
+            value: 'AGGREGATE · NOT CLEARANCE',
+          ),
+          _trustClassRow(
+            color: const Color(0xFFF6C66B),
+            label: 'CONTEXT / ESTIMATED',
+            value: 'REFERENCE ONLY · EXCLUDED FROM CLEARANCE',
+          ),
+          const Divider(height: 9, color: Color(0x334B647C)),
           Row(
             children: [
               Expanded(child: _undergroundStat('UTILITY CATALOGUE', '$_utilityLayerCatalogueCount')),
@@ -9914,6 +10002,26 @@ class _MapPageState extends State<MapPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _trustClassRow({
+    required Color color,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(children: [
+        Container(width: 7, height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 7),
+        Expanded(child: Text(label, style: const TextStyle(
+          color: Color(0xFFE5EEF5), fontSize: 7, fontWeight: FontWeight.w800))),
+        const SizedBox(width: 5),
+        Flexible(child: Text(value, textAlign: TextAlign.right,
+          style: TextStyle(color: color, fontSize: 6.5, fontWeight: FontWeight.w900))),
+      ]),
     );
   }
 
@@ -11170,8 +11278,8 @@ class _ProfilePageState extends State<ProfilePage> {
     child: ListTile(
       leading: CircleAvatar(backgroundColor: color.withValues(alpha: .12),
         child: Icon(icon, color: color)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: navy)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: mutedInk)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFFB6C7D6))),
       trailing: const Icon(Icons.chevron_right_rounded, color: mutedInk), onTap: action),
   );
 
@@ -11225,7 +11333,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ]),
         ),
         const SizedBox(height: 18),
-        const Text('Account activity', style: TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w800)),
+        const Text('Account activity', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
         Row(children: [
           _metric('Requests', data['requests'].toString(), Icons.assignment_outlined),
@@ -11235,7 +11343,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _metric('Unread', data['unread'].toString(), Icons.notifications_active_outlined),
         ]),
         const SizedBox(height: 20),
-        const Text('Workspace and support', style: TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w800)),
+        const Text('Workspace and support', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
         _tile(Icons.assignment_outlined, 'My requests', 'Review submitted requests and status',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RequestsPage()))),
@@ -11278,13 +11386,13 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _metric(String label, String value, IconData icon) => Expanded(
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFE1EAF4))),
+      decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFF25415E))),
       child: Column(children: [
         Icon(icon, color: electricBlue, size: 19), const SizedBox(height: 8),
-        Text(value, style: GoogleFonts.robotoMono(color: navy, fontSize: 19, fontWeight: FontWeight.w800)),
+        Text(value, style: GoogleFonts.robotoMono(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
         Text(label, textAlign: TextAlign.center,
-          style: const TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+          style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, fontWeight: FontWeight.w700)),
       ]),
     ),
   );
