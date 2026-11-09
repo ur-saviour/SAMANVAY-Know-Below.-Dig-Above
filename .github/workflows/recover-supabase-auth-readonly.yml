@@ -89,7 +89,7 @@ jobs:
             );"
           docker exec samanvay-archive-db pg_restore -U postgres -d postgres \
             --data-only --no-owner --no-acl \
-            --table=public.groundwater_station_observations /work/groundwater.dump
+            --table=groundwater_station_observations /work/groundwater.dump
           docker exec samanvay-archive-db psql -U postgres -v ON_ERROR_STOP=1 -c "
             COPY (
               SELECT id, source_resource_id, source_record_id, station_name, agency,
