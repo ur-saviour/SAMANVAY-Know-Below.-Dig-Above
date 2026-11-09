@@ -6282,9 +6282,15 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
     );
     if (picked == null) return;
     final selectedFile = picked;
+    const maxCsvBytes = 25 * 1024 * 1024;
+    if (selectedFile.size <= 0 || selectedFile.size > maxCsvBytes) {
+      setState(() => statusMessage =
+          'The selected CSV must be between 1 byte and 25 MB. Split a larger official export into jurisdiction-sized files.');
+      return;
+    }
     final bytes = await selectedFile.readAsBytes();
-    if (bytes.isEmpty) {
-      setState(() => statusMessage = 'The selected CSV file could not be read.');
+    if (bytes.isEmpty || bytes.length != selectedFile.size) {
+      setState(() => statusMessage = 'The selected CSV could not be read completely.');
       return;
     }
     // Fingerprint the exact uploaded bytes for the import audit record.
@@ -6297,15 +6303,97 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       final parsed = csv.decode(csvText);
       if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
       final headers = parsed.first.map((v) => _key(v.toString())).toList();
-      final codeCol = _column(headers, ['lgdcode','districtlgdcode','districtcode','localbodycode','code']);
-      final nameCol = _column(headers, ['name','districtname','districtnameenglish','localbodyname','localbodynameenglish','nameenglish']);
-      final stateCol = _column(headers, ['statename','statenameenglish','state']);
-      final localNameCol = _column(headers, ['namelocal','localname','localbodynamelocal']);
-      final parentCol = unitType == 'district'
-          ? -1
-          : _column(headers, ['parentlgdcode','parentcode','parentunitcode','districtlgdcode','districtcode']);
+      final codeAliases = switch (unitType) {
+        'district' => ['lgdcode', 'districtlgdcode', 'districtcode', 'code'],
+        'sub_district' => ['lgdcode', 'subdistrictlgdcode', 'subdistrictcode', 'code'],
+        'block' => ['lgdcode', 'blocklgdcode', 'blockcode', 'code'],
+        'urban_local_body' => [
+          'lgdcode', 'localbodylgdcode', 'urbanlocalbodylgdcode',
+          'localbodycode', 'urbanlocalbodycode', 'code',
+        ],
+        'gram_panchayat' => [
+          'lgdcode', 'grampanchayatlgdcode', 'grampanchayatcode',
+          'panchayatcode', 'code',
+        ],
+        'village' => ['lgdcode', 'villagelgdcode', 'villagecode', 'code'],
+        'ward' => ['lgdcode', 'wardlgdcode', 'wardcode', 'code'],
+        _ => ['lgdcode', 'traditionalbodylgdcode', 'traditionalbodycode', 'code'],
+      };
+      final nameAliases = switch (unitType) {
+        'district' => ['name', 'districtname', 'districtnameenglish', 'nameenglish'],
+        'sub_district' => ['name', 'subdistrictname', 'subdistrictnameenglish', 'nameenglish'],
+        'block' => ['name', 'blockname', 'blocknameenglish', 'nameenglish'],
+        'urban_local_body' => [
+          'name', 'localbodyname', 'localbodynameenglish',
+          'urbanlocalbodyname', 'municipalbodyname', 'nameenglish',
+        ],
+        'gram_panchayat' => [
+          'name', 'grampanchayatname', 'panchayatname', 'nameenglish',
+        ],
+        'village' => ['name', 'villagename', 'villagenameenglish', 'nameenglish'],
+        'ward' => ['name', 'wardname', 'wardnameenglish', 'nameenglish'],
+        _ => ['name', 'traditionalbodyname', 'nameenglish'],
+      };
+      final parentAliases = switch (unitType) {
+        'district' => <String>[],
+        'sub_district' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'districtlgdcode', 'districtcode',
+        ],
+        'block' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'subdistrictlgdcode', 'subdistrictcode',
+          'districtlgdcode', 'districtcode',
+        ],
+        'urban_local_body' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'districtlgdcode', 'districtcode',
+        ],
+        'gram_panchayat' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'blocklgdcode', 'blockcode', 'subdistrictlgdcode',
+          'subdistrictcode', 'districtlgdcode', 'districtcode',
+        ],
+        'village' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'grampanchayatlgdcode', 'grampanchayatcode',
+          'blocklgdcode', 'blockcode', 'subdistrictlgdcode',
+          'subdistrictcode',
+        ],
+        'ward' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'urbanlocalbodylgdcode', 'urbanlocalbodycode',
+          'localbodylgdcode', 'localbodycode',
+        ],
+        _ => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'districtlgdcode', 'districtcode',
+        ],
+      };
+      final codeCol = _column(headers, codeAliases);
+      final nameCol = _column(headers, nameAliases);
+      final stateCol = _column(headers, [
+        'statename', 'statenameenglish', 'stateutname',
+        'stateutnameenglish', 'state',
+      ]);
+      final localNameCol = _column(headers, [
+        'namelocal', 'localname', 'localbodynamelocal', 'nameinlocal',
+      ]);
+      final parentCol = _column(headers, parentAliases);
       if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
-        throw Exception('Required columns not found. Include LGD Code, Name and State Name.');
+        throw Exception(
+          'Required columns not found for ' + unitTypes[unitType]! +
+          '. Include the entity LGD code, entity name and State Name. '
+          'Recognised code headers: ' + codeAliases.join(', ') + '.',
+        );
+      }
+      if (unitType != 'district' && parentCol < 0) {
+        throw Exception(
+          'The ' + unitTypes[unitType]! +
+          ' CSV has no recognised direct-parent LGD code column. '
+          'Include Parent LGD Code or the appropriate parent code column so imported records can be linked into the national hierarchy. '
+          'No rows were imported.',
+        );
       }
 
       final rawStates = await supabase.from('india_state_uts').select('id,name').limit(100);
@@ -6330,7 +6418,7 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
         final codeBatch = parentCodes.sublist(offset, end);
         final parentRows = await supabase
             .from('india_administrative_units')
-            .select('id,lgd_code')
+            .select('id,lgd_code,state_ut_id,unit_type')
             .eq('source_system', 'Local Government Directory (LGD)')
             .eq('is_active', true)
             .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
@@ -6338,28 +6426,78 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
             .limit(parentLookupBatchSize);
         for (final row in parentRows) {
           final code = (row['lgd_code'] ?? '').toString();
-          if (code.isNotEmpty) parentIds[code] = row['id'].toString();
+          if (code.isNotEmpty) {
+            parentIds[code] = {
+              'id': row['id'].toString(),
+              'state_ut_id': row['state_ut_id'].toString(),
+              'unit_type': row['unit_type'].toString(),
+            };
+          }
         }
       }
 
       final payload = <Map<String, dynamic>>[];
       final seenCodes = <String>{};
+      final rejectionReasons = <String, int>{};
       var rejected = 0;
+      void rejectRow(String reason) {
+        rejected++;
+        rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
+      }
+      final expectedParentTypes = switch (unitType) {
+        'district' => <String>{},
+        'sub_district' => <String>{'district'},
+        'block' => <String>{'district', 'sub_district'},
+        'urban_local_body' => <String>{'district'},
+        'gram_panchayat' => <String>{'district', 'sub_district', 'block'},
+        'village' => <String>{'sub_district', 'block', 'gram_panchayat'},
+        'ward' => <String>{'urban_local_body'},
+        _ => <String>{'district', 'sub_district'},
+      };
       for (final row in parsed.skip(1)) {
         final code = _cell(row, codeCol);
         final name = _cell(row, nameCol);
         final stateName = _cell(row, stateCol);
         final stateId = stateIds[_key(stateName)];
-        if (code.isEmpty || name.isEmpty || stateId == null || !seenCodes.add(code)) {
-          rejected++;
+        if (code.isEmpty) {
+          rejectRow('Missing entity LGD code');
           continue;
         }
+        if (name.isEmpty) {
+          rejectRow('Missing entity name');
+          continue;
+        }
+        if (stateId == null) {
+          rejectRow('State name does not match the 36 State/UT directory');
+          continue;
+        }
+        if (!seenCodes.add(code)) {
+          rejectRow('Duplicate LGD code within this CSV');
+          continue;
+        }
+
         final parentCode = _cell(row, parentCol);
-        final parentId = parentCode.isEmpty ? null : parentIds[parentCode];
-        if (parentCode.isNotEmpty && parentId == null) {
-          rejected++;
+        Map<String, dynamic>? parent;
+        if (unitType != 'district' && parentCode.isEmpty) {
+          rejectRow('Missing direct-parent LGD code');
           continue;
         }
+        if (parentCode.isNotEmpty) {
+          parent = parentIds[parentCode];
+          if (parent == null) {
+            rejectRow('Parent LGD code is not already imported');
+            continue;
+          }
+          if (parent['state_ut_id'] != stateId) {
+            rejectRow('Parent LGD code belongs to a different State/UT');
+            continue;
+          }
+          if (!expectedParentTypes.contains(parent['unit_type'])) {
+            rejectRow('Parent LGD code has an incompatible hierarchy type');
+            continue;
+          }
+        }
+        final parentId = parent?['id'];
         payload.add({
           'state_ut_id': stateId,
           'parent_unit_id': parentId,
@@ -6440,9 +6578,14 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       if (!mounted) return;
       setState(() {
         busy = false;
+        final reasonSummary = rejectionReasons.entries
+            .map((entry) => entry.key + ': ' + entry.value.toString())
+            .join('; ');
         statusMessage = 'Import complete: ' + payload.length.toString() +
           ' rows inserted/updated; ' + rejected.toString() +
-          ' rows rejected. Records remain unverified until authority review.';
+          ' rows rejected. ' +
+          (reasonSummary.isEmpty ? '' : 'Rejection reasons: ' + reasonSummary + '. ') +
+          'Records remain unverified until authority review.';
       });
     } catch (error) {
       if (!mounted) return;
@@ -6490,8 +6633,12 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
         ),
       ),
       const SizedBox(height: 12),
-      const Text('Required CSV columns: LGD Code, Name, State Name. Optional: Parent LGD Code, Local Name.',
-        style: TextStyle(fontSize: 11, color: mutedInk)),
+      Text(
+        unitType == 'district'
+            ? 'Required: District LGD Code, District Name and State Name. Maximum CSV size: 25 MB.'
+            : 'Required: entity LGD code, entity name, State Name and direct-parent LGD code. Ward files should include Local Body Code; village files should include their direct revenue / local-government parent code. Maximum CSV size: 25 MB.',
+        style: const TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
+      ),
       const SizedBox(height: 14),
       FilledButton.icon(
         onPressed: busy ? null : _pickAndImport,
