@@ -6512,7 +6512,15 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
           'is_active': true,
         });
       }
-      if (payload.isEmpty) throw Exception('No valid rows remain after checking LGD codes and State names.');
+      if (payload.isEmpty) {
+        final reasonSummary = rejectionReasons.entries
+            .map((entry) => entry.key + ': ' + entry.value.toString())
+            .join('; ');
+        throw Exception(
+          'No valid rows remain after LGD hierarchy validation. ' +
+          (reasonSummary.isEmpty ? 'Check the CSV headers and source records.' : reasonSummary),
+        );
+      }
 
       final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
       final batchStateId = touchedStates.length == 1 ? touchedStates.first : null;
