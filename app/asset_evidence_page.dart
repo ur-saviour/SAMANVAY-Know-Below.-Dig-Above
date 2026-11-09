@@ -196,7 +196,7 @@ class _UtilityAssetEvidenceSubmissionPageState
       );
       if (file == null) return;
       final fileSize = file.size;
-      if (fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
+      if (fileSize == null || fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
         throw StateError('Select a non-empty file no larger than 20 MB.');
       }
       final bytes = await file.readAsBytes();
