@@ -110,11 +110,13 @@ jobs:
               exit 1
             }
           elif [ -f android/app/build.gradle ]; then
-            grep -Eq "namespace[[:space:]]+'org.samanvay.samanvay'" android/app/build.gradle || {
+            (grep -Eq "namespace[[:space:]]*=[[:space:]]*['\"]org.samanvay.samanvay['\"]" android/app/build.gradle ||
+              grep -Eq "namespace[[:space:]]+'org.samanvay.samanvay'" android/app/build.gradle) || {
               echo "ERROR: Android namespace is not org.samanvay.samanvay."
               exit 1
             }
-            grep -Eq "applicationId[[:space:]]+'org.samanvay.samanvay'" android/app/build.gradle || {
+            (grep -Eq "applicationId[[:space:]]*=[[:space:]]*['\"]org.samanvay.samanvay['\"]" android/app/build.gradle ||
+              grep -Eq "applicationId[[:space:]]+'org.samanvay.samanvay'" android/app/build.gradle) || {
               echo "ERROR: Android applicationId is not org.samanvay.samanvay."
               exit 1
             }
