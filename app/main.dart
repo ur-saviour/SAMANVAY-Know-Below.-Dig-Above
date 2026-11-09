@@ -414,6 +414,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
   String errorMessage = '';
 
   final GlobalKey _overviewAnchor = GlobalKey(debugLabel: 'ops-overview');
+  final GlobalKey _analyticsAnchor = GlobalKey(debugLabel: 'ops-analytics');
   final GlobalKey _publicWorksAnchor = GlobalKey(debugLabel: 'ops-public-works');
   final GlobalKey _coordinationAnchor = GlobalKey(debugLabel: 'ops-coordination');
   final GlobalKey _roadworksAnchor = GlobalKey(debugLabel: 'ops-roadworks');
@@ -464,7 +465,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
 
   void _jumpToSection(String section) {
     final anchor = switch (section) {
-      'public-works' => _publicWorksAnchor,
+      'analytics' => _analyticsAnchor,
+      'public-works' || 'clearance' => _publicWorksAnchor,
       'coordination' => _coordinationAnchor,
       'roadworks' => _roadworksAnchor,
       'national' => _nationalAnchor,
@@ -485,18 +487,38 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     );
   }
 
+  void _selectPortalTab(String section) {
+    if (section == 'gis') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const MapPage()),
+      );
+      return;
+    }
+    if (section == 'audit') {
+      if (!widget.isAdmin) {
+        notify('Audit logs are restricted to administrator accounts.');
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const AdminManagementPage()),
+      );
+      return;
+    }
+    _jumpToSection(section);
+  }
+
   Widget _sectionChip(String label, IconData icon, String section) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: OutlinedButton.icon(
-        onPressed: () => _jumpToSection(section),
+        onPressed: () => _selectPortalTab(section),
         icon: Icon(icon, size: 15),
         label: Text(label),
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF9DEBE3),
-          side: const BorderSide(color: Color(0x5547BDB3)),
+          foregroundColor: const Color(0xFFB5F2E7),
+          side: const BorderSide(color: Color(0x6647BDB3)),
           backgroundColor: const Color(0xFF102B40),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
         ),
@@ -570,6 +592,12 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         loadedRequests = mergedRequests.values.toList()
           ..sort((a, b) => (b['created_at'] ?? '').toString()
               .compareTo((a['created_at'] ?? '').toString()));
+
+        final rawDepartments = await supabase
+            .from('departments')
+            .select('id,name')
+            .eq('id', widget.departmentId!);
+        loadedDepartments = List<Map<String, dynamic>>.from(rawDepartments);
       } else {
         final rawRequests = await supabase
             .from('excavation_requests')
@@ -715,13 +743,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             Row(children: [
               const Icon(Icons.alt_route, color: Color(0xFF087F83)),
               const SizedBox(width: 9),
-              const Expanded(child: Text('Repeated excavation & joint-work opportunities',
+              const Expanded(child: Text('Potential clash screening & joint-work opportunities',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
               Chip(label: Text('${candidates.length}')),
             ]),
             const SizedBox(height: 5),
             const Text(
-              'Advisory matches: different infrastructure domains within 100 m with overlapping planned dates. Review before coordinating; these are not confirmed duplicates.',
+              'Rule-based advisory: different infrastructure domains within 100 m with overlapping planned dates. This is not a verified underground-utility intersection map; review every match before coordinating.',
               style: TextStyle(fontSize: 11, color: mutedInk),
             ),
             const SizedBox(height: 10),
@@ -758,6 +786,202 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   ]),
                 );
               }),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MapPage()),
+                ),
+                icon: const Icon(Icons.map_outlined, size: 16),
+                label: const Text('Open GIS mapping workspace'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget departmentCoordinationPanel() {
+    final allReviews = reviewsByRequest.values.expand((rows) => rows).toList();
+    final jointCases = requests.where((request) {
+      final id = request['id'].toString();
+      final assigned = (reviewsByRequest[id] ?? [])
+          .map((review) => review['department_id'].toString())
+          .toSet();
+      return assigned.length >= 2;
+    }).length;
+
+    final workload = departments.map((department) {
+      final id = department['id'].toString();
+      return <String, dynamic>{
+        'name': department['name'].toString(),
+        'count': allReviews.where((review) =>
+          review['department_id']?.toString() == id).length,
+      };
+    }).toList()
+      ..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+
+    final maxCount = workload.isEmpty
+        ? 0
+        : workload.map((item) => item['count'] as int).reduce((a, b) => a > b ? a : b);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.hub_outlined, color: Color(0xFF20B7A4)),
+              const SizedBox(width: 9),
+              const Expanded(child: Text('Department coordination & activity',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+              Chip(label: Text('${departments.length}')),
+            ]),
+            const SizedBox(height: 5),
+            Text(
+              '$jointCases case(s) have review assignments from at least two departments.',
+              style: const TextStyle(fontSize: 11, color: mutedInk),
+            ),
+            const SizedBox(height: 13),
+            if (workload.isEmpty)
+              const Text(
+                'No department directory records are available in this account view yet.',
+                style: TextStyle(fontSize: 12, color: mutedInk),
+              )
+            else
+              ...workload.take(6).map((item) {
+                final count = item['count'] as int;
+                final ratio = maxCount == 0 ? 0.0 : count / maxCount;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(child: Text(item['name'].toString(),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+                        Text('$count reviews',
+                          style: const TextStyle(fontSize: 10, color: mutedInk)),
+                      ]),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 7,
+                          backgroundColor: const Color(0xFF1C354A),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF20B7A4)),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            const Text(
+              'Bars compare review counts within the currently loaded records; they are not performance ratings.',
+              style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget dashboardAnalysisRow() {
+    return LayoutBuilder(builder: (context, constraints) {
+      const gap = 12.0;
+      final columns = constraints.maxWidth >= 980 ? 2 : 1;
+      final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          SizedBox(width: width, child: repeatedWorkCoordinationPanel()),
+          SizedBox(width: width, child: departmentCoordinationPanel()),
+        ],
+      );
+    });
+  }
+
+  Widget clearanceWorkflowPanel() {
+    const steps = [
+      ('01', 'Register assets', 'Attach survey and ownership evidence'),
+      ('02', 'Submit request', 'Create a location-linked infrastructure case'),
+      ('03', 'Spatial screening', 'Review nearby work and available records'),
+      ('04', 'Decision / approval', 'Authorised department action'),
+      ('05', 'GIS reconciliation', 'Update only against verified evidence'),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.route_outlined, color: Color(0xFF20B7A4)),
+              const SizedBox(width: 9),
+              const Expanded(child: Text('Clearance request workflow',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+              const Text('5 STEPS',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF20B7A4))),
+            ]),
+            const SizedBox(height: 5),
+            const Text(
+              'Reference lifecycle. A step is complete only when the corresponding case, approval or verified GIS record exists.',
+              style: TextStyle(fontSize: 11, color: mutedInk, height: 1.35),
+            ),
+            const SizedBox(height: 14),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var index = 0; index < steps.length; index++) ...[
+                    Container(
+                      width: 158,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF102B40),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF294763)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 28, height: 28,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(
+                              color: Color(0x2231C7B0), shape: BoxShape.circle),
+                            child: Text(steps[index].$1,
+                              style: const TextStyle(fontSize: 10,
+                                fontWeight: FontWeight.w900, color: Color(0xFF73E2D2))),
+                          ),
+                          const SizedBox(height: 9),
+                          Text(steps[index].$2,
+                            style: const TextStyle(fontSize: 11,
+                              fontWeight: FontWeight.w800, color: Colors.white)),
+                          const SizedBox(height: 5),
+                          Text(steps[index].$3,
+                            style: const TextStyle(fontSize: 10,
+                              color: Color(0xFFB6C7D6), height: 1.35)),
+                        ],
+                      ),
+                    ),
+                    if (index < steps.length - 1)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 5),
+                        child: Icon(Icons.arrow_forward_ios_rounded,
+                          size: 13, color: Color(0xFF66869B)),
+                      ),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -920,11 +1144,11 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Executive operations snapshot',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
+        const Text('Live operations metrics',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white)),
         const SizedBox(height: 4),
-        const Text('Calculated from cases and department reviews visible to this account.',
-          style: TextStyle(color: mutedInk, fontSize: 11)),
+        const Text('Counts are calculated from records visible to the signed-in role.',
+          style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 11)),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -940,25 +1164,21 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               runSpacing: spacing,
               children: [
                 _executiveMetricCard(
-                  title: 'Active works / cases', value: activeCases.toString(),
+                  title: 'Active projects / cases', value: activeCases.toString(),
                   note: 'Approved or currently in progress',
-                  icon: Icons.engineering_outlined, accent: const Color(0xFF087F83), width: cardWidth),
+                  icon: Icons.engineering_outlined, accent: const Color(0xFF20B7A4), width: cardWidth),
                 _executiveMetricCard(
-                  title: 'Pending department responses', value: pendingResponses.toString(),
-                  note: 'Pending, under review or clarification',
-                  icon: Icons.hourglass_top_rounded, accent: const Color(0xFFD28A28), width: cardWidth),
+                  title: 'Pending clearances', value: pendingResponses.toString(),
+                  note: 'Pending or under department review',
+                  icon: Icons.hourglass_top_rounded, accent: const Color(0xFFD9A441), width: cardWidth),
                 _executiveMetricCard(
-                  title: 'Multi-department cases', value: multiDepartmentCases.toString(),
+                  title: 'Joint-work cases', value: multiDepartmentCases.toString(),
                   note: 'Two or more departments assigned',
-                  icon: Icons.account_tree_outlined, accent: const Color(0xFF3978B8), width: cardWidth),
+                  icon: Icons.account_tree_outlined, accent: const Color(0xFF56A6E8), width: cardWidth),
                 _executiveMetricCard(
-                  title: 'Officer-flagged conflicts', value: conflictRequestIds.length.toString(),
+                  title: 'Clashes flagged', value: conflictRequestIds.length.toString(),
                   note: 'Recorded case or review status flags',
-                  icon: Icons.warning_amber_rounded, accent: const Color(0xFFC34C4C), width: cardWidth),
-                _executiveMetricCard(
-                  title: 'Avoided excavation / public savings', value: 'Not measured',
-                  note: 'Requires verified joint-work outcomes and approved cost baselines; no estimate is inferred.',
-                  icon: Icons.savings_outlined, accent: const Color(0xFF64748B), width: cardWidth),
+                  icon: Icons.warning_amber_rounded, accent: const Color(0xFFE47E63), width: cardWidth),
               ],
             );
           },
@@ -1744,8 +1964,42 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     return Scaffold(
       backgroundColor: const Color(0xFF061426),
       appBar: AppBar(
-        title: const Text('SAMANVAY'),
+        toolbarHeight: 72,
+        backgroundColor: const Color(0xFF061426),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('SAMANVAY',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+            Text('INTEGRATED INFRASTRUCTURE CLEARANCE PORTAL',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700,
+                letterSpacing: 0.65, color: Color(0xFF9DB6C8))),
+          ],
+        ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0x2230C6A7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x6649CDB8)),
+                ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.circle, size: 7, color: Color(0xFF50D5A5)),
+                  SizedBox(width: 6),
+                  Text('LIVE', style: TextStyle(fontSize: 9,
+                    fontWeight: FontWeight.w900, color: Color(0xFFB9F3DC))),
+                ]),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'My profile',
             onPressed: () => Navigator.of(context).push(
@@ -1779,40 +2033,66 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: navy,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0B1728), Color(0xFF11485A), Color(0xFF0B5E62)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0x4438B6AA)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    widget.icon,
-                    color: Colors.white,
-                    size: 36,
-                  ),
-                  const SizedBox(height: 13),
+                  Row(children: [
+                    Container(
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(
+                        color: const Color(0x2238C7B0),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: const Color(0x664ED1BF)),
+                      ),
+                      child: Icon(widget.icon, color: const Color(0xFFB9F3E8), size: 25),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('SAMANVAY',
+                          style: TextStyle(color: Colors.white, fontSize: 20,
+                            fontWeight: FontWeight.w900, letterSpacing: 1.15)),
+                        SizedBox(height: 3),
+                        Text('INTEGRATED INFRASTRUCTURE CLEARANCE PORTAL',
+                          style: TextStyle(color: Color(0xFFB4D1DB), fontSize: 8,
+                            fontWeight: FontWeight.w800, letterSpacing: 0.7)),
+                      ],
+                    )),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0x2230C6A7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0x6649CDB8)),
+                      ),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.circle, size: 7, color: Color(0xFF50D5A5)),
+                        SizedBox(width: 6),
+                        Text('LIVE', style: TextStyle(fontSize: 9,
+                          fontWeight: FontWeight.w900, color: Color(0xFFB9F3DC))),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 15),
                   Text(
                     widget.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 23,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 22,
+                      fontWeight: FontWeight.w900),
                   ),
-                  const SizedBox(height: 7),
-                  Text(
-                    'Welcome, $displayName',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  Text(
-                    widget.subtitle,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                    ),
-                  ),
+                  const SizedBox(height: 6),
+                  Text('Welcome, $displayName',
+                    style: const TextStyle(color: Color(0xFFD0E3E8), fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Text(widget.subtitle,
+                    style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 11, height: 1.4)),
                 ],
               ),
             ),
@@ -1832,51 +2112,25 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               child: Row(
                 children: [
                   _sectionChip('Overview', Icons.dashboard_outlined, 'overview'),
-                  _sectionChip('Public works', Icons.campaign_outlined, 'public-works'),
-                  _sectionChip('Coordination', Icons.hub_outlined, 'coordination'),
-                  _sectionChip('Roadworks', Icons.construction_outlined, 'roadworks'),
-                  _sectionChip('National data', Icons.public_outlined, 'national'),
-                  _sectionChip('Groundwater', Icons.water_drop_outlined, 'groundwater'),
-                  _sectionChip('Case register', Icons.assignment_outlined, 'cases'),
+                  _sectionChip('Analytics', Icons.query_stats_outlined, 'analytics'),
+                  _sectionChip('Clearance Gateway', Icons.fact_check_outlined, 'clearance'),
+                  _sectionChip('GIS Mapping', Icons.map_outlined, 'gis'),
+                  if (widget.isAdmin)
+                    _sectionChip('Audit Logs', Icons.history_rounded, 'audit')
+                  else
+                    _sectionChip('Case Register', Icons.assignment_outlined, 'cases'),
                 ],
               ),
             ),
             const SizedBox(height: 18),
             SizedBox(key: _overviewAnchor, height: 1),
-            const Text(
-              'Infrastructure overview',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                const gap = 10.0;
-                final columns = constraints.maxWidth >= 900
-                    ? 3
-                    : constraints.maxWidth >= 520
-                        ? 2
-                        : 1;
-                final tileWidth =
-                    (constraints.maxWidth - gap * (columns - 1)) / columns;
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: [
-                    metric('Total cases', requests.length, Icons.folder_open, width: tileWidth),
-                    metric('Submitted', countStatus('submitted'), Icons.inbox_outlined, width: tileWidth),
-                    metric('Under review', countStatus('under_review'), Icons.rate_review_outlined, width: tileWidth),
-                    metric('Approved', countStatus('approved'), Icons.verified_outlined, width: tileWidth),
-                    metric('Completed', countStatus('completed'), Icons.task_alt, width: tileWidth),
-                    metric('Conflicts', countStatus('conflict_detected'), Icons.warning_amber_outlined, width: tileWidth),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 10),
+            SizedBox(key: _analyticsAnchor, height: 1),
+            executiveSnapshot(),
+            const SizedBox(height: 14),
+            dashboardAnalysisRow(),
+            const SizedBox(height: 14),
+            clearanceWorkflowPanel(),
+            const SizedBox(height: 14),
             domainBreakdown(),
             const SizedBox(height: 14),
             SizedBox(key: _publicWorksAnchor, height: 1),
@@ -1939,12 +2193,6 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               isDepartment: widget.isDepartment,
               departmentId: widget.departmentId,
             ),
-            if (!widget.isDepartment) ...[
-              const SizedBox(height: 18),
-              executiveSnapshot(),
-              const SizedBox(height: 14),
-              repeatedWorkCoordinationPanel(),
-            ],
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
