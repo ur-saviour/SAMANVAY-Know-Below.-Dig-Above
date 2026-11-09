@@ -6310,12 +6310,33 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       for (final state in rawStates) {
         stateIds[_key(state['name'].toString())] = state['id'].toString();
       }
-      final rawExisting = await supabase.from('india_administrative_units')
-          .select('id,lgd_code').limit(5000);
+      // Resolve only the parent LGD codes referenced by this CSV. A fixed
+      // first-page lookup (for example, LIMIT 5000) silently misses valid
+      // parents once the national directory grows beyond that page.
+      final parentCodes = parsed.skip(1)
+          .map((row) => _cell(row, parentCol))
+          .where((code) => code.isNotEmpty)
+          .toSet()
+          .toList();
       final parentIds = <String, String>{};
-      for (final row in rawExisting) {
-        final code = (row['lgd_code'] ?? '').toString();
-        if (code.isNotEmpty) parentIds[code] = row['id'].toString();
+      const parentLookupBatchSize = 200;
+      for (var offset = 0; offset < parentCodes.length; offset += parentLookupBatchSize) {
+        final end = (offset + parentLookupBatchSize < parentCodes.length)
+            ? offset + parentLookupBatchSize
+            : parentCodes.length;
+        final codeBatch = parentCodes.sublist(offset, end);
+        final parentRows = await supabase
+            .from('india_administrative_units')
+            .select('id,lgd_code')
+            .eq('source_system', 'Local Government Directory (LGD)')
+            .eq('is_active', true)
+            .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
+            .inFilter('lgd_code', codeBatch)
+            .limit(parentLookupBatchSize);
+        for (final row in parentRows) {
+          final code = (row['lgd_code'] ?? '').toString();
+          if (code.isNotEmpty) parentIds[code] = row['id'].toString();
+        }
       }
 
       final payload = <Map<String, dynamic>>[];
