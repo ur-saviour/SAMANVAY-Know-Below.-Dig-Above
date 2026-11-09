@@ -222,8 +222,21 @@ class AuthGate extends StatelessWidget {
 // LOGIN, REGISTRATION AND EMAIL CONFIRMATION
 // ==========================================
 
-class RoleGate extends StatelessWidget {
+class RoleGate extends StatefulWidget {
   const RoleGate({super.key});
+
+  @override
+  State<RoleGate> createState() => _RoleGateState();
+}
+
+class _RoleGateState extends State<RoleGate> {
+  late Future<Map<String, dynamic>> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _loadProfile();
+  }
 
   Future<Map<String, dynamic>> _loadProfile() async {
     final user = supabase.auth.currentUser;
@@ -239,16 +252,22 @@ class RoleGate extends StatelessWidget {
         .maybeSingle();
 
     if (row == null) {
-      throw StateError('Profile not found. Contact an administrator.');
+      throw StateError('Profile not found for this authenticated user. Contact an administrator.');
     }
 
     return Map<String, dynamic>.from(row);
   }
 
+  void _retryProfileLoad() {
+    setState(() {
+      _profileFuture = _loadProfile();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: _loadProfile(),
+      future: _profileFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
@@ -259,6 +278,7 @@ class RoleGate extends StatelessWidget {
         if (snapshot.hasError) {
           return _PortalError(
             message: snapshot.error.toString(),
+            onRetry: _retryProfileLoad,
           );
         }
 
@@ -273,7 +293,7 @@ class RoleGate extends StatelessWidget {
           case 'department':
             if (departmentId == null || departmentId.isEmpty) {
               return const _PortalError(
-                message: 'No department assigned. Contact an administrator.',
+                message: 'No department is assigned to this account. Contact an administrator.',
               );
             }
             return DepartmentPortal(departmentId: departmentId);
@@ -296,8 +316,9 @@ class RoleGate extends StatelessWidget {
 
 class _PortalError extends StatelessWidget {
   final String message;
+  final VoidCallback? onRetry;
 
-  const _PortalError({required this.message});
+  const _PortalError({required this.message, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -318,11 +339,20 @@ class _PortalError extends StatelessWidget {
               const SizedBox(height: 10),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 20),
-              FilledButton(
+              if (onRetry != null) ...[
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('RETRY PROFILE CHECK'),
+                ),
+                const SizedBox(height: 8),
+              ],
+              OutlinedButton.icon(
                 onPressed: () async {
                   await supabase.auth.signOut();
                 },
-                child: const Text('LOG OUT'),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('LOG OUT'),
               ),
             ],
           ),
@@ -2479,8 +2509,8 @@ class _AuthPageState extends State<AuthPage> {
       showMessage(error.message);
     } catch (error) {
       showMessage(
-        'Unable to complete the request. '
-        'Check your internet connection and try again.',
+        'Unexpected request error (' + error.runtimeType.toString() + '). ' +
+        error.toString(),
       );
     } finally {
       if (mounted) {
@@ -2516,11 +2546,12 @@ class _AuthPageState extends State<AuthPage> {
   // unconfirmed Supabase signup.
 
   Future<void> resendConfirmationEmail() async {
-    final email = _emailController.text.trim();
+    final rawIdentifier = _emailController.text.trim();
+    final email = _existingTestAccountAliases[rawIdentifier.toLowerCase()] ?? rawIdentifier;
 
     if (!email.contains('@') || !email.contains('.')) {
       showMessage(
-        'Enter your registered email address first.',
+        'Enter your registered email address or a listed staff ID first.',
       );
       return;
     }
@@ -2740,7 +2771,7 @@ class _AuthPageState extends State<AuthPage> {
                       prefixIcon: Icon(isLogin ? Icons.alternate_email_rounded : Icons.email_outlined),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
-                          ? 'Demo IDs: 9013 Administrator · 10011 Coordinator · 10021 Water Supply Officer. Account password required.'
+                          ? 'Staff aliases: 9013 Administrator · 10011 Coordinator · 10021 Water Supply Officer. Each alias uses its linked account password; Forgot password sends a reset to that account.'
                           : null,
                       helperMaxLines: 2,
                     ),
@@ -5692,6 +5723,33 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   String searchText = '';
   String? selectedStateId;
   String selectedDomain = 'all';
+  String selectedRegion = 'All India';
+
+  static const List<String> regionOrder = [
+    'All India', 'North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands',
+  ];
+
+  static const Map<String, Set<String>> regionJurisdictions = {
+    'North': {
+      'Chandigarh', 'Delhi', 'Haryana', 'Himachal Pradesh',
+      'Jammu and Kashmir', 'Ladakh', 'Punjab', 'Rajasthan',
+      'Uttar Pradesh', 'Uttarakhand',
+    },
+    'Northeast': {
+      'Arunachal Pradesh', 'Assam', 'Manipur', 'Meghalaya',
+      'Mizoram', 'Nagaland', 'Sikkim', 'Tripura',
+    },
+    'East': {'Bihar', 'Jharkhand', 'Odisha', 'West Bengal'},
+    'Central': {'Chhattisgarh', 'Madhya Pradesh'},
+    'West': {
+      'Dadra and Nagar Haveli and Daman and Diu', 'Goa', 'Gujarat', 'Maharashtra',
+    },
+    'South': {
+      'Andhra Pradesh', 'Karnataka', 'Kerala', 'Puducherry',
+      'Tamil Nadu', 'Telangana',
+    },
+    'Islands': {'Andaman and Nicobar Islands', 'Lakshadweep'},
+  };
 
   static const Map<String, String> domainLabels = {
     'all': 'All infrastructure domains',
@@ -6052,10 +6110,13 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   @override
   Widget build(BuildContext context) {
     final filteredStates = states.where((state) {
-      final name = state['name'].toString().toLowerCase();
+      final rawName = state['name'].toString();
+      final name = rawName.toLowerCase();
       final matchesSearch = searchText.isEmpty || name.contains(searchText.toLowerCase());
       final matchesSelected = selectedStateId == null || state['id'].toString() == selectedStateId;
-      return matchesSearch && matchesSelected;
+      final regionStates = regionJurisdictions[selectedRegion];
+      final matchesRegion = regionStates == null || regionStates.contains(rawName);
+      return matchesSearch && matchesSelected && matchesRegion;
     }).toList();
 
     final uniqueDomains = coverage.map((row) => row['data_domain']?.toString())
@@ -6114,6 +6175,64 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                         _metric('COVERAGE ROWS', coverage.length.toString(), Icons.storage_outlined),
                       ]),
                       const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(13),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('BROWSE BY INDIA REGION',
+                                style: TextStyle(fontSize: 10, letterSpacing: .8,
+                                  fontWeight: FontWeight.w900, color: Color(0xFF8FDCE7))),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Regional filters expose northern and other State/UT records directly. These are browse groupings, not separate data-authority boundaries.',
+                                style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
+                              ),
+                              const SizedBox(height: 10),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (final region in regionOrder)
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 7),
+                                        child: ChoiceChip(
+                                          selected: selectedRegion == region,
+                                          label: Text(
+                                            region + ' · ' +
+                                            (region == 'All India'
+                                              ? states.length
+                                              : regionJurisdictions[region]!.length).toString(),
+                                          ),
+                                          labelStyle: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: selectedRegion == region
+                                              ? Colors.white
+                                              : ink,
+                                          ),
+                                          selectedColor: const Color(0xFF087F83),
+                                          backgroundColor: panelNavy,
+                                          side: BorderSide(
+                                            color: selectedRegion == region
+                                              ? const Color(0xFF35D7C2)
+                                              : const Color(0xFF294763),
+                                          ),
+                                          onSelected: (_) => setState(() {
+                                            selectedRegion = region;
+                                            selectedStateId = null;
+                                          }),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       _administrativeDirectoryCard(),
                       const SizedBox(height: 12),
                       Card(
@@ -6145,7 +6264,10 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                                   child: Text(state['name'].toString(), overflow: TextOverflow.ellipsis),
                                 )),
                               ],
-                              onChanged: (value) => setState(() => selectedStateId = value),
+                              onChanged: (value) => setState(() {
+                                selectedStateId = value;
+                                if (value != null) selectedRegion = 'All India';
+                              }),
                             ),
                             const SizedBox(height: 10),
                             DropdownButtonFormField<String>(
@@ -12020,6 +12142,35 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Future<void> _jumpToIndiaRegion(String region) async {
+    final controller = _controller;
+    if (controller == null) {
+      _showMessage('The GIS map is still initialising. Try again in a moment.');
+      return;
+    }
+
+    final positions = <String, CameraPosition>{
+      'All India': const CameraPosition(target: LatLng(22.5, 79.0), zoom: 3.5),
+      'North': const CameraPosition(target: LatLng(30.2, 78.2), zoom: 4.4),
+      'Northeast': const CameraPosition(target: LatLng(25.8, 93.1), zoom: 4.8),
+      'East': const CameraPosition(target: LatLng(23.7, 86.7), zoom: 4.7),
+      'Central': const CameraPosition(target: LatLng(23.4, 79.0), zoom: 4.7),
+      'West': const CameraPosition(target: LatLng(22.4, 73.0), zoom: 4.7),
+      'South': const CameraPosition(target: LatLng(12.8, 78.3), zoom: 4.5),
+      'Andaman and Nicobar': const CameraPosition(target: LatLng(11.9, 92.7), zoom: 5.1),
+      'Lakshadweep': const CameraPosition(target: LatLng(10.5, 72.6), zoom: 5.3),
+    };
+    final destination = positions[region];
+    if (destination == null) return;
+
+    try {
+      await controller.animateCamera(CameraUpdate.newCameraPosition(destination));
+      if (mounted) _showMessage('GIS view moved to ' + region + '. Available layers remain governed by verified source coverage and your account permissions.');
+    } catch (_) {
+      if (mounted) _showMessage('Unable to move the GIS map to ' + region + '.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final desktopLayout = MediaQuery.sizeOf(context).width >= 1180;
@@ -12072,6 +12223,22 @@ class _MapPageState extends State<MapPage> {
             tooltip: 'Layer controls',
             onPressed: _openLayerPanel,
             icon: const Icon(Icons.layers_outlined),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Jump to an Indian region',
+            icon: const Icon(Icons.explore_outlined),
+            onSelected: _jumpToIndiaRegion,
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'All India', child: Text('All India')),
+              PopupMenuItem(value: 'North', child: Text('North India')),
+              PopupMenuItem(value: 'Northeast', child: Text('Northeast India')),
+              PopupMenuItem(value: 'East', child: Text('East India')),
+              PopupMenuItem(value: 'Central', child: Text('Central India')),
+              PopupMenuItem(value: 'West', child: Text('West India')),
+              PopupMenuItem(value: 'South', child: Text('South India')),
+              PopupMenuItem(value: 'Andaman and Nicobar', child: Text('Andaman & Nicobar Islands')),
+              PopupMenuItem(value: 'Lakshadweep', child: Text('Lakshadweep')),
+            ],
           ),
           IconButton(
             tooltip: 'India-wide data coverage',
