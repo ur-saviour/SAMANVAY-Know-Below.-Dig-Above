@@ -6283,14 +6283,14 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
     if (picked == null) return;
     final selectedFile = picked;
     const maxCsvBytes = 25 * 1024 * 1024;
-    if (selectedFile.size <= 0 || selectedFile.size > maxCsvBytes) {
-      setState(() => statusMessage =
-          'The selected CSV must be between 1 byte and 25 MB. Split a larger official export into jurisdiction-sized files.');
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) {
+      setState(() => statusMessage = 'The selected CSV could not be read completely.');
       return;
     }
-    final bytes = await selectedFile.readAsBytes();
-    if (bytes.isEmpty || bytes.length != selectedFile.size) {
-      setState(() => statusMessage = 'The selected CSV could not be read completely.');
+    if (bytes.length > maxCsvBytes) {
+      setState(() => statusMessage =
+          'The selected CSV exceeds the 25 MB import limit. Split a larger official export into jurisdiction-sized files.');
       return;
     }
     // Fingerprint the exact uploaded bytes for the import audit record.
