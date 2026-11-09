@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
+import 'package:crypto/crypto.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'asset_evidence_page.dart';
@@ -6286,6 +6287,8 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       setState(() => statusMessage = 'The selected CSV file could not be read.');
       return;
     }
+    // Fingerprint the exact uploaded bytes for the import audit record.
+    final fileSha256 = sha256.convert(bytes).toString();
 
     setState(() { busy = true; statusMessage = 'Validating the official LGD CSV...'; });
     try {
@@ -6392,6 +6395,7 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
         'unit_type': unitType,
         'source_updated_at': reportDate.toIso8601String().split('T').first,
         'original_file_name': selectedFile.name,
+        'file_sha256': fileSha256,
         'import_status': 'uploaded',
         'rows_received': parsed.length - 1,
         'rows_rejected': rejected,
