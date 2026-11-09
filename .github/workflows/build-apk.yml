@@ -107,6 +107,7 @@ jobs:
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
+          cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
 
           if [ ! -s assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson ]; then
             echo "ERROR: Coimbatore ward reference GeoJSON is missing from the repository."
