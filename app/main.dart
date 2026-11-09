@@ -6868,6 +6868,7 @@ class StatCard extends StatelessWidget {
         color: panelNavy,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFF25415E)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
