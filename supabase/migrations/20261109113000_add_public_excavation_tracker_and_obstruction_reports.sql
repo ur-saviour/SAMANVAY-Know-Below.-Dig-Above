@@ -48,13 +48,19 @@ grant insert, update on public.public_excavation_notices to authenticated;
 drop policy if exists "Published SAMANVAY work notices are public" on public.public_excavation_notices;
 create policy "Published SAMANVAY work notices are public"
   on public.public_excavation_notices for select to anon, authenticated
+  using (notice_status <> 'draft' and published_at is not null);
+
+drop policy if exists "Assigned staff can read draft notices" on public.public_excavation_notices;
+create policy "Assigned staff can read draft notices"
+  on public.public_excavation_notices for select to authenticated
   using (
-    (notice_status <> 'draft' and published_at is not null)
-    or exists (
+    notice_status = 'draft'
+    and exists (
       select 1 from public.profiles p
       where p.id = (select auth.uid())
         and (p.role in ('admin', 'coordinator')
-          or (p.role = 'department' and p.department_id = responsible_department_id))
+          or (p.role = 'department' and p.department_id is not null
+              and p.department_id = responsible_department_id))
     )
   );
 
@@ -162,7 +168,10 @@ create index if not exists public_obstruction_reports_department_idx
   on public.public_obstruction_reports(assigned_department_id, report_status, created_at desc);
 
 alter table public.public_obstruction_reports enable row level security;
-grant select, insert, update on public.public_obstruction_reports to authenticated;
+grant select, insert on public.public_obstruction_reports to authenticated;
+revoke update on public.public_obstruction_reports from authenticated;
+grant update (assigned_department_id, report_status, updated_at)
+  on public.public_obstruction_reports to authenticated;
 
 drop policy if exists "Reporters and authorised reviewers read obstruction reports" on public.public_obstruction_reports;
 create policy "Reporters and authorised reviewers read obstruction reports"
