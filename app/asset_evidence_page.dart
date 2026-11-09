@@ -190,18 +190,20 @@ class _UtilityAssetEvidenceSubmissionPageState
     setState(() => _busy = true);
     String? uploadedPath;
     try {
-      final picked = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
-        withData: true,
       );
-      if (picked == null || picked.files.isEmpty) return;
-      final file = picked.files.single;
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty || file.size <= 0 || file.size > 20 * 1024 * 1024) {
-        throw StateError('Select a readable file no larger than 20 MB.');
+      if (file == null) return;
+      final fileSize = file.lengthSync();
+      if (fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
+        throw StateError('Select a non-empty file no larger than 20 MB.');
       }
-      final extension = (file.extension ?? '').toLowerCase();
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || bytes.length != fileSize) {
+        throw StateError('The selected file could not be read completely.');
+      }
+      final extension = file.path.split('.').last.toLowerCase();
       const mimeTypes = {
         'pdf': 'application/pdf',
         'jpg': 'image/jpeg',
@@ -212,7 +214,6 @@ class _UtilityAssetEvidenceSubmissionPageState
       final mimeType = mimeTypes[extension];
       if (mimeType == null) throw StateError('Unsupported evidence file type.');
 
-      // Compute the checksum on-device; upload only to the private bucket.
       final checksum = sha256.convert(bytes).toString();
       final userId = _db.auth.currentUser?.id;
       if (userId == null) throw StateError('Sign in again before submitting evidence.');
@@ -239,7 +240,7 @@ class _UtilityAssetEvidenceSubmissionPageState
       if (response.status < 200 || response.status >= 300) {
         throw StateError('Evidence metadata was not accepted.');
       }
-      uploadedPath = null; // The database now references this private object.
+      uploadedPath = null;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(
@@ -251,9 +252,7 @@ class _UtilityAssetEvidenceSubmissionPageState
       if (uploadedPath != null) {
         try {
           await _db.storage.from('samanvay-asset-survey-evidence').remove([uploadedPath]);
-        } catch (_) {
-          // A failed cleanup does not change the failed submission status.
-        }
+        } catch (_) {}
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
