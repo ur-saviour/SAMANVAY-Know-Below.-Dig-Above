@@ -11792,18 +11792,50 @@ class _ProfilePageState extends State<ProfilePage> {
       } catch (_) { department = 'Assigned department'; }
     }
 
-    var requestCount = 0, evidenceCount = 0, unreadCount = 0;
-    try { requestCount = List.from(await supabase.from('excavation_requests')
-        .select('id').eq('requester_id', user.id).limit(1000)).length; } catch (_) {}
-    try { evidenceCount = List.from(await supabase.from('case_attachments')
-        .select('id').eq('uploaded_by', user.id).limit(1000)).length; } catch (_) {}
-    try { unreadCount = List.from(await supabase.from('user_notifications')
-        .select('id').eq('recipient_id', user.id).filter('read_at', 'is', null).limit(1000)).length; } catch (_) {}
+    final role = (row['role'] ?? 'unknown').toString();
+    var requestRows = <Map<String, dynamic>>[];
+    var requestsAvailable = true;
+    var evidenceCount = 0, unreadCount = 0;
+    try {
+      // Requesters see their own submissions. Staff counts are based on the
+      // cases already visible under their database-enforced RLS policies.
+      final rawRequests = role == 'requester'
+          ? await supabase.from('excavation_requests')
+              .select('id,status').eq('requester_id', user.id).limit(1000)
+          : await supabase.from('excavation_requests')
+              .select('id,status').limit(1000);
+      requestRows = List<Map<String, dynamic>>.from(rawRequests);
+    } catch (_) {
+      requestsAvailable = false;
+    }
+    try {
+      evidenceCount = List.from(await supabase.from('case_attachments')
+          .select('id').eq('uploaded_by', user.id).limit(1000)).length;
+    } catch (_) {}
+    try {
+      unreadCount = List.from(await supabase.from('user_notifications')
+          .select('id').eq('recipient_id', user.id)
+          .filter('read_at', 'is', null).limit(1000)).length;
+    } catch (_) {}
+
+    final completedCount = requestRows.where((item) {
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      return status == 'completed' || status == 'resolved';
+    }).length;
+    final inactiveStatuses = {'completed', 'resolved', 'rejected', 'cancelled'};
+    final activeCount = requestRows.where((item) {
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      return status.isNotEmpty && !inactiveStatuses.contains(status);
+    }).length;
 
     return {
       'name': (row['display_name'] ?? user.userMetadata?['display_name'] ?? 'SAMANVAY user').toString(),
-      'email': user.email ?? '', 'role': (row['role'] ?? 'unknown').toString(),
-      'department': department, 'requests': requestCount,
+      'email': user.email ?? '', 'role': role,
+      'department': department,
+      'requests_label': role == 'requester' ? 'My requests' : 'Visible cases',
+      'requests': requestsAvailable ? requestRows.length : null,
+      'active': requestsAvailable ? activeCount : null,
+      'completed': requestsAvailable ? completedCount : null,
       'evidence': evidenceCount, 'unread': unreadCount,
     };
   }
@@ -11963,13 +11995,29 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 18),
         const Text('Account activity', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
-        Row(children: [
-          _metric('Requests', data['requests'].toString(), Icons.assignment_outlined),
-          const SizedBox(width: 8),
-          _metric('Evidence', data['evidence'].toString(), Icons.attach_file_rounded),
-          const SizedBox(width: 8),
-          _metric('Unread', data['unread'].toString(), Icons.notifications_active_outlined),
-        ]),
+        LayoutBuilder(builder: (context, constraints) {
+          const spacing = 8.0;
+          final columns = constraints.maxWidth >= 640 ? 5 : 3;
+          final tileWidth = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+          return Wrap(spacing: spacing, runSpacing: spacing, children: [
+            SizedBox(width: tileWidth, child: _metric(
+              data['requests_label'].toString(),
+              data['requests']?.toString() ?? '—',
+              Icons.assignment_outlined)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Active', data['active']?.toString() ?? '—',
+              Icons.pending_actions_outlined)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Completed', data['completed']?.toString() ?? '—',
+              Icons.task_alt_rounded)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Evidence', data['evidence'].toString(),
+              Icons.attach_file_rounded)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Unread', data['unread'].toString(),
+              Icons.notifications_active_outlined)),
+          ]);
+        }),
         const SizedBox(height: 20),
         const Text('Workspace and support', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
@@ -12011,18 +12059,18 @@ class _ProfilePageState extends State<ProfilePage> {
       letterSpacing: .5, fontWeight: FontWeight.w800)),
   );
 
-  Widget _metric(String label, String value, IconData icon) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-      decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF25415E))),
-      child: Column(children: [
-        Icon(icon, color: electricBlue, size: 19), const SizedBox(height: 8),
-        Text(value, style: GoogleFonts.robotoMono(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
-        Text(label, textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, fontWeight: FontWeight.w700)),
-      ]),
-    ),
+  Widget _metric(String label, String value, IconData icon) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: const Color(0xFF25415E))),
+    child: Column(children: [
+      Icon(icon, color: electricBlue, size: 19), const SizedBox(height: 8),
+      Text(value, style: GoogleFonts.robotoMono(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800)),
+      Text(label, textAlign: TextAlign.center,
+        maxLines: 2, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, fontWeight: FontWeight.w700)),
+    ]),
   );
 }
 
