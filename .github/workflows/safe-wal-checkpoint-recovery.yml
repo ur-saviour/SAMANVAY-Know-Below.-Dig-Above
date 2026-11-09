@@ -1,0 +1,73 @@
+name: SAMANVAY Safe WAL Checkpoint Recovery
+
+on:
+  push:
+    branches:
+      - feature/alpha-03-integrated-platform
+    paths:
+      - '.github/workflows/safe-wal-checkpoint-recovery.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: samanvay-safe-wal-checkpoint
+  cancel-in-progress: false
+
+jobs:
+  checkpoint:
+    name: Checkpoint WAL without deleting application data
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate maintenance connection secrets
+        env:
+          SUPABASE_DB_HOST: \${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: \${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: \${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_DB_HOST SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
+            test -n "\${!name}" || { echo "::error::Missing required secret: $name"; exit 1; }
+          done
+          echo "Direct database connection secrets are present."
+
+      - name: Run one PostgreSQL checkpoint and report storage state
+        env:
+          SUPABASE_DB_HOST: \${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_PROJECT_REF: \${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: \${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGSSLMODE: require
+          PGCONNECT_TIMEOUT: "30"
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e SUPABASE_DB_HOST \
+            -e SUPABASE_PROJECT_REF \
+            -e SUPABASE_DB_PASSWORD \
+            -e PGSSLMODE \
+            -e PGCONNECT_TIMEOUT \
+            postgres:18-alpine sh -euc '
+              export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+              CONN="--host=$SUPABASE_DB_HOST --port=5432 --username=postgres.$SUPABASE_PROJECT_REF --dbname=postgres"
+              echo "Checking primary database state..."
+              psql $CONN -v ON_ERROR_STOP=1 -c \
+                "select pg_is_in_recovery() as in_recovery, current_setting('\''default_transaction_read_only'\'') as default_read_only;"
+              echo "Requesting session-scoped read-write mode for maintenance."
+              psql $CONN -v ON_ERROR_STOP=1 \
+                -c "set session characteristics as transaction read write" \
+                -c "checkpoint" \
+                -c "select current_setting('\''transaction_read_only'\'') as transaction_read_only, pg_size_pretty(pg_database_size(current_database())) as database_size, pg_size_pretty((select coalesce(sum(size),0) from pg_ls_waldir())) as wal_size;"
+            '
+
+      - name: Publish recovery summary
+        if: success()
+        run: |
+          {
+            echo "## PostgreSQL checkpoint completed"
+            echo ""
+            echo "- No application table was deleted, truncated, or modified."
+            echo "- No authentication user, profile, role, or password was changed."
+            echo "- The operation ran CHECKPOINT through a direct PostgreSQL connection."
+            echo "- Verify Supabase returns to read-write mode before declaring login recovered."
+          } >> "$GITHUB_STEP_SUMMARY"
