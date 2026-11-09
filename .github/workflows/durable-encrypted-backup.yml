@@ -1,4 +1,4 @@
-name: SAMANVAY Durable Encrypted Database Archive
+name: SAMANVAY Durable Encrypted Database Archive (Fresh snapshot)
 
 on:
   workflow_dispatch:
