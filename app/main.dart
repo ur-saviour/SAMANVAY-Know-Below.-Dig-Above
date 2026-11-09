@@ -413,6 +413,14 @@ class _OperationalPortalState extends State<_OperationalPortal> {
   bool loading = true;
   String errorMessage = '';
 
+  final GlobalKey _overviewAnchor = GlobalKey(debugLabel: 'ops-overview');
+  final GlobalKey _publicWorksAnchor = GlobalKey(debugLabel: 'ops-public-works');
+  final GlobalKey _coordinationAnchor = GlobalKey(debugLabel: 'ops-coordination');
+  final GlobalKey _roadworksAnchor = GlobalKey(debugLabel: 'ops-roadworks');
+  final GlobalKey _nationalAnchor = GlobalKey(debugLabel: 'ops-national-coverage');
+  final GlobalKey _groundwaterAnchor = GlobalKey(debugLabel: 'ops-groundwater');
+  final GlobalKey _requestsAnchor = GlobalKey(debugLabel: 'ops-case-register');
+
   @override
   void initState() {
     super.initState();
@@ -450,7 +458,49 @@ class _OperationalPortalState extends State<_OperationalPortal> {
   void notify(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  void _jumpToSection(String section) {
+    final anchor = switch (section) {
+      'public-works' => _publicWorksAnchor,
+      'coordination' => _coordinationAnchor,
+      'roadworks' => _roadworksAnchor,
+      'national' => _nationalAnchor,
+      'groundwater' => _groundwaterAnchor,
+      'cases' => _requestsAnchor,
+      _ => _overviewAnchor,
+    };
+    final target = anchor.currentContext;
+    if (target == null) {
+      notify('That section is not currently available.');
+      return;
+    }
+    Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeInOutCubic,
+      alignment: 0.04,
+    );
+  }
+
+  Widget _sectionChip(String label, IconData icon, String section) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: OutlinedButton.icon(
+        onPressed: () => _jumpToSection(section),
+        icon: Icon(icon, size: 15),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF9DEBE3),
+          side: const BorderSide(color: Color(0x5547BDB3)),
+          backgroundColor: const Color(0xFF102B40),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+        ),
+      ),
     );
   }
 
@@ -935,27 +985,44 @@ class _OperationalPortalState extends State<_OperationalPortal> {
     }
   }
 
-  Widget metric(String label, int value, IconData icon) {
-    return Expanded(
+  Widget metric(String label, int value, IconData icon, {required double width}) {
+    return SizedBox(
+      width: width,
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(11),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(12),
+          child: Row(
             children: [
-              Icon(icon, color: cyanAccent, size: 22),
-              const SizedBox(height: 8),
-              Text(
-                value.toString(),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: ink,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: cyanAccent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
+                child: Icon(icon, color: cyanAccent, size: 20),
               ),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 11),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value.toString(),
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
+                    ),
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: mutedInk),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1749,7 +1816,33 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            const Text(
+              'WORKSPACE QUICK NAVIGATION',
+              style: TextStyle(
+                color: Color(0xFF8FDCE7),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _sectionChip('Overview', Icons.dashboard_outlined, 'overview'),
+                  _sectionChip('Public works', Icons.campaign_outlined, 'public-works'),
+                  _sectionChip('Coordination', Icons.hub_outlined, 'coordination'),
+                  _sectionChip('Roadworks', Icons.construction_outlined, 'roadworks'),
+                  _sectionChip('National data', Icons.public_outlined, 'national'),
+                  _sectionChip('Groundwater', Icons.water_drop_outlined, 'groundwater'),
+                  _sectionChip('Case register', Icons.assignment_outlined, 'cases'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(key: _overviewAnchor, height: 1),
             const Text(
               'Infrastructure overview',
               style: TextStyle(
@@ -1759,53 +1852,41 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                metric(
-                  'Total cases',
-                  requests.length,
-                  Icons.folder_open,
-                ),
-                metric(
-                  'Submitted',
-                  countStatus('submitted'),
-                  Icons.inbox_outlined,
-                ),
-                metric(
-                  'Under review',
-                  countStatus('under_review'),
-                  Icons.rate_review_outlined,
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                metric(
-                  'Approved',
-                  countStatus('approved'),
-                  Icons.verified_outlined,
-                ),
-                metric(
-                  'Completed',
-                  countStatus('completed'),
-                  Icons.task_alt,
-                ),
-                metric(
-                  'Conflicts',
-                  countStatus('conflict_detected'),
-                  Icons.warning_amber_outlined,
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 10.0;
+                final columns = constraints.maxWidth >= 900
+                    ? 3
+                    : constraints.maxWidth >= 520
+                        ? 2
+                        : 1;
+                final tileWidth =
+                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    metric('Total cases', requests.length, Icons.folder_open, width: tileWidth),
+                    metric('Submitted', countStatus('submitted'), Icons.inbox_outlined, width: tileWidth),
+                    metric('Under review', countStatus('under_review'), Icons.rate_review_outlined, width: tileWidth),
+                    metric('Approved', countStatus('approved'), Icons.verified_outlined, width: tileWidth),
+                    metric('Completed', countStatus('completed'), Icons.task_alt, width: tileWidth),
+                    metric('Conflicts', countStatus('conflict_detected'), Icons.warning_amber_outlined, width: tileWidth),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             domainBreakdown(),
             const SizedBox(height: 14),
+            SizedBox(key: _publicWorksAnchor, height: 1),
             PublicWorksOperationsBoard(
               departments: departments,
               isDepartment: widget.isDepartment,
               departmentId: widget.departmentId,
             ),
             const SizedBox(height: 14),
+            SizedBox(key: _coordinationAnchor, height: 1),
             CommandCentreActivityBoard(isAdmin: widget.isAdmin),
             const SizedBox(height: 7),
             const Text(
@@ -1813,6 +1894,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.35),
             ),
             const SizedBox(height: 16),
+            SizedBox(key: _roadworksAnchor, height: 1),
             RoadCutPermitBoard(
               requests: requests,
               departments: departments,
@@ -1843,10 +1925,12 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               departmentId: widget.departmentId,
             ),
             const SizedBox(height: 16),
+            SizedBox(key: _nationalAnchor, height: 1),
             const NationalDataCoverageBoard(),
             const SizedBox(height: 16),
             const BuildingApprovalRegisterBoard(),
             const SizedBox(height: 16),
+            SizedBox(key: _groundwaterAnchor, height: 1),
             const GroundwaterTelemetryDashboard(),
             const SizedBox(height: 16),
             GroundwaterObservationBoard(
@@ -1930,6 +2014,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               ),
             ],
             const SizedBox(height: 20),
+            SizedBox(key: _requestsAnchor, height: 1),
             Row(
               children: [
                 const Expanded(
