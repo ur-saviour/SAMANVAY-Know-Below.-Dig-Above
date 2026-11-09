@@ -1855,14 +1855,14 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.bold,
-                      color: navy,
+                      color: Colors.white,
                     ),
                   ),
                 ),
                 Text(
                   '${requests.length} records',
                   style: const TextStyle(
-                    color: Colors.blueGrey,
+                    color: Color(0xFFB6C7D6),
                     fontSize: 12,
                   ),
                 ),
@@ -11274,17 +11274,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _tile(IconData icon, String title, String subtitle, VoidCallback action,
       {Color color = electricBlue}) => Card(
+    color: panelNavy,
     margin: const EdgeInsets.only(bottom: 8),
     child: ListTile(
       leading: CircleAvatar(backgroundColor: color.withValues(alpha: .12),
         child: Icon(icon, color: color)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFFB6C7D6))),
-      trailing: const Icon(Icons.chevron_right_rounded, color: mutedInk), onTap: action),
+      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFB6C7D6)), onTap: action),
   );
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFF061426),
     appBar: AppBar(title: const Text('My profile'), actions: [
       IconButton(tooltip: 'Refresh profile',
         onPressed: () => setState(() => _future = _loadProfile()),
@@ -11369,7 +11371,7 @@ class _ProfilePageState extends State<ProfilePage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)))),
         const SizedBox(height: 10),
         const Text('Account identity and activity are loaded from authenticated records. Evidence remains in private storage.',
-          textAlign: TextAlign.center, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+          textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.4)),
       ]);
     }),
   );
