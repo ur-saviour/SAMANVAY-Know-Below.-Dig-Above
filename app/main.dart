@@ -12166,11 +12166,25 @@ class _NotificationsPageState extends State<NotificationsPage> {
       body: StreamBuilder<List<Map<String,dynamic>>>(
         stream: _stream,
         builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Notifications could not be loaded.'));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text('Notifications could not be loaded.',
+                style: TextStyle(color: Colors.white)),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: cyanAccent),
+            );
+          }
           final rows = snapshot.data!;
           final unread = rows.where((x) => x['read_at'] == null).length;
-          if (rows.isEmpty) return const Center(child: Text('You are all caught up.'));
+          if (rows.isEmpty) {
+            return const Center(
+              child: Text('You are all caught up.',
+                style: TextStyle(color: Colors.white)),
+            );
+          }
           final total = rows.length;
           return ListView(padding: const EdgeInsets.all(14), children: [
             Text('$unread unread · $total total',
