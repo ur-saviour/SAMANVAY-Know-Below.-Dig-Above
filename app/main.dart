@@ -2762,8 +2762,10 @@ class _AuthPageState extends State<AuthPage> {
                                     const SizedBox(height: 16),
                   TextFormField(
                     controller: _emailController,
-                    keyboardType:
-                        TextInputType.emailAddress,
+                    keyboardType: isLogin
+                        ? TextInputType.text
+                        : TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
                     autocorrect: false,
                     decoration: InputDecoration(
                       labelText: isLogin ? 'Email, mobile number or staff ID' : 'Email address',
@@ -2799,6 +2801,10 @@ class _AuthPageState extends State<AuthPage> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: hidePassword,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) {
+                      if (isLogin && !loading) submit();
+                    },
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon:
