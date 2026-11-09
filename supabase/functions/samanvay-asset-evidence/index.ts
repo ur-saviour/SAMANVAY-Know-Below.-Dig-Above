@@ -97,6 +97,31 @@ Deno.serve(async (req: Request) => {
     return json(400, { error: "EVIDENCE_METADATA_OR_PRIVATE_FILE_PATH_INVALID" });
   }
 
+  // Re-fetch the uploaded object using the service role and independently verify its checksum.
+  const objectUrl = config.url + "/storage/v1/object/authenticated/samanvay-asset-survey-evidence/" +
+    pathParts.map((part) => encodeURIComponent(part)).join("/");
+  let objectResponse: Response;
+  try {
+    objectResponse = await fetch(objectUrl, {
+      headers: { apikey: config.service, Authorization: "Bearer " + config.service },
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch {
+    return json(503, { error: "EVIDENCE_OBJECT_CHECK_UNAVAILABLE" });
+  }
+  if (!objectResponse.ok) return json(409, { error: "EVIDENCE_OBJECT_NOT_ACCESSIBLE" });
+  const declaredSize = Number(objectResponse.headers.get("content-length") ?? "0");
+  if (declaredSize > 20 * 1024 * 1024) return json(413, { error: "EVIDENCE_FILE_TOO_LARGE" });
+  const contentType = (objectResponse.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+    return json(415, { error: "EVIDENCE_FILE_TYPE_NOT_ALLOWED" });
+  }
+  const fileBytes = new Uint8Array(await objectResponse.arrayBuffer());
+  if (fileBytes.length < 1 || fileBytes.length > 20 * 1024 * 1024) return json(413, { error: "EVIDENCE_FILE_SIZE_INVALID" });
+  const digest = await crypto.subtle.digest("SHA-256", fileBytes);
+  const actualChecksum = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, "0")).join("");
+  if (actualChecksum !== checksum) return json(409, { error: "EVIDENCE_CHECKSUM_MISMATCH" });
+
   try {
     const evidenceId = await rpc(config, "register_asset_survey_evidence_with_file_server", {
       p_actor_id: user.id,
