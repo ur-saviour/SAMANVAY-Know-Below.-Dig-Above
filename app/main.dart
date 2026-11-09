@@ -3213,18 +3213,6 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: metrics.map((m) => metric(m[0], m[1])).toList()),
       const SizedBox(height: 14),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: const ['Overview', 'Case queue', 'GIS & coverage', 'Department coordination', 'Governance'].map((name) => Padding(
-          padding: EdgeInsets.only(right: 7),
-          child: ChoiceChip(
-            label: Text(name, style: TextStyle(fontSize: 10, color: Colors.white)),
-            selected: false,
-            onSelected: null,
-          ),
-        )).toList()),
-      ),
-      const SizedBox(height: 12),
       _sectionNavigation(),
       const SizedBox(height: 12),
       selectedContent(),
@@ -3238,14 +3226,20 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
 
   Widget _sectionNavigation() => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
-    child: Row(children: const ['Overview', 'Case queue', 'GIS & coverage', 'Department coordination', 'Governance'].map((name) => Padding(
-      padding: EdgeInsets.only(right: 7),
-      child: ChoiceChip(
-        label: Text(name, style: TextStyle(fontSize: 10)),
-        selected: false,
-        onSelected: null,
-      ),
-    )).toList()),
+    child: Row(
+      children: ['Overview', 'Case queue', 'GIS & coverage', 'Department coordination', 'Governance']
+          .map((name) => Padding(
+        padding: const EdgeInsets.only(right: 7),
+        child: ChoiceChip(
+          label: Text(name, style: const TextStyle(fontSize: 10)),
+          selected: section == name,
+          selectedColor: const Color(0xFF087F83),
+          backgroundColor: const Color(0xFF102842),
+          side: const BorderSide(color: Color(0xFF25415E)),
+          onSelected: (_) => setState(() => section = name),
+        ),
+      )).toList(),
+    ),
   );
 }
 
