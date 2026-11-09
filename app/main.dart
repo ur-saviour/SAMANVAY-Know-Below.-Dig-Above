@@ -2362,6 +2362,21 @@ class _AuthPageState extends State<AuthPage> {
                           : 'Already registered? Login',
                     ),
                   ),
+
+                  const SizedBox(height: 8),
+
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()),
+                    ),
+                    icon: const Icon(Icons.campaign_outlined),
+                    label: const Text('VIEW PUBLIC WORK NOTICES'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: navy,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: Color(0xFFB9CCDF)),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -11075,6 +11090,65 @@ class _ProfilePageState extends State<ProfilePage> {
     catch (_) { _toast('Unable to request a password reset right now.'); }
   }
 
+  Future<void> _showEvidence() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _toast('Sign in to view your evidence submissions.'); return; }
+    try {
+      final rows = await supabase.from('case_attachments')
+        .select('request_id,storage_path,file_name,content_type,file_size_bytes,created_at')
+        .eq('uploaded_by', user.id)
+        .order('created_at', ascending: false)
+        .limit(100);
+      if (!mounted) return;
+      final files = List<Map<String, dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context, isScrollControlled: true, backgroundColor: Colors.white,
+        builder: (sheet) => SafeArea(child: SizedBox(
+          height: MediaQuery.of(sheet).size.height * .62,
+          child: files.isEmpty
+            ? const Center(child: Text('No evidence submissions are linked to this account.'))
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text('MY PRIVATE EVIDENCE',
+                    style: TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                  const SizedBox(height: 10),
+                  ...files.map((item) {
+                    final bytes = (item['file_size_bytes'] as num?)?.toInt() ?? 0;
+                    final sizeLabel = bytes >= 1024 * 1024
+                      ? (bytes / (1024 * 1024)).toStringAsFixed(1) + ' MB'
+                      : (bytes / 1024).toStringAsFixed(0) + ' KB';
+                    return ListTile(
+                      leading: const Icon(Icons.attach_file_rounded, color: electricBlue),
+                      title: Text((item['file_name'] ?? 'Evidence file').toString(),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(sizeLabel + ' · Private file · Case ' +
+                        item['request_id'].toString().substring(0, 8)),
+                      trailing: IconButton(
+                        tooltip: 'Open secure evidence link',
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        onPressed: () async {
+                          try {
+                            final signed = await supabase.storage
+                              .from('samanvay-case-evidence')
+                              .createSignedUrl(item['storage_path'].toString(), 600);
+                            await launchUrl(Uri.parse(signed), mode: LaunchMode.externalApplication);
+                          } catch (_) {
+                            _toast('Unable to open this private evidence file. Check your case access.');
+                          }
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
+        )),
+      );
+    } catch (_) {
+      _toast('Unable to load private evidence submitted by this account.');
+    }
+  }
+
   Future<void> _logout() async {
     try { await supabase.auth.signOut(); }
     on AuthException catch (e) { _toast(e.message); }
@@ -11165,8 +11239,8 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 10),
         _tile(Icons.assignment_outlined, 'My requests', 'Review submitted requests and status',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RequestsPage()))),
-        _tile(Icons.attach_file_rounded, 'Evidence submissions', 'Evidence linked to your account and private case records',
-          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RequestsPage()))),
+        _tile(Icons.attach_file_rounded, 'Evidence submissions', 'View files you uploaded to private case records',
+          _showEvidence),
         _tile(Icons.campaign_outlined, 'Public works tracker', 'Published excavation and no-dig notices',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()))),
         _tile(Icons.notifications_none_rounded, 'Notifications', 'Read assignment, review and case updates',
