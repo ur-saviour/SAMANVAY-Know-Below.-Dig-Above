@@ -49,6 +49,7 @@ jobs:
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
+          cp app/coordinated_work_calendar_page.dart lib/coordinated_work_calendar_page.dart
           cp -R app/assets/reference/. assets/reference/
 
           # Keep both published Coimbatore reference layers available to Flutter Web.
