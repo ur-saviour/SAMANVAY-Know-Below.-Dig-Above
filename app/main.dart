@@ -8283,6 +8283,8 @@ class _MapPageState extends State<MapPage> {
   int _coimbatoreWardCount = 0;
   bool _showGroundwaterTelemetry = true;
   int _groundwaterStationCount = 0;
+  String _groundwaterFreshnessLabel = 'Not loaded';
+  String _groundwaterLatestAgency = 'Not reported';
   final Map<String, Map<String, dynamic>> _groundwaterStationDetails = {};
   String _deviceCoordinateLabel = '';
   String _layerStatus =
@@ -9225,11 +9227,23 @@ class _MapPageState extends State<MapPage> {
 
       final features = <Map<String, dynamic>>[];
       final stationDetails = <Map<String, dynamic>>[];
+      DateTime? latestObservationTime;
+      String latestObservationSourceText = '';
+      String latestObservationAgency = '';
       for (final item in rows) {
         final properties = Map<String, dynamic>.from(item);
         final latitude = properties['latitude'];
         final longitude = properties['longitude'];
         if (latitude is! num || longitude is! num) continue;
+
+        final sourceTimestamp = (properties['observed_at_local'] ?? '').toString().trim();
+        final parsedTimestamp = DateTime.tryParse(sourceTimestamp);
+        if (parsedTimestamp != null &&
+            (latestObservationTime == null || parsedTimestamp.isAfter(latestObservationTime))) {
+          latestObservationTime = parsedTimestamp;
+          latestObservationSourceText = sourceTimestamp;
+          latestObservationAgency = (properties['agency'] ?? '').toString().trim();
+        }
 
         final featureId = (properties['id'] ?? '').toString();
         if (featureId.isEmpty) continue;
@@ -9289,6 +9303,12 @@ class _MapPageState extends State<MapPage> {
       if (mounted) {
         setState(() {
           _groundwaterStationCount = features.length;
+          _groundwaterFreshnessLabel = latestObservationSourceText.isEmpty
+              ? 'No valid source timestamp in the current map extent'
+              : latestObservationSourceText;
+          _groundwaterLatestAgency = latestObservationAgency.isEmpty
+              ? 'Publisher not stated'
+              : latestObservationAgency;
           _groundwaterStationDetails
             ..clear()
             ..addEntries(stationDetails.map((properties) => MapEntry(
@@ -9298,7 +9318,14 @@ class _MapPageState extends State<MapPage> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _groundwaterStationCount = 0);
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = 0;
+          _groundwaterFreshnessLabel = 'Observation layer unavailable';
+          _groundwaterLatestAgency = 'Publisher unavailable';
+          _groundwaterStationDetails.clear();
+        });
+      }
     }
   }
 
@@ -10348,7 +10375,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'GROUNDWATER',
                             color: const Color(0xFFA78BFA),
                             detail: _groundwaterReadinessLoaded
-                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · latest source timestamp: $_groundwaterFreshnessLabel · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
                                 : 'Coverage summary unavailable; station layer remains independently controlled.',
                           ),
                           _readinessRow(
@@ -10600,6 +10627,14 @@ class _MapPageState extends State<MapPage> {
             label: 'CONTEXT / ESTIMATED',
             value: 'REFERENCE ONLY · EXCLUDED FROM CLEARANCE',
           ),
+          const Divider(height: 9, color: Color(0x334B647C)),
+          const Text('GROUNDWATER SOURCE FRESHNESS',
+            style: TextStyle(color: Color(0xFF55D9CE), fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text('Latest source timestamp in this map extent: $_groundwaterFreshnessLabel',
+            style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 8, height: 1.35)),
+          Text('Publisher: $_groundwaterLatestAgency · source-reported values; coordinate accuracy is not independently validated here.',
+            style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, height: 1.35)),
           const Divider(height: 9, color: Color(0x334B647C)),
           Row(
             children: [
