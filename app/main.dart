@@ -90,6 +90,14 @@ const Map<String, String> _existingTestAccountAliases = {
   '10021': '10021.cis25@gmail.com',
 };
 
+// These IDs open local, read-only previews only. They do not authenticate
+// with Supabase, impersonate users, or grant access to protected records.
+const Map<String, String> _readOnlyStaffPreviewRoles = {
+  '9013': 'admin',
+  '10011': 'coordinator',
+  '10021': 'department',
+};
+
 class SamanvayApp extends StatelessWidget {
   const SamanvayApp({super.key});
 
@@ -2423,6 +2431,8 @@ class _AuthPageState extends State<AuthPage> {
   bool hidePassword = true;
   String message = '';
   bool messageIsSuccess = false;
+  String? demoPreviewRole;
+  String? demoPreviewStaffId;
 
   @override
   void dispose() {
@@ -2521,6 +2531,21 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  void openStaffDemoPreview() {
+    final staffId = _emailController.text.trim();
+    final role = _readOnlyStaffPreviewRoles[staffId];
+    if (role == null) {
+      showMessage('Enter one of the preview IDs: 9013, 10011 or 10021.');
+      return;
+    }
+    setState(() {
+      demoPreviewRole = role;
+      demoPreviewStaffId = staffId;
+      message = '';
+      messageIsSuccess = false;
+    });
+  }
+
   Future<void> requestLoginPasswordReset() async {
     final rawIdentifier = _emailController.text.trim();
     final email = _existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
@@ -2596,6 +2621,19 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (demoPreviewRole != null) {
+      return _StaffDemoPreview(
+        role: demoPreviewRole!,
+        staffId: demoPreviewStaffId ?? '',
+        onExit: () {
+          setState(() {
+            demoPreviewRole = null;
+            demoPreviewStaffId = null;
+            _passwordController.clear();
+          });
+        },
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFF061426),
       body: SafeArea(
@@ -2773,7 +2811,7 @@ class _AuthPageState extends State<AuthPage> {
                       prefixIcon: Icon(isLogin ? Icons.alternate_email_rounded : Icons.email_outlined),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
-                          ? 'Staff aliases: 9013 Administrator · 10011 Coordinator · 10021 Water Supply Officer. Each alias uses its linked account password; Forgot password sends a reset to that account.'
+                          ? 'IDs: 9013 Administrator · 10011 Coordinator · 10021 Water Supply Officer. Live login needs the linked password. Open the read-only preview to inspect each role without signing in.'
                           : null,
                       helperMaxLines: 2,
                     ),
@@ -2835,6 +2873,20 @@ class _AuthPageState extends State<AuthPage> {
                       return null;
                     },
                   ),
+
+                  if (isLogin) ...[
+                    OutlinedButton.icon(
+                      onPressed: loading ? null : openStaffDemoPreview,
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text('OPEN READ-ONLY STAFF PREVIEW'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: cyanAccent,
+                        side: const BorderSide(color: Color(0xFF2D6A87)),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
 
                   const SizedBox(height: 20),
 
@@ -2965,6 +3017,236 @@ class _AuthPageState extends State<AuthPage> {
       ),
     );
   }
+}
+
+// ==========================================
+// READ-ONLY STAFF PREVIEW
+// No Supabase session, private records, or operational writes are used.
+// ==========================================
+
+class _StaffDemoPreview extends StatefulWidget {
+  final String role;
+  final String staffId;
+  final VoidCallback onExit;
+
+  const _StaffDemoPreview({
+    required this.role,
+    required this.staffId,
+    required this.onExit,
+  });
+
+  @override
+  State<_StaffDemoPreview> createState() => _StaffDemoPreviewState();
+}
+
+class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
+  String section = 'Overview';
+
+  String get roleTitle => switch (widget.role) {
+    'admin' => 'Administrator',
+    'coordinator' => 'National coordinator',
+    'department' => 'Department officer · Water Supply',
+    _ => 'Staff preview',
+  };
+
+  String get roleDescription => switch (widget.role) {
+    'admin' => 'National oversight, platform governance and department administration',
+    'coordinator' => 'Cross-department coordination, escalations and conflict review',
+    'department' => 'Water-supply operations, assigned cases and field evidence',
+    _ => 'Staff workspace',
+  };
+
+  List<List<String>> get metrics => switch (widget.role) {
+    'admin' => [['36', 'States / UTs'], ['11', 'Departments'], ['396', 'Coverage rows'], ['0', 'District / ULB imports']],
+    'coordinator' => [['4', 'Sample cases'], ['3', 'Sample reviews'], ['11', 'Departments'], ['36', 'Jurisdictions']],
+    'department' => [['04', 'Sample assigned cases'], ['02', 'Field inspections'], ['03', 'Evidence items'], ['01', 'Pending report']],
+    _ => const [],
+  };
+
+  Widget metric(String value, String label) => SizedBox(
+    width: 145,
+    child: Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFF102842),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFF25415E)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(label, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+      ]),
+    ),
+  );
+
+  Widget panel(String title, String description, IconData icon, {String? status}) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 9),
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: const Color(0xFF102842),
+      borderRadius: BorderRadius.circular(13),
+      border: Border.all(color: const Color(0xFF25415E)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, color: const Color(0xFF35D7F2), size: 23),
+      const SizedBox(width: 11),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+        const SizedBox(height: 4),
+        Text(description, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.4)),
+        if (status != null) ...[
+          const SizedBox(height: 7),
+          Text(status, style: const TextStyle(color: Color(0xFF8FDCE7), fontSize: 9, fontWeight: FontWeight.w800)),
+        ],
+      ])),
+    ]),
+  );
+
+  Widget overview() => Column(children: [
+    panel('Role-based command dashboard', roleDescription, Icons.dashboard_customize_outlined, status: 'LOCAL PREVIEW · NO LIVE DATA'),
+    panel('Multi-department case register', 'Road reconstruction, water supply, sewerage, drainage, electricity, telecom and building-compliance workflows.', Icons.assignment_outlined),
+    panel('National GIS workspace', 'Jurisdiction coverage, reference layers and authority-owned evidence. Exact underground geometry remains restricted to authorised workflows.', Icons.map_outlined),
+    panel('Alerts and audit trail', 'Production records reviews, assignments, status changes and user actions with role checks and database policies.', Icons.notifications_active_outlined),
+  ]);
+
+  Widget caseQueue() {
+    final rows = widget.role == 'department'
+      ? const [
+          ['Water-pipeline maintenance review', 'Water Supply · Sample case', 'UNDER REVIEW'],
+          ['Leakage complaint and site inspection', 'PHED · Sample case', 'ASSIGNED'],
+          ['Road restoration after utility work', 'Roads · Sample case', 'COORDINATION'],
+        ]
+      : const [
+          ['Road reconstruction schedule', 'Roads · Sample case', 'COORDINATION'],
+          ['Water-supply pipeline repair', 'Water Supply · Sample case', 'UNDER REVIEW'],
+          ['Stormwater drain obstruction', 'Drainage · Sample case', 'PENDING REVIEW'],
+          ['Building-plan compliance inspection', 'Planning · Sample case', 'ASSIGNED'],
+        ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Illustrative cards only; these are not live case records.', style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+      const SizedBox(height: 10),
+      ...rows.map((r) => panel(r[0], r[1], Icons.assignment_turned_in_outlined, status: r[2])),
+    ]);
+  }
+
+  Widget gisCoverage() => Column(children: [
+    panel('India-wide jurisdiction explorer', 'All 36 State / Union Territory master records are grouped into seven browsing regions.', Icons.public_outlined, status: '36 JURISDICTIONS'),
+    panel('Infrastructure source coverage', 'The database contains 396 coverage-status rows across 11 domains. These rows track source readiness, not verified underground assets.', Icons.layers_outlined, status: '396 COVERAGE ROWS'),
+    panel('Underground asset verification', 'Owner-submitted GIS requires source authorisation, evidence review and independent verification before operational use.', Icons.verified_user_outlined, status: 'NO LIVE ASSET GEOMETRY IN THIS DEMO'),
+    Wrap(spacing: 7, runSpacing: 7, children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands'].map((r) => Chip(
+      label: Text(r, style: TextStyle(fontSize: 10, color: Colors.white)),
+      backgroundColor: Color(0xFF102842),
+      side: BorderSide(color: Color(0xFF25415E)),
+    )).toList()),
+  ]);
+
+  Widget coordination() {
+    const depts = [
+      ['Water Supply / PHED', 'Pipelines, leakages, valves and water-service work'],
+      ['Roads and Highways', 'Road cuts, restoration schedules and right-of-way'],
+      ['Urban Local Bodies', 'Municipal works, drainage and local service coordination'],
+      ['Sewerage and Drainage', 'Sewer networks, stormwater drains and inspections'],
+      ['Electricity Distribution', 'Power-line coordination and utility-owner evidence'],
+      ['Telecom and Gas', 'Fibre, ducts and city-gas coordination'],
+    ];
+    return Column(children: depts.map((d) => panel(
+      d[0], d[1], Icons.account_balance_outlined,
+      status: widget.role == 'department' && d[0].startsWith('Water') ? 'YOUR SAMPLE DEPARTMENT' : 'CROSS-DEPARTMENT DIRECTORY',
+    )).toList());
+  }
+
+  Widget governance() => Column(children: [
+    panel('Role and department permissions', 'Production access is resolved from the authenticated Supabase profile. Staff cannot grant themselves administrator or coordinator access.', Icons.admin_panel_settings_outlined),
+    panel('Source and evidence registry', 'Store originating authority, publication date, checksum and verification status with imported datasets.', Icons.source_outlined),
+    panel('Audit and approval history', 'Protected operations record actor, timestamp, case identifier and decision rationale.', Icons.history_edu_outlined),
+    panel('Data readiness', 'District / ULB rows still need a validated LGD import. Underground asset points remain separate from directory and coverage records.', Icons.fact_check_outlined, status: 'IMPORT AND AUTHORITY VERIFICATION REQUIRED'),
+  ]);
+
+  Widget selectedContent() {
+    switch (section) {
+      case 'Case queue': return caseQueue();
+      case 'GIS & coverage': return gisCoverage();
+      case 'Department coordination': return coordination();
+      case 'Governance': return governance();
+      default: return overview();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFF061426),
+    appBar: AppBar(
+      backgroundColor: const Color(0xFF10243A),
+      foregroundColor: Colors.white,
+      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('SAMANVAY STAFF WORKSPACE'),
+        Text('DEMO ID ${widget.staffId} · $roleTitle', style: const TextStyle(color: Color(0xFF8FDCE7), fontSize: 9)),
+      ]),
+      actions: [
+        TextButton.icon(onPressed: widget.onExit, icon: const Icon(Icons.logout_rounded, size: 16), label: const Text('EXIT DEMO')),
+        const SizedBox(width: 6),
+      ],
+    ),
+    body: SafeArea(child: ListView(padding: const EdgeInsets.all(15), children: [
+      Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFF3B2D14),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF9C7428)),
+        ),
+        child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.visibility_outlined, color: Color(0xFFFFD27A)),
+          SizedBox(width: 10),
+          Expanded(child: Text(
+            'READ-ONLY DEMO MODE. No Supabase session is created. Cards and cases are illustrative; no live personal or privileged records are loaded. Approvals, updates and uploads are disabled.',
+            style: TextStyle(color: Color(0xFFFFE5AE), fontSize: 10, height: 1.4),
+          )),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      Text(roleTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 4),
+      Text(roleDescription, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 11, height: 1.4)),
+      const SizedBox(height: 12),
+      Wrap(spacing: 8, runSpacing: 8, children: metrics.map((m) => metric(m[0], m[1])).toList()),
+      const SizedBox(height: 14),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: const ['Overview', 'Case queue', 'GIS & coverage', 'Department coordination', 'Governance'].map((name) => Padding(
+          padding: EdgeInsets.only(right: 7),
+          child: ChoiceChip(
+            label: Text(name, style: TextStyle(fontSize: 10, color: Colors.white)),
+            selected: false,
+            onSelected: null,
+          ),
+        )).toList()),
+      ),
+      const SizedBox(height: 12),
+      _sectionNavigation(),
+      const SizedBox(height: 12),
+      selectedContent(),
+      const SizedBox(height: 8),
+      const Text(
+        'To use the live portal, exit this preview and sign in with the linked Supabase account password. This preview does not change real permissions.',
+        style: TextStyle(color: Color(0xFF8EA7BC), fontSize: 10, height: 1.4),
+      ),
+    ])),
+  );
+
+  Widget _sectionNavigation() => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(children: const ['Overview', 'Case queue', 'GIS & coverage', 'Department coordination', 'Governance'].map((name) => Padding(
+      padding: EdgeInsets.only(right: 7),
+      child: ChoiceChip(
+        label: Text(name, style: TextStyle(fontSize: 10)),
+        selected: false,
+        onSelected: null,
+      ),
+    )).toList()),
+  );
 }
 
 // ==========================================
