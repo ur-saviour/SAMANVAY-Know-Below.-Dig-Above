@@ -168,6 +168,7 @@ class _PublicExcavationTrackerPageState extends State<PublicExcavationTrackerPag
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: _trackerNavy,
     appBar: AppBar(title: const Text('Public works tracker'), actions: [
       IconButton(tooltip: 'Refresh', onPressed: () => setState(() => _future = _load()),
         icon: const Icon(Icons.refresh_rounded)),
