@@ -603,7 +603,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               const Icon(Icons.alt_route, color: Color(0xFF087F83)),
               const SizedBox(width: 9),
               const Expanded(child: Text('Repeated excavation & joint-work opportunities',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
               Chip(label: Text('${candidates.length}')),
             ]),
             const SizedBox(height: 5),
@@ -636,7 +636,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${label(first)}  ↔  ${label(second)}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
                     const SizedBox(height: 4),
                     Text('$metres m apart · overlapping dates: ${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}/${start.year}–${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
                       style: const TextStyle(fontSize: 10, color: mutedInk)),
@@ -679,7 +679,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Cases by infrastructure domain',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy)),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink)),
             const SizedBox(height: 12),
             ...entries.take(6).map((entry) {
               final value = maxCount == 0 ? 0.0 : entry.value / maxCount;
@@ -808,7 +808,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Executive operations snapshot',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: navy)),
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(height: 4),
         const Text('Calculated from cases and department reviews visible to this account.',
           style: TextStyle(color: mutedInk, fontSize: 11)),
@@ -880,7 +880,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: navy, size: 22),
+              Icon(icon, color: cyanAccent, size: 22),
               const SizedBox(height: 8),
               Text(
                 value.toString(),
@@ -1639,7 +1639,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: ink,
+                color: navy,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
@@ -2455,7 +2455,7 @@ class _MainScreenState extends State<MainScreen> {
         body: Row(children: [
           if (wide) ...[
             Container(
-              color: ink,
+              color: navy,
               child: SafeArea(
                 child: NavigationRail(
                   extended: extended,
@@ -3687,7 +3687,7 @@ class _RoadCutPermitBoardState extends State<RoadCutPermitBoard> {
             const Icon(Icons.fact_check_outlined, color: Color(0xFF087F83)),
             const SizedBox(width: 9),
             const Expanded(child: Text('Road-cut permits & deadline compliance',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
             IconButton(onPressed: loading ? null : _loadRecords,
               icon: const Icon(Icons.refresh), tooltip: 'Refresh permit records'),
           ]),
@@ -3807,7 +3807,7 @@ class _RoadWorkScheduleBoardState extends State<RoadWorkScheduleBoard> {
             const Icon(Icons.calendar_month_outlined, color: Color(0xFF087F83)),
             const SizedBox(width: 9),
             const Expanded(child: Text('Coordinated road-work schedule',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
             IconButton(onPressed: loading ? null : _load,
               icon: const Icon(Icons.refresh), tooltip: 'Refresh road schedule'),
           ]),
@@ -4254,7 +4254,7 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
               const Icon(Icons.construction_outlined, color: Color(0xFF087F83)),
               const SizedBox(width: 9),
               const Expanded(child: Text('Road restoration & quality assurance',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
               IconButton(onPressed: loading ? null : _loadRecords,
                 icon: const Icon(Icons.refresh), tooltip: 'Refresh restoration records'),
             ]),
@@ -4300,7 +4300,7 @@ class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
                     leading: Icon(Icons.route_outlined, color: _statusColor(state)),
                     title: Text(_requestLabel(record['request_id'].toString()),
                       maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
                     subtitle: Text(
                       '${_departmentLabel(departmentId)} · $surfaceName · inspection: $outcome${dimensions.isEmpty ? '' : ' · $dimensions'}',
                       style: const TextStyle(fontSize: 10, color: mutedInk)),
@@ -4522,7 +4522,7 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
           const Icon(Icons.apartment_outlined, color: Color(0xFF087F83)),
           const SizedBox(width: 9),
           const Expanded(child: Text('Building height & floor compliance',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
           IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
         ]),
         const Text('Compare observed building details with recorded approval information. Discrepancies require competent-authority verification.',
@@ -4541,7 +4541,7 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF087F83), letterSpacing: 0.6)),
             const SizedBox(height: 4),
             const Text('2,015 MCD plan-release records imported · Delhi · 2023',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
             const SizedBox(height: 3),
             const Text('Partial MCD coverage only. The source does not provide approved floor count, building height or verified coordinates.',
               style: TextStyle(fontSize: 10, color: mutedInk)),
@@ -4554,7 +4554,7 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
                   const SizedBox(width: 7),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Request #${record['source_record_id'] ?? '—'} · ${record['zone_name'] ?? 'Zone not stated'}',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: navy)),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)),
                     Text('${record['building_type'] ?? 'Building'} · ${record['plot_area_sqm'] ?? '—'} m² plot · ${record['approval_status'] ?? 'Status not stated'} · ${record['release_date'] ?? 'Date not stated'}',
                       style: const TextStyle(fontSize: 10, color: mutedInk)),
                   ])),
@@ -4830,7 +4830,7 @@ class _DrainageInspectionBoardState extends State<DrainageInspectionBoard> {
           const Icon(Icons.water_damage_outlined, color: Color(0xFF087F83)),
           const SizedBox(width: 9),
           const Expanded(child: Text('Stormwater & frontage drainage',
-            style: TextStyle(fontSize: 14,fontWeight: FontWeight.w800,color: navy))),
+            style: TextStyle(fontSize: 14,fontWeight: FontWeight.w800,color: ink))),
           IconButton(onPressed: loading ? null : _loadRecords,
             icon: const Icon(Icons.refresh), tooltip: 'Refresh drainage records'),
         ]),
@@ -4866,7 +4866,7 @@ class _DrainageInspectionBoardState extends State<DrainageInspectionBoard> {
               child: ListTile(dense: true, onTap: () => _edit(existing: r),
                 leading: Icon(Icons.water_damage_outlined,color: _statusColor(status)),
                 title: Text(_caseLabel(r['request_id'].toString()),maxLines: 2,overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12,fontWeight: FontWeight.w700,color: navy)),
+                  style: const TextStyle(fontSize: 12,fontWeight: FontWeight.w700,color: ink)),
                 subtitle: Text(_departmentLabel(dept) + ' · ' + issue + ' · ' +
                   severity.toUpperCase() + ' · ' + _pretty(status),
                   style: const TextStyle(fontSize: 10,color: mutedInk)),
@@ -4972,7 +4972,7 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
-      title: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+      title: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
       subtitle: Text('Recharge $recharge ha.m · Extractable $extractable ha.m · Extraction $extraction ha.m',
         style: const TextStyle(fontSize: 10, color: mutedInk)),
       trailing: Text(stage, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: ink)),
@@ -4988,7 +4988,7 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
     final rl = station['rl_msl_m'] is num ? ' · RL MSL ${(station['rl_msl_m'] as num).toStringAsFixed(2)} m' : '';
     return ListTile(dense: true, contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.sensors_outlined, color: Color(0xFF087F83)),
-      title: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: navy)),
+      title: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
       subtitle: Text('$place · Observed $observed$rl', style: const TextStyle(fontSize: 10, color: mutedInk)),
       trailing: Text(_reading(station), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)));
   }
@@ -5002,7 +5002,7 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           const Icon(Icons.public, color: Color(0xFF087F83)), const SizedBox(width: 9),
-          const Expanded(child: Text('India groundwater intelligence', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+          const Expanded(child: Text('India groundwater intelligence', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
           IconButton(onPressed: loading ? null : () => _loadSnapshot(), icon: const Icon(Icons.refresh), tooltip: 'Refresh nationwide groundwater records'),
         ]),
         const Text('CGWB State/UT resource assessments + published NWDP monitoring observations', style: TextStyle(fontSize: 11, color: mutedInk)),
@@ -5028,7 +5028,7 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            const Expanded(child: Text('CGWB 2025 district resource assessments', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
+            const Expanded(child: Text('CGWB 2025 district resource assessments', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink))),
             Text('${districtAssessments.length} districts', style: const TextStyle(fontSize: 10, color: mutedInk)),
           ]),
           const Text('Official CGWB Annexure II values · hectare-metres (ha.m). These are annual resource assessments, not live readings or individual borewell permissions.',
@@ -5047,7 +5047,7 @@ class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDash
           ],
           const SizedBox(height: 12),
           Row(children: [
-            const Expanded(child: Text('Published monitoring stations', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
+            const Expanded(child: Text('Published monitoring stations', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink))),
             Text('${stations.length} shown', style: const TextStyle(fontSize: 10, color: mutedInk)),
           ]),
           if (stations.isEmpty)
@@ -5111,9 +5111,9 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
       return sum + (v is num ? v.toInt() : 0);
     });
     return Container(width: double.infinity, margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFF5F8FA), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF25415E))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy)),
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(height: 5),
         Text(jurisdictions.toString() + ' of 36 jurisdictions have a coverage row · ' +
           operational.toString() + ' operationally authorised', style: const TextStyle(fontSize: 10, color: mutedInk)),
@@ -5133,7 +5133,7 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         const Icon(Icons.account_tree_outlined, color: Color(0xFF087F83)), const SizedBox(width: 9),
-        const Expanded(child: Text('India-wide data readiness', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+        const Expanded(child: Text('India-wide data readiness', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
         IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh national coverage matrix'),
       ]),
       const Text('36 States / UTs · 10 infrastructure domains · authority verification tracked', style: TextStyle(fontSize: 11, color: mutedInk)),
@@ -5322,7 +5322,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 16, color: const Color(0xFF087F83)),
         const SizedBox(width: 7),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(width: 5),
         Text(label, style: const TextStyle(fontSize: 10, color: mutedInk)),
       ]),
@@ -5350,7 +5350,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(child: Text(_domainLabel(domain),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: navy))),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink))),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -5428,7 +5428,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
             const Icon(Icons.account_balance_outlined, color: Color(0xFF087F83)),
             const SizedBox(width: 8),
             const Expanded(child: Text('District and local-government directory',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy))),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
@@ -5525,7 +5525,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
             color: const Color(0xFF087F83), size: 19),
         ),
         title: Text(state['name'].toString(),
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
         subtitle: Text(kind + ' · ' + rows.length.toString() + ' domain record(s) · ' +
           authorised.toString() + ' operationally authorised',
           style: const TextStyle(fontSize: 10, color: mutedInk)),
@@ -5767,7 +5767,7 @@ class _IndiaNationalAuthorityDirectoryPageState extends State<IndiaNationalAutho
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: navy)),
+          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
           const SizedBox(height: 4),
           Text(level, style: const TextStyle(fontSize: 8, letterSpacing: .7, fontWeight: FontWeight.w900, color: Color(0xFF087F83))),
           const SizedBox(height: 8),
@@ -5850,7 +5850,7 @@ class _IndiaNationalAuthorityDirectoryPageState extends State<IndiaNationalAutho
                       padding: const EdgeInsets.all(14),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('NATIONAL GOVERNMENT SOURCES',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy)),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: ink)),
                         const SizedBox(height: 6),
                         Text(authorities.length.toString() + ' national authority and directory references registered.',
                           style: const TextStyle(fontSize: 10, color: mutedInk)),
@@ -6031,7 +6031,7 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 16, color: const Color(0xFF087F83)),
         const SizedBox(width: 7),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: navy)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(width: 5),
         Text(label, style: const TextStyle(fontSize: 10, color: mutedInk)),
       ]),
@@ -6110,12 +6110,12 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Row(children: [
                                     Expanded(child: Text((row['asset_type'] ?? 'unknown').toString().toUpperCase(),
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: navy))),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: ink))),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                                       decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(8)),
                                       child: Text(status.replaceAll('_', ' ').toUpperCase(),
-                                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: navy)),
+                                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: ink)),
                                     ),
                                   ]),
                                   const SizedBox(height: 7),
@@ -6148,7 +6148,7 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                   if (evidenceItems.isNotEmpty) ...[
                                     const Divider(height: 16),
                                     const Text('REFERENCE-ONLY SURVEY EVIDENCE',
-                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: navy)),
+                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: ink)),
                                     ...evidenceItems.map((item) => Padding(
                                       padding: const EdgeInsets.only(top: 7),
                                       child: Column(
@@ -6156,7 +6156,7 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                         children: [
                                           Text(
                                             (item['evidence_reference_code'] ?? 'Reference').toString(),
-                                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: navy),
+                                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ink),
                                           ),
                                           Text(
                                             '${item['survey_method']} · ${_date(item['survey_date'])} · ${item['surveyor_organisation']}',
@@ -6546,7 +6546,7 @@ class _BuildingApprovalRegisterBoardState extends State<BuildingApprovalRegister
           Row(children: [
             const Icon(Icons.apartment_outlined, color: Color(0xFF087F83)),
             const SizedBox(width: 9),
-            const Expanded(child: Text('Public building-approval register', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            const Expanded(child: Text('Public building-approval register', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
             IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh public approval register'),
           ]),
           const Text('Official published plan-release records imported into SAMANVAY. This is not a nationwide permit registry.', style: TextStyle(fontSize: 10, color: mutedInk)),
@@ -6568,7 +6568,7 @@ class _BuildingApprovalRegisterBoardState extends State<BuildingApprovalRegister
               Expanded(child: _approvalMetric('Official height values', heightValues.toString())),
             ]),
             const SizedBox(height: 8),
-            Text('$authority · $jurisdiction', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: navy)),
+            Text('$authority · $jurisdiction', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)),
             const SizedBox(height: 4),
             ...statusCounts.entries.map((entry) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -6802,7 +6802,7 @@ class _GroundwaterObservationBoardState extends State<GroundwaterObservationBoar
           const Icon(Icons.water_drop_outlined, color: Color(0xFF087F83)),
           const SizedBox(width: 9),
           const Expanded(child: Text('Borewell & groundwater field observations',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: navy))),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
           IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
         ]),
         const Text('Append dated site measurements to a borewell/groundwater case. The public station snapshot above remains separate.',
@@ -7111,7 +7111,7 @@ class _RequestsPageState extends State<RequestsPage> {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: ink,
+                color: navy,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -11562,7 +11562,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                     const Icon(Icons.lock_outline, size: 52, color: mutedInk),
                     const SizedBox(height: 14),
                     const Text('Department authorisation required',
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: navy)),
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: ink)),
                     const SizedBox(height: 8),
                     Text(_status, textAlign: TextAlign.center),
                   ]),
@@ -11589,7 +11589,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                       padding: const EdgeInsets.all(16),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('SOURCE AUTHORITY & PROVENANCE',
-                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                            style: TextStyle(fontWeight: FontWeight.w800, color: ink, letterSpacing: 0.7)),
                         const SizedBox(height: 6),
                         const Text('These fields create an audit declaration. They do not independently prove that the submitter has permission. The receiving authority must review the source before the records are verified.',
                             style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
@@ -11631,7 +11631,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                           hint: 'https://…',
                         ),
                         const Text('Coordinate reference system: EPSG:4326 only. Reproject the source file before upload; the server does not guess or transform CRSs.',
-                            style: TextStyle(color: navy, fontSize: 11, height: 1.4, fontWeight: FontWeight.w600)),
+                            style: TextStyle(color: ink, fontSize: 11, height: 1.4, fontWeight: FontWeight.w600)),
                       ]),
                     )),
                     const SizedBox(height: 12),
@@ -11639,13 +11639,13 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                       padding: const EdgeInsets.all(16),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('SUPPORTED FILE',
-                            style: TextStyle(fontWeight: FontWeight.w800, color: navy, letterSpacing: 0.7)),
+                            style: TextStyle(fontWeight: FontWeight.w800, color: ink, letterSpacing: 0.7)),
                         const SizedBox(height: 8),
                         const Text('GeoJSON FeatureCollection (.geojson / .json), WGS84 EPSG:4326. Point, MultiPoint, LineString and MultiLineString. Maximum 10 MB / 500 features.',
                             style: TextStyle(color: mutedInk, height: 1.45, fontSize: 12)),
                         const SizedBox(height: 8),
                         const Text('Required properties: asset_code, asset_name and asset_type. Source type and permission details are entered in the audit form below.',
-                            style: TextStyle(color: navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                            style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 6),
                         const Text('Optional: depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm and surveyed_at. Field-survey batches must include surveyed_at.',
                             style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
@@ -11666,7 +11666,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
                         padding: const EdgeInsets.all(15),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           const Text('PRE-IMPORT VALIDATION',
-                              style: TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                              style: TextStyle(fontWeight: FontWeight.w800, color: ink)),
                           const SizedBox(height: 6),
                           Text(_fileName, style: const TextStyle(fontWeight: FontWeight.w700)),
                           const SizedBox(height: 10),
@@ -11844,7 +11844,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   const Text('MY PRIVATE EVIDENCE',
-                    style: TextStyle(fontWeight: FontWeight.w800, color: navy)),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: ink)),
                   const SizedBox(height: 10),
                   ...files.map((item) {
                     final bytes = (item['file_size_bytes'] as num?)?.toInt() ?? 0;
@@ -13192,7 +13192,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: navy)),
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ink)),
           const SizedBox(height: 3),
           Text(subtitle, style: const TextStyle(fontSize: 11, color: mutedInk)),
         ],
