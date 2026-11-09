@@ -131,6 +131,23 @@ jobs:
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=MAPTILER_API_KEY="$MAPTILER_API_KEY"
 
+      - name: Smoke-test browser output and bundled GIS assets
+        run: |
+          set -euo pipefail
+          test -s build/web/index.html
+          test -s build/web/flutter_bootstrap.js
+          test -s build/web/main.dart.js
+          for asset in \
+            build/web/assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson \
+            build/web/assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson; do
+            if [ ! -s "$asset" ]; then
+              echo "ERROR: Compiled browser bundle is missing GIS asset: $asset"
+              exit 1
+            fi
+            echo "PASS: $asset"
+          done
+          echo "PASS: Flutter Web entrypoint and required GIS assets are present."
+
       - name: Package browser portal
         run: |
           test -s build/web/index.html
