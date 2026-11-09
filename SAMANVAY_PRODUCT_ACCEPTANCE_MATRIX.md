@@ -59,10 +59,14 @@
 - [x] Department assignment/review and role-gated staff case workspace.
 - [x] Current GIS utility-proximity check records a generic case-level advisory.
 - [ ] Spatial + date-window conflict detection between overlapping planned/active work requests.
-- [ ] Joint-work recommendation workflow with department responses, scheduling and authorised final decision.
+- [ ] Joint-work recommendation workflow with department responses, scheduling and authorised final decision. (Flutter workflow and SQL migration are committed; production acceptance remains pending database deployment and role-based runtime tests.)
 - [ ] Clearance gateway with pre-work checks, dependencies, escalation and auditable approvals.
 - [ ] Configurable no-dig / road-restoration / moratorium rules sourced from the responsible authority, with effective dates, exceptions and citations.
 - [ ] Conflict review screen with evidence, affected work streams, decision history and officer actions; no invented collision visualisations.
+
+
+
+Implementation note (2026-11-10): The joint-work coordination page, role-checked RPC migration and Android/browser build integration are present on `feature/alpha-03-integrated-platform`. The connected Supabase migration operation was rejected in a read-only transaction, so the new tables and RPCs are not confirmed deployed. Keep this acceptance item unchecked until the migration is applied and tested using coordinator, participating department and non-participant accounts.
 
 ## 6. Field inspection and as-built evidence
 
