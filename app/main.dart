@@ -5226,9 +5226,9 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
     final rationale = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(decision == 'accept_evidence' ? 'Accept survey evidence receipt' : 'Reject / dispute submission'),
+        title: Text(decision == 'approve' ? 'Approve verified submission' : 'Reject / dispute submission'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Acceptance records an administrative review of the evidence reference and checksum only. Confirm them with the owner department through its authorised records process. This does not verify the network, publish geometry, or provide excavation clearance.'),
+          const Text('Approval marks the submitted asset record as verified after recorded survey evidence is present. Approve only after independently checking the evidence and authority record. This does not provide excavation clearance.'),
           const SizedBox(height: 12),
           TextField(
             controller: rationaleController,
@@ -5248,7 +5248,7 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
               final value = rationaleController.text.trim();
               if (value.length >= 10) Navigator.pop(dialogContext, value);
             },
-            child: Text(decision == 'accept_evidence' ? 'Confirm evidence acceptance' : 'Record dispute'),
+            child: Text(decision == 'approve' ? 'Confirm approval' : 'Record dispute'),
           ),
         ],
       ),
@@ -5269,8 +5269,8 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(decision == 'accept_evidence'
-          ? 'Evidence receipt accepted. Asset remains restricted pending owner verification.'
+        SnackBar(content: Text(decision == 'approve'
+          ? 'Asset marked verified and review audit recorded.'
           : 'Submission marked disputed; review audit recorded.')),
       );
       await _load();
@@ -5461,9 +5461,9 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                     Wrap(spacing: 8, runSpacing: 8, children: [
                                       FilledButton.icon(
                                         onPressed: (row['evidence_count'] as num? ?? 0) > 0
-                                          ? () => _review(row, 'accept_evidence') : null,
+                                          ? () => _review(row, 'approve') : null,
                                         icon: const Icon(Icons.verified_outlined, size: 16),
-                                        label: const Text('Accept evidence receipt'),
+                                        label: const Text('Approve after evidence review'),
                                       ),
                                       OutlinedButton.icon(
                                         onPressed: () => _review(row, 'reject'),
@@ -5474,7 +5474,7 @@ class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationP
                                     if ((row['evidence_count'] as num? ?? 0) == 0)
                                       const Padding(
                                         padding: EdgeInsets.only(top: 6),
-                                        child: Text('Acceptance requires a recorded evidence reference and SHA-256 checksum.',
+                                        child: Text('Approval requires recorded evidence. Verify the source and authority independently before approval.',
                                           style: TextStyle(fontSize: 10, color: Color(0xFF9A6700))),
                                       ),
                                   ],
