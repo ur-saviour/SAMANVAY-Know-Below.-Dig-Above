@@ -1724,6 +1724,12 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             ),
             const SizedBox(height: 10),
             domainBreakdown(),
+            const SizedBox(height: 14),
+            PublicWorksOperationsBoard(
+              departments: departments,
+              isDepartment: widget.isDepartment,
+              departmentId: widget.departmentId,
+            ),
             const SizedBox(height: 7),
             const Text(
               'Live metrics reflect records visible to this role and the current query window. They are not national totals.',
@@ -2674,6 +2680,43 @@ class _DashboardPageState extends State<DashboardPage> {
               )),
             ]),
           ),
+          const SizedBox(height: 19),
+          Text('Quick actions', style: GoogleFonts.spaceGrotesk(
+            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          LayoutBuilder(builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 650 ? 5 : 2;
+            const spacing = 9.0;
+            final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            Widget action(String title, IconData icon, Color accent, Widget page) =>
+              SizedBox(width: width, child: Material(
+                color: panelNavy,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => page)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF294863))),
+                    child: Column(children: [
+                      Icon(icon, color: accent, size: 22),
+                      const SizedBox(height: 7),
+                      Text(title, textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ));
+            return Wrap(spacing: spacing, runSpacing: spacing, children: [
+              action('New request', Icons.add_circle_outline, cyanAccent, const NewRequestPage()),
+              action('Track requests', Icons.track_changes_outlined, const Color(0xFF7FC8FF), const RequestsPage()),
+              action('3D GIS map', Icons.layers_outlined, const Color(0xFF8B9DFF), const MapPage()),
+              action('Public notices', Icons.campaign_outlined, const Color(0xFFF0B55A), const PublicExcavationTrackerPage()),
+              action('Notifications', Icons.notifications_none_rounded, const Color(0xFFBFA7FF), const NotificationsPage()),
+            ]);
+          }),
           const SizedBox(height: 23),
           Text('Operational overview', style: GoogleFonts.spaceGrotesk(
             color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
@@ -2695,10 +2738,10 @@ class _DashboardPageState extends State<DashboardPage> {
           ]),
           const SizedBox(height: 22),
           Text('Cases by infrastructure domain', style: GoogleFonts.spaceGrotesk(
-            color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text('Distribution of your submitted cases', style: GoogleFonts.inter(
-            color: mutedInk, fontSize: 12)),
+            color: const Color(0xFFB6C7D6), fontSize: 12)),
           const SizedBox(height: 13),
           Container(
             padding: const EdgeInsets.all(15),
@@ -2713,10 +2756,10 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 24),
           Text('Department network', style: GoogleFonts.spaceGrotesk(
-            color: ink, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text('Live directory from the SAMANVAY database',
-            style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
+            style: GoogleFonts.inter(color: const Color(0xFFB6C7D6), fontSize: 12)),
           const SizedBox(height: 12),
           if (loading && departments.isEmpty)
             const Center(child: Padding(padding: EdgeInsets.all(18),
@@ -2751,6 +2794,426 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
+}
+
+
+// RLS-backed authoring and review desk for public excavation notices.
+class PublicWorksOperationsBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const PublicWorksOperationsBoard({super.key, required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<PublicWorksOperationsBoard> createState() => _PublicWorksOperationsBoardState();
+}
+
+class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard> {
+  List<Map<String, dynamic>> notices = [];
+  List<Map<String, dynamic>> reports = [];
+  List<Map<String, dynamic>> departments = [];
+  bool loading = true;
+  bool saving = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    departments = List<Map<String, dynamic>>.from(widget.departments);
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final rows = await Future.wait([
+        supabase.from('public_excavation_notices')
+          .select('id,notice_code,title,notice_type,city,district,ward_code,area_label,responsible_department_id,responsible_department_name,starts_on,ends_on,progress_percent,notice_status,source_reference,source_url,summary,published_at')
+          .order('updated_at', ascending: false).limit(100),
+        supabase.from('public_obstruction_reports')
+          .select('id,city,district,ward_code,area_label,report_type,details,assigned_department_id,report_status,created_at')
+          .order('created_at', ascending: false).limit(100),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        notices = List<Map<String, dynamic>>.from(rows[0]);
+        reports = List<Map<String, dynamic>>.from(rows[1]);
+        loading = false;
+      });
+      if (departments.isEmpty) await loadDepartments();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; error = 'The queue could not be loaded. Supabase RLS still controls which records this account can see.'; });
+    }
+  }
+
+  Future<void> loadDepartments() async {
+    try {
+      final rows = widget.isDepartment && widget.departmentId != null
+        ? await supabase.from('departments').select('id,name').eq('id', widget.departmentId!).order('name')
+        : await supabase.from('departments').select('id,name').order('name');
+      if (mounted) setState(() => departments = List<Map<String, dynamic>>.from(rows));
+    } catch (_) {}
+  }
+
+  String departmentName(String? id) {
+    if (id == null || id.isEmpty) return 'Not assigned';
+    for (final d in departments) {
+      if (d['id'].toString() == id) return d['name'].toString();
+    }
+    return 'Assigned department';
+  }
+
+  String pretty(String value) => value.replaceAll('_', ' ').toUpperCase();
+
+  void toast(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  Future<void> createNotice() async {
+    if (saving) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final code = TextEditingController();
+    final title = TextEditingController();
+    final city = TextEditingController(text: 'Coimbatore');
+    final area = TextEditingController();
+    final starts = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 10));
+    final source = TextEditingController();
+    final url = TextEditingController();
+    final form = GlobalKey<FormState>();
+    var type = 'work';
+    String? departmentId = widget.isDepartment ? widget.departmentId
+      : (departments.isEmpty ? null : departments.first['id'].toString());
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Create work / no-dig notice'),
+          content: SizedBox(width: 520, child: SingleChildScrollView(
+            child: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'Notice type'),
+                items: const [
+                  DropdownMenuItem(value: 'work', child: Text('Excavation / public works')),
+                  DropdownMenuItem(value: 'no_dig', child: Text('No-dig notice')),
+                ],
+                onChanged: (v) { if (v != null) setDialog(() => type = v); },
+              ),
+              TextFormField(controller: code, decoration: const InputDecoration(labelText: 'Official notice code / reference'),
+                validator: (v) => v == null || v.trim().length < 3 ? 'Enter the source notice code' : null),
+              TextFormField(controller: title, decoration: const InputDecoration(labelText: 'Notice title'),
+                validator: (v) => v == null || v.trim().length < 5 ? 'Enter a descriptive title' : null),
+              TextFormField(controller: city, decoration: const InputDecoration(labelText: 'City / town'),
+                validator: (v) => v == null || v.trim().length < 2 ? 'Enter a city / town' : null),
+              TextFormField(controller: area, decoration: const InputDecoration(labelText: 'Area / road / landmark')),
+              TextFormField(controller: starts, decoration: const InputDecoration(labelText: 'Start date (YYYY-MM-DD)'),
+                validator: (v) => v == null || DateTime.tryParse(v.trim()) == null ? 'Enter a valid date' : null),
+              TextFormField(controller: source, decoration: const InputDecoration(labelText: 'Official source reference (required to publish)')),
+              TextFormField(controller: url, decoration: const InputDecoration(labelText: 'Official HTTPS source URL (optional)'),
+                validator: (v) => v != null && v.trim().isNotEmpty && !v.trim().toLowerCase().startsWith('https://') ? 'Use an HTTPS URL' : null),
+              const SizedBox(height: 8),
+              if (widget.isDepartment)
+                Align(alignment: Alignment.centerLeft, child: Text('Responsible department: ' + departmentName(departmentId),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Responsible department'),
+                  items: departments.map((d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(), child: Text(d['name'].toString()))).toList(),
+                  onChanged: (v) => setDialog(() => departmentId = v),
+                  validator: (v) => v == null ? 'Select a department' : null,
+                ),
+              const SizedBox(height: 8),
+              const Text('This creates a draft only. A source reference is required before a staff user can publish it.',
+                style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+            ])),
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () {
+              if (form.currentState!.validate() && departmentId != null) Navigator.pop(dialog, true);
+            }, child: const Text('Save draft')),
+          ],
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      setState(() => saving = true);
+      try {
+        Map<String, dynamic>? department;
+        for (final d in departments) {
+          if (d['id'].toString() == departmentId) department = d;
+        }
+        if (department == null) {
+          final row = await supabase.from('departments').select('id,name')
+            .eq('id', departmentId!).maybeSingle();
+          if (row != null) department = Map<String, dynamic>.from(row);
+        }
+        if (department == null) throw StateError('Responsible department is unavailable.');
+        final inserted = await supabase.from('public_excavation_notices').insert({
+          'notice_code': code.text.trim(), 'title': title.text.trim(), 'notice_type': type,
+          'city': city.text.trim(), 'area_label': area.text.trim().isEmpty ? null : area.text.trim(),
+          'responsible_department_id': departmentId,
+          'responsible_department_name': department['name'].toString(),
+          'starts_on': starts.text.trim(),
+          'source_reference': source.text.trim().isEmpty ? null : source.text.trim(),
+          'source_url': url.text.trim().isEmpty ? null : url.text.trim(),
+          'notice_status': 'draft', 'created_by': user.id,
+        }).select('id').maybeSingle();
+        if (inserted == null) throw StateError('The database did not confirm the draft insert.');
+        toast('Notice draft saved. It is not public until an authorised publisher publishes it.');
+        await refresh();
+      } catch (e) {
+        toast('Notice draft not saved: ' + e.toString());
+      } finally {
+        if (mounted) setState(() => saving = false);
+      }
+    }
+    for (final c in [code,title,city,area,starts,source,url]) { c.dispose(); }
+  }
+
+  Future<void> editNotice(Map<String, dynamic> notice) async {
+    if (saving) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final source = TextEditingController(text: (notice['source_reference'] ?? '').toString());
+    final progress = TextEditingController(text: notice['progress_percent']?.toString() ?? '');
+    var status = (notice['notice_status'] ?? 'draft').toString();
+    final form = GlobalKey<FormState>();
+    final firstPublication = notice['published_at'] == null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text('Update notice ' + notice['notice_code'].toString()),
+          content: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Status'),
+              items: const [
+                DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                DropdownMenuItem(value: 'published', child: Text('Published')),
+                DropdownMenuItem(value: 'active', child: Text('Active work')),
+                DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+              ],
+              onChanged: (v) { if (v != null) setDialog(() => status = v); },
+            ),
+            TextFormField(controller: source, decoration: const InputDecoration(labelText: 'Official source reference'),
+              validator: (v) => status != 'draft' && (v == null || v.trim().isEmpty)
+                ? 'A source reference is required before publication' : null),
+            TextFormField(controller: progress, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Reported progress (0–100)'),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return null;
+                final n = int.tryParse(v.trim());
+                return n == null || n < 0 || n > 100 ? 'Enter 0–100' : null;
+              }),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () { if (form.currentState!.validate()) Navigator.pop(dialog, true); },
+              child: const Text('Save update')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      setState(() => saving = true);
+      try {
+        final sourceValue = source.text.trim();
+        final publishedNow = firstPublication && status != 'draft';
+        final updated = await supabase.from('public_excavation_notices').update({
+          'notice_status': status,
+          'source_reference': sourceValue.isEmpty ? null : sourceValue,
+          'progress_percent': progress.text.trim().isEmpty ? null : int.parse(progress.text.trim()),
+          if (publishedNow) 'published_at': DateTime.now().toUtc().toIso8601String(),
+          if (publishedNow) 'published_by': user.id,
+        }).eq('id', notice['id'].toString()).select('id').maybeSingle();
+        if (updated == null) throw StateError('The database did not confirm the authorised update.');
+        final eventType = publishedNow ? 'published'
+          : status == 'completed' ? 'work_completed'
+          : status == 'cancelled' ? 'notice_cancelled'
+          : status == 'active' ? 'work_started' : 'progress_update';
+        await supabase.from('public_excavation_notice_events').insert({
+          'notice_id': notice['id'].toString(), 'event_type': eventType,
+          'title': publishedNow ? 'Notice published' : 'Notice updated: ' + pretty(status),
+          'details': 'Recorded by an authorised department account. Source reference: ' + (sourceValue.isEmpty ? 'not provided' : sourceValue),
+          'progress_percent': progress.text.trim().isEmpty ? null : int.parse(progress.text.trim()),
+          'created_by': user.id,
+        });
+        toast(publishedNow ? 'Notice published with its source reference.' : 'Notice and timeline updated.');
+        await refresh();
+      } catch (e) {
+        toast('Notice update failed: ' + e.toString());
+        await refresh();
+      } finally {
+        if (mounted) setState(() => saving = false);
+      }
+    }
+    source.dispose();
+    progress.dispose();
+  }
+
+  Future<void> reviewReport(Map<String, dynamic> report) async {
+    if (saving) return;
+    var status = (report['report_status'] ?? 'submitted').toString();
+    String? assigned = report['assigned_department_id']?.toString();
+    final oldAssigned = assigned;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Review obstruction report'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('Area: ' + (report['area_label'] ?? 'Not specified').toString()),
+            DropdownButtonFormField<String>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Review status'),
+              items: const [
+                DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
+                DropdownMenuItem(value: 'acknowledged', child: Text('Acknowledged')),
+                DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+                DropdownMenuItem(value: 'resolved', child: Text('Resolved')),
+                DropdownMenuItem(value: 'dismissed', child: Text('Dismissed')),
+              ],
+              onChanged: (v) { if (v != null) setDialog(() => status = v); },
+            ),
+            if (!widget.isDepartment)
+              DropdownButtonFormField<String>(
+                initialValue: assigned,
+                decoration: const InputDecoration(labelText: 'Assign department'),
+                items: [
+                  const DropdownMenuItem<String>(value: null, child: Text('Unassigned')),
+                  ...departments.map((d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(), child: Text(d['name'].toString()))),
+                ],
+                onChanged: (v) => setDialog(() => assigned = v),
+              )
+            else
+              Align(alignment: Alignment.centerLeft, child: Text('Assigned to: ' + departmentName(assigned))),
+            const SizedBox(height: 6),
+            const Text('This list excludes reporter identity. Reports are visible only to the reporter and authorised reviewers.',
+              style: TextStyle(fontSize: 10, color: Colors.blueGrey)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Save review')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      setState(() => saving = true);
+      try {
+        final changes = <String, dynamic>{'report_status': status};
+        if (!widget.isDepartment) changes['assigned_department_id'] = assigned;
+        final updated = await supabase.from('public_obstruction_reports').update(changes)
+          .eq('id', report['id'].toString()).select('id').maybeSingle();
+        if (updated == null) throw StateError('The database did not confirm an authorised report update.');
+        toast(oldAssigned != assigned && !widget.isDepartment
+          ? 'Report assignment and status saved.' : 'Report status updated.');
+        await refresh();
+      } catch (e) {
+        toast('Report review failed: ' + e.toString());
+      } finally {
+        if (mounted) setState(() => saving = false);
+      }
+    }
+  }
+
+  Widget _sectionTitle(String value) => Padding(
+    padding: const EdgeInsets.only(top: 10, bottom: 5),
+    child: Text(value, style: const TextStyle(color: cyanAccent, fontSize: 10,
+      letterSpacing: .8, fontWeight: FontWeight.w900)),
+  );
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: const Color(0xFF294863))),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.campaign_outlined, color: cyanAccent, size: 19),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Public works publishing & review',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800))),
+        IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh, color: cyanAccent)),
+      ]),
+      const Text('Create department-owned drafts, publish source-backed notices, update work timelines and review reports using existing RLS rules.',
+        style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.35)),
+      const SizedBox(height: 8),
+      SizedBox(width: double.infinity, child: FilledButton.icon(
+        onPressed: saving || loading ? null : createNotice,
+        icon: const Icon(Icons.add_circle_outline), label: const Text('CREATE NOTICE DRAFT'),
+        style: FilledButton.styleFrom(backgroundColor: electricBlue, foregroundColor: Colors.white))),
+      if (error != null) Padding(padding: const EdgeInsets.only(top: 8),
+        child: Text(error!, style: const TextStyle(color: Color(0xFFFFB4AB), fontSize: 10))),
+      if (loading && notices.isEmpty && reports.isEmpty)
+        const Padding(padding: EdgeInsets.all(14), child: Center(child: CircularProgressIndicator(color: cyanAccent))),
+      _sectionTitle('WORK / NO-DIG NOTICES'),
+      if (notices.isEmpty) const Text('No notices are visible to this account. This does not imply that no public work is taking place.',
+        style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+      ...notices.map((notice) => Container(
+        margin: const EdgeInsets.only(top: 7), padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: const Color(0xFF0A1E33), borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: const Color(0xFF294863))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text((notice['notice_code'] ?? 'Notice').toString(),
+              style: const TextStyle(color: cyanAccent, fontSize: 10, fontWeight: FontWeight.w900))),
+            Text(pretty((notice['notice_status'] ?? 'draft').toString()),
+              style: const TextStyle(color: Color(0xFFF3C969), fontSize: 9, fontWeight: FontWeight.w900)),
+          ]),
+          Text((notice['title'] ?? 'Public works notice').toString(),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+          Text((notice['city'] ?? '').toString() + ' · ' + (notice['responsible_department_name'] ?? 'Department not listed').toString(),
+            style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+          Text('Source: ' + (notice['source_reference'] ?? 'Not yet recorded').toString(),
+            style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9)),
+          Align(alignment: Alignment.centerRight, child: TextButton.icon(
+            onPressed: saving ? null : () => editNotice(notice),
+            icon: const Icon(Icons.edit_outlined, size: 15), label: const Text('Update / publish'))),
+        ]),
+      )),
+      const Divider(color: Color(0xFF294863), height: 22),
+      _sectionTitle('CITIZEN OBSTRUCTION REPORTS'),
+      if (reports.isEmpty) const Text('No obstruction reports are visible to this account. Reports remain private to the reporter and authorised reviewers.',
+        style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+      ...reports.map((report) => Container(
+        margin: const EdgeInsets.only(top: 7), padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: const Color(0xFF0A1E33), borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: const Color(0xFF294863))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(pretty((report['report_type'] ?? 'other').toString()),
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900))),
+            Text(pretty((report['report_status'] ?? 'submitted').toString()),
+              style: const TextStyle(color: Color(0xFFF3C969), fontSize: 9, fontWeight: FontWeight.w900)),
+          ]),
+          Text((report['area_label'] ?? '').toString() + ' · ' + (report['city'] ?? '').toString(),
+            style: const TextStyle(color: cyanAccent, fontSize: 10)),
+          Text((report['details'] ?? '').toString(), maxLines: 3, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+          Text('Assigned: ' + departmentName(report['assigned_department_id']?.toString()),
+            style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9)),
+          Align(alignment: Alignment.centerRight, child: TextButton.icon(
+            onPressed: saving ? null : () => reviewReport(report),
+            icon: const Icon(Icons.fact_check_outlined, size: 15), label: const Text('Review report'))),
+        ]),
+      )),
+      const SizedBox(height: 8),
+      const Text('A public notice or no-dig notice is not an excavation permit or underground-utility clearance.',
+        style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, height: 1.4)),
+    ]),
+  );
 }
 
 
