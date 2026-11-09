@@ -195,7 +195,7 @@ class _UtilityAssetEvidenceSubmissionPageState
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       );
       if (file == null) return;
-      final fileSize = file.lengthSync();
+      final fileSize = file.lengthSync() ?? await file.length();
       if (fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
         throw StateError('Select a non-empty file no larger than 20 MB.');
       }
@@ -203,7 +203,9 @@ class _UtilityAssetEvidenceSubmissionPageState
       if (bytes.isEmpty || bytes.length != fileSize) {
         throw StateError('The selected file could not be read completely.');
       }
-      final extension = file.path.split('.').last.toLowerCase();
+      final filePath = file.path;
+      if (filePath == null || filePath.isEmpty) throw StateError('Selected file path is unavailable.');
+      final extension = filePath.split('.').last.toLowerCase();
       const mimeTypes = {
         'pdf': 'application/pdf',
         'jpg': 'image/jpeg',
