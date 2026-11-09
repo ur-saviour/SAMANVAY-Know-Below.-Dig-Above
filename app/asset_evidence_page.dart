@@ -188,47 +188,77 @@ class _UtilityAssetEvidenceSubmissionPageState
     final metadata = await _collectMetadata();
     if (metadata == null || !mounted) return;
     setState(() => _busy = true);
+    String? uploadedPath;
     try {
-      final file = await FilePicker.pickFile(
+      final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        withData: true,
       );
-      if (file == null) return;
-      final fileSize = file.lengthSync() ?? await file.length();
-      if (fileSize == null || fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
-        throw StateError('Select a non-empty reference document no larger than 20 MB.');
+      if (picked == null || picked.files.isEmpty) return;
+      final file = picked.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty || file.size <= 0 || file.size > 20 * 1024 * 1024) {
+        throw StateError('Select a readable file no larger than 20 MB.');
       }
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty || bytes.length != fileSize) {
-        throw StateError('The selected file could not be read completely.');
-      }
+      final extension = (file.extension ?? '').toLowerCase();
+      const mimeTypes = {
+        'pdf': 'application/pdf',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp',
+      };
+      final mimeType = mimeTypes[extension];
+      if (mimeType == null) throw StateError('Unsupported evidence file type.');
 
-      // Hash locally. The original document bytes are never uploaded or sent.
+      // Compute the checksum on-device; upload only to the private bucket.
       final checksum = sha256.convert(bytes).toString();
+      final userId = _db.auth.currentUser?.id;
+      if (userId == null) throw StateError('Sign in again before submitting evidence.');
+      final assetId = asset['asset_id'].toString();
+      final filename = '${DateTime.now().microsecondsSinceEpoch}_${checksum.substring(0, 12)}.$extension';
+      uploadedPath = '$assetId/$userId/$filename';
+
+      await _db.storage.from('samanvay-asset-survey-evidence').uploadBinary(
+        uploadedPath!,
+        bytes,
+        fileOptions: FileOptions(contentType: mimeType, upsert: false),
+      );
+
       final response = await _db.functions.invoke(
         'samanvay-asset-evidence',
         body: {
           'action': 'submit',
-          'asset_id': asset['asset_id'].toString(),
+          'asset_id': assetId,
           ...metadata,
           'evidence_sha256': checksum,
+          'evidence_storage_path': uploadedPath,
         },
       );
       if (response.status < 200 || response.status >= 300) {
         throw StateError('Evidence metadata was not accepted.');
       }
+      uploadedPath = null; // The database now references this private object.
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(
-          'Evidence reference and checksum recorded. The original file remains in the owner department’s records system.',
+          'Evidence document uploaded privately. Its checksum and survey metadata were recorded for owner-department review.',
         )),
       );
       await _load();
     } catch (_) {
+      if (uploadedPath != null) {
+        try {
+          await _db.storage.from('samanvay-asset-survey-evidence').remove([uploadedPath]);
+        } catch (_) {
+          // A failed cleanup does not change the failed submission status.
+        }
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(
-          'Evidence reference could not be recorded. Check the department assignment, survey date and reference code.',
+          'Evidence could not be submitted. Check the file type, 20 MB limit and department permissions.',
         )),
       );
     } finally {
@@ -323,12 +353,12 @@ class _UtilityAssetEvidenceSubmissionPageState
                             style: TextStyle(fontWeight: FontWeight.w900, color: _evidenceNavy)),
                           SizedBox(height: 7),
                           Text(
-                            'Select an eligible submission, enter survey details and choose the source document so its SHA-256 checksum can be calculated locally. The document itself is not uploaded. SAMANVAY stores only the reference code, checksum and non-sensitive metadata.',
+                            'Select an eligible submission, enter survey details and upload the source document. SAMANVAY calculates its SHA-256 checksum on-device and stores the document in a private, owner-department-only bucket.',
                             style: TextStyle(fontSize: 11, color: _evidenceMuted, height: 1.45),
                           ),
                           SizedBox(height: 7),
                           Text(
-                            'Keep the original file in your department’s authorised records system. Do not submit utility maps, coordinates, routes, depths or excavation-clearance information.',
+                            'The original document remains private to the owner department. Do not submit unrestricted network maps, precise coordinates, routes, depths or excavation-clearance information.',
                             style: TextStyle(fontSize: 10, color: Color(0xFF9A6700), height: 1.4),
                           ),
                         ],
