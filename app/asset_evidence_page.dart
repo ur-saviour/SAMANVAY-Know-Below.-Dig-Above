@@ -195,7 +195,7 @@ class _UtilityAssetEvidenceSubmissionPageState
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       );
       if (file == null) return;
-      final fileSize = file.lengthSync() ?? await file.length();
+      final fileSize = file.size;
       if (fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
         throw StateError('Select a non-empty file no larger than 20 MB.');
       }
