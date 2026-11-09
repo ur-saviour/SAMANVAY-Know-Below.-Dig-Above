@@ -14,6 +14,7 @@ import 'package:csv/csv.dart';
 import 'package:crypto/crypto.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'asset_evidence_page.dart';
 import 'public_excavation_tracker_page.dart';
 import 'ai_assistant_page.dart';
@@ -26,6 +27,10 @@ const String supabasePublishableKey =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final preferences = await SharedPreferences.getInstance();
+  samanvayThemeMode.value = preferences.getBool('samanvay_light_mode') == true
+      ? ThemeMode.light
+      : ThemeMode.dark;
 
   if (supabaseUrl.isEmpty || supabasePublishableKey.isEmpty) {
     throw StateError(
@@ -52,6 +57,16 @@ const Color panelNavy = Color(0xFF102842);
 const Color background = Color(0xFF061426);
 const Color ink = Color(0xFFE8F1FA);
 const Color mutedInk = Color(0xFFA6B9CA);
+
+final ValueNotifier<ThemeMode> samanvayThemeMode = ValueNotifier(ThemeMode.dark);
+
+String _displayRoleName(String role) => switch (role) {
+  'requester' => 'Citizen',
+  'department' => 'Department officer',
+  'coordinator' => 'Coordinator',
+  'admin' => 'Administrator',
+  _ => role.replaceAll('_', ' '),
+};
 
 String _normalisePhoneForAuth(String input) {
   final compact = input.trim().replaceAll(RegExp(r'[\s()\-]'), '');
@@ -133,11 +148,36 @@ class SamanvayApp extends StatelessWidget {
           side: const BorderSide(color: Color(0xFF25415E))),
       ),
     );
-    return MaterialApp(
-      title: 'SAMANVAY — Know Below. Dig Above.',
-      debugShowCheckedModeBanner: false,
-      theme: theme,
-      home: const AuthGate(),
+    final lightTheme = ThemeData.light(useMaterial3: true).copyWith(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: electricBlue,
+        brightness: Brightness.light,
+        primary: electricBlue,
+      ),
+      scaffoldBackgroundColor: const Color(0xFFF2F6FC),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        foregroundColor: Color(0xFF10233B),
+        elevation: 0,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: samanvayThemeMode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'SAMANVAY — Know Below. Dig Above.',
+        debugShowCheckedModeBanner: false,
+        theme: lightTheme,
+        darkTheme: theme,
+        themeMode: mode,
+        home: const AuthGate(),
+      ),
     );
   }
 }
@@ -2100,6 +2140,25 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> requestLoginPasswordReset() async {
+    final email = _emailController.text.trim();
+    if (!email.contains('@') || !email.contains('.')) {
+      showMessage('Enter the registered email address to request a password reset.');
+      return;
+    }
+    setState(() { loading = true; message = ''; messageIsSuccess = false; });
+    try {
+      await supabase.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
+      showMessage('Password reset instructions requested. Check the registered email inbox.', success: true);
+    } on AuthException catch (error) {
+      showMessage(error.message);
+    } catch (_) {
+      showMessage('Unable to request a password reset. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
   // Resend the confirmation email to an existing
   // unconfirmed Supabase signup.
 
@@ -2392,8 +2451,14 @@ class _AuthPageState extends State<AuthPage> {
                   ),
 
                   if (isLogin) ...[
-                    const SizedBox(height: 8),
-
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: loading ? null : requestLoginPasswordReset,
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     OutlinedButton.icon(
                       onPressed: loading
                           ? null
@@ -12660,6 +12725,84 @@ class _ProfilePageState extends State<ProfilePage> {
     ));
   }
 
+  Future<void> _requestNotificationPermission() async {
+    if (kIsWeb) {
+      _toast('Browser notifications are controlled by your browser site permissions.');
+      return;
+    }
+    final status = await Permission.notification.request();
+    if (!mounted) return;
+    if (status.isGranted || status.isProvisional) {
+      _toast('Notifications are enabled for SAMANVAY on this device.');
+    } else {
+      _toast('Notification permission was not granted. You can change it in Android app settings.');
+      if (status.isPermanentlyDenied) await openAppSettings();
+    }
+  }
+
+  Future<void> _openSettings() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Settings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: samanvayThemeMode,
+              builder: (context, mode, _) => SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Light mode'),
+                subtitle: Text(mode == ThemeMode.light ? 'Light appearance enabled' : 'Dark appearance enabled'),
+                value: mode == ThemeMode.light,
+                onChanged: (enabled) async {
+                  samanvayThemeMode.value = enabled ? ThemeMode.light : ThemeMode.dark;
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('samanvay_light_mode', enabled);
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Device notifications'),
+              subtitle: const Text('Request permission to show SAMANVAY alerts'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                _requestNotificationPermission();
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _aboutSamanvay() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('About SAMANVAY'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'SAMANVAY — Know Below. Dig Above.\n\n'
+            'Brief: A citizen-facing, multi-department infrastructure coordination platform designed to make public works, underground asset awareness, service requests and government coordination more transparent.\n\n'
+            'Detailed overview: SAMANVAY is designed to coordinate road and public-works planning with water supply, sewerage, stormwater drainage, electricity, telecommunications, gas, groundwater, borewell regulation, building approvals and other civic services. It provides GIS-based context, public excavation notices, no-dig advisories, request tracking, evidence submissions, department workflows, coordination dashboards, notifications and audit trails.\n\n'
+            'Data integrity: Official records are distinguished from public reference datasets, owner-authorised verified utility geometry, aggregate coverage and illustrative estimates. Missing data is shown as a gap. An empty map or absence of a warning is never excavation clearance. Final approvals remain with the competent public authority.',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
   Widget _tile(IconData icon, String title, String subtitle, VoidCallback action,
       {Color color = electricBlue}) => Card(
     color: panelNavy,
@@ -12676,6 +12819,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFF061426),
     appBar: AppBar(title: const Text('My profile'), actions: [
+      IconButton(
+        tooltip: 'Settings',
+        onPressed: _openSettings,
+        icon: const Icon(Icons.settings_outlined),
+      ),
       IconButton(tooltip: 'Refresh profile',
         onPressed: () => setState(() => _future = _loadProfile()),
         icon: const Icon(Icons.refresh_rounded)),
@@ -12742,7 +12890,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: const TextStyle(color: Color(0xFFD6E6F2), fontSize: 12)),
             const SizedBox(height: 12),
             Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
-              _badge(data['role'].toString().replaceAll('_', ' ').toUpperCase(), cyanAccent),
+              _badge(_displayRoleName(data['role'].toString()), cyanAccent),
               _badge(data['department'].toString(), const Color(0xFFB9D4FF)),
             ]),
           ]),
@@ -12788,6 +12936,8 @@ class _ProfilePageState extends State<ProfilePage> {
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()))),
         _tile(Icons.lock_outline_rounded, 'Security settings', 'Request a password reset through Supabase Auth',
           _passwordReset, color: const Color(0xFF0E8A78)),
+        _tile(Icons.info_outline_rounded, 'About SAMANVAY', 'Platform purpose, departments, data integrity and governance',
+          _aboutSamanvay, color: const Color(0xFF35B6C8)),
         _tile(Icons.help_outline_rounded, 'Help and guidance', 'Understand modules and data-safety limits',
           _help, color: const Color(0xFF8A62C7)),
         const SizedBox(height: 10),
@@ -14056,7 +14206,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                 final role = (user['role'] ?? 'requester').toString();
                 final name = (user['display_name'] ?? 'SAMANVAY user').toString();
                 final dept = user['department_name']?.toString();
-                final subtitle = '${role.toUpperCase()}'
+                final subtitle = '${_displayRoleName(role).toUpperCase()}'
                   '${dept == null ? '' : ' · $dept'}'
                   '${isSelf ? ' · CURRENT ACCOUNT' : ''}';
                 final icon = role == 'admin' ? Icons.admin_panel_settings_outlined :
