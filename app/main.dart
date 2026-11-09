@@ -14,6 +14,7 @@ import 'package:csv/csv.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'asset_evidence_page.dart';
+import 'public_excavation_tracker_page.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -41,8 +42,11 @@ Future<void> main() async {
 
 final supabase = Supabase.instance.client;
 
-const Color navy = Color(0xFF0B1728);
+const Color navy = Color(0xFF08182B);
 const Color teal = Color(0xFF20D6C2);
+const Color electricBlue = Color(0xFF3D83F6);
+const Color cyanAccent = Color(0xFF35D7F2);
+const Color panelNavy = Color(0xFF102842);
 const Color background = Color(0xFFF2F6FA);
 const Color ink = Color(0xFF14243A);
 const Color mutedInk = Color(0xFF718096);
@@ -57,9 +61,10 @@ class SamanvayApp extends StatelessWidget {
       brightness: Brightness.light,
       scaffoldBackgroundColor: background,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: teal,
+        seedColor: electricBlue,
         brightness: Brightness.light,
-        primary: const Color(0xFF087F83),
+        primary: electricBlue,
+        secondary: cyanAccent,
         surface: Colors.white,
       ),
       fontFamily: 'Inter',
@@ -70,11 +75,46 @@ class SamanvayApp extends StatelessWidget {
         titleTextStyle: GoogleFonts.spaceGrotesk(
           color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: navy,
+        indicatorColor: cyanAccent.withValues(alpha: 0.18),
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) =>
+          GoogleFonts.inter(
+            color: states.contains(WidgetState.selected) ? cyanAccent : const Color(0xFFB9C9DA),
+            fontSize: 10,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+          )),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD9E4EF)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD9E4EF)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: electricBlue, width: 1.7),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: electricBlue,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        ),
+      ),
       cardTheme: CardThemeData(
         color: Colors.white, elevation: 0, margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Color(0xFFE4EAF1))),
+          side: const BorderSide(color: Color(0xFFE1EAF4))),
       ),
     );
     return MaterialApp(
@@ -2338,72 +2378,37 @@ class _AuthPageState extends State<AuthPage> {
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
-
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
   int selectedIndex = 0;
-
   final pages = const [
-    DashboardPage(),
-    RequestsPage(),
-    MapPage(),
-    NotificationsPage(),
-    IndiaCoverageExplorerPage(),
-    ProfilePage(),
+    DashboardPage(), RequestsPage(), MapPage(),
+    PublicExcavationTrackerPage(), ProfilePage(),
   ];
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: selectedIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'Requests',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
-            label: 'Alerts',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.public_outlined),
-            selectedIcon: Icon(Icons.public),
-            label: 'India',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(index: selectedIndex, children: pages),
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: (index) => setState(() => selectedIndex = index),
+      destinations: const [
+        NavigationDestination(icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+        NavigationDestination(icon: Icon(Icons.assignment_outlined),
+          selectedIcon: Icon(Icons.assignment_rounded), label: 'Cases'),
+        NavigationDestination(icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map_rounded), label: 'GIS'),
+        NavigationDestination(icon: Icon(Icons.campaign_outlined),
+          selectedIcon: Icon(Icons.campaign_rounded), label: 'Public works'),
+        NavigationDestination(icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+      ],
+    ),
+  );
 }
 
 // ==========================================
@@ -2529,9 +2534,27 @@ class _DashboardPageState extends State<DashboardPage> {
     final active = requests.length - count('completed') - count('rejected');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('SAMANVAY'),
-        actions: [IconButton(onPressed: loading ? null : refresh,
-          tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded))]),
+      appBar: AppBar(
+        title: const Text('SAMANVAY'),
+        actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NotificationsPage()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'India data coverage',
+            icon: const Icon(Icons.public_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()),
+            ),
+          ),
+          IconButton(onPressed: loading ? null : refresh,
+            tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded)),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: refresh,
         child: ListView(padding: const EdgeInsets.all(16), children: [
@@ -7505,8 +7528,9 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   static const String _mapTilerKey =
       String.fromEnvironment('MAPTILER_API_KEY');
+  // Dark OpenFreeMap OSM vector style; satellite uses the MapTiler source key.
   static const String _vectorStyle =
-      'https://tiles.openfreemap.org/styles/liberty';
+      'https://tiles.openfreemap.org/styles/dark';
 
   MapLibreMapController? _controller;
   CameraPosition? _pendingBasemapCamera;
@@ -10991,78 +11015,205 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
 // PROFILE
 // ==========================================
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
 
-  Future<void> logout(BuildContext context) async {
-    try {
-      await supabase.auth.signOut();
-    } on AuthException catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
-    }
-  }
+class _ProfilePageState extends State<ProfilePage> {
+  late Future<Map<String, dynamic>> _future;
 
   @override
-  Widget build(BuildContext context) {
-    final user = supabase.auth.currentUser;
-    final name = user?.userMetadata?['display_name'] ?? 'User';
+  void initState() { super.initState(); _future = _loadProfile(); }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(22),
-        children: [
-          const CircleAvatar(
-            radius: 42,
-            backgroundColor: teal,
-            child: Icon(
-              Icons.person,
-              size: 45,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            name.toString(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 23,
-              fontWeight: FontWeight.bold,
-              color: navy,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            user?.email ?? '',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.blueGrey),
-          ),
-          const SizedBox(height: 30),
-          const ListTile(
-            leading: Icon(Icons.verified_user, color: teal),
-            title: Text('Authentication'),
-            subtitle: Text('Supabase'),
-          ),
-          const SizedBox(height: 25),
-          FilledButton.icon(
-            onPressed: () => logout(context),
-            icon: const Icon(Icons.logout),
-            label: const Text('LOG OUT'),
-            style: FilledButton.styleFrom(
-              backgroundColor: navy,
-              padding: const EdgeInsets.symmetric(vertical: 15),
-            ),
-          ),
-        ],
-      ),
-    );
+  Future<Map<String, dynamic>> _loadProfile() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw StateError('Your session has expired. Sign in again.');
+    final row = await supabase.from('profiles')
+        .select('role,department_id,display_name').eq('id', user.id).maybeSingle();
+    if (row == null) throw StateError('Your SAMANVAY profile could not be found.');
+
+    var department = 'Not assigned';
+    final id = row['department_id']?.toString();
+    if (id != null && id.isNotEmpty) {
+      try {
+        final d = await supabase.from('departments').select('name').eq('id', id).maybeSingle();
+        department = (d?['name'] ?? 'Assigned department').toString();
+      } catch (_) { department = 'Assigned department'; }
+    }
+
+    var requestCount = 0, evidenceCount = 0, unreadCount = 0;
+    try { requestCount = List.from(await supabase.from('excavation_requests')
+        .select('id').eq('requester_id', user.id).limit(1000)).length; } catch (_) {}
+    try { evidenceCount = List.from(await supabase.from('case_attachments')
+        .select('id').eq('uploaded_by', user.id).limit(1000)).length; } catch (_) {}
+    try { unreadCount = List.from(await supabase.from('user_notifications')
+        .select('id').eq('recipient_id', user.id).filter('read_at', 'is', null).limit(1000)).length; } catch (_) {}
+
+    return {
+      'name': (row['display_name'] ?? user.userMetadata?['display_name'] ?? 'SAMANVAY user').toString(),
+      'email': user.email ?? '', 'role': (row['role'] ?? 'unknown').toString(),
+      'department': department, 'requests': requestCount,
+      'evidence': evidenceCount, 'unread': unreadCount,
+    };
   }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+  }
+
+  Future<void> _passwordReset() async {
+    final email = supabase.auth.currentUser?.email;
+    if (email == null || email.isEmpty) { _toast('No account email is available.'); return; }
+    try {
+      await supabase.auth.resetPasswordForEmail(email);
+      _toast('Password reset instructions requested. Check your email.');
+    } on AuthException catch (e) { _toast(e.message); }
+    catch (_) { _toast('Unable to request a password reset right now.'); }
+  }
+
+  Future<void> _logout() async {
+    try { await supabase.auth.signOut(); }
+    on AuthException catch (e) { _toast(e.message); }
+  }
+
+  void _help() {
+    showDialog<void>(context: context, builder: (dialog) => AlertDialog(
+      title: const Text('SAMANVAY help'),
+      content: const Text(
+        'Use Cases to submit and follow requests, GIS to inspect available map layers, and Public works for authority-published notices or obstruction reports. '
+        'Exact underground utility geometry is restricted to authorised owner departments. An empty or unverified layer is never excavation clearance.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close'))],
+    ));
+  }
+
+  Widget _tile(IconData icon, String title, String subtitle, VoidCallback action,
+      {Color color = electricBlue}) => Card(
+    margin: const EdgeInsets.only(bottom: 8),
+    child: ListTile(
+      leading: CircleAvatar(backgroundColor: color.withValues(alpha: .12),
+        child: Icon(icon, color: color)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: navy)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: mutedInk)),
+      trailing: const Icon(Icons.chevron_right_rounded, color: mutedInk), onTap: action),
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('My profile'), actions: [
+      IconButton(tooltip: 'Refresh profile',
+        onPressed: () => setState(() => _future = _loadProfile()),
+        icon: const Icon(Icons.refresh_rounded)),
+    ]),
+    body: FutureBuilder<Map<String, dynamic>>(future: _future, builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+        return const Center(child: CircularProgressIndicator());
+      if (snapshot.hasError) return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.account_circle_outlined, size: 44, color: electricBlue),
+          const Text('Profile details unavailable', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(snapshot.error.toString(), textAlign: TextAlign.center,
+            style: const TextStyle(color: mutedInk, fontSize: 12)),
+          const SizedBox(height: 12),
+          FilledButton(onPressed: () => setState(() => _future = _loadProfile()),
+            child: const Text('Retry')),
+        ]),
+      ));
+
+      final data = snapshot.data!;
+      return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [
+        Container(
+          padding: const EdgeInsets.all(21),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [navy, Color(0xFF123B65), Color(0xFF075E72)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: cyanAccent.withValues(alpha: .25))),
+          child: Column(children: [
+            const CircleAvatar(radius: 35, backgroundColor: Color(0xFF244D70),
+              child: Icon(Icons.person_rounded, size: 36, color: cyanAccent)),
+            const SizedBox(height: 12),
+            Text(data['name'].toString(), textAlign: TextAlign.center,
+              style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(data['email'].toString(), textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFD6E6F2), fontSize: 12)),
+            const SizedBox(height: 12),
+            Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
+              _badge(data['role'].toString().replaceAll('_', ' ').toUpperCase(), cyanAccent),
+              _badge(data['department'].toString(), const Color(0xFFB9D4FF)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        const Text('Account activity', style: TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        Row(children: [
+          _metric('Requests', data['requests'].toString(), Icons.assignment_outlined),
+          const SizedBox(width: 8),
+          _metric('Evidence', data['evidence'].toString(), Icons.attach_file_rounded),
+          const SizedBox(width: 8),
+          _metric('Unread', data['unread'].toString(), Icons.notifications_active_outlined),
+        ]),
+        const SizedBox(height: 20),
+        const Text('Workspace and support', style: TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        _tile(Icons.assignment_outlined, 'My requests', 'Review submitted requests and status',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RequestsPage()))),
+        _tile(Icons.attach_file_rounded, 'Evidence submissions', 'Evidence linked to your account and private case records',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RequestsPage()))),
+        _tile(Icons.campaign_outlined, 'Public works tracker', 'Published excavation and no-dig notices',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()))),
+        _tile(Icons.notifications_none_rounded, 'Notifications', 'Read assignment, review and case updates',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage()))),
+        _tile(Icons.public_rounded, 'India data coverage', 'Explore imported coverage and data gaps',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()))),
+        _tile(Icons.lock_outline_rounded, 'Security settings', 'Request a password reset through Supabase Auth',
+          _passwordReset, color: const Color(0xFF0E8A78)),
+        _tile(Icons.help_outline_rounded, 'Help and guidance', 'Understand modules and data-safety limits',
+          _help, color: const Color(0xFF8A62C7)),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: _logout, icon: const Icon(Icons.logout_rounded),
+          label: const Text('Sign out'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFB33B45),
+            side: const BorderSide(color: Color(0xFFE7B9BD)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)))),
+        const SizedBox(height: 10),
+        const Text('Account identity and activity are loaded from authenticated records. Evidence remains in private storage.',
+          textAlign: TextAlign.center, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+      ]);
+    }),
+  );
+
+  Widget _badge(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(color: color.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(30),
+      border: Border.all(color: color.withValues(alpha: .45))),
+    child: Text(text, style: TextStyle(color: color, fontSize: 9,
+      letterSpacing: .5, fontWeight: FontWeight.w800)),
+  );
+
+  Widget _metric(String label, String value, IconData icon) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFFE1EAF4))),
+      child: Column(children: [
+        Icon(icon, color: electricBlue, size: 19), const SizedBox(height: 8),
+        Text(value, style: GoogleFonts.robotoMono(color: navy, fontSize: 19, fontWeight: FontWeight.w800)),
+        Text(label, textAlign: TextAlign.center,
+          style: const TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+      ]),
+    ),
+  );
 }
 
 // ==========================================

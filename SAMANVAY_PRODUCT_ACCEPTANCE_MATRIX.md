@@ -257,3 +257,16 @@
 - [ ] Receive geocoded building approvals and approved floor/height values before plotting approval records or performing map-based compliance analysis.
 
 **Implementation commit:** `2a13790554d32cd4bc6b963b8dea554d98746d70` on `feature/alpha-03-integrated-platform`. Follow-up map-style visibility fix: `5e3ebe1bd430f00c56632765db216c5f19fee4ee`. Dart analysis passed on Android and browser workflows; browser compilation and packaging completed. Android APK compilation was still running at the time of this matrix update. The 3D basemap building extrusions are contextual OSM-derived massing, not statutory approval heights. Utility coverage metadata and empty registries do not establish that underground infrastructure is absent.
+
+
+## Public excavation tracker foundation — 9 November 2026
+
+- [x] Add a citizen-facing published-notice search by city, district, ward, area and notice code.
+- [x] Add authority-published work and no-dig notice cards with responsible department, date window, sourced progress and timeline.
+- [x] Add obstruction reporting with reporter-scoped records and department/admin review boundaries.
+- [x] Add RLS policies that expose only published notices and their public timeline; obstruction reports remain private to the reporter and authorised reviewers.
+- [ ] Apply the migration to the connected Supabase project and run role-based RLS tests.
+- [ ] Publish the first source-backed notice from an authorised department and verify it appears in the public tracker.
+- [ ] Validate notice event updates, assignment and moderation workflow in the browser and Android app.
+
+**Implementation boundary:** No public notices or obstruction reports are preloaded. The tracker is intentionally empty until an authorised publisher supplies a source reference and publishes a record. A no-dig notice or empty search is not excavation clearance.

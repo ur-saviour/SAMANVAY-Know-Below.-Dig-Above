@@ -47,6 +47,7 @@ jobs:
           mkdir -p lib assets/reference
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
+          cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp -R app/assets/reference/. assets/reference/
 
           python3 - <<'PY'

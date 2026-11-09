@@ -53,7 +53,7 @@ jobs:
         run: |
           flutter create \
             --project-name samanvay \
-            --org in.samanvay \
+            --org org.samanvay \
             --platforms android \
             /tmp/samanvay_scaffold
 
@@ -106,6 +106,7 @@ jobs:
           mkdir -p lib assets/reference/coimbatore
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
+          cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
 
           if [ ! -s assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson ]; then
             echo "ERROR: Coimbatore ward reference GeoJSON is missing from the repository."
