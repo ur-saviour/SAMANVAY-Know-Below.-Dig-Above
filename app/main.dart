@@ -2232,38 +2232,80 @@ class _AuthPageState extends State<AuthPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B2036),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFF24445F)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 28,
+                      offset: Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: Form(
+                  key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
-                    Icons.location_city_rounded,
-                    size: 68,
-                    color: teal,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  const Text(
-                    'SAMANVAY',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 2,
+                  Container(
+                    width: 76,
+                    height: 76,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: cyanAccent.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(23),
+                      border: Border.all(
+                        color: cyanAccent.withValues(alpha: .38),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.hub_rounded,
+                      size: 42,
+                      color: cyanAccent,
                     ),
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 14),
+
+                  Text(
+                    'SAMANVAY',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 2.2,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
 
                   const Text(
-                    'Municipal Infrastructure Coordination',
+                    'KNOW BELOW. DIG ABOVE.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: const Color(0xFFB6C7D6),
+                      color: cyanAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.6,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  const Text(
+                    'National Infrastructure Coordination Platform',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFFB6C7D6),
+                      fontSize: 12,
                     ),
                   ),
 
@@ -2539,6 +2581,7 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
                 ],
+                ),
               ),
             ),
           ),
