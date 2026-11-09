@@ -8686,6 +8686,434 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  Future<void> _openJurisdictionNavigator() async {
+    List<Map<String, dynamic>> stateRows;
+    try {
+      final rows = await supabase
+          .from('india_state_uts')
+          .select('id,name,jurisdiction_type')
+          .order('name')
+          .limit(100);
+      stateRows = List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      _showMessage('The State/UT directory could not be loaded for this account.');
+      return;
+    }
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF13263A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        String? stateId;
+        String? districtId;
+        String? localBodyId;
+        String? wardId;
+        List<Map<String, dynamic>> districts = [];
+        List<Map<String, dynamic>> localBodies = [];
+        List<Map<String, dynamic>> wards = [];
+        bool loadingDistricts = false;
+        bool loadingLocalBodies = false;
+        bool loadingWards = false;
+        String directoryMessage = '';
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Map<String, dynamic>? findById(
+              List<Map<String, dynamic>> rows,
+              String? id,
+            ) {
+              if (id == null) return null;
+              for (final row in rows) {
+                if (row['id']?.toString() == id) return row;
+              }
+              return null;
+            }
+
+            String unitLabel(Map<String, dynamic> row) {
+              final name = (row['name'] ?? 'Unnamed unit').toString();
+              final code = (row['lgd_code'] ?? '').toString();
+              final verified = row['verification_status'] == 'authority_verified';
+              final suffix = verified
+                  ? ' · authority verified'
+                  : ' · imported, verification pending';
+              return name + (code.isEmpty ? '' : ' · LGD ' + code) + suffix;
+            }
+
+            Future<void> loadDistricts(String selectedId) async {
+              setSheetState(() {
+                loadingDistricts = true;
+                loadingLocalBodies = false;
+                loadingWards = false;
+                districts = [];
+                localBodies = [];
+                wards = [];
+                districtId = null;
+                localBodyId = null;
+                wardId = null;
+                directoryMessage = '';
+              });
+              try {
+                final rows = await supabase
+                    .from('india_administrative_units')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id')
+                    .eq('state_ut_id', selectedId)
+                    .eq('unit_type', 'district')
+                    .eq('is_active', true)
+                    .order('name')
+                    .limit(1000);
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  districts = List<Map<String, dynamic>>.from(rows);
+                  loadingDistricts = false;
+                  if (districts.isEmpty) {
+                    directoryMessage =
+                        'No official district rows are imported for this State/UT yet. State-level map search is still available.';
+                  }
+                });
+              } catch (_) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  loadingDistricts = false;
+                  directoryMessage =
+                      'District directory is unavailable under the current account permissions.';
+                });
+              }
+            }
+
+            Future<void> loadLocalBodies(String parentId) async {
+              setSheetState(() {
+                loadingLocalBodies = true;
+                loadingWards = false;
+                localBodies = [];
+                wards = [];
+                localBodyId = null;
+                wardId = null;
+                directoryMessage = '';
+              });
+              try {
+                final rows = await supabase
+                    .from('india_administrative_units')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id')
+                    .eq('state_ut_id', stateId!)
+                    .eq('parent_unit_id', parentId)
+                    .eq('unit_type', 'urban_local_body')
+                    .eq('is_active', true)
+                    .order('name')
+                    .limit(1000);
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  localBodies = List<Map<String, dynamic>>.from(rows);
+                  loadingLocalBodies = false;
+                  if (localBodies.isEmpty) {
+                    directoryMessage =
+                        'No urban local bodies are linked to this district in the imported LGD directory.';
+                  }
+                });
+              } catch (_) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  loadingLocalBodies = false;
+                  directoryMessage = 'Urban-local-body records could not be loaded.';
+                });
+              }
+            }
+
+            Future<void> loadWards(String parentId) async {
+              setSheetState(() {
+                loadingWards = true;
+                wards = [];
+                wardId = null;
+                directoryMessage = '';
+              });
+              try {
+                final rows = await supabase
+                    .from('india_administrative_units')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id')
+                    .eq('state_ut_id', stateId!)
+                    .eq('parent_unit_id', parentId)
+                    .eq('unit_type', 'ward')
+                    .eq('is_active', true)
+                    .order('name')
+                    .limit(2000);
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  wards = List<Map<String, dynamic>>.from(rows);
+                  loadingWards = false;
+                  if (wards.isEmpty) {
+                    directoryMessage =
+                        'No ward records are linked to this urban local body in the imported LGD directory.';
+                  }
+                });
+              } catch (_) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  loadingWards = false;
+                  directoryMessage = 'Ward records could not be loaded.';
+                });
+              }
+            }
+
+            final selectedState = findById(stateRows, stateId);
+            final selectedDistrict = findById(districts, districtId);
+            final selectedLocalBody = findById(localBodies, localBodyId);
+            final selectedWard = findById(wards, wardId);
+
+            Widget unavailable(String message) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D1C2C),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0x665F7C93)),
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Color(0xFFB8C7D5),
+                  fontSize: 10,
+                  height: 1.4,
+                ),
+              ),
+            );
+
+            final queryParts = [
+              selectedWard?['name'],
+              selectedLocalBody?['name'],
+              selectedDistrict?['name'],
+              selectedState?['name'],
+              'India',
+            ].where((part) => part != null && part.toString().trim().isNotEmpty)
+             .map((part) => part.toString().trim()).toList();
+            final canSearch = selectedState != null;
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16, 16, 16, MediaQuery.of(sheetContext).viewInsets.bottom + 18,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.account_tree_outlined,
+                              color: Color(0xFF55D9CE)),
+                          const SizedBox(width: 9),
+                          const Expanded(
+                            child: Text(
+                              'INDIA JURISDICTION NAVIGATOR',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .7,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            icon: const Icon(Icons.close, color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Choose a level from the imported directory. Missing district, city or ward records are not filled with estimates.',
+                        style: TextStyle(
+                          color: Color(0xFFB8C7D5),
+                          fontSize: 10,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('jurisdiction-state-' + (stateId ?? '')),
+                        initialValue: stateId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'State / Union Territory',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: stateRows.map((row) => DropdownMenuItem<String>(
+                          value: row['id'].toString(),
+                          child: Text(
+                            row['name'].toString(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )).toList(),
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          setSheetState(() {
+                            stateId = value;
+                            districtId = null;
+                            localBodyId = null;
+                            wardId = null;
+                          });
+                          await loadDistricts(value);
+                        },
+                      ),
+                      if (stateId != null) ...[
+                        const SizedBox(height: 10),
+                        if (loadingDistricts)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (districts.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('jurisdiction-district-' + (districtId ?? '') + '-' + districts.length.toString()),
+                            initialValue: districtId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'District (official LGD directory)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: districts.map((row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                unitLabel(row),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (value) async {
+                              if (value == null) return;
+                              setSheetState(() {
+                                districtId = value;
+                                localBodyId = null;
+                                wardId = null;
+                              });
+                              await loadLocalBodies(value);
+                            },
+                          )
+                        else if (!loadingDistricts)
+                          unavailable(
+                            'District directory not imported for this State/UT. You can still search the selected State/UT.',
+                          ),
+                      ],
+                      if (districtId != null) ...[
+                        const SizedBox(height: 10),
+                        if (loadingLocalBodies)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (localBodies.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('jurisdiction-ulb-' + (localBodyId ?? '') + '-' + localBodies.length.toString()),
+                            initialValue: localBodyId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'City / Urban Local Body',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: localBodies.map((row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                unitLabel(row),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (value) async {
+                              if (value == null) return;
+                              setSheetState(() {
+                                localBodyId = value;
+                                wardId = null;
+                              });
+                              await loadWards(value);
+                            },
+                          )
+                        else if (!loadingLocalBodies)
+                          unavailable(
+                            'No city / urban-local-body records are currently linked to the selected district.',
+                          ),
+                      ],
+                      if (localBodyId != null) ...[
+                        const SizedBox(height: 10),
+                        if (loadingWards)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (wards.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('jurisdiction-ward-' + (wardId ?? '') + '-' + wards.length.toString()),
+                            initialValue: wardId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Ward',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: wards.map((row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                unitLabel(row),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (value) {
+                              if (value != null) setSheetState(() => wardId = value);
+                            },
+                          )
+                        else if (!loadingWards)
+                          unavailable(
+                            'No ward rows are currently linked to the selected urban local body.',
+                          ),
+                      ],
+                      if (directoryMessage.isNotEmpty)
+                        unavailable(directoryMessage),
+                      const SizedBox(height: 13),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: !canSearch
+                              ? null
+                              : () {
+                                  final query = queryParts.join(', ');
+                                  Navigator.of(sheetContext).pop();
+                                  _searchController.text = query;
+                                  _searchPlaces(query);
+                                },
+                          icon: const Icon(Icons.location_searching_rounded),
+                          label: Text(
+                            selectedWard != null
+                                ? 'SEARCH SELECTED WARD'
+                                : selectedLocalBody != null
+                                    ? 'SEARCH SELECTED CITY'
+                                    : selectedDistrict != null
+                                        ? 'SEARCH SELECTED DISTRICT'
+                                        : 'SEARCH SELECTED STATE / UT',
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF13A89E),
+                            foregroundColor: const Color(0xFF061426),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      const Text(
+                        'MAP NAVIGATION ONLY: The selected LGD name is sent to the map search provider. Search-result coordinates are geocoding results, not official boundary polygons or legal jurisdiction geometry. Imported LGD rows remain unverified until authority review.',
+                        style: TextStyle(
+                          color: Color(0xFFF6C66B),
+                          fontSize: 9,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _searchPlaces(String rawQuery) async {
     final query = rawQuery.trim();
     if (query.isEmpty) {
@@ -11042,6 +11470,11 @@ class _MapPageState extends State<MapPage> {
             top: 12,
             child: Column(
               children: [
+                _mapButton(
+                  icon: Icons.account_tree_outlined,
+                  tooltip: 'India jurisdiction navigator',
+                  onPressed: _openJurisdictionNavigator,
+                ),
                 _mapButton(
                   icon: Icons.add,
                   tooltip: 'Zoom in',
