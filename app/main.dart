@@ -479,8 +479,8 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
         begin: Alignment(-1 + 2 * controller.value, 0),
         end: Alignment(1 + 2 * controller.value, 0),
         colors: _usesLegacyLightPalette
-          ? const [Color(0xFFFF9933), Color(0xFF111827), Color(0xFF138808)]
-          : const [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
+          ? const [Color(0xFF13A89E), Color(0xFF10243A), Color(0xFF3D83F6)]
+          : const [Color(0xFF20D6C2), Color(0xFFB9E8FF), Color(0xFF3D83F6)],
       ).createShader(bounds),
       child: Text('TOWARDS OUR DEVELOPMENT 📈', textAlign: widget.textAlign,
         style: GoogleFonts.inter(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .45)),
@@ -491,261 +491,41 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
 class _SamanvaySplashReveal extends StatelessWidget {
   const _SamanvaySplashReveal({super.key, required this.controller});
   final AnimationController controller;
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
     builder: (_, __) {
-      final p = controller.value;
-      final orbit = (p / .70).clamp(0.0, 1.0).toDouble();
-      final flag = ((p - .70) / .30).clamp(0.0, 1.0).toDouble();
-      final scale = 1 + Curves.easeInCubic.transform(flag) * 2.5;
-      final opacity = (1 - Curves.easeInCubic.transform(flag) * .94).clamp(.06, 1.0).toDouble();
-      final size = math.min(296.0, math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .70);
+      final progress = Curves.easeOutCubic.transform(controller.value);
+      final size = math.min(
+        296.0,
+        math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .70,
+      );
       return Scaffold(
         backgroundColor: const Color(0xFF030D1C),
-        body: Stack(fit: StackFit.expand, children: [
-          const DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
-            center: Alignment(0, -.12), radius: .9,
-            colors: [Color(0xFF173B67), Color(0xFF07182D), Color(0xFF020916)],
-            stops: [0, .58, 1]))),
-          Center(child: Opacity(
-            opacity: 1.0 - Curves.easeInOut.transform(flag),
-            child: CustomPaint(
-              size: Size.square(size + 30),
-              painter: _TricolourBorderPainter(progress: orbit),
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -.12),
+              radius: .9,
+              colors: [Color(0xFF173B67), Color(0xFF07182D), Color(0xFF020916)],
+              stops: [0, .58, 1],
             ),
-          )),
-          Center(child: Transform.scale(scale: scale, alignment: const Alignment(0, .22),
-            child: Opacity(opacity: opacity, child: _SamanvayBrandLogo(size: size, radius: size * .14)))),
-          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _WavingFlagPainter(progress: flag)))),
-        ]),
+          ),
+          child: Center(
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: .94 + .06 * progress,
+                child: _SamanvayBrandLogo(size: size, radius: size * .14),
+              ),
+            ),
+          ),
+        ),
       );
     },
   );
 }
-
-class _TricolourBorderPainter extends CustomPainter {
-  const _TricolourBorderPainter({required this.progress});
-  final double progress;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()..addRRect(RRect.fromRectAndRadius(
-      (Offset.zero & size).deflate(9), const Radius.circular(38)));
-    final metric = path.computeMetrics().first;
-    final total = metric.length;
-    canvas.drawPath(path, Paint()..color = const Color(0xFF4B9EDB).withValues(alpha: .2)
-      ..style = PaintingStyle.stroke..strokeWidth = 1.5);
-    const colors = [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)];
-    for (var i = 0; i < 3; i++) {
-      final start = (progress * total * 3 + total * i / 3) % total;
-      final end = start + total * .095;
-      final pieces = end <= total
-        ? [metric.extractPath(start, end)]
-        : [metric.extractPath(start, total), metric.extractPath(0, end - total)];
-      for (final piece in pieces) {
-        canvas.drawPath(piece, Paint()..color = colors[i].withValues(alpha: .85)
-          ..style = PaintingStyle.stroke..strokeWidth = 8..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
-        canvas.drawPath(piece, Paint()..color = colors[i]
-          ..style = PaintingStyle.stroke..strokeWidth = 3..strokeCap = StrokeCap.round);
-      }
-    }
-  }
-  @override
-  bool shouldRepaint(covariant _TricolourBorderPainter old) => old.progress != progress;
-}
-
-class _WavingFlagPainter extends CustomPainter {
-  const _WavingFlagPainter({
-    required this.progress,
-    this.opacity = 1,
-    this.ambientBackground = false,
-  });
-  final double progress;
-  final double opacity;
-  final bool ambientBackground;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (progress <= 0 || opacity <= 0) return;
-    final t = progress.clamp(0.0, 1.0).toDouble();
-    final reveal = ambientBackground ? 1.0 : Curves.easeOutCubic.transform(t);
-    final width = (ambientBackground
-        ? math.min(560.0, size.width * .78)
-        : math.min(300.0, size.width * .70)) * reveal;
-    if (width < 2) return;
-    final height = width * 2 / 3;
-    final poleX = ambientBackground ? size.width * .105 : size.width * .27;
-    final top = ambientBackground ? size.height * .105 : size.height * .34;
-    final phase = t * math.pi * 4.0;
-    final safeWidth = math.max(width, 1.0);
-
-    // A planted mast, cap, finial and soft cast shadow.
-    final pole = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF52677C), Color(0xFFE8F1F8), Color(0xFF7E91A6)],
-      ).createShader(Rect.fromLTWH(poleX - 2, top - 20, 5, height + 42))
-      ..strokeWidth = 3.2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(poleX + 1.8, top - 18), Offset(poleX + 1.8, top + height + 18), pole);
-    canvas.drawCircle(Offset(poleX + 1.8, top - 20), 3.2,
-      Paint()..color = const Color(0xFFDDE8F1));
-    canvas.drawLine(Offset(poleX - 4, top + height + 18),
-      Offset(poleX + 8, top + height + 18),
-      Paint()..color = const Color(0xFF9FB1C0)..strokeWidth = 2.5..strokeCap = StrokeCap.round);
-
-    double waveY(double u) {
-      final amplitude = height * (ambientBackground ? .10 : .082);
-      final primary = math.sin(u * math.pi * 2.15 + phase);
-      final secondary = math.sin(u * math.pi * 4.3 + phase * .72) * .23;
-      return (primary + secondary) * amplitude * u;
-    }
-    double waveX(double u) =>
-        math.sin(u * math.pi * 2.0 + phase * .82) * height * .016 * u;
-
-    // Curved flag hem, sampled cloth surface and gently tapered free edge.
-    final cloth = Path();
-    const samples = 64;
-    for (var i = 0; i <= samples; i++) {
-      final u = i / samples;
-      final x = poleX + 5 + width * u + waveX(u);
-      final y = top + waveY(u);
-      if (i == 0) {
-        cloth.moveTo(x, y);
-      } else {
-        cloth.lineTo(x, y);
-      }
-    }
-    for (var i = samples; i >= 0; i--) {
-      final u = i / samples;
-      final x = poleX + 5 + width * u + waveX(u);
-      final y = top + height + waveY(u) + height * .012 * math.sin(u * math.pi);
-      cloth.lineTo(x, y);
-    }
-    cloth.close();
-    canvas.save();
-    canvas.clipPath(cloth);
-
-    const bands = [
-      Color(0xFFFF9933),
-      Color(0xFFFFFFFF),
-      Color(0xFF138808),
-    ];
-    for (var stripe = 0; stripe < 3; stripe++) {
-      final bandHeight = height / 3;
-      final stripePath = Path();
-      for (var i = 0; i <= samples; i++) {
-        final u = i / samples;
-        final x = poleX + 5 + width * u + waveX(u);
-        final y = top + stripe * bandHeight + waveY(u);
-        if (i == 0) {
-          stripePath.moveTo(x, y);
-        } else {
-          stripePath.lineTo(x, y);
-        }
-      }
-      for (var i = samples; i >= 0; i--) {
-        final u = i / samples;
-        final x = poleX + 5 + width * u + waveX(u);
-        final y = top + (stripe + 1) * bandHeight + waveY(u);
-        stripePath.lineTo(x, y);
-      }
-      stripePath.close();
-      final base = bands[stripe];
-      canvas.drawPath(
-        stripePath,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color.lerp(base, Colors.black, .12)!,
-              base,
-              Color.lerp(base, Colors.black, .16)!,
-            ],
-          ).createShader(Rect.fromLTWH(poleX, top, width, height))
-          ..color = Colors.white.withValues(alpha: opacity),
-      );
-    }
-
-    // Moving folds: alternating highlights and shadows create a woven-cloth read.
-    for (var i = 0; i < 26; i++) {
-      final u = i / 25;
-      final x = poleX + 5 + width * u + waveX(u);
-      final fold = Paint()
-        ..color = (i.isEven ? Colors.white : const Color(0xFF06172C))
-            .withValues(alpha: (i.isEven ? .12 : .10) * opacity * u)
-        ..strokeWidth = math.max(1.2, width * .0028)
-        ..strokeCap = StrokeCap.round;
-      final bend = waveY(u);
-      canvas.drawLine(
-        Offset(x, top + bend - height * .012),
-        Offset(x + waveX(u) * .45, top + height + bend + height * .012),
-        fold,
-      );
-    }
-    canvas.drawRect(
-      Rect.fromLTWH(poleX + 5, top, width, height),
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.black.withValues(alpha: .16 * opacity),
-            Colors.transparent,
-            Colors.white.withValues(alpha: .12 * opacity),
-            Colors.black.withValues(alpha: .20 * opacity),
-          ],
-          stops: const [0, .28, .62, 1],
-        ).createShader(Rect.fromLTWH(poleX + 5, top, width, height)),
-    );
-
-    // Ashoka Chakra follows the local cloth wave, retaining the 24-spoke design.
-    final chakraU = .49;
-    final chakraX = poleX + 5 + width * chakraU + waveX(chakraU);
-    final chakraY = top + height * .5 + waveY(chakraU);
-    final radius = height * .105;
-    final chakraPaint = Paint()
-      ..color = const Color(0xFF000080).withValues(alpha: opacity)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.2, height * .009);
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(chakraX, chakraY), width: radius * 2,
-        height: radius * 1.93),
-      chakraPaint,
-    );
-    for (var i = 0; i < 24; i++) {
-      final a = math.pi * 2 * i / 24 - math.pi / 2;
-      canvas.drawLine(
-        Offset(chakraX + math.cos(a) * radius * .10,
-          chakraY + math.sin(a) * radius * .10),
-        Offset(chakraX + math.cos(a) * radius * .91,
-          chakraY + math.sin(a) * radius * .91),
-        chakraPaint,
-      );
-    }
-    canvas.drawCircle(Offset(chakraX, chakraY), radius * .10,
-      Paint()..color = const Color(0xFF000080).withValues(alpha: opacity));
-    canvas.restore();
-
-    // Cloth silhouette and a restrained luminous edge.
-    canvas.drawPath(cloth, Paint()
-      ..color = Colors.white.withValues(alpha: .34 * opacity)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1);
-    canvas.drawPath(cloth, Paint()
-      ..color = const Color(0xFF56BDF4).withValues(alpha: .08 * opacity)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 7
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7));
-  }
-
-  @override
-  bool shouldRepaint(covariant _WavingFlagPainter old) =>
-      old.progress != progress || old.opacity != opacity ||
-      old.ambientBackground != ambientBackground;
-}
-
 
 // ==========================================
 // SAMANVAY ANIMATED WELCOME / OPENING SCREEN
@@ -786,7 +566,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
     )..repeat();
     _splashController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 10),
+      duration: const Duration(milliseconds: 1500),
     )..addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         setState(() => _splashFinished = true);
@@ -946,19 +726,6 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // A soft, continuous flag layer remains behind the welcome
-                  // content after the opening reveal, like a real flag in the wind.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _WavingFlagPainter(
-                          progress: ambient,
-                          opacity: .22,
-                          ambientBackground: true,
                         ),
                       ),
                     ),
@@ -5340,22 +5107,10 @@ class _DashboardPageState extends State<DashboardPage>
   String? error;
   List<Map<String, dynamic>> requests = [];
   List<Map<String, dynamic>> departments = [];
-  late final AnimationController _ambientFlag;
-
   @override
   void initState() {
     super.initState();
-    _ambientFlag = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 5200),
-    )..repeat();
     refresh();
-  }
-
-  @override
-  void dispose() {
-    _ambientFlag.dispose();
-    super.dispose();
   }
 
   Future<void> refresh() async {
@@ -5511,22 +5266,7 @@ class _DashboardPageState extends State<DashboardPage>
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
             clipBehavior: Clip.antiAlias,
-            child: AnimatedBuilder(
-              animation: _ambientFlag,
-              builder: (context, _) => Stack(
-                children: [
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _WavingFlagPainter(
-                          progress: _ambientFlag.value,
-                          opacity: .13,
-                          ambientBackground: true,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
               const _SamanvayBrandLogo(size: 194, radius: 34),
               const SizedBox(height: 9),
@@ -5569,9 +5309,6 @@ class _DashboardPageState extends State<DashboardPage>
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
-                  ]),
-                ],
-              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -5625,6 +5362,7 @@ class _DashboardPageState extends State<DashboardPage>
               action('Track requests', Icons.track_changes_outlined, const Color(0xFF7FC8FF), const RequestsPage()),
               action('3D GIS map', Icons.layers_outlined, const Color(0xFF8B9DFF), const MapPage()),
               action('Notifications', Icons.notifications_none_rounded, const Color(0xFFBFA7FF), const NotificationsPage()),
+              action('LPU underground map', Icons.school_outlined, const Color(0xFF36D7C2), const LpuCampusModelPage()),
             ]);
           }),
           const SizedBox(height: 19),
