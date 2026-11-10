@@ -11785,141 +11785,228 @@ class _LpuCampusModelPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
+    final w = size.width;
+    final h = size.height;
+    final bounds = Offset.zero & size;
     canvas.drawRect(
-      rect,
+      bounds,
       Paint()
         ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Color(0xFF071B31),
-            Color(0xFF0E2C43),
-            Color(0xFF112A3B),
+            Color(0xFF071426),
+            Color(0xFF0B2136),
+            Color(0xFF102C3E),
+            Color(0xFF061321),
           ],
-        ).createShader(rect),
+          stops: [0, .38, .74, 1],
+        ).createShader(bounds),
     );
 
-    final gridPaint = Paint()
-      ..color = const Color(0xFF7EA2B6).withValues(alpha: 0.11)
-      ..strokeWidth = 0.6;
-    for (double x = 0; x < size.width; x += 26) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y < size.height; y += 26) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    _text(
-      canvas,
-      'SURFACE · CONCEPTUAL CAMPUS BLOCKS',
-      Offset(size.width * 0.05, size.height * 0.045),
-      size: 8,
-      color: const Color(0xFF7FDCD8),
+    // Atmosphere, map grid and isometric depth guides.
+    canvas.drawCircle(
+      Offset(w * .78, h * .18),
+      w * .50,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFF1D90A2).withValues(alpha: .22),
+            const Color(0xFF15435D).withValues(alpha: .08),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: Offset(w * .78, h * .18), radius: w * .50)),
     );
+    final grid = Paint()
+      ..color = const Color(0xFF8BB5C9).withValues(alpha: .12)
+      ..strokeWidth = .7;
+    final vanishing = Offset(w * .50, h * .16);
+    for (var i = -7; i <= 7; i++) {
+      final bottomX = w * (.5 + i * .115);
+      canvas.drawLine(vanishing, Offset(bottomX, h * .59), grid);
+    }
+    for (var i = 0; i < 8; i++) {
+      final y = h * (.19 + i * .052);
+      canvas.drawLine(Offset(w * .04, y), Offset(w * .96, y - h * .035), grid);
+    }
 
-    final surface = Path()
-      ..moveTo(size.width * 0.04, size.height * 0.14)
-      ..lineTo(size.width * 0.94, size.height * 0.08)
-      ..lineTo(size.width * 0.97, size.height * 0.50)
-      ..lineTo(size.width * 0.05, size.height * 0.57)
+    void label(String text, Offset at, {Color color = const Color(0xFFB9D4E4), double font = 7}) {
+      final p = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: color,
+            fontSize: font,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .65,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: w * .55);
+      p.paint(canvas, at);
+    }
+
+    // A raised surface slab with top, front and right-hand cutaway faces.
+    final topSlab = Path()
+      ..moveTo(w * .055, h * .16)
+      ..lineTo(w * .89, h * .105)
+      ..lineTo(w * .965, h * .43)
+      ..lineTo(w * .14, h * .505)
       ..close();
+    final frontFace = Path()
+      ..moveTo(w * .14, h * .505)
+      ..lineTo(w * .965, h * .43)
+      ..lineTo(w * .965, h * .535)
+      ..lineTo(w * .14, h * .615)
+      ..close();
+    final leftFace = Path()
+      ..moveTo(w * .055, h * .16)
+      ..lineTo(w * .14, h * .505)
+      ..lineTo(w * .14, h * .615)
+      ..lineTo(w * .055, h * .27)
+      ..close();
+    canvas.drawPath(leftFace, Paint()..color = const Color(0xFF1B3D52));
+    canvas.drawPath(frontFace, Paint()..color = const Color(0xFF243B4A));
     canvas.drawPath(
-      surface,
-      Paint()..color = const Color(0xFF1B4B4C),
+      topSlab,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1C4858), Color(0xFF204E50), Color(0xFF173746)],
+        ).createShader(bounds),
+    );
+    canvas.drawPath(
+      topSlab,
+      Paint()
+        ..color = const Color(0xFF6DD8D1).withValues(alpha: .42)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.25,
     );
 
-    // Generic academic blocks. Their positions are intentionally not tied
-    // to real LPU buildings or campus coordinates.
-    void building(double x, double y, double w, double h, String label) {
-      final top = Path()
-        ..moveTo(x, y)
-        ..lineTo(x + w * 0.72, y - h * 0.16)
-        ..lineTo(x + w, y + h * 0.04)
-        ..lineTo(x + w * 0.28, y + h * 0.22)
-        ..close();
-      final front = Path()
-        ..moveTo(x, y)
-        ..lineTo(x + w * 0.28, y + h * 0.22)
-        ..lineTo(x + w * 0.28, y + h * 0.22 + h * 0.48)
-        ..lineTo(x, y + h * 0.48)
-        ..close();
-      final side = Path()
-        ..moveTo(x + w * 0.28, y + h * 0.22)
-        ..lineTo(x + w, y + h * 0.04)
-        ..lineTo(x + w, y + h * 0.50)
-        ..lineTo(x + w * 0.28, y + h * 0.70)
-        ..close();
-
-      canvas.drawPath(top, Paint()..color = const Color(0xFF7397A9));
-      canvas.drawPath(front, Paint()..color = const Color(0xFF385D78));
-      canvas.drawPath(side, Paint()..color = const Color(0xFF29445D));
-
-      final windows = Paint()
-        ..color = const Color(0xFF8CE4E6).withValues(alpha: 0.60);
-      for (int i = 0; i < 3; i++) {
-        final wx = x + 8 + i * (w * 0.065);
-        canvas.drawRect(
-          Rect.fromLTWH(wx, y + h * 0.29, math.max(2.0, w * 0.035).toDouble(), h * 0.10),
-          windows,
-        );
-      }
-      _text(
-        canvas,
-        label,
-        Offset(x + 2, y + h * 0.78),
-        size: 7,
-        color: const Color(0xFFCDE0EA),
+    // Perspective site grid on the surface parcel.
+    final siteGrid = Paint()
+      ..color = const Color(0xFF9CC3C6).withValues(alpha: .13)
+      ..strokeWidth = .8;
+    for (var i = 1; i < 9; i++) {
+      final t = i / 9;
+      canvas.drawLine(
+        Offset(w * (.055 + .085 * t), h * (.16 + .345 * t)),
+        Offset(w * (.89 + .075 * t), h * (.105 + .325 * t)),
+        siteGrid,
+      );
+      canvas.drawLine(
+        Offset(w * (.055 + .835 * t), h * (.16 - .055 * t)),
+        Offset(w * (.14 + .825 * t), h * (.505 - .075 * t)),
+        siteGrid,
       );
     }
 
-    building(size.width * 0.12, size.height * 0.24, size.width * 0.22, size.height * 0.10, 'ACADEMIC');
-    building(size.width * 0.43, size.height * 0.19, size.width * 0.20, size.height * 0.095, 'LIBRARY');
-    building(size.width * 0.70, size.height * 0.26, size.width * 0.19, size.height * 0.09, 'HOSTEL');
+    // Volumetric academic blocks; each has two lit elevations and a roof plane.
+    void block(double x, double y, double bw, double bh, double depth, String name, int seed) {
+      final p0 = Offset(x, y);
+      final p1 = Offset(x + bw, y - bh * .105);
+      final p2 = Offset(x + bw + depth, y + bh * .015);
+      final p3 = Offset(x + depth, y + bh * .13);
+      final drop = bh * .74;
+      final front = Path()
+        ..moveTo(p0.dx, p0.dy)
+        ..lineTo(p1.dx, p1.dy)
+        ..lineTo(p1.dx, p1.dy + drop)
+        ..lineTo(p0.dx, p0.dy + drop)
+        ..close();
+      final side = Path()
+        ..moveTo(p1.dx, p1.dy)
+        ..lineTo(p2.dx, p2.dy)
+        ..lineTo(p2.dx, p2.dy + drop)
+        ..lineTo(p1.dx, p1.dy + drop)
+        ..close();
+      final roof = Path()
+        ..moveTo(p0.dx, p0.dy)
+        ..lineTo(p1.dx, p1.dy)
+        ..lineTo(p2.dx, p2.dy)
+        ..lineTo(p3.dx, p3.dy)
+        ..close();
+      canvas.drawPath(side, Paint()..color = const Color(0xFF213B57));
+      canvas.drawPath(front, Paint()..color = const Color(0xFF385F7A));
+      canvas.drawPath(roof, Paint()..color = const Color(0xFF8AAFC1));
+      final glass = Paint()..color = const Color(0xFF8FEAF1).withValues(alpha: .64);
+      final columns = 3 + (seed % 2);
+      for (var row = 0; row < 3; row++) {
+        for (var col = 0; col < columns; col++) {
+          final wx = x + bw * (.10 + col * (.72 / columns));
+          final wy = y + drop * (.17 + row * .22);
+          final ww = math.max(1.4, bw * .055).toDouble();
+          final wh = math.max(2.0, drop * .075).toDouble();
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromLTWH(wx, wy, ww, wh), const Radius.circular(1)),
+            glass,
+          );
+        }
+      }
+      for (var row = 0; row < 3; row++) {
+        final wy = y + bh * .18 + drop * (.12 + row * .22);
+        canvas.drawLine(
+          Offset(p1.dx + depth * .18, wy),
+          Offset(p2.dx - depth * .15, wy + depth * .12),
+          Paint()..color = const Color(0xFF9BE8E7).withValues(alpha: .43)..strokeWidth = 1.1,
+        );
+      }
+      label(name, Offset(x - 1, y + drop + 3), font: 6.2, color: const Color(0xFFD7E9F1));
+    }
 
-    // Campus road is a generic perspective ribbon.
+    block(w * .15, h * .235, w * .13, h * .105, w * .045, 'ACADEMIC', 1);
+    block(w * .40, h * .19, w * .15, h * .12, w * .05, 'LIBRARY', 2);
+    block(w * .69, h * .245, w * .12, h * .095, w * .045, 'HOSTEL', 3);
+
+    // Main campus carriageway and side road, with kerbs, dashed markings and nodes.
     final road = Path()
-      ..moveTo(size.width * 0.04, size.height * 0.43)
-      ..lineTo(size.width * 0.97, size.height * 0.35);
+      ..moveTo(w * .055, h * .405)
+      ..cubicTo(w * .29, h * .355, w * .57, h * .43, w * .95, h * .355);
     canvas.drawPath(
       road,
       Paint()
-        ..color = const Color(0xFF081827)
+        ..color = const Color(0xFF071321)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = size.height * 0.095
+        ..strokeWidth = h * .105
         ..strokeCap = StrokeCap.round,
     );
     canvas.drawPath(
       road,
       Paint()
-        ..color = const Color(0xFF52687A)
+        ..color = const Color(0xFF647B8C)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = size.height * 0.078
+        ..strokeWidth = h * .080
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = const Color(0xFF9AB4C1).withValues(alpha: .55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
         ..strokeCap = StrokeCap.round,
     );
     final roadMetric = road.computeMetrics().first;
-    final roadDashPaint = Paint()
-      ..color = const Color(0xFFFFD17C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round;
-    for (double dash = 0; dash < roadMetric.length; dash += 15) {
+    for (var d = 0.0; d < roadMetric.length; d += 18) {
       canvas.drawPath(
-        roadMetric.extractPath(
-          dash,
-          math.min(dash + 6, roadMetric.length).toDouble(),
-        ),
-        roadDashPaint,
+        roadMetric.extractPath(d, math.min(d + 7, roadMetric.length).toDouble()),
+        Paint()
+          ..color = const Color(0xFFFFD17C)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..strokeCap = StrokeCap.round,
       );
     }
 
-    // Underground cross-section: abstract layers, with no measurement scale.
-    final cutY = size.height * 0.55;
+    // Open subsurface section: layered geology, trench walls and depth datum.
+    final cutY = h * .585;
     final soil = Path()
-      ..moveTo(0, cutY)
-      ..lineTo(size.width, cutY)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
+      ..moveTo(w * .055, cutY - h * .10)
+      ..lineTo(w * .965, cutY - h * .18)
+      ..lineTo(w * .965, h * .97)
+      ..lineTo(w * .055, h * .97)
       ..close();
     canvas.drawPath(
       soil,
@@ -11928,104 +12015,178 @@ class _LpuCampusModelPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFF3A4B4C),
-            Color(0xFF273C43),
-            Color(0xFF132B3B),
+            Color(0xFF42545A),
+            Color(0xFF33454D),
+            Color(0xFF243B48),
+            Color(0xFF112638),
           ],
-        ).createShader(Rect.fromLTWH(0, cutY, size.width, size.height - cutY)),
+          stops: [0, .25, .64, 1],
+        ).createShader(Rect.fromLTWH(0, cutY - h * .10, w, h * .58)),
     );
-    canvas.drawLine(
-      Offset(0, cutY),
-      Offset(size.width, cutY),
-      Paint()
-        ..color = const Color(0xFF83E1D5)
-        ..strokeWidth = 2,
-    );
-
-    for (int layer = 0; layer < 4; layer++) {
-      final y = cutY + size.height * (0.09 + layer * 0.085);
+    final strata = [
+      (y: .66, c: const Color(0xFFB4A58A)),
+      (y: .77, c: const Color(0xFF8D9A91)),
+      (y: .88, c: const Color(0xFF6B8790)),
+    ];
+    for (final layer in strata) {
+      final y = h * layer.y;
       final band = Path()
-        ..moveTo(0, y)
-        ..cubicTo(
-          size.width * 0.25,
-          y - 4,
-          size.width * 0.60,
-          y + 6,
-          size.width,
-          y - 2,
-        );
+        ..moveTo(w * .055, y)
+        ..cubicTo(w * .28, y - h * .025, w * .67, y + h * .018, w * .965, y - h * .035);
       canvas.drawPath(
         band,
         Paint()
-          ..color = const Color(0xFFC3CFBD).withValues(alpha: 0.14)
+          ..color = layer.c.withValues(alpha: .33)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
+          ..strokeWidth = 7,
+      );
+      canvas.drawPath(
+        band,
+        Paint()
+          ..color = Colors.white.withValues(alpha: .13)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .8,
       );
     }
+    canvas.drawLine(
+      Offset(w * .055, cutY - h * .10),
+      Offset(w * .965, cutY - h * .18),
+      Paint()..color = const Color(0xFF7FE6D8)..strokeWidth = 2,
+    );
+    label('SURFACE DATUM  ·  DEPTHS ILLUSTRATIVE ONLY',
+      Offset(w * .055, cutY - h * .085), color: const Color(0xFFFFD99A), font: 6.8);
 
-    _text(
-      canvas,
-      'SUBSURFACE · SYNTHETIC SERVICE CORRIDORS',
-      Offset(size.width * 0.05, cutY + 10),
-      size: 8,
-      color: const Color(0xFFFFD99A),
-    );
+    // Isometric utility corridors: casing, inner service, specular highlight and flow.
+    void tube(Path path, Color color, double diameter, bool visible, double phaseOffset) {
+      if (!visible) return;
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF061321)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = diameter + 9
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = Color.lerp(color, Colors.black, .38)!
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = diameter + 4
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = diameter
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = Colors.white.withValues(alpha: .42)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.1, diameter * .17).toDouble()
+          ..strokeCap = StrokeCap.round,
+      );
+      final metrics = path.computeMetrics().toList();
+      if (metrics.isEmpty) return;
+      final metric = metrics.first;
+      for (var i = 0; i < 4; i++) {
+        final d = ((flow + phaseOffset + i / 4) % 1.0) * metric.length;
+        final tangent = metric.getTangentForOffset(d);
+        if (tangent == null) continue;
+        canvas.drawCircle(
+          tangent.position,
+          diameter * .68,
+          Paint()
+            ..color = color.withValues(alpha: .36)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        );
+        canvas.drawCircle(
+          tangent.position,
+          math.max(1.0, diameter * .20).toDouble(),
+          Paint()..color = Colors.white.withValues(alpha: .95),
+        );
+      }
+    }
 
-    _drawMovingLine(
-      canvas,
-      _utilityPath(size, 0),
-      const Color(0xFF28BDF5),
-      5.6,
-      waterVisible,
-      0.00,
-    );
-    _drawMovingLine(
-      canvas,
-      _utilityPath(size, 1),
-      const Color(0xFFFFA64D),
-      5.4,
-      sewerVisible,
-      0.25,
-    );
-    _drawMovingLine(
-      canvas,
-      _utilityPath(size, 2),
-      const Color(0xFFB78CFF),
-      3.3,
-      powerVisible,
-      0.48,
-    );
-    _drawMovingLine(
-      canvas,
-      _utilityPath(size, 3),
-      const Color(0xFF35D79B),
-      3.0,
-      fibreVisible,
-      0.72,
-    );
+    Path corridor(double y, double bend, double depth) => Path()
+      ..moveTo(w * -.02, y + h * .035)
+      ..cubicTo(w * .20, y - h * .06, w * .29, y + h * .07, w * .47, y + bend * h)
+      ..cubicTo(w * .66, y + h * .085, w * .80, y - h * .035, w * 1.02, y + h * .02 + depth * h);
 
-    _text(
-      canvas,
-      'NOT TO SCALE  ·  NO REAL ASSET POSITIONS',
-      Offset(size.width * 0.05, size.height * 0.94),
-      size: 8,
-      color: const Color(0xFFBDD0DC),
-    );
+    final waterPath = corridor(h * .685, .005, .015);
+    final sewerPath = corridor(h * .785, .040, .0);
+    final powerPath = corridor(h * .865, .055, .035);
+    final fibrePath = corridor(h * .925, .020, .0);
+    tube(waterPath, const Color(0xFF27BDF5), 8.0, waterVisible, 0.00);
+    tube(sewerPath, const Color(0xFFFFA64D), 7.2, sewerVisible, .23);
+    tube(powerPath, const Color(0xFFB78CFF), 5.0, powerVisible, .48);
+    tube(fibrePath, const Color(0xFF35D79B), 4.0, fibreVisible, .71);
 
-    // A small animated "data flow" pulse sits at the cutaway edge.
-    final pulse = 0.35 + 0.65 * math.sin(flow * math.pi * 2).abs();
-    canvas.drawCircle(
-      Offset(size.width * 0.91, cutY - 1),
-      4 + pulse * 4,
-      Paint()
-        ..color = const Color(0xFF6AF0D7).withValues(alpha: 0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
-    );
-    canvas.drawCircle(
-      Offset(size.width * 0.91, cutY - 1),
-      2,
-      Paint()..color = const Color(0xFFB6FFF1),
-    );
+    // Vertical service risers join the surface access points to each corridor.
+    void riser(double x, double yTop, double yBottom, Color color, bool visible) {
+      if (!visible) return;
+      final p = Path()
+        ..moveTo(w * x, h * yTop)
+        ..lineTo(w * x, h * (yTop + .035))
+        ..cubicTo(w * (x - .012), h * (yTop + .055), w * (x + .018), h * (yBottom - .045), w * x, h * yBottom);
+      tube(p, color, 4.2, true, .12);
+      canvas.drawCircle(Offset(w * x, h * yTop), 5,
+        Paint()..color = color.withValues(alpha: .72)..style = PaintingStyle.stroke..strokeWidth = 1.4);
+      canvas.drawCircle(Offset(w * x, h * yTop), 2,
+        Paint()..color = const Color(0xFFE8F8FF));
+    }
+    riser(.22, .53, .685, const Color(0xFF27BDF5), waterVisible);
+    riser(.46, .55, .785, const Color(0xFFFFA64D), sewerVisible);
+    riser(.71, .54, .865, const Color(0xFFB78CFF), powerVisible);
+    riser(.84, .54, .925, const Color(0xFF35D79B), fibreVisible);
+
+    // Instrumented inspection / junction chambers.
+    for (var i = 0; i < 4; i++) {
+      final x = w * (.17 + i * .22);
+      final y = h * (.625 + (i % 2) * .08);
+      final chamber = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, y), width: 16, height: 11),
+        const Radius.circular(3),
+      );
+      canvas.drawRRect(chamber, Paint()..color = const Color(0xFF162A3C));
+      canvas.drawRRect(chamber, Paint()
+        ..color = const Color(0xFF80DAD9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1);
+      canvas.drawCircle(Offset(x, y), 2.1, Paint()..color = const Color(0xFFB5FFF1));
+    }
+
+    label('3D SUBSURFACE CUTAWAY', Offset(w * .055, h * .585), color: const Color(0xFF7FE6D8), font: 7);
+    label('WATER  ·  PRESSURISED', Offset(w * .06, h * .715), color: const Color(0xFF8DDFFF), font: 6.2);
+    label('SEWER  ·  GRAVITY NETWORK', Offset(w * .06, h * .815), color: const Color(0xFFFFC18B), font: 6.2);
+    label('POWER / FIBRE  ·  DUCT BANK', Offset(w * .06, h * .90), color: const Color(0xFFD3BEFF), font: 6.2);
+
+    // Pulsing connection beacon and depth scale.
+    final pulse = .5 + .5 * math.sin(flow * math.pi * 2).abs();
+    final beacon = Offset(w * .91, h * .59);
+    canvas.drawCircle(beacon, 7 + pulse * 8,
+      Paint()..color = const Color(0xFF66F0D6).withValues(alpha: .19)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11));
+    canvas.drawCircle(beacon, 3.1,
+      Paint()..color = const Color(0xFFC4FFF4));
+    canvas.drawLine(Offset(w * .94, h * .65), Offset(w * .94, h * .91),
+      Paint()..color = const Color(0xFFBED5E2).withValues(alpha: .45)..strokeWidth = 1);
+    for (var i = 0; i <= 4; i++) {
+      final yy = h * (.65 + i * .065);
+      canvas.drawLine(Offset(w * .925, yy), Offset(w * .955, yy),
+        Paint()..color = const Color(0xFFBED5E2).withValues(alpha: .65)..strokeWidth = 1);
+    }
+    label('DEPTH', Offset(w * .89, h * .93), font: 5.5);
+    label('MODEL · NOT SURVEYED · NOT TO SCALE', Offset(w * .055, h * .965),
+      color: const Color(0xFFFFD99A), font: 6.1);
   }
 
   @override
