@@ -3782,7 +3782,7 @@ class _AuthPageState extends State<AuthPage> {
       setState(() {
         otpSent = true;
         message = usePhoneLogin
-            ? 'If this number is registered, a six-digit code has been requested by SMS.'
+            ? 'If this number is registered, the same six-digit code is being sent by SMS and WhatsApp once dual-channel delivery is enabled.'
             : 'If this email is registered, a six-digit code has been requested. Check your inbox and spam folder.';
         messageIsSuccess = true;
       });
@@ -3793,7 +3793,7 @@ class _AuthPageState extends State<AuthPage> {
         showMessage('Please wait before requesting another code.');
       } else if (usePhoneLogin &&
           (detail.contains('sms') || detail.contains('provider'))) {
-        showMessage('SMS delivery is not configured or is temporarily unavailable. Check the Supabase Auth SMS provider settings.');
+        showMessage('Mobile OTP delivery is not configured or is temporarily unavailable. Ask the platform administrator to enable the SMS + WhatsApp Auth Hook.');
       } else {
         showMessage('Unable to send the code. Confirm that the contact is registered and try again. ' + authError.message);
       }
@@ -16755,7 +16755,7 @@ class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
     } on AuthException catch (error) {
       _say(error.message);
     } catch (_) {
-      _say('Unable to request a verification code. Check SMS provider configuration.');
+      _say('Unable to request a verification code. The SMS + WhatsApp Auth Hook and its provider secrets must be configured first.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -16772,12 +16772,12 @@ class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
         type: OtpType.phoneChange,
         phone: _pendingPhone,
       );
-      _say('A new verification code was requested.', success: true);
+      _say('A new verification code was requested for SMS and WhatsApp.', success: true);
       _countdown();
     } on AuthException catch (error) {
       _say(error.message);
     } catch (_) {
-      _say('Unable to resend the code. Try again later.');
+      _say('Unable to resend the code. Check the SMS + WhatsApp delivery configuration and try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
