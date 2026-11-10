@@ -126,16 +126,55 @@ jobs:
           fi
           echo "PASS: Android namespace and applicationId verified."
 
+          # Use the uploaded SAMANVAY mark for the Android launcher icon.
+          python3 -m pip install --quiet pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import xml.etree.ElementTree as ET
+
+          source = Image.open('app/assets/brand/samanvay_logo.jpg').convert('RGBA')
+          res = Path('android/app/src/main/res')
+          sizes = {'mdpi':48, 'hdpi':72, 'xhdpi':96, 'xxhdpi':144, 'xxxhdpi':192}
+          for density, pixels in sizes.items():
+              folder = res / f'mipmap-{density}'
+              folder.mkdir(parents=True, exist_ok=True)
+              icon = Image.new('RGBA', (pixels, pixels), (4, 17, 36, 255))
+              mark = source.copy()
+              mark.thumbnail((int(pixels*.88), int(pixels*.88)), Image.Resampling.LANCZOS)
+              icon.alpha_composite(mark, ((pixels-mark.width)//2, (pixels-mark.height)//2))
+              icon.save(folder / 'ic_launcher.png')
+              icon.save(folder / 'ic_launcher_round.png')
+          drawable = res / 'drawable'
+          drawable.mkdir(parents=True, exist_ok=True)
+          foreground = Image.new('RGBA', (432, 432), (0,0,0,0))
+          mark = source.copy()
+          mark.thumbnail((286,286), Image.Resampling.LANCZOS)
+          foreground.alpha_composite(mark, ((432-mark.width)//2, (432-mark.height)//2))
+          foreground.save(drawable / 'ic_launcher_foreground.png')
+          values = res / 'values'
+          values.mkdir(parents=True, exist_ok=True)
+          (values / 'ic_launcher_background.xml').write_text('<resources><color name="ic_launcher_background">#041124</color></resources>')
+          adaptive = '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@color/ic_launcher_background"/><foreground android:drawable="@drawable/ic_launcher_foreground"/></adaptive-icon>'
+          mipmap = res / 'mipmap-anydpi-v26'
+          mipmap.mkdir(parents=True, exist_ok=True)
+          (mipmap / 'ic_launcher.xml').write_text(adaptive)
+          (mipmap / 'ic_launcher_round.xml').write_text(adaptive)
+          manifest.write_text(manifest.read_text().replace('android:label="samanvay"','android:label="SAMANVAY"'))
+          PY
+
           cp /tmp/samanvay_scaffold/pubspec.yaml .
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
 
-          mkdir -p lib assets/reference/coimbatore
+          mkdir -p lib assets/reference/coimbatore assets/brand
           if [ ! -d app/assets/reference ]; then
             echo "ERROR: Source GIS reference directory app/assets/reference is missing."
             exit 1
           fi
           cp -R app/assets/reference/. assets/reference/
+          cp app/assets/brand/samanvay_logo.jpg assets/brand/samanvay_logo.jpg
+          cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
@@ -152,6 +191,8 @@ jobs:
             echo "ERROR: Coimbatore groundwater telemetry GeoJSON is missing from the repository."
             exit 1
           fi
+          test -s assets/brand/samanvay_logo.jpg
+          test -s lib/public_transparency_dashboard_page.dart
 
       # 5. Install dependencies
       - name: Install Flutter dependencies
@@ -186,6 +227,7 @@ jobs:
               )
 
           groundwater_entry = "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"
+          brand_entry = "    - assets/brand/samanvay_logo.jpg"
           if groundwater_entry not in content:
               if asset_entry not in content:
                   raise SystemExit("Coimbatore ward asset entry not found")
@@ -194,6 +236,8 @@ jobs:
                   asset_entry + chr(10) + groundwater_entry,
                   1,
               )
+          if brand_entry not in content:
+              content = content.replace(groundwater_entry, groundwater_entry + chr(10) + brand_entry, 1)
           path.write_text(content)
           PY
           echo "Verifying Flutter asset declarations before build..."
@@ -269,7 +313,8 @@ jobs:
 
             for REQUIRED_ASSET in \
               "assets/flutter_assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" \
-              "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"; do
+              "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson" \
+              "assets/flutter_assets/assets/brand/samanvay_logo.jpg"; do
               if ! unzip -l "$APK" | grep -Fq "$REQUIRED_ASSET"; then
                 echo "ERROR: Required GIS data asset missing from APK: $REQUIRED_ASSET"
                 exit 1
