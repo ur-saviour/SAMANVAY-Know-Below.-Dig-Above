@@ -27,8 +27,17 @@ const String supabaseUrl =
 const String supabasePublishableKey =
     String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 
+// Render the branded opening immediately. Backend startup runs in parallel,
+// so slow storage/network initialization cannot hide the opening animation.
+Future<void> _samanvayBootFuture = Future<void>.value();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const SamanvayApp());
+  _samanvayBootFuture = _initialiseSamanvayServices();
+}
+
+Future<void> _initialiseSamanvayServices() async {
   final preferences = await SharedPreferences.getInstance();
   samanvayThemeMode.value = preferences.getBool('samanvay_light_mode') == true
       ? ThemeMode.light
@@ -37,7 +46,7 @@ Future<void> main() async {
   if (supabaseUrl.isEmpty || supabasePublishableKey.isEmpty) {
     throw StateError(
       'Supabase configuration is missing. '
-      'Check your GitHub Actions secrets.',
+      'Check the GitHub Actions public configuration secrets.',
     );
   }
 
@@ -45,8 +54,6 @@ Future<void> main() async {
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
   );
-
-  runApp(const SamanvayApp());
 }
 
 final supabase = Supabase.instance.client;
@@ -223,6 +230,8 @@ class _OpeningExperienceState extends State<OpeningExperience>
   late final AnimationController _introController;
   late final AnimationController _ambientController;
   bool _showApplication = false;
+  bool _startingApplication = false;
+  String? _startupError;
 
   @override
   void initState() {
@@ -244,9 +253,26 @@ class _OpeningExperienceState extends State<OpeningExperience>
     super.dispose();
   }
 
-  void _startApplication() {
-    if (!mounted || _showApplication) return;
-    setState(() => _showApplication = true);
+  Future<void> _startApplication() async {
+    if (!mounted || _showApplication || _startingApplication) return;
+    setState(() {
+      _startingApplication = true;
+      _startupError = null;
+    });
+    try {
+      await _samanvayBootFuture;
+      if (!mounted) return;
+      setState(() {
+        _showApplication = true;
+        _startingApplication = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _startingApplication = false;
+        _startupError = 'Secure services could not initialise. Check your connection and app configuration, then restart.';
+      });
+    }
   }
 
   @override
@@ -484,19 +510,19 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                             color: Colors.transparent,
                                             child: InkWell(
                                               borderRadius: BorderRadius.circular(30),
-                                              onTap: progress >= 0.82
+                                              onTap: progress >= 0.82 && !_startingApplication
                                                   ? onGetStarted
                                                   : null,
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
                                                   Text(
-                                                    'GET STARTED',
+                                                    _startingApplication ? 'CONNECTING SECURE PORTAL' : 'GET STARTED',
                                                     style: GoogleFonts.inter(
                                                       color: Colors.white,
-                                                      fontSize: 13,
+                                                      fontSize: _startingApplication ? 10 : 13,
                                                       fontWeight: FontWeight.w800,
-                                                      letterSpacing: 1.4,
+                                                      letterSpacing: 1.1,
                                                     ),
                                                   ),
                                                   const SizedBox(width: 11),
@@ -513,6 +539,18 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                  if (_startupError != null) ...[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      _startupError!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFB9A9),
+                                        fontSize: 10,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 13),
                                   Opacity(
                                     opacity: _reveal(progress, 0.90, 1.0),
@@ -3346,13 +3384,21 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  void openStaffDemoPreview() {
-    final staffId = _emailController.text.trim();
-    final role = _readOnlyStaffPreviewRoles[staffId];
+  void openStaffDemoPreview({String? selectedRole}) {
+    final enteredStaffId = _emailController.text.trim();
+    final role = selectedRole ?? _readOnlyStaffPreviewRoles[enteredStaffId];
     if (role == null) {
-      showMessage('Enter one of the preview IDs: 9013, 10011 or 10021.');
+      showMessage('Choose Department Officer, Coordinator or Administrator to open a public demo workspace.');
       return;
     }
+    final staffId = selectedRole == null
+        ? enteredStaffId
+        : switch (role) {
+            'admin' => 'PUBLIC-ADMIN-DEMO',
+            'coordinator' => 'PUBLIC-COORDINATOR-DEMO',
+            'department' => 'PUBLIC-OFFICER-DEMO',
+            _ => 'PUBLIC-STAFF-DEMO',
+          };
     setState(() {
       demoPreviewRole = role;
       demoPreviewStaffId = staffId;
@@ -3577,38 +3623,123 @@ class _AuthPageState extends State<AuthPage> {
                   LayoutBuilder(builder: (context, constraints) {
                     final twoColumns = constraints.maxWidth >= 600;
                     final cardWidth = twoColumns ? (constraints.maxWidth - 9) / 2 : constraints.maxWidth;
-                    Widget roleCard(String title, String detail, IconData icon, bool standard) {
-                      return Container(
+                    Widget roleCard(
+                      String title,
+                      String detail,
+                      IconData icon,
+                      bool standard, {
+                      String? demoRole,
+                    }) {
+                      final canOpenDemo = demoRole != null;
+                      return SizedBox(
                         width: cardWidth,
-                        padding: const EdgeInsets.all(11),
-                        decoration: BoxDecoration(
-                          color: standard ? const Color(0xFF12384B) : const Color(0xFF102943),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: standard ? cyanAccent.withValues(alpha: .65) : const Color(0xFF294763)),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: canOpenDemo
+                                ? () => openStaffDemoPreview(selectedRole: demoRole)
+                                : null,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(11),
+                              decoration: BoxDecoration(
+                                color: standard
+                                    ? const Color(0xFF12384B)
+                                    : const Color(0xFF102943),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: canOpenDemo
+                                      ? cyanAccent.withValues(alpha: .72)
+                                      : (standard
+                                          ? cyanAccent.withValues(alpha: .65)
+                                          : const Color(0xFF294763)),
+                                ),
+                              ),
+                              child: Row(children: [
+                                Icon(
+                                  icon,
+                                  color: standard || canOpenDemo
+                                      ? cyanAccent
+                                      : const Color(0xFFB5C8D8),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 9),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        canOpenDemo
+                                            ? 'Open public demonstration workspace'
+                                            : detail,
+                                        style: const TextStyle(
+                                          color: Color(0xFFB6C7D6),
+                                          fontSize: 9,
+                                          height: 1.25,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  canOpenDemo
+                                      ? Icons.open_in_new_rounded
+                                      : (standard
+                                          ? Icons.check_circle
+                                          : Icons.chevron_right_rounded),
+                                  color: canOpenDemo || standard
+                                      ? cyanAccent
+                                      : const Color(0xFF849BB0),
+                                  size: 16,
+                                ),
+                              ]),
+                            ),
+                          ),
                         ),
-                        child: Row(children: [
-                          Icon(icon, color: standard ? cyanAccent : const Color(0xFFB5C8D8), size: 20),
-                          const SizedBox(width: 9),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(title, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 3),
-                            Text(detail, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 9, height: 1.25)),
-                          ])),
-                          Icon(standard ? Icons.check_circle : Icons.lock_outline,
-                            color: standard ? cyanAccent : const Color(0xFF849BB0), size: 16),
-                        ]),
                       );
                     }
                     return Wrap(spacing: 9, runSpacing: 9, children: [
-                      roleCard('Citizen', 'Public services and request tracking', Icons.person_outline, true),
-                      roleCard('Department officer', 'Assigned by an administrator', Icons.account_balance_outlined, false),
-                      roleCard('Coordinator', 'Privileged coordination access', Icons.hub_outlined, false),
-                      roleCard('Administrator', 'Platform administration access', Icons.admin_panel_settings_outlined, false),
+                      roleCard(
+                        'Citizen',
+                        'Public services and request tracking',
+                        Icons.person_outline,
+                        true,
+                      ),
+                      roleCard(
+                        'Department officer',
+                        'Department workspace',
+                        Icons.account_balance_outlined,
+                        false,
+                        demoRole: 'department',
+                      ),
+                      roleCard(
+                        'Coordinator',
+                        'Coordination workspace',
+                        Icons.hub_outlined,
+                        false,
+                        demoRole: 'coordinator',
+                      ),
+                      roleCard(
+                        'Administrator',
+                        'Administration workspace',
+                        Icons.admin_panel_settings_outlined,
+                        false,
+                        demoRole: 'admin',
+                      ),
                     ]);
                   }),
                   const SizedBox(height: 8),
                   const Text(
-                    'Your actual role and department are loaded from your authorised SAMANVAY profile. Privileged access cannot be self-selected during signup.',
+                    'Tap any official role to open its permanent public demo workspace. Demo content is synthetic and read-only; live records and administrative actions still require an authorised account.',
                     style: TextStyle(fontSize: 10, color: Color(0xFFB6C7D6), height: 1.35),
                   ),
                   const SizedBox(height: 16),
@@ -3626,7 +3757,7 @@ class _AuthPageState extends State<AuthPage> {
                       prefixIcon: Icon(isLogin ? Icons.alternate_email_rounded : Icons.email_outlined),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
-                          ? 'IDs: 9013 Administrator · 10011 Coordinator · 10021 Water Supply Officer. Live login needs the linked password. Open the read-only preview to inspect each role without signing in.'
+                          ? 'Use your registered credentials for live access, or tap an official role above to open its public read-only demonstration.'
                           : null,
                       helperMaxLines: 2,
                     ),
