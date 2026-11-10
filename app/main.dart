@@ -1961,6 +1961,14 @@ class _OperationalPortalState extends State<_OperationalPortal> {
   }
 
   void _selectPortalTab(String section) {
+    if (section == 'clash') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ClashVisualizerPage(candidates: _repeatedWorkCandidates()),
+        ),
+      );
+      return;
+    }
     if (section == 'gis') {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const MapPage()),
@@ -3589,6 +3597,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   _sectionChip('Overview', Icons.dashboard_outlined, 'overview'),
                   _sectionChip('Analytics', Icons.query_stats_outlined, 'analytics'),
                   _sectionChip('Clearance Gateway', Icons.fact_check_outlined, 'clearance'),
+                  _sectionChip('Clash Checks', Icons.warning_amber_rounded, 'clash'),
                   _sectionChip('GIS Mapping', Icons.map_outlined, 'gis'),
                   if (widget.isAdmin)
                     _sectionChip('Audit Logs', Icons.history_rounded, 'audit')
@@ -12232,6 +12241,414 @@ class _LpuCampusModelPainter extends CustomPainter {
       oldDelegate.sewerVisible != sewerVisible ||
       oldDelegate.powerVisible != powerVisible ||
       oldDelegate.fibreVisible != fibreVisible;
+}
+
+class ClashVisualizerPage extends StatefulWidget {
+  const ClashVisualizerPage({super.key, required this.candidates});
+  final List<Map<String, dynamic>> candidates;
+
+  @override
+  State<ClashVisualizerPage> createState() => _ClashVisualizerPageState();
+}
+
+class _ClashVisualizerPageState extends State<ClashVisualizerPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flow;
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _flow = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flow.dispose();
+    super.dispose();
+  }
+
+  String _caseTitle(dynamic value) {
+    if (value is! Map) return 'Infrastructure case';
+    final row = Map<String, dynamic>.from(value);
+    return (row['title'] ?? row['case_category'] ?? row['request_number'] ?? 'Infrastructure case')
+        .toString().replaceAll('_', ' ');
+  }
+
+  Widget _alertCard(Map<String, dynamic> match, int index) {
+    final first = Map<String, dynamic>.from(match['first'] as Map);
+    final second = Map<String, dynamic>.from(match['second'] as Map);
+    final distance = ((match['distance'] as num?) ?? 0).toDouble();
+    final start = match['start'] is DateTime ? match['start'] as DateTime : null;
+    final end = match['end'] is DateTime ? match['end'] as DateTime : null;
+    final selected = index == _selectedIndex;
+    final title = _caseTitle(first) + '  ↔  ' + _caseTitle(second);
+    final window = start == null || end == null
+        ? 'Overlapping planned works · date window unavailable'
+        : 'Overlapping window · ' + start.toString().substring(0, 10) + ' – ' + end.toString().substring(0, 10);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: InkWell(
+        onTap: () => setState(() => _selectedIndex = index),
+        borderRadius: BorderRadius.circular(13),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF3A222B) : const Color(0xFF14253A),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: selected ? const Color(0xFFFF646E) : const Color(0xFF30465B),
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: selected
+                ? const [BoxShadow(color: Color(0x33FF454F), blurRadius: 18)]
+                : const [],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.warning_amber_rounded,
+                color: selected ? const Color(0xFFFF767F) : const Color(0xFFFFB45F), size: 17),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'POTENTIAL SPATIAL OVERLAP',
+                style: TextStyle(
+                  color: selected ? const Color(0xFFFFA1A6) : const Color(0xFFFFD18D),
+                  fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7,
+                ),
+              )),
+              Text(distance.round().toString() + ' m',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+            ]),
+            const SizedBox(height: 8),
+            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(window, style: const TextStyle(color: Color(0xFFB8C9D8), fontSize: 9)),
+            const SizedBox(height: 7),
+            Text(
+              'Coordinator review required · verify owner records and field conditions',
+              style: TextStyle(color: selected ? const Color(0xFFFFA6AB) : const Color(0xFF91D7D0),
+                fontSize: 9, fontWeight: FontWeight.w700),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _sceneBadge(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0xE90B1A2B),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withValues(alpha: .6)),
+    ),
+    child: Text(text, style: TextStyle(color: color, fontSize: 8,
+      fontWeight: FontWeight.w900, letterSpacing: .6)),
+  );
+
+  Widget _legendDot(Color color, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(width: 8, height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: color.withValues(alpha: .45), blurRadius: 7)])),
+      const SizedBox(width: 5),
+      Text(label, style: const TextStyle(color: Color(0xFFB8C9D8), fontSize: 8, fontWeight: FontWeight.w700)),
+    ],
+  );
+
+  Widget _scenePanel() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(fit: StackFit.expand, children: [
+            AnimatedBuilder(
+              animation: _flow,
+              builder: (context, _) => CustomPaint(
+                painter: _Clash3DScenePainter(
+                  phase: _flow.value,
+                  hasCandidate: widget.candidates.isNotEmpty,
+                  selectedIndex: _selectedIndex,
+                ),
+              ),
+            ),
+            Positioned(left: 13, top: 13,
+              child: _sceneBadge(
+                widget.candidates.isEmpty ? 'NO CURRENT CANDIDATES' : 'POTENTIAL OVERLAP DETECTED',
+                widget.candidates.isEmpty ? const Color(0xFF39C6B5) : const Color(0xFFFF666F),
+              ),
+            ),
+            Positioned(right: 12, top: 12,
+              child: _sceneBadge('3D CUTAWAY · ADVISORY', const Color(0xFF8BDCD3))),
+            Positioned(right: 12, bottom: 12,
+              child: _sceneBadge('SCHEMATIC · NOT SURVEYED', const Color(0xFFFFD18D))),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 11),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _legendDot(const Color(0xFF31BFF2), 'Water'),
+          _legendDot(const Color(0xFFFFA34B), 'Sewer'),
+          _legendDot(const Color(0xFFB88CFF), 'Power / fibre'),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MapPage()),
+            ),
+            icon: const Icon(Icons.map_outlined, size: 16),
+            label: const Text('Open live GIS'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF167D87),
+              foregroundColor: Colors.white,
+              textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFF071426),
+    appBar: AppBar(
+      backgroundColor: const Color(0xFF0B1D31),
+      foregroundColor: Colors.white,
+      title: Row(children: [
+        const Icon(Icons.hub_rounded, color: Color(0xFF5ED8D0), size: 22),
+        const SizedBox(width: 9),
+        const Expanded(child: Text('CLASH DETECTION & CONFLICT ALERT',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: .55))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFF4B2029), borderRadius: BorderRadius.circular(9)),
+          child: Text(widget.candidates.length.toString() + ' CANDIDATE(S)',
+            style: const TextStyle(color: Color(0xFFFF8990), fontSize: 8, fontWeight: FontWeight.w900)),
+        ),
+      ]),
+    ),
+    body: LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      final alertList = Container(
+        width: wide ? 350 : double.infinity,
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E2035),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: const Color(0xFF283D55)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Expanded(child: Text('CONFLICT CANDIDATES',
+              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))),
+            Text(widget.candidates.length.toString(),
+              style: const TextStyle(color: Color(0xFFFF7C84), fontSize: 17, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 7),
+          const Text('Different work domains within 100 m with overlapping planned dates.',
+            style: TextStyle(color: Color(0xFF9EB3C6), fontSize: 9, height: 1.4)),
+          const SizedBox(height: 12),
+          Expanded(
+            child: widget.candidates.isEmpty
+                ? const Center(child: Text(
+                    'No qualifying candidates in the current record window.\nCases without coordinates or planned dates are not assessed.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF9EB3C6), fontSize: 11, height: 1.5),
+                  ))
+                : ListView.builder(
+                    itemCount: widget.candidates.length,
+                    itemBuilder: (context, index) => _alertCard(widget.candidates[index], index),
+                  ),
+          ),
+        ]),
+      );
+
+      final scene = Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D1C2D),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: const Color(0xFF28445D)),
+        ),
+        child: Column(children: [
+          Expanded(child: _scenePanel()),
+          const SizedBox(height: 10),
+          const Text(
+            'This view is a coordination aid, not an underground utility survey. Candidate generation is rule-based. The 3D crossing graphic is illustrative; live pipe routes appear only when verified owner-authorised geometry is available.',
+            style: TextStyle(color: Color(0xFFFFD18D), fontSize: 8.5, height: 1.45),
+          ),
+        ]),
+      );
+
+      if (wide) {
+        return Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SizedBox(width: 350, child: alertList),
+            const SizedBox(width: 13),
+            Expanded(child: scene),
+          ]),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(children: [
+          SizedBox(height: 250, child: alertList),
+          const SizedBox(height: 10),
+          Expanded(child: scene),
+        ]),
+      );
+    }),
+  );
+}
+
+class _Clash3DScenePainter extends CustomPainter {
+  const _Clash3DScenePainter({
+    required this.phase,
+    required this.hasCandidate,
+    required this.selectedIndex,
+  });
+  final double phase;
+  final bool hasCandidate;
+  final int selectedIndex;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height, rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0xFF0C2439), Color(0xFF091829), Color(0xFF050F1C)],
+      ).createShader(rect));
+
+    final roadTop = Path()
+      ..moveTo(w * .03, h * .18)
+      ..lineTo(w * .94, h * .08)
+      ..lineTo(w * .98, h * .48)
+      ..lineTo(w * .07, h * .62)
+      ..close();
+    canvas.drawPath(roadTop, Paint()..color = const Color(0xFF384B5E));
+    canvas.drawPath(roadTop, Paint()
+      ..color = const Color(0xFF9FB4C4).withValues(alpha: .65)
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2);
+
+    final soil = Path()
+      ..moveTo(w * .07, h * .62)
+      ..lineTo(w * .98, h * .48)
+      ..lineTo(w * .98, h)
+      ..lineTo(w * .07, h)
+      ..close();
+    canvas.drawPath(soil, Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0xFF354854), Color(0xFF1E3443), Color(0xFF102538)],
+      ).createShader(Rect.fromLTWH(0, h * .48, w, h * .52)));
+
+    for (var i = 0; i < 4; i++) {
+      final y = h * (.68 + i * .075);
+      final band = Path()
+        ..moveTo(w * .07, y)
+        ..cubicTo(w * .34, y - h * .035, w * .64, y + h * .02, w * .98, y - h * .04);
+      canvas.drawPath(band, Paint()
+        ..color = const Color(0xFFB0C3BF).withValues(alpha: .16)
+        ..style = PaintingStyle.stroke..strokeWidth = 1.1);
+    }
+
+    final centre = Path()
+      ..moveTo(w * .06, h * .39)
+      ..cubicTo(w * .35, h * .34, w * .62, h * .28, w * .96, h * .23);
+    canvas.drawPath(centre, Paint()
+      ..color = const Color(0xFFD3E0E8).withValues(alpha: .70)
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2);
+
+    Path pipe(double y, bool reverse) {
+      final p = Path();
+      if (!reverse) {
+        p.moveTo(-w * .03, y);
+        p.cubicTo(w * .23, y - h * .16, w * .36, y + h * .12, w * .54, h * .77);
+        p.cubicTo(w * .72, h * .86, w * .83, y - h * .09, w * 1.04, y + h * .05);
+      } else {
+        p.moveTo(w * .04, h * .91);
+        p.cubicTo(w * .24, h * .76, w * .42, h * .71, w * .54, h * .77);
+        p.cubicTo(w * .69, h * .80, w * .81, h * .59, w * .98, h * .68);
+      }
+      return p;
+    }
+
+    void drawTube(Path path, Color color, double width, double offset) {
+      canvas.drawPath(path, Paint()
+        ..color = const Color(0xFF050C16)
+        ..style = PaintingStyle.stroke..strokeWidth = width + 11
+        ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = Color.lerp(color, Colors.black, .42)!
+        ..style = PaintingStyle.stroke..strokeWidth = width + 4
+        ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke..strokeWidth = width
+        ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = Colors.white.withValues(alpha: .42)
+        ..style = PaintingStyle.stroke..strokeWidth = math.max(1.1, width * .18).toDouble()
+        ..strokeCap = StrokeCap.round);
+      final m = path.computeMetrics().first;
+      for (var i = 0; i < 4; i++) {
+        final d = ((phase + offset + i / 4) % 1.0) * m.length;
+        final t = m.getTangentForOffset(d);
+        if (t == null) continue;
+        canvas.drawCircle(t.position, width * .66,
+          Paint()..color = color.withValues(alpha: .4)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7));
+        canvas.drawCircle(t.position, width * .22,
+          Paint()..color = Colors.white.withValues(alpha: .95));
+      }
+    }
+
+    drawTube(pipe(h * .72, false), const Color(0xFF27BDF5), 9, 0);
+    drawTube(pipe(h * .84, true), const Color(0xFFFF9848), 8, .28);
+    drawTube(pipe(h * .64, true), const Color(0xFF22C9A6), 5, .55);
+
+    final c = Offset(w * .54, h * .77);
+    if (hasCandidate) {
+      final pulse = .5 + .5 * math.sin(phase * math.pi * 2);
+      canvas.drawCircle(c, 17 + pulse * 16,
+        Paint()..color = const Color(0xFFFF334B).withValues(alpha: .19)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18));
+      canvas.drawCircle(c, 10 + pulse * 4,
+        Paint()..color = const Color(0xFFFF334B).withValues(alpha: .18)
+          ..style = PaintingStyle.stroke..strokeWidth = 2);
+      canvas.drawCircle(c, 5, Paint()..color = const Color(0xFFFF6A73));
+    } else {
+      canvas.drawCircle(c, 5, Paint()..color = const Color(0xFF44C9B6));
+    }
+
+    final grid = Paint()..color = Colors.white.withValues(alpha: .07)..strokeWidth = .7;
+    for (var i = 0; i < 6; i++) {
+      final yy = h * (.66 + i * .06);
+      canvas.drawLine(Offset(w * .07, yy), Offset(w * .98, yy - h * .13), grid);
+    }
+    final tp = TextPainter(
+      text: TextSpan(
+        text: hasCandidate ? 'POTENTIAL CONFLICT · REVIEW REQUIRED' : 'NO CURRENT COORDINATION CANDIDATE',
+        style: const TextStyle(color: Color(0xFFFFA3A8), fontSize: 9,
+          fontWeight: FontWeight.w900, letterSpacing: .7),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: w * .75);
+    tp.paint(canvas, Offset(w * .08, h * .06));
+  }
+
+  @override
+  bool shouldRepaint(covariant _Clash3DScenePainter old) =>
+      old.phase != phase || old.hasCandidate != hasCandidate || old.selectedIndex != selectedIndex;
 }
 
 class MapPage extends StatefulWidget {
