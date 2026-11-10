@@ -160,6 +160,7 @@ jobs:
           mipmap.mkdir(parents=True, exist_ok=True)
           (mipmap / 'ic_launcher.xml').write_text(adaptive)
           (mipmap / 'ic_launcher_round.xml').write_text(adaptive)
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
           manifest.write_text(manifest.read_text().replace('android:label="samanvay"','android:label="SAMANVAY"'))
           PY
 
