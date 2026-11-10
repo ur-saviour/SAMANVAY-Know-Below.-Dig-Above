@@ -1,4 +1,5 @@
 name: Build SAMANVAY Browser Operations Portal
+# Rebuild final reference assets and public transparency dashboard from latest app code.
 
 on:
   workflow_dispatch:
