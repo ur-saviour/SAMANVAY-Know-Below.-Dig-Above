@@ -4208,8 +4208,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   @override
   void initState() {
     super.initState();
-    _activeRole = _activeRole;
-    _activeStaffId = _activeStaffId;
+    _activeRole = widget.role;
+    _activeStaffId = widget.staffId;
   }
 
   Future<void> _switchProfiles() async {
