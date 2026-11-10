@@ -198,6 +198,11 @@ jobs:
           test -s assets/brand/profile_avatar.jpg
           test -s assets/brand/profile_footer.jpg
           test -s assets/brand/splash_city.jpg
+          test -s assets/brand/samanvay_city_background.svg
+          test -s assets/brand/samanvay_home_banner.svg
+          test -s assets/brand/samanvay_profile_footer.svg
+          test -s assets/brand/samanvay_logo.svg
+          test -s assets/brand/samanvay_profile_avatar.svg
           test -s lib/public_transparency_dashboard_page.dart
 
       # 5. Install dependencies
@@ -207,6 +212,7 @@ jobs:
           flutter pub add maplibre_gl:0.27.1
           flutter pub add latlong2
           flutter pub add google_fonts
+          flutter pub add flutter_svg
           flutter pub add url_launcher
           flutter pub add file_picker
           flutter pub add csv
@@ -239,6 +245,11 @@ jobs:
               "    - assets/brand/profile_avatar.jpg",
               "    - assets/brand/profile_footer.jpg",
               "    - assets/brand/splash_city.jpg",
+              "    - assets/brand/samanvay_city_background.svg",
+              "    - assets/brand/samanvay_home_banner.svg",
+              "    - assets/brand/samanvay_profile_footer.svg",
+              "    - assets/brand/samanvay_logo.svg",
+              "    - assets/brand/samanvay_profile_avatar.svg",
           ]
           if groundwater_entry not in content:
               if asset_entry not in content:
@@ -332,7 +343,12 @@ jobs:
               "assets/flutter_assets/assets/brand/home_city_banner.jpg" \
               "assets/flutter_assets/assets/brand/profile_avatar.jpg" \
               "assets/flutter_assets/assets/brand/profile_footer.jpg" \
-              "assets/flutter_assets/assets/brand/splash_city.jpg"; do
+              "assets/flutter_assets/assets/brand/splash_city.jpg" \
+              "assets/flutter_assets/assets/brand/samanvay_city_background.svg" \
+              "assets/flutter_assets/assets/brand/samanvay_home_banner.svg" \
+              "assets/flutter_assets/assets/brand/samanvay_profile_footer.svg" \
+              "assets/flutter_assets/assets/brand/samanvay_logo.svg" \
+              "assets/flutter_assets/assets/brand/samanvay_profile_avatar.svg"; do
               if ! unzip -l "$APK" | grep -Fq "$REQUIRED_ASSET"; then
                 echo "ERROR: Required GIS data asset missing from APK: $REQUIRED_ASSET"
                 exit 1

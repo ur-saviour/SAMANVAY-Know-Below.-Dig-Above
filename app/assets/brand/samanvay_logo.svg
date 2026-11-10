@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="7680" height="7680" viewBox="0 0 512 512">
+<defs><linearGradient id="tile" x2="1" y2="1"><stop stop-color="#0A2A4A"/><stop offset=".6" stop-color="#07172B"/><stop offset="1" stop-color="#0B3F58"/></linearGradient><linearGradient id="s" x2="1" y2="1"><stop stop-color="#6AF2F0"/><stop offset=".5" stop-color="#21BFE9"/><stop offset="1" stop-color="#416CE9"/></linearGradient><linearGradient id="pin" x2="1" y2="1"><stop stop-color="#7AF5E6"/><stop offset="1" stop-color="#36A3EF"/></linearGradient></defs>
+<rect x="10" y="10" width="492" height="492" rx="105" fill="url(#tile)" stroke="#35CBE0" stroke-width="8"/>
+<path d="M68 340H444" stroke="#2D94B7" stroke-opacity=".34" stroke-width="4"/><g fill="#1B6A8B" opacity=".65"><path d="M82 334V270h26v64zM116 334V238h30v96zM154 334V281h22v53zM182 334V220h31v114zM226 334V258h25v76zM264 334V198h34v136zM307 334V247h27v87zM344 334V226h29v108zM382 334V272h23v62z"/></g>
+<path d="M94 158C94 111 132 76 179 76H333C380 76 418 111 418 158C418 196 398 221 359 243L194 331C178 340 172 352 172 365C172 384 187 398 208 398H388" fill="none" stroke="#06263D" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M94 158C94 111 132 76 179 76H333C380 76 418 111 418 158C418 196 398 221 359 243L194 331C178 340 172 352 172 365C172 384 187 398 208 398H388" fill="none" stroke="url(#s)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M96 151C101 113 133 91 178 91H327" fill="none" stroke="#D3FFFF" stroke-opacity=".72" stroke-width="6" stroke-linecap="round"/>
+<path d="M177 368C179 392 193 405 216 405H382" fill="none" stroke="#B9F7FF" stroke-opacity=".68" stroke-width="5" stroke-linecap="round"/>
+<path d="M352 53C352 27 372 12 396 12C421 12 440 31 440 55C440 83 396 123 396 123S352 82 352 53Z" fill="url(#pin)" stroke="#06243B" stroke-width="8"/><circle cx="396" cy="54" r="13" fill="#06243B"/><circle cx="396" cy="54" r="6" fill="#D9FFFF"/>
+<path d="M78 430H434" stroke="#39D2D1" stroke-width="5" stroke-linecap="round" opacity=".8"/><circle cx="92" cy="430" r="8" fill="#39D2D1"/><circle cx="422" cy="430" r="8" fill="#3D83F6"/>
+</svg>

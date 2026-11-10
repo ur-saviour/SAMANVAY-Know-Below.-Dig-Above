@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -440,15 +441,11 @@ class _SamanvayBrandLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
-    child: Image.asset(
-      'assets/brand/samanvay_logo.jpg',
-      width: size, height: size, fit: BoxFit.cover,
-      filterQuality: FilterQuality.high,
-      errorBuilder: (_, __, ___) => Container(
-        width: size, height: size, color: const Color(0xFF071A34),
-        alignment: Alignment.center,
-        child: const Icon(Icons.hub_rounded, color: Color(0xFF38D9E7), size: 42),
-      ),
+    child: SvgPicture.asset(
+      'assets/brand/samanvay_logo.svg',
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
     ),
   );
 }
@@ -706,8 +703,8 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.asset(
-                              'assets/brand/splash_city.jpg',
+                            SvgPicture.asset(
+                              'assets/brand/samanvay_city_background.svg',
                               fit: BoxFit.cover,
                               alignment: Alignment.center,
                             ),
@@ -3896,8 +3893,8 @@ class _AuthPageState extends State<AuthPage> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              'assets/brand/splash_city.jpg',
+            SvgPicture.asset(
+              'assets/brand/samanvay_city_background.svg',
               fit: BoxFit.cover,
               alignment: Alignment.center,
             ),
@@ -5250,10 +5247,6 @@ class _DashboardPageState extends State<DashboardPage>
           Container(
             padding: const EdgeInsets.all(21),
             decoration: BoxDecoration(
-              image: const DecorationImage(
-                image: AssetImage('assets/brand/home_city_banner.jpg'),
-                fit: BoxFit.cover,
-              ),
               gradient: LinearGradient(
                 colors: [
                   navy.withValues(alpha: .72),
@@ -5266,7 +5259,31 @@ class _DashboardPageState extends State<DashboardPage>
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
             clipBehavior: Clip.antiAlias,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: [
+                Positioned.fill(
+                  child: SvgPicture.asset(
+                    'assets/brand/samanvay_home_banner.svg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xC908182B),
+                          Color(0xA908182B),
+                          Color(0xB3075E67),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
               const _SamanvayBrandLogo(size: 194, radius: 34),
               const SizedBox(height: 9),
@@ -5289,13 +5306,16 @@ class _DashboardPageState extends State<DashboardPage>
                     Text('Towards a smarter, better-coordinated India',
                       style: GoogleFonts.inter(color: const Color(0xFFD1E0EA), fontSize: 10)),
                   ])),
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 22,
-                    backgroundColor: Color(0xFF35D7F2),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundImage: AssetImage('assets/brand/profile_avatar.jpg'),
-                      backgroundColor: Color(0xFF173B55),
+                    backgroundColor: const Color(0xFF35D7F2),
+                    child: ClipOval(
+                      child: SvgPicture.asset(
+                        'assets/brand/samanvay_profile_avatar.svg',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 ],
@@ -5310,6 +5330,8 @@ class _DashboardPageState extends State<DashboardPage>
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
             ]),
+              ],
+            ),
           ),
           const SizedBox(height: 18),
           Text('My activity', style: GoogleFonts.spaceGrotesk(
@@ -14763,7 +14785,7 @@ class _MapPageState extends State<MapPage> {
             Text(
               widget.contextLabel == null
                   ? 'GEOSPATIAL INFRASTRUCTURE WORKSPACE'
-                  : 'LIVE BASEMAP · VERIFIED UTILITY ASSETS ONLY',
+                  : 'CAMPUS BASEMAP · VERIFIED DATA ONLY',
               style: TextStyle(
                 fontSize: 9,
                 letterSpacing: 1.35,
@@ -14950,6 +14972,28 @@ class _MapPageState extends State<MapPage> {
                       height: 1.3,
                     ),
                   ),
+                  if (widget.contextLabel == 'LPU CAMPUS · PHAGWARA') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0x33F6C66B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0x88F6C66B)),
+                      ),
+                      child: Text(
+                        _utilityCellCount == 0 && _verifiedAssetCount == 0
+                            ? 'LPU CAMPUS DATA STATUS: No verified underground utility records are currently loaded. This is a basemap-only view, not a utility survey and not proof that underground assets are absent.'
+                            : 'LPU CAMPUS DATA STATUS: $_utilityCellCount generalised coverage cell(s) and $_verifiedAssetCount owner-department verified feature(s) are available in this view. Exact routes remain restricted; this is not an excavation clearance.',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD98B),
+                          fontSize: 8,
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -16187,10 +16231,13 @@ class _ProfilePageState extends State<ProfilePage> {
              CircleAvatar(
               radius: 38,
               backgroundColor: cyanAccent,
-              child: const CircleAvatar(
-                radius: 35,
-                backgroundImage: AssetImage('assets/brand/profile_avatar.jpg'),
-                backgroundColor: Color(0xFF244D70),
+              child: ClipOval(
+                child: SvgPicture.asset(
+                  'assets/brand/samanvay_profile_avatar.svg',
+                  width: 70,
+                  height: 70,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -16308,12 +16355,11 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 18),
         ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: Image.asset(
-            'assets/brand/profile_footer.jpg',
+          child: SvgPicture.asset(
+            'assets/brand/samanvay_profile_footer.svg',
             width: double.infinity,
             height: 59,
             fit: BoxFit.cover,
-            filterQuality: FilterQuality.high,
           ),
         ),
       ]);

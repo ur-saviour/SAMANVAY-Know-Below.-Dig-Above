@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="7680" height="4320" viewBox="0 0 1920 1080">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#061426"/><stop offset=".6" stop-color="#0B2B46"/><stop offset="1" stop-color="#075B66"/></linearGradient><radialGradient id="halo"><stop stop-color="#1DB6D2" stop-opacity=".46"/><stop offset="1" stop-color="#1DB6D2" stop-opacity="0"/></radialGradient><linearGradient id="ground" x2="0" y2="1"><stop stop-color="#294857"/><stop offset="1" stop-color="#0A1B2A"/></linearGradient></defs>
+<rect width="1920" height="1080" fill="url(#bg)"/><ellipse cx="1430" cy="500" rx="690" ry="560" fill="url(#halo)"/>
+<g fill="#071B2D"><path d="M650 695V440h82v255zM760 695V300h105v395zM890 695V420h90v275zM1000 695V230h140v465zM1160 695V375h100v320zM1280 695V310h122v385zM1430 695V185h150v510zM1610 695V355h100v340zM1730 695V260h125v435zM1880 695V430h40v265z"/></g>
+<g fill="#65DDF0" opacity=".55"><path d="M790 335h16v16h-16zM830 335h16v16h-16zM790 375h16v16h-16zM830 375h16v16h-16zM1025 280h20v17h-20zM1070 280h20v17h-20zM1025 322h20v17h-20zM1070 322h20v17h-20zM1450 245h22v16h-22zM1496 245h22v16h-22zM1450 284h22v16h-22zM1496 284h22v16h-22z"/></g>
+<path d="M0 696Q500 660 1000 695T1920 680V742H0Z" fill="#435E70"/><path d="M0 710Q500 674 1000 709T1920 694" stroke="#A5D2DE" stroke-opacity=".45" stroke-width="4" fill="none"/>
+<path d="M0 742Q500 715 1000 742T1920 725V1080H0Z" fill="url(#ground)"/>
+<path d="M0 850Q500 810 1000 848T1920 820M0 960Q500 930 1000 958T1920 930" stroke="#BCD0D7" stroke-opacity=".16" stroke-width="4" fill="none"/>
+<g fill="none" stroke-linecap="round"><path d="M-60 835C390 780 580 890 920 835S1510 792 1980 842" stroke="#0A2A42" stroke-width="60"/><path d="M-60 835C390 780 580 890 920 835S1510 792 1980 842" stroke="#38C9EB" stroke-width="36"/><path d="M-60 970C370 925 650 1005 1000 958S1560 942 1980 970" stroke="#513321" stroke-width="44"/><path d="M-60 970C370 925 650 1005 1000 958S1560 942 1980 970" stroke="#E9A15A" stroke-width="24"/><path d="M-60 1035C420 1000 720 1055 1060 1024S1600 1004 1980 1034" stroke="#9780E8" stroke-width="12"/></g>
+<g fill="#8BEFF2"><circle cx="470" cy="820" r="17"/><circle cx="1210" cy="825" r="17"/><circle cx="1670" cy="831" r="17"/></g>
+</svg>
