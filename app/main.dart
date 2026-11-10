@@ -13207,6 +13207,18 @@ class _MapPageState extends State<MapPage> {
           duration: const Duration(milliseconds: 900),
         );
         _pendingBasemapCamera = null;
+      } else if (widget.initialCenter != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: widget.initialCenter!,
+              zoom: widget.initialZoom,
+              tilt: widget.initialTilt,
+              bearing: 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 1000),
+        );
       } else {
         await _goToMyLocation();
       }
