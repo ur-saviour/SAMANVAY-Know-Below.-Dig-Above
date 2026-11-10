@@ -564,7 +564,7 @@ class _WavingFlagPainter extends CustomPainter {
     final reveal = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0).toDouble());
     final width = math.min(220.0, size.width * .62) * reveal;
     final height = width * 2 / 3;
-    final poleX = size.width * .43, top = size.height * .32, bottom = top + height;
+    final poleX = size.width * .40, top = size.height * .40, bottom = top + height;
     final pole = Paint()..color = const Color(0xFFD9E4EF)..strokeWidth = 3..strokeCap = StrokeCap.round;
     canvas.drawLine(Offset(poleX, top - 16), Offset(poleX, bottom + 14), pole);
     final phase = progress * math.pi * 4;
@@ -937,10 +937,21 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                                     ),
                                                   ),
                                                   const SizedBox(width: 11),
-                                                  const Icon(
-                                                    Icons.arrow_forward_rounded,
-                                                    color: Colors.white,
-                                                    size: 19,
+                                                  AnimatedSwitcher(
+                                                    duration: const Duration(milliseconds: 620),
+                                                    switchInCurve: Curves.elasticOut,
+                                                    switchOutCurve: Curves.easeInCubic,
+                                                    transitionBuilder: (child, animation) =>
+                                                        ScaleTransition(
+                                                      scale: animation,
+                                                      child: FadeTransition(opacity: animation, child: child),
+                                                    ),
+                                                    child: Icon(
+                                                      isStarting ? Icons.location_on_rounded : Icons.arrow_forward_rounded,
+                                                      key: ValueKey<bool>(isStarting),
+                                                      color: Colors.white,
+                                                      size: isStarting ? 27 : 19,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
