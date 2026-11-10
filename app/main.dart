@@ -4126,8 +4126,31 @@ class _AuthPageState extends State<AuthPage> {
     return Scaffold(
       backgroundColor: background,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/brand/splash_city.jpg',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xD9071425),
+                      Color(0xC6071425),
+                      Color(0xF0071425),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
@@ -4616,6 +4639,8 @@ class _AuthPageState extends State<AuthPage> {
           ),
         ),
       ),
+          ],
+        ),
       ),
     );
   }
