@@ -5384,7 +5384,15 @@ class _DashboardPageState extends State<DashboardPage> {
     final rawName = supabase.auth.currentUser?.userMetadata?['display_name'];
     final name = rawName == null || rawName.toString().trim().isEmpty
       ? 'there' : rawName.toString().trim();
-    final active = requests.length - count('completed') - count('rejected');
+    final resolved = requests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return status == 'completed' || status == 'resolved';
+    }).length;
+    final inactive = {'completed', 'resolved', 'rejected', 'cancelled'};
+    final active = requests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return status.isNotEmpty && !inactive.contains(status);
+    }).length;
 
     return Scaffold(
       backgroundColor: background,
@@ -5432,7 +5440,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 blurRadius: 20, offset: Offset(0, 9))]),
             child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
-              const _SamanvayBrandLogo(size: 126, radius: 29),
+              const _SamanvayBrandLogo(size: 146, radius: 31),
               const SizedBox(height: 9),
               const _AnimatedDevelopmentTagline(fontSize: 14),
               const SizedBox(height: 6),
@@ -5476,40 +5484,29 @@ class _DashboardPageState extends State<DashboardPage> {
             ]),
           ),
           const SizedBox(height: 15),
-          Card(
-            color: panelNavy,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(children: [
-                const _SamanvayBrandLogo(size: 52, radius: 13),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('PUBLIC TRANSPARENCY DASHBOARD',
-                    style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 11)),
-                  const SizedBox(height: 4),
-                  Text('Published projects, department activity and public impact across India.',
-                    style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
-                ])),
-                IconButton(
-                  tooltip: 'Open public transparency dashboard',
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => PublicTransparencyDashboardPage(
-                      client: supabase,
-                      onOpenMap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MapPage())),
-                      onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage())),
-                    ),
-                  )),
-                  icon: const Icon(Icons.arrow_forward_rounded),
-                ),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 19),
+          const SizedBox(height: 18),
+          Text('My activity', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('Live status of your infrastructure requests',
+            style: GoogleFonts.inter(color: mutedInk, fontSize: 11)),
+          const SizedBox(height: 11),
+          Row(children: [
+            metric('MY REQUESTS', loading ? '—' : '${requests.length}',
+              Icons.assignment_outlined, teal),
+            const SizedBox(width: 8),
+            metric('IN PROGRESS', loading ? '—' : '$active',
+              Icons.pending_actions, const Color(0xFFD28A28)),
+            const SizedBox(width: 8),
+            metric('RESOLVED', loading ? '—' : '$resolved',
+              Icons.task_alt, const Color(0xFF25845C)),
+          ]),
+          const SizedBox(height: 20),
           Text('Quick actions', style: GoogleFonts.spaceGrotesk(
             color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
           LayoutBuilder(builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 650 ? 5 : 2;
+            final columns = constraints.maxWidth >= 650 ? 5 : 4;
             const spacing = 9.0;
             final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
             Widget action(String title, IconData icon, Color accent, Widget page) =>
@@ -5537,29 +5534,40 @@ class _DashboardPageState extends State<DashboardPage> {
               action('New request', Icons.add_circle_outline, cyanAccent, const NewRequestPage()),
               action('Track requests', Icons.track_changes_outlined, const Color(0xFF7FC8FF), const RequestsPage()),
               action('3D GIS map', Icons.layers_outlined, const Color(0xFF8B9DFF), const MapPage()),
-              action('Public notices', Icons.campaign_outlined, const Color(0xFFF0B55A), const PublicExcavationTrackerPage()),
               action('Notifications', Icons.notifications_none_rounded, const Color(0xFFBFA7FF), const NotificationsPage()),
             ]);
           }),
-          const SizedBox(height: 23),
-          Text('Operational overview', style: GoogleFonts.spaceGrotesk(
-            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text('Your submitted infrastructure cases',
-            style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
-          const SizedBox(height: 13),
+          const SizedBox(height: 19),
+          Card(
+            color: panelNavy,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(children: [
+                const _SamanvayBrandLogo(size: 52, radius: 13),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('PUBLIC TRANSPARENCY DASHBOARD',
+                    style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 11)),
+                  const SizedBox(height: 4),
+                  Text('Published projects, department activity and verified public impact across India.',
+                    style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
+                ])),
+                IconButton(
+                  tooltip: 'Open public transparency dashboard',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => PublicTransparencyDashboardPage(
+                      client: supabase,
+                      onOpenMap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MapPage())),
+                      onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage())),
+                    ),
+                  )),
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                ),
+              ]),
+            ),
+          ),
           if (error != null) Padding(padding: const EdgeInsets.only(bottom: 10),
             child: Text(error!, style: const TextStyle(color: Colors.deepOrange))),
-          Row(children: [
-            metric('TOTAL CASES', loading ? '—' : '${requests.length}',
-              Icons.assignment_outlined, teal),
-            const SizedBox(width: 9),
-            metric('ACTIVE', loading ? '—' : '$active',
-              Icons.pending_actions, const Color(0xFFD28A28)),
-            const SizedBox(width: 9),
-            metric('COMPLETED', loading ? '—' : '${count('completed')}',
-              Icons.task_alt, const Color(0xFF25845C)),
-          ]),
           const SizedBox(height: 22),
           Text('Cases by infrastructure domain', style: GoogleFonts.spaceGrotesk(
             color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
