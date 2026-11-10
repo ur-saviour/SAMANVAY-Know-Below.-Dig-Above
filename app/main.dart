@@ -4260,9 +4260,9 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         border: Border.all(color: borderColor),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900)),
+        Text(value, style: TextStyle(color: ink, fontSize: 23, fontWeight: FontWeight.w900)),
         const SizedBox(height: 3),
-        Text(label, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 10)),
+        Text(label, style: TextStyle(color: mutedInk, fontSize: 10)),
       ]),
     ),
   );
@@ -4280,12 +4280,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       Icon(icon, color: cyanAccent, size: 23),
       const SizedBox(width: 11),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+        Text(title, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
         const SizedBox(height: 4),
-        Text(description, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.4)),
+        Text(description, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
         if (status != null) ...[
           const SizedBox(height: 7),
-          Text(status, style: const TextStyle(color: Color(0xFF8FDCE7), fontSize: 9, fontWeight: FontWeight.w800)),
+          Text(status, style: TextStyle(color: cyanAccent, fontSize: 9, fontWeight: FontWeight.w800)),
         ],
       ])),
     ]),
@@ -4334,7 +4334,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     panel('Infrastructure source coverage', 'The database contains 396 coverage-status rows across 11 domains. These rows track source readiness, not verified underground assets.', Icons.layers_outlined, status: '396 COVERAGE ROWS'),
     panel('Underground asset verification', 'Owner-submitted GIS requires source authorisation, evidence review and independent verification before operational use.', Icons.verified_user_outlined, status: 'NO LIVE ASSET GEOMETRY IN THIS DEMO'),
     Wrap(spacing: 7, runSpacing: 7, children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands'].map((r) => Chip(
-      label: Text(r, style: TextStyle(fontSize: 10, color: Colors.white)),
+      label: Text(r, style: TextStyle(fontSize: 10, color: ink)),
       backgroundColor: Color(0xFF102842),
       side: BorderSide(color: Color(0xFF25415E)),
     )).toList()),
@@ -4376,11 +4376,11 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: background,
     appBar: AppBar(
-      backgroundColor: const Color(0xFF10243A),
+      backgroundColor: navy,
       foregroundColor: Colors.white,
       title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('SAMANVAY STAFF WORKSPACE'),
-        Text('DEMO ID ${_activeStaffId} · $roleTitle', style: const TextStyle(color: Color(0xFF8FDCE7), fontSize: 9)),
+        Text('DEMO ID ${_activeStaffId} · $roleTitle', style: TextStyle(color: cyanAccent, fontSize: 9)),
       ]),
       actions: [
         IconButton(
@@ -4414,9 +4414,9 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         ]),
       ),
       const SizedBox(height: 12),
-      Text(roleTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+      Text(roleTitle, style: TextStyle(color: ink, fontSize: 22, fontWeight: FontWeight.w900)),
       const SizedBox(height: 4),
-      Text(roleDescription, style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 11, height: 1.4)),
+      Text(roleDescription, style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: metrics.map((m) => metric(m[0], m[1])).toList()),
       const SizedBox(height: 14),
@@ -10390,7 +10390,7 @@ class _MapLocationPickerPageState
       backgroundColor: const Color(0xFF101B29),
       appBar: AppBar(
         title: const Text('Select Work Location'),
-        backgroundColor: const Color(0xFF10243A),
+        backgroundColor: navy,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -10648,7 +10648,7 @@ class _LpuCampusModelPageState extends State<LpuCampusModelPage>
     return Scaffold(
       backgroundColor: background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF10243A),
+        backgroundColor: navy,
         foregroundColor: Colors.white,
         titleSpacing: 14,
         title: Column(
@@ -14432,7 +14432,7 @@ class _MapPageState extends State<MapPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF101B29),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF10243A),
+        backgroundColor: navy,
         foregroundColor: Colors.white,
         titleSpacing: 16,
         title: const Column(
