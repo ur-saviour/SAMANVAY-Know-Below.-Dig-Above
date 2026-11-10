@@ -174,7 +174,7 @@ jobs:
             exit 1
           fi
           cp -R app/assets/reference/. assets/reference/
-          cp app/assets/brand/samanvay_logo.jpg assets/brand/samanvay_logo.jpg
+          cp -R app/assets/brand/. assets/brand/
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
@@ -193,6 +193,7 @@ jobs:
             exit 1
           fi
           test -s assets/brand/samanvay_logo.jpg
+          test -s assets/brand/home_city_banner.jpg
           test -s lib/public_transparency_dashboard_page.dart
 
       # 5. Install dependencies
@@ -228,7 +229,10 @@ jobs:
               )
 
           groundwater_entry = "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"
-          brand_entry = "    - assets/brand/samanvay_logo.jpg"
+          brand_entries = [
+              "    - assets/brand/samanvay_logo.jpg",
+              "    - assets/brand/home_city_banner.jpg",
+          ]
           if groundwater_entry not in content:
               if asset_entry not in content:
                   raise SystemExit("Coimbatore ward asset entry not found")
@@ -237,8 +241,10 @@ jobs:
                   asset_entry + chr(10) + groundwater_entry,
                   1,
               )
-          if brand_entry not in content:
-              content = content.replace(groundwater_entry, groundwater_entry + chr(10) + brand_entry, 1)
+          for brand_entry in brand_entries:
+              if brand_entry not in content:
+                  content = content.replace(groundwater_entry, groundwater_entry + chr(10) + brand_entry, 1)
+                  groundwater_entry = brand_entry
           path.write_text(content)
           PY
           echo "Verifying Flutter asset declarations before build..."
@@ -315,7 +321,8 @@ jobs:
             for REQUIRED_ASSET in \
               "assets/flutter_assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" \
               "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson" \
-              "assets/flutter_assets/assets/brand/samanvay_logo.jpg"; do
+              "assets/flutter_assets/assets/brand/samanvay_logo.jpg" \
+              "assets/flutter_assets/assets/brand/home_city_banner.jpg"; do
               if ! unzip -l "$APK" | grep -Fq "$REQUIRED_ASSET"; then
                 echo "ERROR: Required GIS data asset missing from APK: $REQUIRED_ASSET"
                 exit 1
