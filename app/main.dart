@@ -496,10 +496,10 @@ class _SamanvaySplashReveal extends StatelessWidget {
     animation: controller,
     builder: (_, __) {
       final p = controller.value;
-      final orbit = (p / .70).clamp(0.0, 1.0);
-      final flag = ((p - .70) / .30).clamp(0.0, 1.0);
+      final orbit = (p / .70).clamp(0.0, 1.0).toDouble();
+      final flag = ((p - .70) / .30).clamp(0.0, 1.0).toDouble();
       final scale = 1 + Curves.easeInCubic.transform(flag) * 2.5;
-      final opacity = (1 - Curves.easeInCubic.transform(flag) * .94).clamp(.06, 1.0);
+      final opacity = (1 - Curves.easeInCubic.transform(flag) * .94).clamp(.06, 1.0).toDouble();
       final size = math.min(246.0, math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .58);
       return Scaffold(
         backgroundColor: const Color(0xFF030D1C),
@@ -555,7 +555,7 @@ class _WavingFlagPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (progress <= 0) return;
-    final reveal = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    final reveal = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0).toDouble());
     final width = math.min(220.0, size.width * .62) * reveal;
     final height = width * 2 / 3;
     final poleX = size.width * .43, top = size.height * .32, bottom = top + height;
