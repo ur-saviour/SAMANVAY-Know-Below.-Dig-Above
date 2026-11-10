@@ -16664,71 +16664,288 @@ class _ProfilePageState extends State<ProfilePage> {
 
 class PhoneNumberLinkPage extends StatefulWidget {
   const PhoneNumberLinkPage({super.key});
-
   @override
   State<PhoneNumberLinkPage> createState() => _PhoneNumberLinkPageState();
 }
 
 class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
+  final _phone = TextEditingController();
+  final _code = TextEditingController();
   String? _pendingPhone;
-  bool _otpSent = false;
-  bool _loading = false;
-  int _resendSeconds = 0;
-  Timer? _resendTimer;
+  bool _sent = false;
+  bool _busy = false;
+  int _resend = 0;
+  Timer? _timer;
   String? _message;
-  bool _messageSuccess = false;
+  bool _success = false;
 
   @override
   void initState() {
     super.initState();
-    _phoneController.text = supabase.auth.currentUser?.phone ?? '';
+    _phone.text = supabase.auth.currentUser?.phone ?? '';
   }
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _otpController.dispose();
-    _resendTimer?.cancel();
+    _phone.dispose();
+    _code.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
-  void _showMessage(String value, {bool success = false}) {
+  void _say(String value, {bool success = false}) {
     if (!mounted) return;
     setState(() {
       _message = value;
-      _messageSuccess = success;
+      _success = success;
     });
   }
 
-  void _startResendTimer() {
-    _resendTimer?.cancel();
-    setState(() => _resendSeconds = 60);
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+  void _countdown() {
+    _timer?.cancel();
+    setState(() => _resend = 60);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
-        return;
-      }
-      if (_resendSeconds <= 1) {
+      } else if (_resend <= 1) {
         timer.cancel();
-        setState(() => _resendSeconds = 0);
+        setState(() => _resend = 0);
       } else {
-        setState(() => _resendSeconds--);
+        setState(() => _resend--);
       }
     });
   }
 
-  Future<void> _sendPhoneOtp() async {
-    if (_loading) return;
+  bool _isE164(String value) {
+    if (!value.startsWith('+') || value.length < 9 || value.length > 16) {
+      return false;
+    }
+    return value.substring(1).codeUnits.every((unit) => unit >= 48 && unit <= 57);
+  }
+
+  Future<void> _send() async {
+    if (_busy) return;
     final user = supabase.auth.currentUser;
     if (user == null) {
-      _showMessage('Your session has expired. Sign in again with your email OTP.');
+      _say('Your session expired. Sign in with your email OTP first.');
       return;
     }
+    final number = _normalisePhoneForAuth(_phone.text);
+    if (!_isE164(number)) {
+      _say('Enter a valid mobile number. Indian 10-digit numbers are supported.');
+      return;
+    }
+    if (user.phone == number) {
+      _say('This number is already verified on your account.', success: true);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await supabase.auth.updateUser(UserAttributes(phone: number));
+      _pendingPhone = number;
+      _code.clear();
+      setState(() {
+        _sent = true;
+      });
+      _say('A verification code was requested for ' + number + '.', success: true);
+      _countdown();
+    } on AuthException catch (error) {
+      _say(error.message);
+    } catch (_) {
+      _say('Unable to request a verification code. Check SMS provider configuration.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
-    final phone = _normalisePhoneForAuth(_phoneController.text);
-    if (!RegExp(r'^\\+[1-9]\\d{7,14}
+  Future<void> _resendCode() async {
+    if (_busy || _resend > 0 || _pendingPhone == null) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await supabase.auth.resend(
+        type: OtpType.phoneChange,
+        phone: _pendingPhone,
+      );
+      _say('A new verification code was requested.', success: true);
+      _countdown();
+    } on AuthException catch (error) {
+      _say(error.message);
+    } catch (_) {
+      _say('Unable to resend the code. Try again later.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _verify() async {
+    if (_busy || _pendingPhone == null) return;
+    final token = _code.text.trim();
+    if (token.length != 6 || int.tryParse(token) == null) {
+      _say('Enter the six-digit verification code.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await supabase.auth.verifyOTP(
+        phone: _pendingPhone,
+        token: token,
+        type: OtpType.phoneChange,
+      );
+      final refreshed = await supabase.auth.getUser();
+      if (refreshed.user?.phone != _pendingPhone) {
+        _say('The new number is not yet confirmed by Supabase. Complete any additional verification requested by your account settings.');
+        return;
+      }
+      _timer?.cancel();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mobile number verified and linked.')),
+      );
+      Navigator.of(context).pop(true);
+    } on AuthException catch (error) {
+      _say(error.message);
+    } catch (_) {
+      _say('Unable to verify the code. Check the latest SMS code and try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _changeNumber() {
+    _timer?.cancel();
+    setState(() {
+      _sent = false;
+      _pendingPhone = null;
+      _code.clear();
+      _resend = 0;
+      _message = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = supabase.auth.currentUser?.phone ?? '';
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(title: const Text('Link mobile number')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Card(
+              color: panelNavy,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.verified_user_outlined, color: cyanAccent, size: 28),
+                    const SizedBox(height: 10),
+                    Text('Verify a number for phone sign-in',
+                      style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 18)),
+                    const SizedBox(height: 8),
+                    Text(
+                      current.isEmpty
+                          ? 'Your account has no verified mobile number. Sign in with email first, then verify a number here. Your role and account records will remain unchanged.'
+                          : 'A verified mobile number is already linked. You can verify a replacement number.',
+                      style: TextStyle(color: mutedInk, fontSize: 12, height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _phone,
+              enabled: !_sent && !_busy,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Mobile number',
+                hintText: '+91 9876543210 or 9876543210',
+                prefixIcon: Icon(Icons.phone_android_rounded),
+                border: OutlineInputBorder(),
+                helperText: 'Indian 10-digit numbers are automatically prefixed with +91.',
+              ),
+            ),
+            if (_sent) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _code,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Six-digit SMS code',
+                  hintText: '000000',
+                  prefixIcon: Icon(Icons.sms_outlined),
+                  border: OutlineInputBorder(),
+                  counterText: '',
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _busy || _resend > 0 ? null : _resendCode,
+                      child: Text(_resend > 0 ? 'Resend in ' + _resend.toString() + 's' : 'Resend code'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _busy ? null : _changeNumber,
+                      child: const Text('Change number'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (_message != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _success ? const Color(0xFFE2F4EB) : const Color(0xFFFFE9E8),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _message!,
+                  style: TextStyle(
+                    color: _success ? const Color(0xFF145B3B) : const Color(0xFF8A2525),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _busy ? null : (_sent ? _verify : _send),
+              style: FilledButton.styleFrom(
+                backgroundColor: electricBlue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: _busy
+                  ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_sent ? 'VERIFY MOBILE NUMBER' : 'SEND VERIFICATION CODE'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class CaseWorkspacePage extends StatefulWidget {
   final String requestId;
   final String requestTitle;
