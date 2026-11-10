@@ -69,14 +69,14 @@ class _PublicExcavationTrackerPageState extends State<PublicExcavationTrackerPag
       if (!mounted) return;
       final events = List<Map<String, dynamic>>.from(rows);
       await showModalBottomSheet<void>(
-        context: context, isScrollControlled: true, backgroundColor: Colors.white,
+        context: context, isScrollControlled: true, backgroundColor: Theme.of(context).colorScheme.surface,
         builder: (sheet) => SafeArea(child: SizedBox(
           height: MediaQuery.of(sheet).size.height * .65,
           child: events.isEmpty
             ? const Center(child: Text('No published progress events are available.'))
             : ListView(padding: const EdgeInsets.all(16), children: [
                 Text((notice['title'] ?? 'Public work notice').toString(),
-                  style: TextStyle(fontWeight: FontWeight.w800, color: _trackerNavy)),
+                  style: TextStyle(fontWeight: FontWeight.w800, color: _trackerInk)),
                 const SizedBox(height: 12),
                 ...events.map((event) => ListTile(
                   leading: Icon(Icons.timeline_rounded, color: _trackerBlue),
@@ -265,7 +265,7 @@ class _PublicExcavationTrackerPageState extends State<PublicExcavationTrackerPag
               visualDensity: VisualDensity.compact),
           ]),
           Text((notice['title'] ?? 'Infrastructure work notice').toString(),
-            style: GoogleFonts.spaceGrotesk(color: _trackerNavy, fontSize: 17, fontWeight: FontWeight.w700)),
+            style: GoogleFonts.spaceGrotesk(color: _trackerInk, fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Text(location.isEmpty ? 'Location not specified' : location,
             style: TextStyle(color: _trackerMuted, fontSize: 12)),
