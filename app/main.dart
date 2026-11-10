@@ -4220,14 +4220,23 @@ class _AuthPageState extends State<AuthPage> {
                                 : null,
                             borderRadius: BorderRadius.circular(12),
                             child: Container(
-                              padding: const EdgeInsets.all(11),
+                              padding: const EdgeInsets.all(13),
                               decoration: BoxDecoration(
-                                color: standard
-                                    ? (_usesLegacyLightPalette
-                                        ? const Color(0xFFE5F4F1)
-                                        : const Color(0xFF12384B))
-                                    : panelNavy,
-                                borderRadius: BorderRadius.circular(12),
+                                color: _usesLegacyLightPalette
+                                    ? (standard ? const Color(0xFFE5F4F1) : Colors.white)
+                                    : null,
+                                gradient: _usesLegacyLightPalette
+                                    ? null
+                                    : LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: standard
+                                            ? const [Color(0xFF1353A5), Color(0xFF4236A6)]
+                                            : canOpenDemo
+                                                ? const [Color(0xFF174A60), Color(0xFF233A61)]
+                                                : const [Color(0xFF152944), Color(0xFF1B2946)],
+                                      ),
+                                borderRadius: BorderRadius.circular(15),
                                 border: Border.all(
                                   color: canOpenDemo
                                       ? cyanAccent.withValues(alpha: .72)
@@ -4235,15 +4244,37 @@ class _AuthPageState extends State<AuthPage> {
                                           ? cyanAccent.withValues(alpha: .65)
                                           : borderColor),
                                 ),
+                                boxShadow: _usesLegacyLightPalette
+                                    ? const []
+                                    : [
+                                        BoxShadow(
+                                          color: (standard ? const Color(0xFF2869F5) : cyanAccent)
+                                              .withValues(alpha: standard ? .20 : .08),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 5),
+                                        ),
+                                      ],
                               ),
                               child: Row(children: [
-                                Icon(
-                                  icon,
-                                  color: standard || canOpenDemo
-                                      ? cyanAccent
-                                      : const Color(0xFFB5C8D8),
-                                  size: 20,
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: (standard || canOpenDemo
+                                            ? cyanAccent
+                                            : const Color(0xFF9FB2C9))
+                                        .withValues(alpha: .15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    icon,
+                                    color: standard || canOpenDemo
+                                        ? cyanAccent
+                                        : const Color(0xFFB5C8D8),
+                                    size: 21,
+                                  ),
                                 ),
+                                const SizedBox(width: 10),
                                 const SizedBox(width: 9),
                                 Expanded(
                                   child: Column(
@@ -11575,17 +11606,22 @@ class _LpuCampusModelPageState extends State<LpuCampusModelPage>
               aspectRatio: compact ? 0.88 : 1.42,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-                child: AnimatedBuilder(
-                  animation: _flowController,
-                  builder: (context, _) => CustomPaint(
-                    painter: _LpuCampusModelPainter(
-                      flow: _flowController.value,
-                      waterVisible: _waterVisible,
-                      sewerVisible: _sewerVisible,
-                      powerVisible: _powerVisible,
-                      fibreVisible: _fibreVisible,
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 2.8,
+                  boundaryMargin: const EdgeInsets.all(44),
+                  child: AnimatedBuilder(
+                    animation: _flowController,
+                    builder: (context, _) => CustomPaint(
+                      painter: _LpuCampusModelPainter(
+                        flow: _flowController.value,
+                        waterVisible: _waterVisible,
+                        sewerVisible: _sewerVisible,
+                        powerVisible: _powerVisible,
+                        fibreVisible: _fibreVisible,
+                      ),
+                      child: const SizedBox.expand(),
                     ),
-                    child: const SizedBox.expand(),
                   ),
                 ),
               ),
