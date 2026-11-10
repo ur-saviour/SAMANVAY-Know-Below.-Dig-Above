@@ -245,174 +245,176 @@ class SamanvayApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: background,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: electricBlue,
-        brightness: Brightness.dark,
-        primary: electricBlue,
-        secondary: cyanAccent,
-        surface: panelNavy,
-      ),
-      fontFamily: 'Inter',
-      appBarTheme: AppBarTheme(
-        backgroundColor: navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        titleTextStyle: GoogleFonts.spaceGrotesk(
-          color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: navy,
-        indicatorColor: cyanAccent.withValues(alpha: 0.18),
-        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) =>
-          GoogleFonts.inter(
-            color: states.contains(WidgetState.selected) ? cyanAccent : mutedInk,
-            fontSize: 10,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
-          )),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: panelNavy,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide:  BorderSide(color: cyanAccent, width: 1.7),
-        ),
-        labelStyle:  TextStyle(color: mutedInk),
-        hintStyle:  TextStyle(color: mutedInk),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: electricBlue,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-        ),
-      ),
-      cardTheme: CardThemeData(
-        color: panelNavy, elevation: 0, margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: borderColor)),
-      ),
-    );
-    final lightTheme = ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: background,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: teal,
-        brightness: Brightness.light,
-        primary: teal,
-        secondary: teal,
-        surface: Colors.white,
-        onSurface: navy,
-      ),
-      fontFamily: 'Inter',
-      appBarTheme: AppBarTheme(
-        backgroundColor: navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        titleTextStyle: GoogleFonts.spaceGrotesk(
-          color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
-      ),
-      cardTheme: CardThemeData(
-        color: Colors.white,
-        elevation: 1,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: borderColor),
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFDCEFEB),
-        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) =>
-          GoogleFonts.inter(
-            color: states.contains(WidgetState.selected) ? teal : mutedInk,
-            fontSize: 10,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
-          )),
-      ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFDCEFEB),
-        selectedIconTheme: IconThemeData(color: teal),
-        unselectedIconTheme: IconThemeData(color: mutedInk),
-        selectedLabelTextStyle: TextStyle(color: teal, fontWeight: FontWeight.w800, fontSize: 10),
-        unselectedLabelTextStyle: TextStyle(color: mutedInk, fontSize: 10),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: teal, width: 1.7),
-        ),
-        labelStyle: TextStyle(color: mutedInk),
-        hintStyle: TextStyle(color: mutedInk),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: teal,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: teal,
-          side: BorderSide(color: teal.withValues(alpha: .65)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-        ),
-      ),
-      dialogTheme: const DialogThemeData(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-      dividerTheme: DividerThemeData(color: borderColor, thickness: 1),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: navy,
-        contentTextStyle: const TextStyle(color: Colors.white),
-      ),
-    );
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: samanvayThemeMode,
-      builder: (context, mode, _) => MaterialApp(
+      builder: (context, mode, _) {
+          final theme = ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: background,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: electricBlue,
+              brightness: Brightness.dark,
+              primary: electricBlue,
+              secondary: cyanAccent,
+              surface: panelNavy,
+            ),
+            fontFamily: 'Inter',
+            appBarTheme: AppBarTheme(
+              backgroundColor: navy,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              titleTextStyle: GoogleFonts.spaceGrotesk(
+                color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
+            ),
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: navy,
+              indicatorColor: cyanAccent.withValues(alpha: 0.18),
+              labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) =>
+                GoogleFonts.inter(
+                  color: states.contains(WidgetState.selected) ? cyanAccent : mutedInk,
+                  fontSize: 10,
+                  fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+                )),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: panelNavy,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide:  BorderSide(color: cyanAccent, width: 1.7),
+              ),
+              labelStyle:  TextStyle(color: mutedInk),
+              hintStyle:  TextStyle(color: mutedInk),
+            ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                backgroundColor: electricBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              ),
+            ),
+            cardTheme: CardThemeData(
+              color: panelNavy, elevation: 0, margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: borderColor)),
+            ),
+          );
+          final lightTheme = ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: background,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: teal,
+              brightness: Brightness.light,
+              primary: teal,
+              secondary: teal,
+              surface: Colors.white,
+              onSurface: navy,
+            ),
+            fontFamily: 'Inter',
+            appBarTheme: AppBarTheme(
+              backgroundColor: navy,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              titleTextStyle: GoogleFonts.spaceGrotesk(
+                color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
+            ),
+            cardTheme: CardThemeData(
+              color: Colors.white,
+              elevation: 1,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: borderColor),
+              ),
+            ),
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: Colors.white,
+              indicatorColor: const Color(0xFFDCEFEB),
+              labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) =>
+                GoogleFonts.inter(
+                  color: states.contains(WidgetState.selected) ? teal : mutedInk,
+                  fontSize: 10,
+                  fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+                )),
+            ),
+            navigationRailTheme: NavigationRailThemeData(
+              backgroundColor: Colors.white,
+              indicatorColor: const Color(0xFFDCEFEB),
+              selectedIconTheme: IconThemeData(color: teal),
+              unselectedIconTheme: IconThemeData(color: mutedInk),
+              selectedLabelTextStyle: TextStyle(color: teal, fontWeight: FontWeight.w800, fontSize: 10),
+              unselectedLabelTextStyle: TextStyle(color: mutedInk, fontSize: 10),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: teal, width: 1.7),
+              ),
+              labelStyle: TextStyle(color: mutedInk),
+              hintStyle: TextStyle(color: mutedInk),
+            ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                backgroundColor: teal,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              ),
+            ),
+            outlinedButtonTheme: OutlinedButtonThemeData(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: teal,
+                side: BorderSide(color: teal.withValues(alpha: .65)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+            ),
+            bottomSheetTheme: const BottomSheetThemeData(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+            ),
+            dividerTheme: DividerThemeData(color: borderColor, thickness: 1),
+            snackBarTheme: SnackBarThemeData(
+              backgroundColor: navy,
+              contentTextStyle: const TextStyle(color: Colors.white),
+            ),
+          );
+      return MaterialApp(
         title: 'SAMANVAY — Know Below. Dig Above.',
         debugShowCheckedModeBanner: false,
         theme: lightTheme,
         darkTheme: theme,
         themeMode: mode,
         home: const OpeningExperience(),
-      ),
+      );
+    },
     );
   }
 }
@@ -1621,8 +1623,8 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         icon: Icon(icon, size: 15),
         label: Text(label),
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFB5F2E7),
-          side: const BorderSide(color: Color(0x6647BDB3)),
+          foregroundColor: _usesLegacyLightPalette ? teal : const Color(0xFFB5F2E7),
+          side: BorderSide(color: _usesLegacyLightPalette ? teal.withValues(alpha: .55) : const Color(0x6647BDB3)),
           backgroundColor: panelNavy,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
@@ -3140,7 +3142,9 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [navy, Color(0xFF11485A), Color(0xFF0B5E62)],
+                  colors: _usesLegacyLightPalette
+                      ? [const Color(0xFFE5F4F1), const Color(0xFFF4F7FA), Colors.white]
+                      : [navy, const Color(0xFF11485A), const Color(0xFF0B5E62)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(18),
@@ -3157,18 +3161,18 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                         borderRadius: BorderRadius.circular(13),
                         border: Border.all(color: const Color(0x664ED1BF)),
                       ),
-                      child: Icon(widget.icon, color: const Color(0xFFB9F3E8), size: 25),
+                      child: Icon(widget.icon, color: _usesLegacyLightPalette ? teal : const Color(0xFFB9F3E8), size: 25),
                     ),
                     const SizedBox(width: 12),
                     const Expanded(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('SAMANVAY',
-                          style: TextStyle(color: Colors.white, fontSize: 20,
+                          style: TextStyle(color: _usesLegacyLightPalette ? navy : Colors.white, fontSize: 20,
                             fontWeight: FontWeight.w900, letterSpacing: 1.15)),
                         SizedBox(height: 3),
                         Text('INTEGRATED INFRASTRUCTURE CLEARANCE PORTAL',
-                          style: TextStyle(color: Color(0xFFB4D1DB), fontSize: 8,
+                          style: TextStyle(color: _usesLegacyLightPalette ? mutedInk : const Color(0xFFB4D1DB), fontSize: 8,
                             fontWeight: FontWeight.w800, letterSpacing: 0.7)),
                       ],
                     )),
@@ -3190,12 +3194,12 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   const SizedBox(height: 15),
                   Text(
                     widget.title,
-                    style: const TextStyle(color: Colors.white, fontSize: 22,
+                    style: TextStyle(color: _usesLegacyLightPalette ? navy : Colors.white, fontSize: 22,
                       fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 6),
                   Text('Welcome, $displayName',
-                    style: const TextStyle(color: Color(0xFFD0E3E8), fontSize: 12)),
+                    style: TextStyle(color: _usesLegacyLightPalette ? mutedInk : const Color(0xFFD0E3E8), fontSize: 12)),
                   const SizedBox(height: 8),
                   Text(widget.subtitle,
                     style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
@@ -3896,7 +3900,7 @@ class _AuthPageState extends State<AuthPage> {
                                       const SizedBox(height: 3),
                                       Text(
                                         canOpenDemo
-                                            ? 'Open public demonstration workspace'
+                                            ? 'Open official demonstration portal'
                                             : detail,
                                         style: TextStyle(
                                           color: mutedInk,
@@ -3956,7 +3960,7 @@ class _AuthPageState extends State<AuthPage> {
                   }),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap any official role to open its permanent public demo workspace. Demo content is synthetic and read-only; live records and administrative actions still require an authorised account.',
+                    'Tap an official role to open its interactive demonstration portal. Sample case updates and assignments are simulated locally; live records and protected actions still require an authorised account.',
                     style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
                   ),
                   const SizedBox(height: 16),
@@ -3974,7 +3978,7 @@ class _AuthPageState extends State<AuthPage> {
                       prefixIcon: Icon(isLogin ? Icons.alternate_email_rounded : Icons.email_outlined),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
-                          ? 'Use your registered credentials for live access, or tap an official role above to open its public read-only demonstration.'
+                          ? 'Use your registered credentials for live access, or tap an official role above to open its interactive demonstration portal.'
                           : null,
                       helperMaxLines: 2,
                     ),
@@ -4041,7 +4045,7 @@ class _AuthPageState extends State<AuthPage> {
                     OutlinedButton.icon(
                       onPressed: loading ? null : openStaffDemoPreview,
                       icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('OPEN READ-ONLY STAFF PREVIEW'),
+                      label: const Text('OPEN OFFICIAL DEMO PORTAL'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: cyanAccent,
                         side: const BorderSide(color: Color(0xFF2D6A87)),
@@ -4203,22 +4207,109 @@ class _StaffDemoPreview extends StatefulWidget {
 }
 
 class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
-  String section = 'Overview';
+  static const List<String> _departments = [
+    'Water Supply / PHED',
+    'Roads and Highways',
+    'Urban Local Bodies',
+    'Sewerage and Drainage',
+    'Electricity Distribution',
+    'Telecommunications',
+    'Town Planning',
+  ];
+
   late String _activeRole;
   late String _activeStaffId;
+  String _section = 'Overview';
+  final List<Map<String, dynamic>> _cases = [];
+  final List<String> _activity = ['Demo workspace opened'];
 
   @override
   void initState() {
     super.initState();
     _activeRole = widget.role;
     _activeStaffId = widget.staffId;
+    _cases.addAll([
+      {
+        'id': 'DEMO-2026-001',
+        'title': 'Water pipeline replacement',
+        'domain': 'Water supply',
+        'department': 'Water Supply / PHED',
+        'status': 'Under review',
+        'priority': 'High',
+        'location': 'Avinashi Road, Coimbatore',
+        'assigned': ['Water Supply / PHED', 'Roads and Highways'],
+        'description': 'Illustrative pipeline-renewal case linked to road restoration.',
+      },
+      {
+        'id': 'DEMO-2026-002',
+        'title': 'Road resurfacing and fibre duct work',
+        'domain': 'Road reconstruction',
+        'department': 'Roads and Highways',
+        'status': 'Under coordination',
+        'priority': 'Medium',
+        'location': 'Gandhipuram, Coimbatore',
+        'assigned': ['Roads and Highways', 'Telecommunications'],
+        'description': 'Illustrative joint-work opportunity for resurfacing and telecom duct maintenance.',
+      },
+      {
+        'id': 'DEMO-2026-003',
+        'title': 'Stormwater drain obstruction',
+        'domain': 'Drainage',
+        'department': 'Urban Local Bodies',
+        'status': 'Submitted',
+        'priority': 'High',
+        'location': 'RS Puram, Coimbatore',
+        'assigned': ['Urban Local Bodies', 'Sewerage and Drainage'],
+        'description': 'Illustrative drainage inspection request with a frontage-access observation.',
+      },
+      {
+        'id': 'DEMO-2026-004',
+        'title': 'Building floor compliance inspection',
+        'domain': 'Building compliance',
+        'department': 'Town Planning',
+        'status': 'Assigned',
+        'priority': 'Medium',
+        'location': 'Peelamedu, Coimbatore',
+        'assigned': ['Town Planning'],
+        'description': 'Illustrative site-inspection record for comparison against an approved plan.',
+      },
+      {
+        'id': 'DEMO-2026-005',
+        'title': 'Groundwater and borewell observation',
+        'domain': 'Groundwater',
+        'department': 'Water Supply / PHED',
+        'status': 'Submitted',
+        'priority': 'Low',
+        'location': 'Saravanampatti, Coimbatore',
+        'assigned': ['Water Supply / PHED'],
+        'description': 'Illustrative groundwater observation; not a regulatory determination.',
+      },
+    ]);
   }
 
+  String get _roleTitle => switch (_activeRole) {
+    'admin' => 'Administrator Portal',
+    'coordinator' => 'Coordinator Portal',
+    'department' => 'Department Officer Portal',
+    _ => 'Official Demo Portal',
+  };
+
+  String get _roleDescription => switch (_activeRole) {
+    'admin' => 'National overview, platform governance and department administration',
+    'coordinator' => 'Cross-department coordination, escalations and work-conflict review',
+    'department' => 'Assigned department cases, technical reviews and field-work coordination',
+    _ => 'Official workspace demonstration',
+  };
+
+  List<List<String>> get _metrics => switch (_activeRole) {
+    'admin' => [['36', 'States / UTs'], ['11', 'Service domains'], ['5', 'Sample cases'], ['7', 'Regions']],
+    'coordinator' => [['5', 'Sample cases'], ['2', 'Joint-work links'], ['7', 'Departments'], ['36', 'Jurisdictions']],
+    'department' => [['3', 'Assigned samples'], ['2', 'Review actions'], ['1', 'Field inspection'], ['1', 'Pending report']],
+    _ => const [],
+  };
+
   Future<void> _switchProfiles() async {
-    final selected = await _showProfileSwitcher(
-      context,
-      currentRole: _activeRole,
-    );
+    final selected = await _showProfileSwitcher(context, currentRole: _activeRole);
     if (!mounted || selected == null) return;
     if (selected == 'requester') {
       widget.onExit();
@@ -4227,229 +4318,437 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     setState(() {
       _activeRole = selected;
       _activeStaffId = _publicDemoStaffIds[selected]!;
-      section = 'Overview';
+      _section = 'Overview';
     });
   }
 
-  String get roleTitle => switch (_activeRole) {
-    'admin' => 'Administrator',
-    'coordinator' => 'National coordinator',
-    'department' => 'Department officer · Water Supply',
-    _ => 'Staff preview',
-  };
+  Future<void> _toggleTheme() async {
+    final enabled = samanvayThemeMode.value != ThemeMode.light;
+    samanvayThemeMode.value = enabled ? ThemeMode.light : ThemeMode.dark;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('samanvay_light_mode', enabled);
+  }
 
-  String get roleDescription => switch (_activeRole) {
-    'admin' => 'National oversight, platform governance and department administration',
-    'coordinator' => 'Cross-department coordination, escalations and conflict review',
-    'department' => 'Water-supply operations, assigned cases and field evidence',
-    _ => 'Staff workspace',
-  };
+  void _record(String message) {
+    setState(() {
+      _activity.insert(0, message);
+      if (_activity.length > 10) _activity.removeLast();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message + ' · demo session only'), behavior: SnackBarBehavior.floating),
+    );
+  }
 
-  List<List<String>> get metrics => switch (_activeRole) {
-    'admin' => [['36', 'States / UTs'], ['11', 'Departments'], ['396', 'Coverage rows'], ['0', 'District / ULB imports']],
-    'coordinator' => [['4', 'Sample cases'], ['3', 'Sample reviews'], ['11', 'Departments'], ['36', 'Jurisdictions']],
-    'department' => [['04', 'Sample assigned cases'], ['02', 'Field inspections'], ['03', 'Evidence items'], ['01', 'Pending report']],
-    _ => const [],
-  };
-
-  Widget metric(String value, String label) => SizedBox(
+  Widget _metricCard(String value, String label) => SizedBox(
     width: 145,
-    child: Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: panelNavy,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: TextStyle(color: ink, fontSize: 23, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 3),
-        Text(label, style: TextStyle(color: mutedInk, fontSize: 10)),
-      ]),
-    ),
-  );
-
-  Widget panel(String title, String description, IconData icon, {String? status}) => Container(
-    width: double.infinity,
-    margin: const EdgeInsets.only(bottom: 9),
-    padding: const EdgeInsets.all(13),
-    decoration: BoxDecoration(
-      color: panelNavy,
-      borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: borderColor),
-    ),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, color: cyanAccent, size: 23),
-      const SizedBox(width: 11),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
-        const SizedBox(height: 4),
-        Text(description, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
-        if (status != null) ...[
-          const SizedBox(height: 7),
-          Text(status, style: TextStyle(color: cyanAccent, fontSize: 9, fontWeight: FontWeight.w800)),
-        ],
-      ])),
-    ]),
-  );
-
-  Widget overview() => Column(children: [
-    panel('Role-based command dashboard', roleDescription, Icons.dashboard_customize_outlined, status: 'LOCAL PREVIEW · NO LIVE DATA'),
-    panel('Multi-department case register', 'Road reconstruction, water supply, sewerage, drainage, electricity, telecom and building-compliance workflows.', Icons.assignment_outlined),
-    panel('National GIS workspace', 'Jurisdiction coverage, reference layers and authority-owned evidence. Exact underground geometry remains restricted to authorised workflows.', Icons.map_outlined),
-    panel('Alerts and audit trail', 'Production records reviews, assignments, status changes and user actions with role checks and database policies.', Icons.notifications_active_outlined),
-    const SizedBox(height: 6),
-    SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: TextStyle(color: ink, fontSize: 23, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 3),
+            Text(label, style: TextStyle(color: mutedInk, fontSize: 10)),
+          ],
         ),
-        icon: const Icon(Icons.view_in_ar_rounded),
-        label: const Text('OPEN LPU CAMPUS UNDERGROUND MODEL'),
       ),
     ),
-  ]);
+  );
 
-  Widget caseQueue() {
-    final rows = _activeRole == 'department'
-      ? const [
-          ['Water-pipeline maintenance review', 'Water Supply · Sample case', 'UNDER REVIEW'],
-          ['Leakage complaint and site inspection', 'PHED · Sample case', 'ASSIGNED'],
-          ['Road restoration after utility work', 'Roads · Sample case', 'COORDINATION'],
-        ]
-      : const [
-          ['Road reconstruction schedule', 'Roads · Sample case', 'COORDINATION'],
-          ['Water-supply pipeline repair', 'Water Supply · Sample case', 'UNDER REVIEW'],
-          ['Stormwater drain obstruction', 'Drainage · Sample case', 'PENDING REVIEW'],
-          ['Building-plan compliance inspection', 'Planning · Sample case', 'ASSIGNED'],
-        ];
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-       Text('Illustrative cards only; these are not live case records.', style: TextStyle(color: mutedInk, fontSize: 10)),
-      const SizedBox(height: 10),
-      ...rows.map((r) => panel(r[0], r[1], Icons.assignment_turned_in_outlined, status: r[2])),
-    ]);
-  }
+  Widget _panel(String title, String description, IconData icon, {String? status}) => Card(
+    margin: const EdgeInsets.only(bottom: 9),
+    child: Padding(
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: teal, size: 23),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
+                const SizedBox(height: 4),
+                Text(description, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+                if (status != null) ...[
+                  const SizedBox(height: 7),
+                  Text(status, style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
-  Widget gisCoverage() => Column(children: [
-    panel('India-wide jurisdiction explorer', 'All 36 State / Union Territory master records are grouped into seven browsing regions.', Icons.public_outlined, status: '36 JURISDICTIONS'),
-    panel('Infrastructure source coverage', 'The database contains 396 coverage-status rows across 11 domains. These rows track source readiness, not verified underground assets.', Icons.layers_outlined, status: '396 COVERAGE ROWS'),
-    panel('Underground asset verification', 'Owner-submitted GIS requires source authorisation, evidence review and independent verification before operational use.', Icons.verified_user_outlined, status: 'NO LIVE ASSET GEOMETRY IN THIS DEMO'),
-    Wrap(spacing: 7, runSpacing: 7, children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands'].map((r) => Chip(
-      label: Text(r, style: TextStyle(fontSize: 10, color: ink)),
+  Widget _sectionChip(String name) => Padding(
+    padding: const EdgeInsets.only(right: 7),
+    child: ChoiceChip(
+      label: Text(name, style: TextStyle(fontSize: 10, color: _section == name ? teal : ink)),
+      selected: _section == name,
+      selectedColor: teal.withValues(alpha: .14),
       backgroundColor: panelNavy,
-      side: BorderSide(color: borderColor),
-    )).toList()),
-  ]);
+      side: BorderSide(color: _section == name ? teal : borderColor),
+      onSelected: (_) => setState(() => _section = name),
+    ),
+  );
 
-  Widget coordination() {
-    const depts = [
-      ['Water Supply / PHED', 'Pipelines, leakages, valves and water-service work'],
-      ['Roads and Highways', 'Road cuts, restoration schedules and right-of-way'],
-      ['Urban Local Bodies', 'Municipal works, drainage and local service coordination'],
-      ['Sewerage and Drainage', 'Sewer networks, stormwater drains and inspections'],
-      ['Electricity Distribution', 'Power-line coordination and utility-owner evidence'],
-      ['Telecom and Gas', 'Fibre, ducts and city-gas coordination'],
-    ];
-    return Column(children: depts.map((d) => panel(
-      d[0], d[1], Icons.account_balance_outlined,
-      status: _activeRole == 'department' && d[0].startsWith('Water') ? 'YOUR SAMPLE DEPARTMENT' : 'CROSS-DEPARTMENT DIRECTORY',
-    )).toList());
+  Future<void> _showCase(Map<String, dynamic> item) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(item['title'].toString()),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('CASE ID: ' + item['id'].toString()),
+              Text('Domain: ' + item['domain'].toString()),
+              Text('Department: ' + item['department'].toString()),
+              Text('Location: ' + item['location'].toString()),
+              Text('Priority: ' + item['priority'].toString()),
+              Text('Status: ' + item['status'].toString()),
+              const SizedBox(height: 10),
+              Text(item['description'].toString()),
+              const SizedBox(height: 10),
+              Text(
+                'Synthetic demonstration record. No live citizen or department record is opened.',
+                style: TextStyle(color: mutedInk, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
   }
 
-  Widget governance() => Column(children: [
-    panel('Role and department permissions', 'Production access is resolved from the authenticated Supabase profile. Staff cannot grant themselves administrator or coordinator access.', Icons.admin_panel_settings_outlined),
-    panel('Source and evidence registry', 'Store originating authority, publication date, checksum and verification status with imported datasets.', Icons.source_outlined),
-    panel('Audit and approval history', 'Protected operations record actor, timestamp, case identifier and decision rationale.', Icons.history_edu_outlined),
-    panel('Data readiness', 'District / ULB rows still need a validated LGD import. Underground asset points remain separate from directory and coverage records.', Icons.fact_check_outlined, status: 'IMPORT AND AUTHORITY VERIFICATION REQUIRED'),
-  ]);
+  Future<void> _updateCase(Map<String, dynamic> item) async {
+    final choices = _activeRole == 'department'
+        ? const ['Under review', 'Approved', 'Clarification required']
+        : const ['Under review', 'Approved', 'Conflict detected', 'Completed', 'Rejected'];
+    var selected = choices.first;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Update demonstration case'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Current status: ' + item['status'].toString()),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Select status'),
+                items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => selected = value);
+                },
+              ),
+              const SizedBox(height: 8),
+              Text('This updates the sample record in this device session only.', style: TextStyle(color: mutedInk, fontSize: 10)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save demo update')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() => item['status'] = result);
+    _record(item['id'].toString() + ' status changed to ' + result);
+  }
 
-  Widget selectedContent() {
-    switch (section) {
-      case 'Case queue': return caseQueue();
-      case 'GIS & coverage': return gisCoverage();
-      case 'Department coordination': return coordination();
-      case 'Governance': return governance();
-      default: return overview();
+  Future<void> _assignDepartment(Map<String, dynamic> item) async {
+    var selected = item['department'].toString();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Assign sample department'),
+          content: DropdownButtonFormField<String>(
+            initialValue: selected,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Department'),
+            items: _departments.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+            onChanged: (value) {
+              if (value != null) setDialogState(() => selected = value);
+            },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save demo assignment')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      item['department'] = result;
+      final assigned = List<String>.from(item['assigned'] as List);
+      if (!assigned.contains(result)) assigned.add(result);
+      item['assigned'] = assigned;
+    });
+    _record(item['id'].toString() + ' assigned to ' + result);
+  }
+
+  Widget _caseCard(Map<String, dynamic> item) {
+    final isOfficer = _activeRole == 'department';
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: Text(item['title'].toString(), style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w800))),
+                const SizedBox(width: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(color: teal.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
+                  child: Text(item['status'].toString().toUpperCase(), style: TextStyle(color: teal, fontSize: 8, fontWeight: FontWeight.w900)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(item['id'].toString() + ' · ' + item['domain'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+            const SizedBox(height: 4),
+            Text(item['location'].toString() + ' · ' + item['department'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                OutlinedButton.icon(onPressed: () => _showCase(item), icon: const Icon(Icons.visibility_outlined, size: 15), label: const Text('Details')),
+                FilledButton.tonalIcon(onPressed: () => _updateCase(item), icon: Icon(isOfficer ? Icons.rate_review_outlined : Icons.sync_alt, size: 15), label: Text(isOfficer ? 'Review' : 'Update status')),
+                if (!isOfficer)
+                  OutlinedButton.icon(onPressed: () => _assignDepartment(item), icon: const Icon(Icons.account_tree_outlined, size: 15), label: const Text('Assign')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _overview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(spacing: 8, runSpacing: 8, children: _metrics.map((m) => _metricCard(m[0], m[1])).toList()),
+      const SizedBox(height: 14),
+      _panel('Role-based command dashboard', _roleDescription, Icons.dashboard_customize_outlined, status: 'DEMO WORKSPACE · SYNTHETIC RECORDS'),
+      _panel('Multi-department case register', 'Road reconstruction, water supply, sewerage, drainage, electricity, telecom and building-compliance workflows.', Icons.assignment_outlined, status: '5 ILLUSTRATIVE CASES'),
+      _panel('National GIS workspace', 'India-wide jurisdiction model, seven browsing regions and authority-owned evidence workflow.', Icons.map_outlined, status: '36 STATES / UNION TERRITORIES'),
+      _panel('Alerts and audit trail', 'Review local demo assignments, status changes and sample activity history.', Icons.notifications_active_outlined, status: _activity.length.toString() + ' SESSION EVENTS'),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LpuCampusModelPage())),
+          icon: const Icon(Icons.view_in_ar_rounded),
+          label: const Text('OPEN 3D UNDERGROUND CAMPUS MODEL'),
+        ),
+      ),
+    ],
+  );
+
+  Widget _caseQueue() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        _activeRole == 'department'
+            ? 'Sample cases routed to the Water Supply / PHED workspace.'
+            : 'Sample infrastructure cases across connected service departments.',
+        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+      ),
+      const SizedBox(height: 10),
+      ...(_activeRole == 'department'
+          ? _cases.where((item) => (item['assigned'] as List).contains('Water Supply / PHED'))
+          : _cases).map(_caseCard),
+    ],
+  );
+
+  Widget _coordination() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Potential repeated-work conflict', 'Road resurfacing overlaps with telecom duct maintenance. A coordinator can identify the overlap and recommend one joint execution window.', Icons.alt_route_rounded, status: '1 SAMPLE COORDINATION ALERT'),
+      _panel('Joint-work proposal', 'Bundle water-pipeline replacement and road restoration into one work package, subject to each authority approval.', Icons.hub_outlined, status: '2 DEPARTMENTS LINKED'),
+      _panel('Department workload', 'Sample workload split across water supply, roads, drainage, power, telecom and town planning.', Icons.query_stats_outlined),
+      ..._departments.map((name) => _panel(name, 'Department directory entry for cross-agency routing and coordination.', Icons.account_balance_outlined)),
+    ],
+  );
+
+  Widget _roadworks() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Road-cut permit compliance', 'Track permitted excavation windows, work completion, restoration deadlines and overdue notices.', Icons.construction_outlined, status: '2 SAMPLE PERMITS'),
+      _panel('Coordinated road-work calendar', 'Compare schedules across departments to reduce repeated road cuts and overlapping works.', Icons.calendar_month_outlined, status: '1 PROPOSED JOINT WINDOW'),
+      _panel('Road restoration quality assurance', 'Record reinstatement checks, material observations, photographs and inspection outcomes.', Icons.verified_outlined, status: '1 SAMPLE INSPECTION'),
+      _panel('Stormwater drainage and frontage', 'Track drain obstructions, frontage access and inspection follow-up for municipal teams.', Icons.water_outlined, status: '1 SAMPLE OBSERVATION'),
+      _panel('Public excavation tracker', 'Show published notices and planned works without exposing restricted utility geometry.', Icons.campaign_outlined, status: 'PUBLIC VIEW'),
+    ],
+  );
+
+  Widget _gisCoverage() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('India-wide jurisdiction explorer', 'All 36 States and Union Territories are represented in the master jurisdiction model.', Icons.public_outlined, status: '36 JURISDICTIONS'),
+      _panel('Infrastructure source coverage', 'Coverage rows indicate source readiness and data availability; they are not proof of verified underground assets.', Icons.layers_outlined, status: '11 SERVICE DOMAINS'),
+      _panel('Underground asset verification', 'Owner-submitted GIS requires source authorisation, evidence review and independent verification before operational use.', Icons.verified_user_outlined, status: 'NO LIVE ASSET GEOMETRY IN THIS DEMO'),
+      Wrap(
+        spacing: 7,
+        runSpacing: 7,
+        children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
+            .map((region) => Chip(label: Text(region, style: const TextStyle(fontSize: 10)), backgroundColor: Color(0xFFE5F4F1), side: BorderSide(color: Color(0xFFB8DCD5))))
+            .toList(),
+      ),
+    ],
+  );
+
+  Widget _groundwater() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Groundwater telemetry snapshot', 'View sample water-level observations, reporting dates and station metadata.', Icons.water_drop_outlined, status: 'ILLUSTRATIVE STATION DATA'),
+      _panel('Borewell observation register', 'Flag clustered observations for authority review; the dashboard does not itself grant or deny borewell permissions.', Icons.sensors_outlined, status: 'REVIEW WORKFLOW'),
+      _panel('Source verification', 'Separate official observations from reference data and unverified submissions.', Icons.fact_check_outlined, status: 'SOURCE STATUS VISIBLE'),
+      _panel('Sample station', 'Observation: 14.2 m below ground level · Reporting period: illustrative 2026 snapshot.', Icons.location_on_outlined, status: 'SAMPLE ONLY · NOT A LIVE READING'),
+    ],
+  );
+
+  Widget _buildings() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Building approval register', 'Link the sanctioned plan reference, permitted floor count and inspection history.', Icons.apartment_outlined, status: 'SAMPLE APPROVAL RECORDS'),
+      _panel('Floor compliance inspection', 'Record observed floor count, site evidence, inspection outcome and authority follow-up.', Icons.domain_verification_outlined, status: '1 SAMPLE INSPECTION'),
+      _panel('Drainage and setback review', 'Flag missing frontage drainage space and route the observation to the relevant local authority.', Icons.rule_folder_outlined, status: 'INSPECTION WORKFLOW'),
+      _panel('Audit-ready decisions', 'Store responsible officer, decision date, source plan and supporting evidence for official decisions.', Icons.assignment_turned_in_outlined),
+    ],
+  );
+
+  Widget _aiInsights() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Repeated-dig prevention signal', 'A sample AI-assisted recommendation groups pipeline replacement with scheduled road restoration to reduce repeat excavation.', Icons.auto_awesome_outlined, status: 'ILLUSTRATIVE AI OUTPUT'),
+      _panel('Conflict-screening explanation', 'Explain which dates, locations and infrastructure domains caused a potential conflict alert for human review.', Icons.psychology_outlined),
+      _panel('Evidence-aware summaries', 'The production assistant uses authorised case context and records generated assessments for accountable review.', Icons.summarize_outlined, status: 'LIVE AI REQUIRES AUTHENTICATED STAFF ACCESS'),
+      _panel('Human approval remains mandatory', 'AI output is advisory. It does not approve permits, certify utility locations or replace a competent authority.', Icons.verified_user_outlined),
+    ],
+  );
+
+  Widget _governance() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Role and department permissions', 'Production access is resolved from the authenticated Supabase profile. Demo profile selection does not grant live officer or administrator permissions.', Icons.admin_panel_settings_outlined),
+      _panel('Source and evidence registry', 'Store originating authority, publication date, checksum and verification status with imported datasets.', Icons.source_outlined),
+      _panel('Audit and approval history', 'Protected operations record actor, timestamp, case identifier and decision rationale.', Icons.history_edu_outlined),
+      _panel('Data readiness', 'District and ULB records require validated official source imports. Underground asset geometry remains separate from directory and coverage records.', Icons.fact_check_outlined, status: 'AUTHORITY VERIFICATION REQUIRED'),
+      _panel('Recent demo activity', _activity.take(6).join(' · '), Icons.history_rounded, status: 'LOCAL SESSION ONLY'),
+    ],
+  );
+
+  Widget _selectedContent() {
+    switch (_section) {
+      case 'Case queue': return _caseQueue();
+      case 'Coordination': return _coordination();
+      case 'Roadworks': return _roadworks();
+      case 'GIS & coverage': return _gisCoverage();
+      case 'Groundwater': return _groundwater();
+      case 'Buildings': return _buildings();
+      case 'AI insights': return _aiInsights();
+      case 'Governance': return _governance();
+      default: return _overview();
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: background,
-    appBar: AppBar(
-      backgroundColor: navy,
-      foregroundColor: Colors.white,
-      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('SAMANVAY STAFF WORKSPACE'),
-        Text('DEMO ID ${_activeStaffId} · $roleTitle', style: TextStyle(color: cyanAccent, fontSize: 9)),
-      ]),
-      actions: [
-        IconButton(
-          tooltip: 'Switch profiles',
-          onPressed: _switchProfiles,
-          icon: const Icon(Icons.switch_account_rounded),
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('SAMANVAY OFFICIAL WORKSPACE'),
+            Text('DEMO ID ' + _activeStaffId + ' · ' + _roleTitle.toUpperCase(), style: TextStyle(color: cyanAccent, fontSize: 9)),
+          ],
         ),
-        TextButton.icon(
-          onPressed: widget.onExit,
-          icon: const Icon(Icons.logout_rounded, size: 16),
-          label: const Text('EXIT DEMO'),
-        ),
-        const SizedBox(width: 6),
-      ],
-    ),
-    body: SafeArea(child: ListView(padding: const EdgeInsets.all(15), children: [
-      Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: const Color(0xFF3B2D14),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF9C7428)),
-        ),
-        child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.visibility_outlined, color: Color(0xFFFFD27A)),
-          SizedBox(width: 10),
-          Expanded(child: Text(
-            'READ-ONLY DEMO MODE. No Supabase session is created. Cards and cases are illustrative; no live personal or privileged records are loaded. Approvals, updates and uploads are disabled.',
-            style: TextStyle(color: Color(0xFFFFE5AE), fontSize: 10, height: 1.4),
-          )),
-        ]),
+        actions: [
+          IconButton(
+            tooltip: isLight ? 'Switch to dark mode' : 'Switch to light mode',
+            onPressed: _toggleTheme,
+            icon: Icon(isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
+          ),
+          IconButton(tooltip: 'Switch profiles', onPressed: _switchProfiles, icon: const Icon(Icons.switch_account_rounded)),
+          TextButton.icon(onPressed: widget.onExit, icon: const Icon(Icons.logout_rounded, size: 16), label: const Text('EXIT')),
+          const SizedBox(width: 6),
+        ],
       ),
-      const SizedBox(height: 12),
-      Text(roleTitle, style: TextStyle(color: ink, fontSize: 22, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 4),
-      Text(roleDescription, style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, children: metrics.map((m) => metric(m[0], m[1])).toList()),
-      const SizedBox(height: 14),
-      _sectionNavigation(),
-      const SizedBox(height: 12),
-      selectedContent(),
-      const SizedBox(height: 8),
-      const Text(
-        'To use the live portal, exit this preview and sign in with the linked Supabase account password. This preview does not change real permissions.',
-        style: TextStyle(color: Color(0xFF8EA7BC), fontSize: 10, height: 1.4),
-      ),
-    ])),
-  );
-
-  Widget _sectionNavigation() => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: ['Overview', 'Case queue', 'GIS & coverage', 'Department coordination', 'Governance']
-          .map((name) => Padding(
-        padding: const EdgeInsets.only(right: 7),
-        child: ChoiceChip(
-          label: Text(name, style: const TextStyle(fontSize: 10)),
-          selected: section == name,
-          selectedColor: teal,
-          backgroundColor: panelNavy,
-          side:  BorderSide(color: borderColor),
-          onSelected: (_) => setState(() => section = name),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(15),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: isLight ? const Color(0xFFE5F4F1) : const Color(0xFF3B2D14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isLight ? const Color(0xFFB8DCD5) : const Color(0xFF9C7428)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.visibility_outlined, color: isLight ? teal : const Color(0xFFFFD27A)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'DEMO PROFILE ACTIVE. This workspace uses synthetic sample records. Status updates and assignments work in this session only; no Supabase user is impersonated and no live citizen or department data is changed.',
+                      style: TextStyle(color: isLight ? navy : const Color(0xFFFFE5AE), fontSize: 10, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(_roleTitle, style: TextStyle(color: ink, fontSize: 22, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text(_roleDescription, style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  'Overview', 'Case queue', 'Coordination', 'Roadworks',
+                  'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                ].map(_sectionChip).toList(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _selectedContent(),
+            const SizedBox(height: 8),
+            Text(
+              'Live officer functions and protected records require an authorised Supabase staff account. This interactive demonstration is designed for the five-minute presentation.',
+              style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+            ),
+          ],
         ),
-      )).toList(),
-    ),
-  );
+      ),
+    );
+  }
 }
 
 // ==========================================
