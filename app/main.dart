@@ -16750,7 +16750,7 @@ class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
       setState(() {
         _sent = true;
       });
-      _say('A verification code was requested by SMS and WhatsApp for ' + number + '.', success: true);
+      _say('The verification request was accepted. After the platform administrator activates dual-channel delivery, the same code will be sent by SMS and WhatsApp to ' + number + '.', success: true);
       _countdown();
     } on AuthException catch (error) {
       _say(error.message);
@@ -16772,7 +16772,7 @@ class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
         type: OtpType.phoneChange,
         phone: _pendingPhone,
       );
-      _say('A new verification code was requested for SMS and WhatsApp.', success: true);
+      _say('A new verification request was accepted. After dual-channel delivery is activated, the same code will be sent by SMS and WhatsApp.', success: true);
       _countdown();
     } on AuthException catch (error) {
       _say(error.message);
