@@ -66,8 +66,8 @@ bool get _usesLegacyLightPalette => samanvayThemeMode.value == ThemeMode.light;
 // The light palette intentionally restores Alpha 0.2's navy / teal / soft-grey
 // visual language instead of mixing a white ThemeData with dark fixed surfaces.
 Color get navy => _usesLegacyLightPalette
-    ? const Color(0xFF10243A)
-    : const Color(0xFF08182B);
+    ? navy
+    : navy;
 Color get teal => _usesLegacyLightPalette
     ? const Color(0xFF13A89E)
     : const Color(0xFF20D6C2);
@@ -76,22 +76,22 @@ Color get electricBlue => _usesLegacyLightPalette
     : const Color(0xFF3D83F6);
 Color get cyanAccent => _usesLegacyLightPalette
     ? const Color(0xFF13A89E)
-    : const Color(0xFF35D7F2);
+    : cyanAccent;
 Color get panelNavy => _usesLegacyLightPalette
     ? const Color(0xFFFFFFFF)
-    : const Color(0xFF102842);
+    : panelNavy;
 Color get background => _usesLegacyLightPalette
     ? const Color(0xFFF4F7FA)
-    : const Color(0xFF061426);
+    : background;
 Color get ink => _usesLegacyLightPalette
-    ? const Color(0xFF10243A)
+    ? navy
     : const Color(0xFFE8F1FA);
 Color get mutedInk => _usesLegacyLightPalette
     ? const Color(0xFF63788A)
     : const Color(0xFFA6B9CA);
 Color get borderColor => _usesLegacyLightPalette
     ? const Color(0xFFDCE5EC)
-    : const Color(0xFF25415E);
+    : borderColor;
 
 String _displayRoleName(String role) => switch (role) {
   'requester' => 'Citizen',
@@ -269,7 +269,7 @@ class SamanvayApp extends StatelessWidget {
         indicatorColor: cyanAccent.withValues(alpha: 0.18),
         labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) =>
           GoogleFonts.inter(
-            color: states.contains(WidgetState.selected) ? cyanAccent : const Color(0xFFB9C9DA),
+            color: states.contains(WidgetState.selected) ? cyanAccent : mutedInk,
             fontSize: 10,
             fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
           )),
@@ -280,11 +280,11 @@ class SamanvayApp extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF294763)),
+          borderSide: const BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF294763)),
+          borderSide: const BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -305,7 +305,7 @@ class SamanvayApp extends StatelessWidget {
         color: panelNavy, elevation: 0, margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Color(0xFF25415E))),
+          side: const BorderSide(color: borderColor)),
       ),
     );
     final lightTheme = ThemeData(
@@ -532,7 +532,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF061326),
+      backgroundColor: background,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
@@ -567,9 +567,9 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          const Color(0xFF061326).withValues(alpha: 0.10),
-                          const Color(0xFF061326).withValues(alpha: 0.02),
-                          const Color(0xFF061326).withValues(alpha: 0.32),
+                          background.withValues(alpha: 0.10),
+                          background.withValues(alpha: 0.02),
+                          background.withValues(alpha: 0.32),
                           const Color(0xFF020916).withValues(alpha: 0.78),
                         ],
                         stops: const [0, 0.43, 0.76, 1],
@@ -845,7 +845,7 @@ class _SamanvayRoadPipeMarkPainter extends CustomPainter {
     canvas.drawPath(
       visiblePath,
       Paint()
-        ..color = const Color(0xFF071421)
+        ..color = background
         ..style = PaintingStyle.stroke
         ..strokeWidth = width + 7
         ..strokeCap = StrokeCap.round
@@ -996,7 +996,7 @@ class _SamanvayOpeningCityPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFF061326),
+            background,
             Color(0xFF0B2440),
             Color(0xFF102E49),
             Color(0xFF061626),
@@ -1016,7 +1016,7 @@ class _SamanvayOpeningCityPainter extends CustomPainter {
           colors: [
             const Color(0xFF1A91AE).withValues(alpha: 0.19 * reveal),
             const Color(0xFF163D5C).withValues(alpha: 0.08 * reveal),
-            const Color(0xFF061326).withValues(alpha: 0),
+            background.withValues(alpha: 0),
           ],
         ).createShader(
           Rect.fromCircle(
@@ -1623,7 +1623,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFFB5F2E7),
           side: const BorderSide(color: Color(0x6647BDB3)),
-          backgroundColor: const Color(0xFF102B40),
+          backgroundColor: panelNavy,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
@@ -1847,7 +1847,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.alt_route, color: Color(0xFF087F83)),
+              const Icon(Icons.alt_route, color: teal),
               const SizedBox(width: 9),
                Expanded(child: Text('Potential clash screening & joint-work opportunities',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
@@ -1877,9 +1877,9 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                   margin: const EdgeInsets.only(top: 9),
                   padding: const EdgeInsets.all(11),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF102B40),
+                    color: panelNavy,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF294763)),
+                    border: Border.all(color: borderColor),
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${label(first)}  ↔  ${label(second)}',
@@ -1888,7 +1888,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     Text('$metres m apart · overlapping dates: ${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}/${start.year}–${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
                       style:  TextStyle(fontSize: 10, color: mutedInk)),
                     const Text('Suggested action: coordinator review for possible joint execution.',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF087F83))),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: teal)),
                   ]),
                 );
               }),
@@ -2051,9 +2051,9 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                       width: 158,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF102B40),
+                        color: panelNavy,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF294763)),
+                        border: Border.all(color: borderColor),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2074,7 +2074,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                           const SizedBox(height: 5),
                           Text(steps[index].$3,
                             style: const TextStyle(fontSize: 10,
-                              color: Color(0xFFB6C7D6), height: 1.35)),
+                              color: mutedInk, height: 1.35)),
                         ],
                       ),
                     ),
@@ -2175,7 +2175,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         decoration: BoxDecoration(
           color: panelNavy,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: const Color(0xFF25415E)),
+          border: Border.all(color: borderColor),
           boxShadow: const [
             BoxShadow(color: Color(0x0D0B1728), blurRadius: 12, offset: Offset(0, 5)),
           ],
@@ -2254,7 +2254,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white)),
         const SizedBox(height: 4),
         const Text('Counts are calculated from records visible to the signed-in role.',
-          style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 11)),
+          style: TextStyle(color: mutedInk, fontSize: 11)),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -2647,14 +2647,14 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(
                             isPrimary ? Icons.star_outline : Icons.hub_outlined,
-                            color: isPrimary ? const Color(0xFF087F83) : mutedInk,
+                            color: isPrimary ? teal : mutedInk,
                           ),
                           title: Text(department['name'].toString(),
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                           subtitle: Text(isPrimary ? 'Primary suggested department' : 'Supporting department',
                             style: const TextStyle(fontSize: 10)),
                           trailing: selectedDepartment == departmentId
-                              ? const Icon(Icons.check_circle, color: Color(0xFF087F83))
+                              ? const Icon(Icons.check_circle, color: teal)
                               : TextButton(
                                   onPressed: () => setDialogState(() => selectedDepartment = departmentId),
                                   child: const Text('Select'),
@@ -3068,10 +3068,10 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         'Authorised user';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF061426),
+      backgroundColor: background,
       appBar: AppBar(
         toolbarHeight: 72,
-        backgroundColor: const Color(0xFF061426),
+        backgroundColor: background,
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Column(
@@ -3140,7 +3140,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF0B1728), Color(0xFF11485A), Color(0xFF0B5E62)],
+                  colors: [navy, Color(0xFF11485A), Color(0xFF0B5E62)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(18),
@@ -3198,7 +3198,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     style: const TextStyle(color: Color(0xFFD0E3E8), fontSize: 12)),
                   const SizedBox(height: 8),
                   Text(widget.subtitle,
-                    style: const TextStyle(color: Color(0xFFB6C7D6), fontSize: 11, height: 1.4)),
+                    style: const TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
                 ],
               ),
             ),
@@ -3206,7 +3206,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             const Text(
               'WORKSPACE QUICK NAVIGATION',
               style: TextStyle(
-                color: Color(0xFF8FDCE7),
+                color: cyanAccent,
                 fontSize: 9,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.0,
@@ -3251,7 +3251,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             const SizedBox(height: 7),
             const Text(
               'Live metrics reflect records visible to this role and the current query window. They are not national totals.',
-              style: TextStyle(color: Color(0xFFB6C7D6), fontSize: 10, height: 1.35),
+              style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
             ),
             const SizedBox(height: 16),
             SizedBox(key: _roadworksAnchor, height: 1),
@@ -3384,7 +3384,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 Text(
                   '${requests.length} records',
                   style: const TextStyle(
-                    color: Color(0xFFB6C7D6),
+                    color: mutedInk,
                     fontSize: 12,
                   ),
                 ),
@@ -3711,7 +3711,7 @@ class _AuthPageState extends State<AuthPage> {
       );
     }
     return Scaffold(
-      backgroundColor: const Color(0xFF061426),
+      backgroundColor: background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -3721,7 +3721,7 @@ class _AuthPageState extends State<AuthPage> {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B2036),
+                  color: panelNavy,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFF24445F)),
                   boxShadow: const [
@@ -3787,7 +3787,7 @@ class _AuthPageState extends State<AuthPage> {
                     'National Infrastructure Coordination Platform',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFFB6C7D6),
+                      color: mutedInk,
                       fontSize: 12,
                     ),
                   ),
@@ -3832,7 +3832,7 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   const Text(
                     'PORTAL ACCESS',
-                    style: TextStyle(color: Color(0xFF8FDCE7), fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
+                    style: TextStyle(color: cyanAccent, fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 8),
                   LayoutBuilder(builder: (context, constraints) {
@@ -3867,7 +3867,7 @@ class _AuthPageState extends State<AuthPage> {
                                       ? cyanAccent.withValues(alpha: .72)
                                       : (standard
                                           ? cyanAccent.withValues(alpha: .65)
-                                          : const Color(0xFF294763)),
+                                          : borderColor),
                                 ),
                               ),
                               child: Row(children: [
@@ -3897,7 +3897,7 @@ class _AuthPageState extends State<AuthPage> {
                                             ? 'Open public demonstration workspace'
                                             : detail,
                                         style: const TextStyle(
-                                          color: Color(0xFFB6C7D6),
+                                          color: mutedInk,
                                           fontSize: 9,
                                           height: 1.25,
                                         ),
@@ -3955,7 +3955,7 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Tap any official role to open its permanent public demo workspace. Demo content is synthetic and read-only; live records and administrative actions still require an authorised account.',
-                    style: TextStyle(fontSize: 10, color: Color(0xFFB6C7D6), height: 1.35),
+                    style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
                   ),
                   const SizedBox(height: 16),
                                     const SizedBox(height: 16),
@@ -4686,7 +4686,7 @@ class _DashboardPageState extends State<DashboardPage> {
             padding: const EdgeInsets.all(21),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF0B1728), Color(0xFF173B55), Color(0xFF075E67)],
+                colors: [navy, Color(0xFF173B55), Color(0xFF075E67)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0x5534E5D1)),
@@ -5347,7 +5347,7 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
         style: TextStyle(color: mutedInk, fontSize: 10)),
       ...notices.map((notice) => Container(
         margin: const EdgeInsets.only(top: 7), padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFF0A1E33), borderRadius: BorderRadius.circular(11),
+        decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(11),
           border: Border.all(color: borderColor)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -5373,7 +5373,7 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
         style: TextStyle(color: mutedInk, fontSize: 10)),
       ...reports.map((report) => Container(
         margin: const EdgeInsets.only(top: 7), padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFF0A1E33), borderRadius: BorderRadius.circular(11),
+        decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(11),
           border: Border.all(color: borderColor)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -6611,7 +6611,7 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
             : ' · height ' + (record['observed_height_m']?.toString() ?? '—') + ' m observed / ' +
               (record['approved_height_m']?.toString() ?? '—') + ' m approved';
           return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFF102B40), borderRadius: BorderRadius.circular(12),
+            decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderColor)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_caseLabel(record['request_id'].toString()),
@@ -7642,7 +7642,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF0B1728), Color(0xFF14515E)],
+                            colors: [navy, Color(0xFF14515E)],
                             begin: Alignment.topLeft, end: Alignment.bottomRight),
                           borderRadius: BorderRadius.circular(17),
                         ),
@@ -9119,7 +9119,7 @@ class _GroundwaterObservationBoardState extends State<GroundwaterObservationBoar
         else ...records.map((r) {
           final dept = (r['responsible_department_id'] ?? '').toString();
           return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFF102B40), borderRadius: BorderRadius.circular(12),
+            decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderColor)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_caseLabel(r['request_id'].toString()),
@@ -10387,7 +10387,7 @@ class _MapLocationPickerPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF101B29),
+      backgroundColor: panelNavy,
       appBar: AppBar(
         title: const Text('Select Work Location'),
         backgroundColor: navy,
@@ -10974,7 +10974,7 @@ class _LpuCampusModelPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFF071421)
+        ..color = background
         ..style = PaintingStyle.stroke
         ..strokeWidth = width + 7
         ..strokeCap = StrokeCap.round,
@@ -11791,7 +11791,7 @@ class _MapPageState extends State<MapPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF13263A),
+      backgroundColor: panelNavy,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -11964,7 +11964,7 @@ class _MapPageState extends State<MapPage> {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: const Color(0xFF0D1C2C),
+                color: panelNavy,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0x665F7C93)),
               ),
@@ -13847,7 +13847,7 @@ class _MapPageState extends State<MapPage> {
   void _openLayerPanel() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF13263A),
+      backgroundColor: panelNavy,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
@@ -13881,7 +13881,7 @@ class _MapPageState extends State<MapPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0D1C2C),
+                        color: panelNavy,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: const Color(0x5541BFB4)),
                       ),
@@ -14118,7 +14118,7 @@ class _MapPageState extends State<MapPage> {
           ),
           const SizedBox(height: 5),
           const Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
-            style: TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
+            style: TextStyle(color: mutedInk, fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           ...layers.map((layer) => Padding(
             padding: const EdgeInsets.only(bottom: 6),
@@ -14162,7 +14162,7 @@ class _MapPageState extends State<MapPage> {
           Text('Latest timestamp among loaded records (up to 1,000 in this map extent): $_groundwaterFreshnessLabel',
             style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 8, height: 1.35)),
           Text('Publisher: $_groundwaterLatestAgency · source-reported values; coordinate accuracy is not independently validated here.',
-            style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 7.5, height: 1.35)),
+            style: const TextStyle(color: mutedInk, fontSize: 7.5, height: 1.35)),
           const Divider(height: 9, color: Color(0x334B647C)),
           Row(
             children: [
@@ -14191,7 +14191,7 @@ class _MapPageState extends State<MapPage> {
     return Expanded(child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF102B40),
+        color: panelNavy,
         borderRadius: BorderRadius.circular(11),
         border: Border.all(color: borderColor),
       ),
@@ -14201,7 +14201,7 @@ class _MapPageState extends State<MapPage> {
         Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
         Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 8, fontWeight: FontWeight.w700, height: 1.25)),
+          style: const TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w700, height: 1.25)),
       ]),
     ));
   }
@@ -14216,7 +14216,7 @@ class _MapPageState extends State<MapPage> {
     contentPadding: EdgeInsets.zero,
     activeThumbColor: const Color(0xFF55D9CE),
     title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-    subtitle: Text(detail, style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 8, height: 1.3)),
+    subtitle: Text(detail, style: const TextStyle(color: mutedInk, fontSize: 8, height: 1.3)),
     value: value,
     onChanged: onChanged,
   );
@@ -14246,7 +14246,7 @@ class _MapPageState extends State<MapPage> {
       ]),
       const SizedBox(height: 9),
       const Text('LIVE COUNTS · CURRENT MAP EXTENT',
-        style: TextStyle(color: Color(0xFF9FB4C8), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)),
+        style: TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)),
       const SizedBox(height: 7),
       Row(children: [
         _desktopGisMetric('VISIBLE CASES', '$_requestMarkerCount', Icons.assignment_outlined, const Color(0xFF55D9CE)),
@@ -14337,7 +14337,7 @@ class _MapPageState extends State<MapPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF9FB4C8), fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
+        Text(label, style: const TextStyle(color: mutedInk, fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
         const SizedBox(height: 2),
         Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
       ],
@@ -14430,7 +14430,7 @@ class _MapPageState extends State<MapPage> {
   Widget build(BuildContext context) {
     final desktopLayout = MediaQuery.sizeOf(context).width >= 1180;
     return Scaffold(
-      backgroundColor: const Color(0xFF101B29),
+      backgroundColor: panelNavy,
       appBar: AppBar(
         backgroundColor: navy,
         foregroundColor: Colors.white,
@@ -14452,7 +14452,7 @@ class _MapPageState extends State<MapPage> {
               style: TextStyle(
                 fontSize: 9,
                 letterSpacing: 1.35,
-                color: Color(0xFF9FB4C8),
+                color: mutedInk,
               ),
             ),
           ],
@@ -14589,7 +14589,7 @@ class _MapPageState extends State<MapPage> {
                   Text(
                     _satellite ? 'SATELLITE HYBRID' : 'VECTOR BASEMAP',
                     style: const TextStyle(
-                      color: Color(0xFF9FB4C8),
+                      color: mutedInk,
                       fontSize: 9,
                       letterSpacing: 1.3,
                       fontWeight: FontWeight.w800,
@@ -14673,7 +14673,7 @@ class _MapPageState extends State<MapPage> {
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                       decoration: const InputDecoration(
                         hintText: 'Search India: state, district, city, ward or road',
-                        hintStyle: TextStyle(color: Color(0xFF9FB4C8), fontSize: 11),
+                        hintStyle: TextStyle(color: mutedInk, fontSize: 11),
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -16653,7 +16653,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       body: Column(children: [
         Container(
           width: double.infinity, padding: const EdgeInsets.all(10),
-          color: const Color(0xFF102B40),
+          color: panelNavy,
           child: Row(children: [
              Icon(Icons.shield_outlined, color: teal, size: 18),
             const SizedBox(width: 8),
@@ -17203,7 +17203,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
               padding: const EdgeInsets.all(17),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF0B1728), Color(0xFF14515E)],
+                  colors: [navy, Color(0xFF14515E)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(18),
               ),
