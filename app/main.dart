@@ -4055,6 +4055,17 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     panel('Multi-department case register', 'Road reconstruction, water supply, sewerage, drainage, electricity, telecom and building-compliance workflows.', Icons.assignment_outlined),
     panel('National GIS workspace', 'Jurisdiction coverage, reference layers and authority-owned evidence. Exact underground geometry remains restricted to authorised workflows.', Icons.map_outlined),
     panel('Alerts and audit trail', 'Production records reviews, assignments, status changes and user actions with role checks and database policies.', Icons.notifications_active_outlined),
+    const SizedBox(height: 6),
+    SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
+        ),
+        icon: const Icon(Icons.view_in_ar_rounded),
+        label: const Text('OPEN LPU CAMPUS UNDERGROUND MODEL'),
+      ),
+    ),
   ]);
 
   Widget caseQueue() {
@@ -10260,6 +10271,765 @@ class _MapLocationPickerPageState
     );
   }
 }
+// ==========================================
+// LPU CAMPUS — SYNTHETIC UNDERGROUND MODEL
+// ==========================================
+//
+// This is a conceptual product demonstration for Lovely Professional
+// University, Phagwara. The underground paths, building footprints, service
+// corridors and layer relationships below are deliberately synthetic.
+// They are not surveyed, georeferenced, depth-accurate or suitable for field
+// excavation. No actual campus utility locations are represented.
+
+class LpuCampusModelPage extends StatefulWidget {
+  const LpuCampusModelPage({super.key});
+
+  @override
+  State<LpuCampusModelPage> createState() => _LpuCampusModelPageState();
+}
+
+class _LpuCampusModelPageState extends State<LpuCampusModelPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flowController;
+  bool _waterVisible = true;
+  bool _sewerVisible = true;
+  bool _powerVisible = true;
+  bool _fibreVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _flowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flowController.dispose();
+    super.dispose();
+  }
+
+  Widget _legendItem(Color color, String title, String detail) {
+    return Container(
+      width: 156,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF102842),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF25415E)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            margin: const EdgeInsets.only(top: 3),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.55), blurRadius: 8),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: Color(0xFF9DB3C8),
+                    fontSize: 9,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _layerChip({
+    required String label,
+    required Color color,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    return FilterChip(
+      selected: selected,
+      onSelected: onSelected,
+      avatar: Icon(Icons.circle, color: color, size: 10),
+      label: Text(label),
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : const Color(0xFF9DB3C8),
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+      ),
+      selectedColor: color.withValues(alpha: 0.18),
+      backgroundColor: const Color(0xFF102842),
+      checkmarkColor: Colors.white,
+      side: BorderSide(
+        color: selected ? color.withValues(alpha: 0.85) : const Color(0xFF25415E),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 420;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF061426),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF10243A),
+        foregroundColor: Colors.white,
+        titleSpacing: 14,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'LPU CAMPUS MODEL',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+            Text(
+              'PHAGWARA · PUNJAB',
+              style: TextStyle(
+                color: const Color(0xFF91B2CB),
+                fontSize: 9,
+                letterSpacing: 1.25,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Model information',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                backgroundColor: const Color(0xFF102842),
+                title: const Text(
+                  'Illustrative model only',
+                  style: TextStyle(color: Colors.white),
+                ),
+                content: const Text(
+                  'This is a synthetic campus-infrastructure demonstration. '
+                  'It does not show the actual location, depth, capacity or '
+                  'condition of any LPU utility. Real mapping requires '
+                  'authorised survey and verified records.',
+                  style: TextStyle(color: Color(0xFFCAD8E5), height: 1.45),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('CLOSE'),
+                  ),
+                ],
+              ),
+            ),
+            icon: const Icon(Icons.info_outline_rounded),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.all(compact ? 12 : 18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: const Color(0xFF123449),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF2A8191)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.school_outlined,
+                    color: Color(0xFF6DE8D9),
+                    size: 24,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lovely Professional University',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Jalandhar–Delhi G.T. Road, Phagwara, Punjab 144411',
+                          style: TextStyle(
+                            color: Color(0xFFB9D3E0),
+                            fontSize: 10,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF402D17),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFB88737)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.science_outlined,
+                    color: Color(0xFFFFD17C),
+                    size: 17,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'SYNTHETIC DEMO · NOT A SURVEY · NOT TO SCALE',
+                      style: TextStyle(
+                        color: Color(0xFFFFE4B5),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.7,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'MODEL LAYERS',
+              style: TextStyle(
+                color: Color(0xFF9CB8CF),
+                fontSize: 9,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 6,
+              runSpacing: 2,
+              children: [
+                _layerChip(
+                  label: 'Water',
+                  color: const Color(0xFF28BDF5),
+                  selected: _waterVisible,
+                  onSelected: (v) => setState(() => _waterVisible = v),
+                ),
+                _layerChip(
+                  label: 'Sewer',
+                  color: const Color(0xFFFFA64D),
+                  selected: _sewerVisible,
+                  onSelected: (v) => setState(() => _sewerVisible = v),
+                ),
+                _layerChip(
+                  label: 'Power',
+                  color: const Color(0xFFB78CFF),
+                  selected: _powerVisible,
+                  onSelected: (v) => setState(() => _powerVisible = v),
+                ),
+                _layerChip(
+                  label: 'Fibre',
+                  color: const Color(0xFF35D79B),
+                  selected: _fibreVisible,
+                  onSelected: (v) => setState(() => _fibreVisible = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            AspectRatio(
+              aspectRatio: compact ? 0.88 : 1.42,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: AnimatedBuilder(
+                  animation: _flowController,
+                  builder: (context, _) => CustomPaint(
+                    painter: _LpuCampusModelPainter(
+                      flow: _flowController.value,
+                      waterVisible: _waterVisible,
+                      sewerVisible: _sewerVisible,
+                      powerVisible: _powerVisible,
+                      fibreVisible: _fibreVisible,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'SYSTEM LEGEND',
+              style: TextStyle(
+                color: Color(0xFF9CB8CF),
+                fontSize: 9,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _legendItem(
+                  const Color(0xFF28BDF5),
+                  'Water supply',
+                  'Illustrative pipe corridor',
+                ),
+                _legendItem(
+                  const Color(0xFFFFA64D),
+                  'Sewerage',
+                  'Illustrative gravity line',
+                ),
+                _legendItem(
+                  const Color(0xFFB78CFF),
+                  'Electricity',
+                  'Illustrative protected duct',
+                ),
+                _legendItem(
+                  const Color(0xFF35D79B),
+                  'Telecom fibre',
+                  'Illustrative data duct',
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D2338),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0xFF28465F)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'DATA STATUS',
+                    style: TextStyle(
+                      color: Color(0xFF8FDCE7),
+                      fontSize: 9,
+                      letterSpacing: 1.4,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 7),
+                  Text(
+                    'All visible underground lines, connection points, layer bands and building footprints are synthetic artwork created for this demonstration. They are not real campus infrastructure records.',
+                    style: TextStyle(
+                      color: Color(0xFFB6C7D6),
+                      fontSize: 10,
+                      height: 1.45,
+                    ),
+                  ),
+                  SizedBox(height: 7),
+                  Text(
+                    'A production LPU deployment would require the university’s authorised GIS/CAD/as-built records, survey dates, utility-owner confirmation and field verification before any real asset is displayed.',
+                    style: TextStyle(
+                      color: Color(0xFFB6C7D6),
+                      fontSize: 10,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LpuCampusModelPainter extends CustomPainter {
+  const _LpuCampusModelPainter({
+    required this.flow,
+    required this.waterVisible,
+    required this.sewerVisible,
+    required this.powerVisible,
+    required this.fibreVisible,
+  });
+
+  final double flow;
+  final bool waterVisible;
+  final bool sewerVisible;
+  final bool powerVisible;
+  final bool fibreVisible;
+
+  Path _utilityPath(Size size, int layer) {
+    final y = size.height * (0.65 + layer * 0.075);
+    return Path()
+      ..moveTo(size.width * -0.04, y + size.height * 0.02)
+      ..cubicTo(
+        size.width * 0.20,
+        y - size.height * 0.08,
+        size.width * 0.30,
+        y + size.height * 0.09,
+        size.width * 0.49,
+        y + size.height * 0.005,
+      )
+      ..cubicTo(
+        size.width * 0.68,
+        y - size.height * 0.08,
+        size.width * 0.82,
+        y + size.height * 0.07,
+        size.width * 1.04,
+        y - size.height * 0.015,
+      );
+  }
+
+  void _drawMovingLine(
+    Canvas canvas,
+    Path path,
+    Color color,
+    double width,
+    bool visible,
+    double phase,
+  ) {
+    if (!visible) return;
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF071421)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width + 7
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withValues(alpha: 0.92)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round,
+    );
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty) return;
+    final metric = metrics.first;
+    for (int i = 0; i < 3; i++) {
+      final distance = ((flow + phase + i / 3) % 1.0) * metric.length;
+      final tangent = metric.getTangentForOffset(distance);
+      canvas.drawCircle(
+        tangent.position,
+        width * 0.90,
+        Paint()
+          ..color = color.withValues(alpha: 0.30)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(
+        tangent.position,
+        width * 0.28,
+        Paint()..color = Colors.white.withValues(alpha: 0.95),
+      );
+    }
+  }
+
+  void _text(
+    Canvas canvas,
+    String value,
+    Offset offset, {
+    double size = 9,
+    Color color = const Color(0xFFE8F1FA),
+    FontWeight weight = FontWeight.w800,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: value,
+        style: TextStyle(
+          color: color,
+          fontSize: size,
+          fontWeight: weight,
+          letterSpacing: 0.5,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout(maxWidth: 190);
+    painter.paint(canvas, offset);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF071B31),
+            Color(0xFF0E2C43),
+            Color(0xFF112A3B),
+          ],
+        ).createShader(rect),
+    );
+
+    final gridPaint = Paint()
+      ..color = const Color(0xFF7EA2B6).withValues(alpha: 0.11)
+      ..strokeWidth = 0.6;
+    for (double x = 0; x < size.width; x += 26) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += 26) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    _text(
+      canvas,
+      'SURFACE · CONCEPTUAL CAMPUS BLOCKS',
+      Offset(size.width * 0.05, size.height * 0.045),
+      size: 8,
+      color: const Color(0xFF7FDCD8),
+    );
+
+    final surface = Path()
+      ..moveTo(size.width * 0.04, size.height * 0.14)
+      ..lineTo(size.width * 0.94, size.height * 0.08)
+      ..lineTo(size.width * 0.97, size.height * 0.50)
+      ..lineTo(size.width * 0.05, size.height * 0.57)
+      ..close();
+    canvas.drawPath(
+      surface,
+      Paint()..color = const Color(0xFF1B4B4C),
+    );
+
+    // Generic academic blocks. Their positions are intentionally not tied
+    // to real LPU buildings or campus coordinates.
+    void building(double x, double y, double w, double h, String label) {
+      final top = Path()
+        ..moveTo(x, y)
+        ..lineTo(x + w * 0.72, y - h * 0.16)
+        ..lineTo(x + w, y + h * 0.04)
+        ..lineTo(x + w * 0.28, y + h * 0.22)
+        ..close();
+      final front = Path()
+        ..moveTo(x, y)
+        ..lineTo(x + w * 0.28, y + h * 0.22)
+        ..lineTo(x + w * 0.28, y + h * 0.22 + h * 0.48)
+        ..lineTo(x, y + h * 0.48)
+        ..close();
+      final side = Path()
+        ..moveTo(x + w * 0.28, y + h * 0.22)
+        ..lineTo(x + w, y + h * 0.04)
+        ..lineTo(x + w, y + h * 0.50)
+        ..lineTo(x + w * 0.28, y + h * 0.70)
+        ..close();
+
+      canvas.drawPath(top, Paint()..color = const Color(0xFF7397A9));
+      canvas.drawPath(front, Paint()..color = const Color(0xFF385D78));
+      canvas.drawPath(side, Paint()..color = const Color(0xFF29445D));
+
+      final windows = Paint()
+        ..color = const Color(0xFF8CE4E6).withValues(alpha: 0.60);
+      for (int i = 0; i < 3; i++) {
+        final wx = x + 8 + i * (w * 0.065);
+        canvas.drawRect(
+          Rect.fromLTWH(wx, y + h * 0.29, math.max(2.0, w * 0.035).toDouble(), h * 0.10),
+          windows,
+        );
+      }
+      _text(
+        canvas,
+        label,
+        Offset(x + 2, y + h * 0.78),
+        size: 7,
+        color: const Color(0xFFCDE0EA),
+      );
+    }
+
+    building(size.width * 0.12, size.height * 0.24, size.width * 0.22, size.height * 0.10, 'ACADEMIC');
+    building(size.width * 0.43, size.height * 0.19, size.width * 0.20, size.height * 0.095, 'LIBRARY');
+    building(size.width * 0.70, size.height * 0.26, size.width * 0.19, size.height * 0.09, 'HOSTEL');
+
+    // Campus road is a generic perspective ribbon.
+    final road = Path()
+      ..moveTo(size.width * 0.04, size.height * 0.43)
+      ..lineTo(size.width * 0.97, size.height * 0.35);
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = const Color(0xFF081827)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.height * 0.095
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = const Color(0xFF52687A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.height * 0.078
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = const Color(0xFFFFD17C)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round,
+        pathEffect: null,
+    );
+
+    // Underground cross-section: abstract layers, with no measurement scale.
+    final cutY = size.height * 0.55;
+    final soil = Path()
+      ..moveTo(0, cutY)
+      ..lineTo(size.width, cutY)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      soil,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF3A4B4C),
+            Color(0xFF273C43),
+            Color(0xFF132B3B),
+          ],
+        ).createShader(Rect.fromLTWH(0, cutY, size.width, size.height - cutY)),
+    );
+    canvas.drawLine(
+      Offset(0, cutY),
+      Offset(size.width, cutY),
+      Paint()
+        ..color = const Color(0xFF83E1D5)
+        ..strokeWidth = 2,
+    );
+
+    for (int layer = 0; layer < 4; layer++) {
+      final y = cutY + size.height * (0.09 + layer * 0.085);
+      final band = Path()
+        ..moveTo(0, y)
+        ..cubicTo(
+          size.width * 0.25,
+          y - 4,
+          size.width * 0.60,
+          y + 6,
+          size.width,
+          y - 2,
+        );
+      canvas.drawPath(
+        band,
+        Paint()
+          ..color = const Color(0xFFC3CFBD).withValues(alpha: 0.14)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+
+    _text(
+      canvas,
+      'SUBSURFACE · SYNTHETIC SERVICE CORRIDORS',
+      Offset(size.width * 0.05, cutY + 10),
+      size: 8,
+      color: const Color(0xFFFFD99A),
+    );
+
+    _drawMovingLine(
+      canvas,
+      _utilityPath(size, 0),
+      const Color(0xFF28BDF5),
+      5.6,
+      waterVisible,
+      0.00,
+    );
+    _drawMovingLine(
+      canvas,
+      _utilityPath(size, 1),
+      const Color(0xFFFFA64D),
+      5.4,
+      sewerVisible,
+      0.25,
+    );
+    _drawMovingLine(
+      canvas,
+      _utilityPath(size, 2),
+      const Color(0xFFB78CFF),
+      3.3,
+      powerVisible,
+      0.48,
+    );
+    _drawMovingLine(
+      canvas,
+      _utilityPath(size, 3),
+      const Color(0xFF35D79B),
+      3.0,
+      fibreVisible,
+      0.72,
+    );
+
+    _text(
+      canvas,
+      'NOT TO SCALE  ·  NO REAL ASSET POSITIONS',
+      Offset(size.width * 0.05, size.height * 0.94),
+      size: 8,
+      color: const Color(0xFFBDD0DC),
+    );
+
+    // A small animated "data flow" pulse sits at the cutaway edge.
+    final pulse = 0.35 + 0.65 * math.sin(flow * math.pi * 2).abs();
+    canvas.drawCircle(
+      Offset(size.width * 0.91, cutY - 1),
+      4 + pulse * 4,
+      Paint()
+        ..color = const Color(0xFF6AF0D7).withValues(alpha: 0.18)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9),
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.91, cutY - 1),
+      2,
+      Paint()..color = const Color(0xFFB6FFF1),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LpuCampusModelPainter oldDelegate) =>
+      oldDelegate.flow != flow ||
+      oldDelegate.waterVisible != waterVisible ||
+      oldDelegate.sewerVisible != sewerVisible ||
+      oldDelegate.powerVisible != powerVisible ||
+      oldDelegate.fibreVisible != fibreVisible;
+}
+
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
@@ -13431,6 +14201,13 @@ class _MapPageState extends State<MapPage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'LPU campus underground model',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
+            ),
+            icon: const Icon(Icons.school_outlined),
+          ),
           IconButton(
             tooltip: 'Import underground survey GeoJSON',
             onPressed: () {
