@@ -10896,15 +10896,21 @@ class _LpuCampusModelPainter extends CustomPainter {
         ..strokeWidth = size.height * 0.078
         ..strokeCap = StrokeCap.round,
     );
-    canvas.drawPath(
-      road,
-      Paint()
-        ..color = const Color(0xFFFFD17C)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..strokeCap = StrokeCap.round,
-        pathEffect: null,
-    );
+    final roadMetric = road.computeMetrics().first;
+    final roadDashPaint = Paint()
+      ..color = const Color(0xFFFFD17C)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    for (double dash = 0; dash < roadMetric.length; dash += 15) {
+      canvas.drawPath(
+        roadMetric.extractPath(
+          dash,
+          math.min(dash + 6, roadMetric.length).toDouble(),
+        ),
+        roadDashPaint,
+      );
+    }
 
     // Underground cross-section: abstract layers, with no measurement scale.
     final cutY = size.height * 0.55;
