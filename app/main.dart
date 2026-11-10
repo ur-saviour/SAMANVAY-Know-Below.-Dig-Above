@@ -195,10 +195,457 @@ class SamanvayApp extends StatelessWidget {
         theme: lightTheme,
         darkTheme: theme,
         themeMode: mode,
-        home: const AuthGate(),
+        home: const OpeningExperience(),
       ),
     );
   }
+}
+
+
+// ==========================================
+// CINEMATIC OPENING EXPERIENCE
+// ==========================================
+//
+// The opening runs once on each cold app launch, then hands control to the
+// existing AuthGate. It does not create a session, change a role, or bypass
+// Supabase authentication. The same widget is used by Android and Flutter Web.
+
+class OpeningExperience extends StatefulWidget {
+  const OpeningExperience({super.key});
+
+  @override
+  State<OpeningExperience> createState() => _OpeningExperienceState();
+}
+
+class _OpeningExperienceState extends State<OpeningExperience>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _showApplication = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3900),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() => _showApplication = true);
+        }
+      });
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 620),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      child: _showApplication
+          ? const AuthGate(key: ValueKey<String>('samanvay-auth-gate'))
+          : _SamanvayOpeningScreen(
+              key: const ValueKey<String>('samanvay-opening-screen'),
+              controller: _controller,
+            ),
+    );
+  }
+}
+
+class _SamanvayOpeningScreen extends StatelessWidget {
+  const _SamanvayOpeningScreen({
+    super.key,
+    required this.controller,
+  });
+
+  final AnimationController controller;
+
+  double _reveal(double value, double start, double end) {
+    final amount = ((value - start) / (end - start)).clamp(0.0, 1.0).toDouble();
+    return Curves.easeOutCubic.transform(amount);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF030B16),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final markSize = math.min(158.0, constraints.maxWidth * 0.43);
+          final compact = constraints.maxHeight < 650;
+
+          return AnimatedBuilder(
+            animation: controller,
+            builder: (context, _) {
+              final progress = controller.value;
+              final markReveal = _reveal(progress, 0.04, 0.48);
+              final nameReveal = _reveal(progress, 0.34, 0.70);
+              final taglineReveal = _reveal(progress, 0.62, 0.88);
+              final barReveal = _reveal(progress, 0.72, 0.98);
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  CustomPaint(
+                    painter: _OpeningBackdropPainter(progress: progress),
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          const Color(0xFF061426).withValues(alpha: 0.08),
+                          const Color(0xFF061426).withValues(alpha: 0.02),
+                          const Color(0xFF020914).withValues(alpha: 0.48),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Opacity(
+                              opacity: markReveal,
+                              child: Transform.scale(
+                                scale: 0.72 + (0.28 * markReveal),
+                                child: SizedBox(
+                                  width: markSize,
+                                  height: markSize,
+                                  child: CustomPaint(
+                                    painter: _SamanvayOpeningMarkPainter(
+                                      progress: progress,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: compact ? 18 : 27),
+                            Opacity(
+                              opacity: nameReveal,
+                              child: Transform.translate(
+                                offset: Offset(0, 18 * (1 - nameReveal)),
+                                child: SizedBox(
+                                  width: constraints.maxWidth * 0.88,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'SAMANVAY',
+                                      maxLines: 1,
+                                      style: GoogleFonts.spaceGrotesk(
+                                        color: const Color(0xFFF3FAFF),
+                                        fontSize: 37,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 6.5,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 13),
+                            Opacity(
+                              opacity: taglineReveal,
+                              child: Transform.translate(
+                                offset: Offset(0, 10 * (1 - taglineReveal)),
+                                child: Text(
+                                  'KNOW BELOW. DIG ABOVE.',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF70E9DB),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 3.1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: compact ? 24 : 34),
+                            Opacity(
+                              opacity: barReveal,
+                              child: Container(
+                                width: 116,
+                                height: 2,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF29465B),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                alignment: Alignment.centerLeft,
+                                child: FractionallySizedBox(
+                                  widthFactor: _reveal(progress, 0.70, 1.0),
+                                  heightFactor: 1,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF35D7C4),
+                                      borderRadius: BorderRadius.circular(99),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF35D7C4)
+                                              .withValues(alpha: 0.7),
+                                          blurRadius: 10,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 20,
+                    child: Opacity(
+                      opacity: _reveal(progress, 0.78, 0.98),
+                      child: Text(
+                        'NATIONAL INFRASTRUCTURE COORDINATION',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF7691A8),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OpeningBackdropPainter extends CustomPainter {
+  const _OpeningBackdropPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF030B16),
+    );
+
+    final glowCenter = Offset(size.width * 0.5, size.height * 0.43);
+    final glowRadius = math.max(size.width, size.height) * 0.58;
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF0D6B75).withValues(alpha: 0.22 * progress),
+          const Color(0xFF0C4A64).withValues(alpha: 0.10 * progress),
+          const Color(0xFF030B16).withValues(alpha: 0),
+        ],
+      ).createShader(Rect.fromCircle(center: glowCenter, radius: glowRadius));
+    canvas.drawCircle(glowCenter, glowRadius, glowPaint);
+
+    final gridPaint = Paint()
+      ..color = const Color(0xFF6EA1B8).withValues(alpha: 0.075 * progress)
+      ..strokeWidth = 0.65;
+    const grid = 36.0;
+    for (double x = 0; x <= size.width; x += grid) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y <= size.height; y += grid) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    final surfaceY = size.height * 0.605;
+    final surfacePaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0x0035D7C4),
+          const Color(0xAA35D7C4).withValues(alpha: 0.68 * progress),
+          const Color(0x0035D7C4),
+        ],
+      ).createShader(Rect.fromLTWH(0, surfaceY, size.width, 1))
+      ..strokeWidth = 1.15;
+    canvas.drawLine(
+      Offset(0, surfaceY),
+      Offset(size.width, surfaceY),
+      surfacePaint,
+    );
+
+    for (int layer = 0; layer < 5; layer++) {
+      final baseY = surfaceY + 30.0 + (layer * size.height * 0.078);
+      final path = Path();
+      for (int step = 0; step <= 40; step++) {
+        final x = size.width * step / 40;
+        final wave = math.sin((step / 40 * math.pi * 2.1) + layer * 0.72) *
+            (8.0 + layer * 2.0);
+        final y = baseY + wave;
+        if (step == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      final layerPaint = Paint()
+        ..color = (layer.isEven
+                ? const Color(0xFF2A9E9A)
+                : const Color(0xFF347DA0))
+            .withValues(alpha: (0.14 - layer * 0.016) * progress)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = layer == 0 ? 1.25 : 0.85;
+      canvas.drawPath(path, layerPaint);
+    }
+
+    final routePaint = Paint()
+      ..color = const Color(0xFF42DCCB).withValues(alpha: 0.30 * progress)
+      ..strokeWidth = 1.05
+      ..style = PaintingStyle.stroke;
+    final route = Path()
+      ..moveTo(size.width * 0.14, size.height * 0.80)
+      ..cubicTo(
+        size.width * 0.29, size.height * 0.73,
+        size.width * 0.34, size.height * 0.94,
+        size.width * 0.51, size.height * 0.86,
+      )
+      ..cubicTo(
+        size.width * 0.67, size.height * 0.78,
+        size.width * 0.73, size.height * 0.96,
+        size.width * 0.88, size.height * 0.84,
+      );
+    canvas.drawPath(route, routePaint);
+
+    final nodePaint = Paint()
+      ..color = const Color(0xFF65F3DC).withValues(alpha: 0.78 * progress);
+    for (final point in [
+      Offset(size.width * 0.14, size.height * 0.80),
+      Offset(size.width * 0.51, size.height * 0.86),
+      Offset(size.width * 0.88, size.height * 0.84),
+    ]) {
+      canvas.drawCircle(point, 2.2, nodePaint);
+      canvas.drawCircle(
+        point,
+        6.5,
+        Paint()
+          ..color = const Color(0xFF35D7C4).withValues(alpha: 0.12 * progress)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OpeningBackdropPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _SamanvayOpeningMarkPainter extends CustomPainter {
+  const _SamanvayOpeningMarkPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final rotation = progress * math.pi * 0.72;
+
+    final haloPaint = Paint()
+      ..color = const Color(0xFF35D7C4).withValues(alpha: 0.11 * progress)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 17);
+    canvas.drawCircle(center, size.width * 0.34, haloPaint);
+
+    final outerPaint = Paint()
+      ..color = const Color(0xFF4CE2D0).withValues(alpha: 0.48 * progress)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15;
+    final outerRect = Rect.fromCircle(center: center, radius: size.width * 0.43);
+    canvas.drawArc(outerRect, rotation, math.pi * 1.34, false, outerPaint);
+    canvas.drawArc(
+      outerRect,
+      rotation + math.pi * 1.56,
+      math.pi * 0.28,
+      false,
+      outerPaint,
+    );
+
+    final innerPaint = Paint()
+      ..color = const Color(0xFF5FEBD9).withValues(alpha: 0.34 * progress)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawCircle(center, size.width * 0.27, innerPaint);
+
+    final nodes = <Offset>[
+      Offset(center.dx, center.dy - size.height * 0.25),
+      Offset(center.dx + size.width * 0.22, center.dy + size.height * 0.13),
+      Offset(center.dx - size.width * 0.22, center.dy + size.height * 0.13),
+    ];
+
+    final connectionPaint = Paint()
+      ..color = const Color(0xFF67EBDD).withValues(alpha: 0.78 * progress)
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    for (final node in nodes) {
+      canvas.drawLine(center, node, connectionPaint);
+    }
+
+    canvas.drawLine(
+      Offset(center.dx, center.dy - size.height * 0.25),
+      Offset(center.dx, center.dy - size.height * 0.37),
+      connectionPaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx - size.width * 0.30, center.dy + size.height * 0.20),
+      Offset(center.dx + size.width * 0.30, center.dy + size.height * 0.20),
+      Paint()
+        ..color = const Color(0xFF3D83F6).withValues(alpha: 0.38 * progress)
+        ..strokeWidth = 1.0,
+    );
+
+    final nodeGlow = Paint()
+      ..color = const Color(0xFF35D7C4).withValues(alpha: 0.18 * progress)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    for (final node in nodes) {
+      canvas.drawCircle(node, 7, nodeGlow);
+    }
+
+    final nodeCore = Paint()
+      ..color = const Color(0xFF9BFFF0).withValues(alpha: progress);
+    for (final node in nodes) {
+      canvas.drawCircle(node, 3.4, nodeCore);
+    }
+
+    canvas.drawCircle(
+      center,
+      8.5,
+      Paint()
+        ..color = const Color(0xFF35D7C4).withValues(alpha: 0.18 * progress),
+    );
+    canvas.drawCircle(
+      center,
+      4.8,
+      Paint()..color = const Color(0xFFF1FFFC).withValues(alpha: progress),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SamanvayOpeningMarkPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 // ==========================================
