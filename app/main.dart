@@ -84,10 +84,10 @@ Color get background => _usesLegacyLightPalette
     ? const Color(0xFFF4F7FA)
     : const Color(0xFF061426);
 Color get ink => _usesLegacyLightPalette
-    ? const Color(0xFF10243A)
+    ? const Color(0xFF000000)
     : const Color(0xFFE8F1FA);
 Color get mutedInk => _usesLegacyLightPalette
-    ? const Color(0xFF63788A)
+    ? const Color(0xFF000000)
     : const Color(0xFFA6B9CA);
 Color get borderColor => _usesLegacyLightPalette
     ? const Color(0xFFDCE5EC)
@@ -324,6 +324,19 @@ class SamanvayApp extends StatelessWidget {
               onSurface: navy,
             ),
             fontFamily: 'Inter',
+            textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme)
+                .apply(bodyColor: Colors.black, displayColor: Colors.black)
+                .copyWith(
+                  bodyLarge: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
+                  bodyMedium: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
+                  bodySmall: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
+                  labelLarge: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
+                  labelMedium: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
+                  labelSmall: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
+                  titleLarge: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w900),
+                  titleMedium: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
+                  titleSmall: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
+                ),
             appBarTheme: AppBarTheme(
               backgroundColor: navy,
               foregroundColor: Colors.white,
@@ -407,7 +420,7 @@ class SamanvayApp extends StatelessWidget {
             ),
           );
       return MaterialApp(
-        title: 'SAMANVAY — Know Below. Dig Above.',
+        title: 'SAMANVAY | Towards Our Development',
         debugShowCheckedModeBanner: false,
         theme: lightTheme,
         darkTheme: theme,
@@ -417,6 +430,168 @@ class SamanvayApp extends StatelessWidget {
     },
     );
   }
+}
+
+
+
+class _SamanvayBrandLogo extends StatelessWidget {
+  const _SamanvayBrandLogo({this.size = 100, this.radius = 22});
+  final double size;
+  final double radius;
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: Image.asset(
+      'assets/brand/samanvay_logo.jpg',
+      width: size, height: size, fit: BoxFit.cover,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (_, __, ___) => Container(
+        width: size, height: size, color: const Color(0xFF071A34),
+        alignment: Alignment.center,
+        child: const Icon(Icons.hub_rounded, color: Color(0xFF38D9E7), size: 42),
+      ),
+    ),
+  );
+}
+
+class _AnimatedDevelopmentTagline extends StatefulWidget {
+  const _AnimatedDevelopmentTagline({this.fontSize = 14, this.textAlign = TextAlign.center});
+  final double fontSize;
+  final TextAlign textAlign;
+  @override
+  State<_AnimatedDevelopmentTagline> createState() => _AnimatedDevelopmentTaglineState();
+}
+class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 2800))..repeat();
+  }
+  @override
+  void dispose() { controller.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (_, __) => ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment(-1 + 2 * controller.value, 0),
+        end: Alignment(1 + 2 * controller.value, 0),
+        colors: _usesLegacyLightPalette
+          ? const [Color(0xFFFF9933), Color(0xFF111827), Color(0xFF138808)]
+          : const [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
+      ).createShader(bounds),
+      child: Text('TOWARDS OUR DEVELOPMENT 📈', textAlign: widget.textAlign,
+        style: GoogleFonts.inter(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .45)),
+    ),
+  );
+}
+
+class _SamanvaySplashReveal extends StatelessWidget {
+  const _SamanvaySplashReveal({required this.controller});
+  final AnimationController controller;
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (_, __) {
+      final p = controller.value;
+      final orbit = (p / .70).clamp(0.0, 1.0);
+      final flag = ((p - .70) / .30).clamp(0.0, 1.0);
+      final scale = 1 + Curves.easeInCubic.transform(flag) * 2.5;
+      final opacity = (1 - Curves.easeInCubic.transform(flag) * .94).clamp(.06, 1.0);
+      final size = math.min(246.0, math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .58);
+      return Scaffold(
+        backgroundColor: const Color(0xFF030D1C),
+        body: Stack(fit: StackFit.expand, children: [
+          const DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
+            center: Alignment(0, -.12), radius: .9,
+            colors: [Color(0xFF173B67), Color(0xFF07182D), Color(0xFF020916)],
+            stops: [0, .58, 1]))),
+          Center(child: CustomPaint(size: Size.square(size + 30), painter: _TricolourBorderPainter(progress: orbit))),
+          Center(child: Transform.scale(scale: scale, alignment: const Alignment(0, .22),
+            child: Opacity(opacity: opacity, child: _SamanvayBrandLogo(size: size, radius: size * .14)))),
+          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _WavingFlagPainter(progress: flag)))),
+        ]),
+      );
+    },
+  );
+}
+
+class _TricolourBorderPainter extends CustomPainter {
+  const _TricolourBorderPainter({required this.progress});
+  final double progress;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()..addRRect(RRect.fromRectAndRadius(
+      (Offset.zero & size).deflate(9), const Radius.circular(38)));
+    final metric = path.computeMetrics().first;
+    final total = metric.length;
+    canvas.drawPath(path, Paint()..color = const Color(0xFF4B9EDB).withValues(alpha: .2)
+      ..style = PaintingStyle.stroke..strokeWidth = 1.5);
+    const colors = [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)];
+    for (var i = 0; i < 3; i++) {
+      final start = (progress * total * 3 + total * i / 3) % total;
+      final end = start + total * .095;
+      final pieces = end <= total
+        ? [metric.extractPath(start, end)]
+        : [metric.extractPath(start, total), metric.extractPath(0, end - total)];
+      for (final piece in pieces) {
+        canvas.drawPath(piece, Paint()..color = colors[i].withValues(alpha: .85)
+          ..style = PaintingStyle.stroke..strokeWidth = 8..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+        canvas.drawPath(piece, Paint()..color = colors[i]
+          ..style = PaintingStyle.stroke..strokeWidth = 3..strokeCap = StrokeCap.round);
+      }
+    }
+  }
+  @override
+  bool shouldRepaint(covariant _TricolourBorderPainter old) => old.progress != progress;
+}
+
+class _WavingFlagPainter extends CustomPainter {
+  const _WavingFlagPainter({required this.progress});
+  final double progress;
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0) return;
+    final reveal = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    final width = math.min(220.0, size.width * .62) * reveal;
+    final height = width * 2 / 3;
+    final poleX = size.width * .43, top = size.height * .32, bottom = top + height;
+    final pole = Paint()..color = const Color(0xFFD9E4EF)..strokeWidth = 3..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(poleX, top - 16), Offset(poleX, bottom + 14), pole);
+    final phase = progress * math.pi * 4;
+    double wave(double x) => math.sin(x / math.max(width, 1) * math.pi * 2.1 + phase) *
+      height * .06 * (x / math.max(width, 1));
+    const colours = [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)];
+    for (var stripe = 0; stripe < 3; stripe++) {
+      final h = height / 3, path = Path();
+      const count = 26;
+      for (var i = 0; i <= count; i++) {
+        final x = width * i / count, y = top + stripe * h + wave(x);
+        if (i == 0) { path.moveTo(poleX + 3, y); } else { path.lineTo(poleX + 3 + x, y); }
+      }
+      for (var i = count; i >= 0; i--) {
+        final x = width * i / count;
+        path.lineTo(poleX + 3 + x, top + (stripe + 1) * h + wave(x));
+      }
+      path.close();
+      canvas.drawPath(path, Paint()..color = colours[stripe]);
+    }
+    final cx = poleX + 3 + width * .5, cy = top + height * .5 + wave(width * .5);
+    final r = height * .105;
+    final chakra = Paint()..color = const Color(0xFF000080)..style = PaintingStyle.stroke..strokeWidth = 1.4;
+    canvas.drawCircle(Offset(cx, cy), r, chakra);
+    for (var i = 0; i < 24; i++) {
+      final a = math.pi * 2 * i / 24 - math.pi / 2;
+      canvas.drawLine(Offset(cx + math.cos(a) * r * .12, cy + math.sin(a) * r * .12),
+        Offset(cx + math.cos(a) * r * .92, cy + math.sin(a) * r * .92), chakra);
+    }
+  }
+  @override
+  bool shouldRepaint(covariant _WavingFlagPainter old) => old.progress != progress;
 }
 
 
@@ -440,6 +615,8 @@ class _OpeningExperienceState extends State<OpeningExperience>
     with TickerProviderStateMixin {
   late final AnimationController _introController;
   late final AnimationController _ambientController;
+  late final AnimationController _splashController;
+  bool _splashFinished = false;
   bool _showApplication = false;
   bool _startingApplication = false;
   String? _startupError;
@@ -450,17 +627,28 @@ class _OpeningExperienceState extends State<OpeningExperience>
     _introController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 4600),
-    )..forward();
+    );
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     )..repeat();
+    _splashController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() => _splashFinished = true);
+        _introController.forward();
+      }
+    });
+    _splashController.forward();
   }
 
   @override
   void dispose() {
     _introController.dispose();
     _ambientController.dispose();
+    _splashController.dispose();
     super.dispose();
   }
 
@@ -492,11 +680,23 @@ class _OpeningExperienceState extends State<OpeningExperience>
       duration: const Duration(milliseconds: 680),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) =>
-          FadeTransition(opacity: animation, child: child),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .94, end: 1.0).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
+      ),
       child: _showApplication
           ? const AuthGate(key: ValueKey<String>('samanvay-auth-gate'))
-          : _SamanvayOpeningScreen(
+          : !_splashFinished
+              ? _SamanvaySplashReveal(
+                  key: const ValueKey<String>('samanvay-splash-reveal'),
+                  controller: _splashController,
+                )
+              : _SamanvayOpeningScreen(
               key: const ValueKey<String>('samanvay-opening-screen'),
               introController: _introController,
               ambientController: _ambientController,
@@ -605,11 +805,9 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                         child: SizedBox(
                                           width: markSize,
                                           height: markSize,
-                                          child: CustomPaint(
-                                            painter: _SamanvayRoadPipeMarkPainter(
-                                              progress: progress,
-                                              ambient: ambient,
-                                            ),
+                                          child: _SamanvayBrandLogo(
+                                            size: markSize,
+                                            radius: markSize * .14,
                                           ),
                                         ),
                                       ),
@@ -644,16 +842,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                     opacity: taglineReveal,
                                     child: Column(
                                       children: [
-                                        Text(
-                                          'Know Below. Dig Above.',
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.inter(
-                                            color: const Color(0xFFE5F5FF),
-                                            fontSize: compact ? 14 : 16,
-                                            fontWeight: FontWeight.w500,
-                                            letterSpacing: 0.65,
-                                          ),
-                                        ),
+                                        _AnimatedDevelopmentTagline(fontSize: compact ? 13 : 15),
                                         const SizedBox(height: 9),
                                         Container(
                                           width: 116 * taglineReveal,
@@ -686,7 +875,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                   Opacity(
                                     opacity: featureReveal,
                                     child: Text(
-                                      'SMART COORDINATION   •   TRANSPARENT GOVERNANCE',
+                                      'SMART COORDINATION   •   TRANSPARENT GOVERNANCE   •   A DEVELOPED INDIA',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         color: const Color(0xFFB5C9DD),
@@ -3752,11 +3941,7 @@ class _AuthPageState extends State<AuthPage> {
                         color: cyanAccent.withValues(alpha: .38),
                       ),
                     ),
-                    child:  Icon(
-                      Icons.hub_rounded,
-                      size: 42,
-                      color: cyanAccent,
-                    ),
+                    child: _SamanvayBrandLogo(size: 76, radius: 22),
                   ),
 
                   const SizedBox(height: 14),
@@ -3775,7 +3960,7 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 5),
 
                    Text(
-                    'KNOW BELOW. DIG ABOVE.',
+                    'TOWARDS OUR DEVELOPMENT 📈',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: cyanAccent,
@@ -4825,7 +5010,7 @@ class _MainScreenState extends State<MainScreen> {
                       ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 2),
-                           Text('KNOW BELOW. DIG ABOVE.', style: TextStyle(color: cyanAccent, fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w800)),
+                           Text('TOWARDS OUR DEVELOPMENT 📈', style: TextStyle(color: cyanAccent, fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w800)),
                         ])
                       :  Icon(Icons.hub_rounded, color: cyanAccent, size: 27),
                   ),
@@ -4969,7 +5154,7 @@ class _DashboardPageState extends State<DashboardPage> {
         Icon(icon, color: color, size: 20),
         const SizedBox(height: 10),
         Text(value, style: GoogleFonts.robotoMono(
-          color: Colors.white, fontSize: 21, fontWeight: FontWeight.w700)),
+          color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
         Text(title, style: GoogleFonts.inter(
           color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
       ]),
@@ -5019,7 +5204,7 @@ class _DashboardPageState extends State<DashboardPage> {
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('KNOW BELOW. DIG ABOVE.',
+              Text('TOWARDS OUR DEVELOPMENT 📈',
                 style: GoogleFonts.inter(color: const Color(0xFFB7D8E0),
                   fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
               const SizedBox(height: 15),
@@ -5042,7 +5227,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 19),
           Text('Quick actions', style: GoogleFonts.spaceGrotesk(
-            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
           LayoutBuilder(builder: (context, constraints) {
             final columns = constraints.maxWidth >= 650 ? 5 : 2;
@@ -5079,7 +5264,7 @@ class _DashboardPageState extends State<DashboardPage> {
           }),
           const SizedBox(height: 23),
           Text('Operational overview', style: GoogleFonts.spaceGrotesk(
-            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text('Your submitted infrastructure cases',
             style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
@@ -5098,7 +5283,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ]),
           const SizedBox(height: 22),
           Text('Cases by infrastructure domain', style: GoogleFonts.spaceGrotesk(
-            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text('Distribution of your submitted cases', style: GoogleFonts.inter(
             color: mutedInk, fontSize: 12)),
@@ -13213,7 +13398,6 @@ class _MapPageState extends State<MapPage> {
           .maybeSingle();
 
       final role = (profile?['role'] ?? '').toString();
-      final authenticatedProfile = ['requester', 'department', 'coordinator', 'admin'].contains(role);
       final authorised = ['admin', 'coordinator', 'department'].contains(role);
       final departmentAssigned = role == 'department' &&
           profile?['department_id'] != null;
@@ -13223,7 +13407,9 @@ class _MapPageState extends State<MapPage> {
           // Public map access is limited to generalised 250 m aggregate cells.
           // The server RPC returns verified aggregates (minimum 3 assets/cell),
           // never exact routes, depths, or owner-specific geometry.
-          _canViewUtilityOverview = authenticatedProfile;
+          // Public endpoint returns verified 250 m aggregate cells only.
+          // Every signed-in role (Citizen included) can view this overview.
+          _canViewUtilityOverview = true;
           _canViewConflictScreening = authorised;
           _canViewDepartmentAssets = departmentAssigned;
           _layerStatus = departmentAssigned
@@ -13236,7 +13422,7 @@ class _MapPageState extends State<MapPage> {
 
       await _loadVisibleWorkRequests();
 
-      if (_showUtilityZones && authenticatedProfile) {
+      if (_showUtilityZones) {
         await _loadUtilityOverview();
       }
       if (_showVerifiedAssets && departmentAssigned) {
@@ -13783,7 +13969,7 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _toggleUtilityZones(bool enabled) async {
     if (!_canViewUtilityOverview) {
-      _showMessage('The utility overview is restricted to authorised infrastructure staff.');
+      _showMessage('The public aggregate coverage layer is not ready. Refresh the map and retry.');
       return;
     }
 
@@ -13854,7 +14040,7 @@ class _MapPageState extends State<MapPage> {
           if (mounted) {
             setState(() {
               _layerStatus =
-                  'Sign in to view the public underground coverage map. No data shown is not proof that utilities are absent.';
+                  'Public underground coverage is temporarily unavailable. No data shown is not proof that utilities are absent.';
             });
           }
         } else if (mounted) {
@@ -16093,9 +16279,9 @@ class _ProfilePageState extends State<ProfilePage> {
         title: const Text('About SAMANVAY'),
         content: const SingleChildScrollView(
           child: Text(
-            'SAMANVAY — Know Below. Dig Above.\n\n'
-            'Brief: A citizen-facing, multi-department infrastructure coordination platform designed to make public works, underground asset awareness, service requests and government coordination more transparent.\n\n'
-            'Detailed overview: SAMANVAY is designed to coordinate road and public-works planning with water supply, sewerage, stormwater drainage, electricity, telecommunications, gas, groundwater, borewell regulation, building approvals and other civic services. It provides GIS-based context, public excavation notices, no-dig advisories, request tracking, evidence submissions, department workflows, coordination dashboards, notifications and audit trails.\n\n'
+            'SAMANVAY — Towards Our Development.\n\n'
+            'Brief: SAMANVAY is a citizen-facing, nationwide platform for transparent public infrastructure planning and coordination across government departments. It helps people understand published works, public underground-infrastructure coverage, service requests and government outcomes.\n\n'
+            'Detailed overview: The platform connects urban development, municipal bodies, water supply, sewerage, stormwater drainage, electricity, telecommunications, gas, groundwater and borewell regulation, building planning and approvals, public health engineering, roads, transport and other public services. It is designed to provide public GIS layers, 2D/3D map views, published excavation and no-dig notices, request tracking, obstruction reporting, department workflows, joint-work coordination, AI-assisted risk insights, public progress dashboards, notifications and accountable audit trails.\n\nPublic accountability: avoided excavations, public funds saved and coordination percentages are displayed only after competent authorities publish verifiable baselines and outcome evidence. Demonstration figures are not shown as live government results.\n\n'
             'Data integrity: Official records are distinguished from public reference datasets, owner-authorised verified utility geometry, aggregate coverage and illustrative estimates. Missing data is shown as a gap. An empty map or absence of a warning is never excavation clearance. Final approvals remain with the competent public authority.',
           ),
         ),
