@@ -2,12 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const Color _aiNavy = Color(0xFF07172B);
-const Color _aiPanel = Color(0xFF102943);
-const Color _aiBlue = Color(0xFF347FF2);
-const Color _aiCyan = Color(0xFF36D9E8);
-const Color _aiMuted = Color(0xFFADC0D2);
-
 /// Case-scoped assistant using the existing authenticated Edge Function.
 class SamanvayAiAssistantPage extends StatefulWidget {
   const SamanvayAiAssistantPage({super.key});
@@ -16,6 +10,15 @@ class SamanvayAiAssistantPage extends StatefulWidget {
 }
 
 class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
+  Color get _aiNavy => Theme.of(context).appBarTheme.backgroundColor ?? Theme.of(context).colorScheme.primary;
+  Color get _aiPanel => Theme.of(context).colorScheme.surface;
+  Color get _aiBlue => Theme.of(context).colorScheme.primary;
+  Color get _aiCyan => Theme.of(context).colorScheme.secondary;
+  Color get _aiMuted => Theme.of(context).colorScheme.onSurfaceVariant;
+  Color get _aiInk => Theme.of(context).colorScheme.onSurface;
+  Color get _aiBorder => Theme.of(context).colorScheme.outlineVariant;
+  bool get _isLight => Theme.of(context).brightness == Brightness.light;
+
   final SupabaseClient _db = Supabase.instance.client;
   late Future<List<Map<String, dynamic>>> _requestsFuture;
   String? _selectedRequestId;
@@ -130,20 +133,20 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
       borderRadius: BorderRadius.circular(13),
       border: Border.all(color: warning ? const Color(0xFFB85D67) : const Color(0xFF31536F)),
     ),
-    child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.4)),
+    child: Text(text, style: TextStyle(color: _aiInk, fontSize: 12, height: 1.4)),
   );
 
   Widget _tag(String label, String value) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
     decoration: BoxDecoration(
-      color: const Color(0xFF173956),
+      color: _aiPanel,
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: const Color(0xFF315B79)),
+      border: Border.all(color: _aiBorder),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(color: _aiMuted, fontSize: 8, letterSpacing: .7, fontWeight: FontWeight.w800)),
+      Text(label, style: TextStyle(color: _aiMuted, fontSize: 8, letterSpacing: .7, fontWeight: FontWeight.w800)),
       const SizedBox(height: 3),
-      Text(value, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+      Text(value, style: TextStyle(color: _aiInk, fontSize: 10, fontWeight: FontWeight.w800)),
     ]),
   );
 
@@ -153,17 +156,17 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
     return Container(
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF244763))),
+      decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(14), border: Border.all(color: _aiBorder)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(icon, color: _aiCyan, size: 17), const SizedBox(width: 8),
-          Expanded(child: Text(title.toUpperCase(), style: const TextStyle(color: _aiCyan, fontSize: 10, letterSpacing: .7, fontWeight: FontWeight.w800))),
+          Expanded(child: Text(title.toUpperCase(), style: TextStyle(color: _aiCyan, fontSize: 10, letterSpacing: .7, fontWeight: FontWeight.w800))),
         ]),
         const SizedBox(height: 8),
         ...items.map((item) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('• ', style: TextStyle(color: _aiCyan, fontSize: 13)),
+            Text('• ', style: TextStyle(color: _aiCyan, fontSize: 13)),
             Expanded(child: Text(item, style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.35))),
           ]),
         )),
@@ -179,16 +182,16 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0C223A), borderRadius: BorderRadius.circular(18), border: Border.all(color: _aiCyan.withValues(alpha: .45))),
+      decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(18), border: Border.all(color: _aiCyan.withValues(alpha: .45))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.auto_awesome, color: _aiCyan, size: 20), const SizedBox(width: 8),
-          const Expanded(child: Text('AI assessment', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800))),
+          Icon(Icons.auto_awesome, color: _aiCyan, size: 20), const SizedBox(width: 8),
+          Expanded(child: Text('AI assessment', style: TextStyle(color: _aiInk, fontSize: 16, fontWeight: FontWeight.w800))),
           if (_assessmentId != null && _assessmentId!.isNotEmpty)
             const Icon(Icons.verified_outlined, color: Color(0xFF77D5B0), size: 18),
         ]),
         const SizedBox(height: 12),
-        Text((data['summary'] ?? 'No summary returned.').toString(), style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5)),
+        Text((data['summary'] ?? 'No summary returned.').toString(), style: TextStyle(color: _aiInk, fontSize: 13, height: 1.5)),
         const SizedBox(height: 13),
         Wrap(spacing: 7, runSpacing: 7, children: [
           _tag('CATEGORY', _readable((data['category'] ?? 'other').toString())),
@@ -200,7 +203,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
         _section('Missing information', data['missing_information'], Icons.help_outline),
         _section('Recommended checks', data['recommended_checks'], Icons.fact_check_outlined),
         const SizedBox(height: 12),
-        const Text('Advisory only. An authorised officer must independently verify information and make all official decisions. This is not a permit, excavation clearance or utility-safety determination.', style: TextStyle(color: _aiMuted, fontSize: 10, height: 1.45)),
+        Text('Advisory only. An authorised officer must independently verify information and make all official decisions. This is not a permit, excavation clearance or utility-safety determination.', style: TextStyle(color: _aiMuted, fontSize: 10, height: 1.45)),
       ]),
     );
   }
@@ -210,9 +213,9 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF244763))),
+      decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(16), border: Border.all(color: _aiBorder)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('RECENT CASE ASSESSMENTS', style: TextStyle(color: _aiCyan, fontSize: 10, letterSpacing: .9, fontWeight: FontWeight.w800)),
+        Text('RECENT CASE ASSESSMENTS', style: TextStyle(color: _aiCyan, fontSize: 10, letterSpacing: .9, fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         ..._history.take(6).map((item) {
           final assessment = item['assessment'] is Map ? Map<String, dynamic>.from(item['assessment'] as Map) : <String, dynamic>{};
@@ -223,9 +226,9 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
           return ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.history, color: _aiCyan, size: 19),
-            title: Text(_readable((item['purpose'] ?? 'assessment').toString()).toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-            subtitle: Text((assessment['summary'] ?? 'Assessment record').toString() + '\n' + date + ' · ' + _readable((item['review_status'] ?? 'suggested').toString()), maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _aiMuted, fontSize: 10)),
+            leading: Icon(Icons.history, color: _aiCyan, size: 19),
+            title: Text(_readable((item['purpose'] ?? 'assessment').toString()).toUpperCase(), style: TextStyle(color: _aiInk, fontSize: 10, fontWeight: FontWeight.w800)),
+            subtitle: Text((assessment['summary'] ?? 'Assessment record').toString() + '\n' + date + ' · ' + _readable((item['review_status'] ?? 'suggested').toString()), maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: _aiMuted, fontSize: 10)),
             isThreeLine: true,
           );
         }),
@@ -246,39 +249,39 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [_aiPanel, Color(0xFF124B6C), Color(0xFF123B72)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: LinearGradient(colors: _isLight ? const [Color(0xFFE3F2EF), Color(0xFFDDECF0), Color(0xFFEAF1F7)] : [_aiPanel, const Color(0xFF124B6C), const Color(0xFF123B72)], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(20), border: Border.all(color: _aiCyan.withValues(alpha: .35)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Container(width: 43, height: 43, decoration: BoxDecoration(color: _aiCyan.withValues(alpha: .14), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.smart_toy_outlined, color: _aiCyan, size: 25)),
+                Container(width: 43, height: 43, decoration: BoxDecoration(color: _aiCyan.withValues(alpha: .14), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.smart_toy_outlined, color: _aiCyan, size: 25)),
                 const SizedBox(width: 12),
-                Expanded(child: Text('Case intelligence', style: GoogleFonts.spaceGrotesk(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 21))),
+                Expanded(child: Text('Case intelligence', style: GoogleFonts.spaceGrotesk(color: _isLight ? _aiInk : Colors.white, fontWeight: FontWeight.w700, fontSize: 21))),
                 const Chip(label: Text('ADVISORY', style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w800)), backgroundColor: Color(0xFF266A82), side: BorderSide.none, visualDensity: VisualDensity.compact),
               ]),
               const SizedBox(height: 11),
-              const Text('Run a structured summary, triage or coordination assessment against a case your authenticated role is allowed to access.', style: TextStyle(color: Color(0xFFD7E7F2), fontSize: 12, height: 1.45)),
+              Text('Run a structured summary, triage or coordination assessment against a case your authenticated role is allowed to access.', style: TextStyle(color: _isLight ? _aiMuted : const Color(0xFFD7E7F2), fontSize: 12, height: 1.45)),
             ]),
           ),
           const SizedBox(height: 16),
           if (snapshot.connectionState == ConnectionState.waiting)
-            const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: _aiCyan)))
+            Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: _aiCyan)))
           else if (snapshot.hasError)
             _notice('Cases could not be loaded. Your account may not have access to case records.')
           else if (requests.isEmpty)
             _notice('No cases are currently visible to this account. Case visibility is controlled by Supabase row-level security.')
           else ...[
-            const Text('SELECT CASE', style: TextStyle(color: _aiMuted, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w800)),
+            Text('SELECT CASE', style: TextStyle(color: _aiMuted, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w800)),
             const SizedBox(height: 7),
             DropdownButtonFormField<String>(
               value: selected,
               isExpanded: true,
               dropdownColor: _aiPanel,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+              style: TextStyle(color: _aiInk, fontSize: 12),
               decoration: InputDecoration(
                 filled: true, fillColor: _aiPanel, hintText: 'Choose an accessible infrastructure case',
-                hintStyle: const TextStyle(color: _aiMuted, fontSize: 11),
-                prefixIcon: const Icon(Icons.folder_open, color: _aiCyan),
+                hintStyle: TextStyle(color: _aiMuted, fontSize: 11),
+                prefixIcon: Icon(Icons.folder_open, color: _aiCyan),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: const BorderSide(color: Color(0xFF31536F))),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: const BorderSide(color: Color(0xFF31536F))),
               ),
@@ -290,7 +293,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
               onChanged: _running ? null : _selectRequest,
             ),
             const SizedBox(height: 15),
-            const Text('ASSESSMENT TYPE', style: TextStyle(color: _aiMuted, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w800)),
+            Text('ASSESSMENT TYPE', style: TextStyle(color: _aiMuted, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w800)),
             const SizedBox(height: 7),
             SegmentedButton<String>(
               segments: const [
@@ -322,8 +325,8 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(color: const Color(0xFF0C2035), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF27445D))),
-            child: const Text('Privacy and safety: the existing server-side assistant validates the session and department assignment, enforces a per-user usage limit, and sends case text only. It does not send exact coordinates, private evidence or utility geometry to the AI provider. Never use an AI result as a no-dig clearance or statutory approval.', style: TextStyle(color: _aiMuted, fontSize: 10, height: 1.45)),
+            decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(14), border: Border.all(color: _aiBorder)),
+            child: Text('Privacy and safety: the existing server-side assistant validates the session and department assignment, enforces a per-user usage limit, and sends case text only. It does not send exact coordinates, private evidence or utility geometry to the AI provider. Never use an AI result as a no-dig clearance or statutory approval.', style: TextStyle(color: _aiMuted, fontSize: 10, height: 1.45)),
           ),
         ]);
       },
