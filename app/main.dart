@@ -5514,14 +5514,15 @@ class _DashboardPageState extends State<DashboardPage>
             child: AnimatedBuilder(
               animation: _ambientFlag,
               builder: (context, _) => Stack(
-                fit: StackFit.expand,
                 children: [
-                  IgnorePointer(
-                    child: CustomPaint(
-                      painter: _WavingFlagPainter(
-                        progress: _ambientFlag.value,
-                        opacity: .13,
-                        ambientBackground: true,
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _WavingFlagPainter(
+                          progress: _ambientFlag.value,
+                          opacity: .13,
+                          ambientBackground: true,
+                        ),
                       ),
                     ),
                   ),
@@ -15089,7 +15090,7 @@ class _MapPageState extends State<MapPage> {
               styleString: _mapStyle,
               // Regional fallback only; a granted device GPS fix immediately
               // replaces this camera. Never present 0,0 as the user's location.
-              initialCameraPosition: const CameraPosition(
+              initialCameraPosition: CameraPosition(
                 target: widget.initialCenter ?? const LatLng(22.5, 79.0),
                 zoom: widget.initialZoom,
                 tilt: widget.initialTilt,
