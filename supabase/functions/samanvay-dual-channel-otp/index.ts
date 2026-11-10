@@ -114,6 +114,20 @@ Deno.serve(async (req: Request) => {
       smsFields.From = smsFrom!;
     }
 
+    // Optional India domestic DLT identifiers. For domestic India SMS,
+    // configure these to match the registered entity and approved OTP template.
+    const dltEntityId = Deno.env.get("TWILIO_SMS_DLT_ENTITY_ID")?.trim();
+    const dltTemplateId = Deno.env.get("TWILIO_SMS_DLT_TEMPLATE_ID")?.trim();
+    if (Boolean(dltEntityId) !== Boolean(dltTemplateId)) {
+      throw new Error(
+        "Set both TWILIO_SMS_DLT_ENTITY_ID and TWILIO_SMS_DLT_TEMPLATE_ID, or neither.",
+      );
+    }
+    if (dltEntityId && dltTemplateId) {
+      smsFields.DltEntityId = dltEntityId;
+      smsFields.DltTemplateId = dltTemplateId;
+    }
+
     // WhatsApp Authentication templates are pre-approved in Twilio.
     // Variable 1 must be the OTP slot in the approved Content Template.
     const whatsappFields: Record<string, string> = {
