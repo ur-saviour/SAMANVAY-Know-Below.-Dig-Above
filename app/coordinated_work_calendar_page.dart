@@ -575,7 +575,7 @@ class _CoordinatedWorkCalendarPageState
                             SizedBox(height: 9),
                             Text('No scheduled works match these filters.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white)),
+                                style: TextStyle(color: _ink)),
                             SizedBox(height: 5),
                             Text(
                               'Only authenticated records visible to your account are shown. Cases without planned dates are excluded from this calendar.',
