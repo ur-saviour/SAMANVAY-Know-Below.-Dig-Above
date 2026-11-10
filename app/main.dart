@@ -500,7 +500,7 @@ class _SamanvaySplashReveal extends StatelessWidget {
       final flag = ((p - .70) / .30).clamp(0.0, 1.0).toDouble();
       final scale = 1 + Curves.easeInCubic.transform(flag) * 2.5;
       final opacity = (1 - Curves.easeInCubic.transform(flag) * .94).clamp(.06, 1.0).toDouble();
-      final size = math.min(246.0, math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .58);
+      final size = math.min(296.0, math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .70);
       return Scaffold(
         backgroundColor: const Color(0xFF030D1C),
         body: Stack(fit: StackFit.expand, children: [
@@ -891,8 +891,8 @@ class _SamanvayOpeningScreen extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
           final markSize = math.min(
-            compact ? 170.0 : 205.0,
-            constraints.maxWidth * 0.53,
+            compact ? 216.0 : 258.0,
+            constraints.maxWidth * 0.70,
           ).toDouble();
 
           return AnimatedBuilder(
@@ -5334,16 +5334,28 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage>
+    with SingleTickerProviderStateMixin {
   bool loading = true;
   String? error;
   List<Map<String, dynamic>> requests = [];
   List<Map<String, dynamic>> departments = [];
+  late final AnimationController _ambientFlag;
 
   @override
   void initState() {
     super.initState();
+    _ambientFlag = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5200),
+    )..repeat();
     refresh();
+  }
+
+  @override
+  void dispose() {
+    _ambientFlag.dispose();
+    super.dispose();
   }
 
   Future<void> refresh() async {
@@ -5498,9 +5510,24 @@ class _DashboardPageState extends State<DashboardPage> {
               border: Border.all(color: const Color(0x5534E5D1)),
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            clipBehavior: Clip.antiAlias,
+            child: AnimatedBuilder(
+              animation: _ambientFlag,
+              builder: (context, _) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  IgnorePointer(
+                    child: CustomPaint(
+                      painter: _WavingFlagPainter(
+                        progress: _ambientFlag.value,
+                        opacity: .13,
+                        ambientBackground: true,
+                      ),
+                    ),
+                  ),
+                  Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
-              const _SamanvayBrandLogo(size: 146, radius: 31),
+              const _SamanvayBrandLogo(size: 194, radius: 34),
               const SizedBox(height: 9),
               const _AnimatedDevelopmentTagline(fontSize: 14),
               const SizedBox(height: 6),
@@ -5541,7 +5568,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
-            ]),
+                  ]),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 18),
           Text('My activity', style: GoogleFonts.spaceGrotesk(
@@ -11379,935 +11409,24 @@ class _MapLocationPickerPageState
   }
 }
 // ==========================================
-// LPU CAMPUS — SYNTHETIC UNDERGROUND MODEL
 // ==========================================
-//
-// This is a conceptual product demonstration for Lovely Professional
-// University, Phagwara. The underground paths, building footprints, service
-// corridors and layer relationships below are deliberately synthetic.
-// They are not surveyed, georeferenced, depth-accurate or suitable for field
-// excavation. No actual campus utility locations are represented.
-
-class LpuCampusModelPage extends StatefulWidget {
+// LPU CAMPUS — LIVE BASEMAP VIEW
+// ==========================================
+// Uses the same live national GIS map as every other region. No synthetic
+// routes or invented campus asset locations are rendered. LPU-owned utility
+// geometry will appear only after authorised, verified survey records exist.
+class LpuCampusModelPage extends StatelessWidget {
   const LpuCampusModelPage({super.key});
 
-  @override
-  State<LpuCampusModelPage> createState() => _LpuCampusModelPageState();
-}
-
-class _LpuCampusModelPageState extends State<LpuCampusModelPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _flowController;
-  bool _waterVisible = true;
-  bool _sewerVisible = true;
-  bool _powerVisible = true;
-  bool _fibreVisible = true;
+  static const LatLng _campusCentre = LatLng(31.2559, 75.7050);
 
   @override
-  void initState() {
-    super.initState();
-    _flowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3600),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _flowController.dispose();
-    super.dispose();
-  }
-
-  Widget _legendItem(Color color, String title, String detail) {
-    return Container(
-      width: 156,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: panelNavy,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(top: 3),
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.55), blurRadius: 8),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  detail,
-                  style: const TextStyle(
-                    color: Color(0xFF9DB3C8),
-                    fontSize: 9,
-                    height: 1.25,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _layerChip({
-    required String label,
-    required Color color,
-    required bool selected,
-    required ValueChanged<bool> onSelected,
-  }) {
-    return FilterChip(
-      selected: selected,
-      onSelected: onSelected,
-      avatar: Icon(Icons.circle, color: color, size: 10),
-      label: Text(label),
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : const Color(0xFF9DB3C8),
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-      ),
-      selectedColor: color.withValues(alpha: 0.18),
-      backgroundColor: panelNavy,
-      checkmarkColor: Colors.white,
-      side: BorderSide(
-        color: selected ? color.withValues(alpha: 0.85) : borderColor,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final compact = size.width < 420;
-
-    return Scaffold(
-      backgroundColor: background,
-      appBar: AppBar(
-        backgroundColor: navy,
-        foregroundColor: Colors.white,
-        titleSpacing: 14,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'LPU CAMPUS MODEL',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-              ),
-            ),
-            Text(
-              'PHAGWARA · PUNJAB',
-              style: TextStyle(
-                color: const Color(0xFF91B2CB),
-                fontSize: 9,
-                letterSpacing: 1.25,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Model information',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (dialogContext) => AlertDialog(
-                backgroundColor: panelNavy,
-                title: const Text(
-                  'Illustrative model only',
-                  style: TextStyle(color: Colors.white),
-                ),
-                content: const Text(
-                  'This is a synthetic campus-infrastructure demonstration. '
-                  'It does not show the actual location, depth, capacity or '
-                  'condition of any LPU utility. Real mapping requires '
-                  'authorised survey and verified records.',
-                  style: TextStyle(color: Color(0xFFCAD8E5), height: 1.45),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: const Text('CLOSE'),
-                  ),
-                ],
-              ),
-            ),
-            icon: const Icon(Icons.info_outline_rounded),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.all(compact ? 12 : 18),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                color: const Color(0xFF123449),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF2A8191)),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.school_outlined,
-                    color: Color(0xFF6DE8D9),
-                    size: 24,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Lovely Professional University',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Jalandhar–Delhi G.T. Road, Phagwara, Punjab 144411',
-                          style: TextStyle(
-                            color: Color(0xFFB9D3E0),
-                            fontSize: 10,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-              decoration: BoxDecoration(
-                color: const Color(0xFF402D17),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFB88737)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.science_outlined,
-                    color: Color(0xFFFFD17C),
-                    size: 17,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'SYNTHETIC DEMO · NOT A SURVEY · NOT TO SCALE',
-                      style: TextStyle(
-                        color: Color(0xFFFFE4B5),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.7,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'MODEL LAYERS',
-              style: TextStyle(
-                color: Color(0xFF9CB8CF),
-                fontSize: 9,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 6,
-              runSpacing: 2,
-              children: [
-                _layerChip(
-                  label: 'Water',
-                  color: const Color(0xFF28BDF5),
-                  selected: _waterVisible,
-                  onSelected: (v) => setState(() => _waterVisible = v),
-                ),
-                _layerChip(
-                  label: 'Sewer',
-                  color: const Color(0xFFFFA64D),
-                  selected: _sewerVisible,
-                  onSelected: (v) => setState(() => _sewerVisible = v),
-                ),
-                _layerChip(
-                  label: 'Power',
-                  color: const Color(0xFFB78CFF),
-                  selected: _powerVisible,
-                  onSelected: (v) => setState(() => _powerVisible = v),
-                ),
-                _layerChip(
-                  label: 'Fibre',
-                  color: const Color(0xFF35D79B),
-                  selected: _fibreVisible,
-                  onSelected: (v) => setState(() => _fibreVisible = v),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            AspectRatio(
-              aspectRatio: compact ? 0.88 : 1.42,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 2.8,
-                  boundaryMargin: const EdgeInsets.all(44),
-                  child: AnimatedBuilder(
-                    animation: _flowController,
-                    builder: (context, _) => CustomPaint(
-                      painter: _LpuCampusModelPainter(
-                        flow: _flowController.value,
-                        waterVisible: _waterVisible,
-                        sewerVisible: _sewerVisible,
-                        powerVisible: _powerVisible,
-                        fibreVisible: _fibreVisible,
-                      ),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'SYSTEM LEGEND',
-              style: TextStyle(
-                color: Color(0xFF9CB8CF),
-                fontSize: 9,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _legendItem(
-                  const Color(0xFF28BDF5),
-                  'Water supply',
-                  'Illustrative pipe corridor',
-                ),
-                _legendItem(
-                  const Color(0xFFFFA64D),
-                  'Sewerage',
-                  'Illustrative gravity line',
-                ),
-                _legendItem(
-                  const Color(0xFFB78CFF),
-                  'Electricity',
-                  'Illustrative protected duct',
-                ),
-                _legendItem(
-                  const Color(0xFF35D79B),
-                  'Telecom fibre',
-                  'Illustrative data duct',
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D2338),
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: const Color(0xFF28465F)),
-              ),
-              child:  Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'DATA STATUS',
-                    style: TextStyle(
-                      color: cyanAccent,
-                      fontSize: 9,
-                      letterSpacing: 1.4,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 7),
-                  Text(
-                    'All visible underground lines, connection points, layer bands and building footprints are synthetic artwork created for this demonstration. They are not real campus infrastructure records.',
-                    style: TextStyle(
-                      color: mutedInk,
-                      fontSize: 10,
-                      height: 1.45,
-                    ),
-                  ),
-                  SizedBox(height: 7),
-                  Text(
-                    'A production LPU deployment would require the university’s authorised GIS/CAD/as-built records, survey dates, utility-owner confirmation and field verification before any real asset is displayed.',
-                    style: TextStyle(
-                      color: mutedInk,
-                      fontSize: 10,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LpuCampusModelPainter extends CustomPainter {
-  const _LpuCampusModelPainter({
-    required this.flow,
-    required this.waterVisible,
-    required this.sewerVisible,
-    required this.powerVisible,
-    required this.fibreVisible,
-  });
-
-  final double flow;
-  final bool waterVisible;
-  final bool sewerVisible;
-  final bool powerVisible;
-  final bool fibreVisible;
-
-  Path _utilityPath(Size size, int layer) {
-    final y = size.height * (0.65 + layer * 0.075);
-    return Path()
-      ..moveTo(size.width * -0.04, y + size.height * 0.02)
-      ..cubicTo(
-        size.width * 0.20,
-        y - size.height * 0.08,
-        size.width * 0.30,
-        y + size.height * 0.09,
-        size.width * 0.49,
-        y + size.height * 0.005,
-      )
-      ..cubicTo(
-        size.width * 0.68,
-        y - size.height * 0.08,
-        size.width * 0.82,
-        y + size.height * 0.07,
-        size.width * 1.04,
-        y - size.height * 0.015,
-      );
-  }
-
-  void _drawMovingLine(
-    Canvas canvas,
-    Path path,
-    Color color,
-    double width,
-    bool visible,
-    double phase,
-  ) {
-    if (!visible) return;
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = background
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width + 7
-        ..strokeCap = StrokeCap.round,
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color.withValues(alpha: 0.92)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..strokeCap = StrokeCap.round,
-    );
-    final metrics = path.computeMetrics().toList();
-    if (metrics.isEmpty) return;
-    final metric = metrics.first;
-    for (int i = 0; i < 3; i++) {
-      final distance = ((flow + phase + i / 3) % 1.0) * metric.length;
-      final tangent = metric.getTangentForOffset(distance);
-      if (tangent == null) continue;
-      canvas.drawCircle(
-        tangent.position,
-        width * 0.90,
-        Paint()
-          ..color = color.withValues(alpha: 0.30)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-      canvas.drawCircle(
-        tangent.position,
-        width * 0.28,
-        Paint()..color = Colors.white.withValues(alpha: 0.95),
-      );
-    }
-  }
-
-  void _text(
-    Canvas canvas,
-    String value,
-    Offset offset, {
-    double size = 9,
-    Color color = const Color(0xFFE8F1FA),
-    FontWeight weight = FontWeight.w800,
-  }) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: value,
-        style: TextStyle(
-          color: color,
-          fontSize: size,
-          fontWeight: weight,
-          letterSpacing: 0.5,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout(maxWidth: 190);
-    painter.paint(canvas, offset);
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final bounds = Offset.zero & size;
-    canvas.drawRect(
-      bounds,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF071426),
-            Color(0xFF0B2136),
-            Color(0xFF102C3E),
-            Color(0xFF061321),
-          ],
-          stops: [0, .38, .74, 1],
-        ).createShader(bounds),
-    );
-
-    // Atmosphere, map grid and isometric depth guides.
-    canvas.drawCircle(
-      Offset(w * .78, h * .18),
-      w * .50,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            const Color(0xFF1D90A2).withValues(alpha: .22),
-            const Color(0xFF15435D).withValues(alpha: .08),
-            Colors.transparent,
-          ],
-        ).createShader(Rect.fromCircle(center: Offset(w * .78, h * .18), radius: w * .50)),
-    );
-    final grid = Paint()
-      ..color = const Color(0xFF8BB5C9).withValues(alpha: .12)
-      ..strokeWidth = .7;
-    final vanishing = Offset(w * .50, h * .16);
-    for (var i = -7; i <= 7; i++) {
-      final bottomX = w * (.5 + i * .115);
-      canvas.drawLine(vanishing, Offset(bottomX, h * .59), grid);
-    }
-    for (var i = 0; i < 8; i++) {
-      final y = h * (.19 + i * .052);
-      canvas.drawLine(Offset(w * .04, y), Offset(w * .96, y - h * .035), grid);
-    }
-
-    void label(String text, Offset at, {Color color = const Color(0xFFB9D4E4), double font = 7}) {
-      final p = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            color: color,
-            fontSize: font,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .65,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout(maxWidth: w * .55);
-      p.paint(canvas, at);
-    }
-
-    // A raised surface slab with top, front and right-hand cutaway faces.
-    final topSlab = Path()
-      ..moveTo(w * .055, h * .16)
-      ..lineTo(w * .89, h * .105)
-      ..lineTo(w * .965, h * .43)
-      ..lineTo(w * .14, h * .505)
-      ..close();
-    final frontFace = Path()
-      ..moveTo(w * .14, h * .505)
-      ..lineTo(w * .965, h * .43)
-      ..lineTo(w * .965, h * .535)
-      ..lineTo(w * .14, h * .615)
-      ..close();
-    final leftFace = Path()
-      ..moveTo(w * .055, h * .16)
-      ..lineTo(w * .14, h * .505)
-      ..lineTo(w * .14, h * .615)
-      ..lineTo(w * .055, h * .27)
-      ..close();
-    canvas.drawPath(leftFace, Paint()..color = const Color(0xFF1B3D52));
-    canvas.drawPath(frontFace, Paint()..color = const Color(0xFF243B4A));
-    canvas.drawPath(
-      topSlab,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1C4858), Color(0xFF204E50), Color(0xFF173746)],
-        ).createShader(bounds),
-    );
-    canvas.drawPath(
-      topSlab,
-      Paint()
-        ..color = const Color(0xFF6DD8D1).withValues(alpha: .42)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.25,
-    );
-
-    // Perspective site grid on the surface parcel.
-    final siteGrid = Paint()
-      ..color = const Color(0xFF9CC3C6).withValues(alpha: .13)
-      ..strokeWidth = .8;
-    for (var i = 1; i < 9; i++) {
-      final t = i / 9;
-      canvas.drawLine(
-        Offset(w * (.055 + .085 * t), h * (.16 + .345 * t)),
-        Offset(w * (.89 + .075 * t), h * (.105 + .325 * t)),
-        siteGrid,
-      );
-      canvas.drawLine(
-        Offset(w * (.055 + .835 * t), h * (.16 - .055 * t)),
-        Offset(w * (.14 + .825 * t), h * (.505 - .075 * t)),
-        siteGrid,
-      );
-    }
-
-    // Volumetric academic blocks; each has two lit elevations and a roof plane.
-    void block(double x, double y, double bw, double bh, double depth, String name, int seed) {
-      final p0 = Offset(x, y);
-      final p1 = Offset(x + bw, y - bh * .105);
-      final p2 = Offset(x + bw + depth, y + bh * .015);
-      final p3 = Offset(x + depth, y + bh * .13);
-      final drop = bh * .74;
-      final front = Path()
-        ..moveTo(p0.dx, p0.dy)
-        ..lineTo(p1.dx, p1.dy)
-        ..lineTo(p1.dx, p1.dy + drop)
-        ..lineTo(p0.dx, p0.dy + drop)
-        ..close();
-      final side = Path()
-        ..moveTo(p1.dx, p1.dy)
-        ..lineTo(p2.dx, p2.dy)
-        ..lineTo(p2.dx, p2.dy + drop)
-        ..lineTo(p1.dx, p1.dy + drop)
-        ..close();
-      final roof = Path()
-        ..moveTo(p0.dx, p0.dy)
-        ..lineTo(p1.dx, p1.dy)
-        ..lineTo(p2.dx, p2.dy)
-        ..lineTo(p3.dx, p3.dy)
-        ..close();
-      canvas.drawPath(side, Paint()..color = const Color(0xFF213B57));
-      canvas.drawPath(front, Paint()..color = const Color(0xFF385F7A));
-      canvas.drawPath(roof, Paint()..color = const Color(0xFF8AAFC1));
-      final glass = Paint()..color = const Color(0xFF8FEAF1).withValues(alpha: .64);
-      final columns = 3 + (seed % 2);
-      for (var row = 0; row < 3; row++) {
-        for (var col = 0; col < columns; col++) {
-          final wx = x + bw * (.10 + col * (.72 / columns));
-          final wy = y + drop * (.17 + row * .22);
-          final ww = math.max(1.4, bw * .055).toDouble();
-          final wh = math.max(2.0, drop * .075).toDouble();
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(Rect.fromLTWH(wx, wy, ww, wh), const Radius.circular(1)),
-            glass,
-          );
-        }
-      }
-      for (var row = 0; row < 3; row++) {
-        final wy = y + bh * .18 + drop * (.12 + row * .22);
-        canvas.drawLine(
-          Offset(p1.dx + depth * .18, wy),
-          Offset(p2.dx - depth * .15, wy + depth * .12),
-          Paint()..color = const Color(0xFF9BE8E7).withValues(alpha: .43)..strokeWidth = 1.1,
-        );
-      }
-      label(name, Offset(x - 1, y + drop + 3), font: 6.2, color: const Color(0xFFD7E9F1));
-    }
-
-    block(w * .15, h * .235, w * .13, h * .105, w * .045, 'ACADEMIC', 1);
-    block(w * .40, h * .19, w * .15, h * .12, w * .05, 'LIBRARY', 2);
-    block(w * .69, h * .245, w * .12, h * .095, w * .045, 'HOSTEL', 3);
-
-    // Main campus carriageway and side road, with kerbs, dashed markings and nodes.
-    final road = Path()
-      ..moveTo(w * .055, h * .405)
-      ..cubicTo(w * .29, h * .355, w * .57, h * .43, w * .95, h * .355);
-    canvas.drawPath(
-      road,
-      Paint()
-        ..color = const Color(0xFF071321)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = h * .105
-        ..strokeCap = StrokeCap.round,
-    );
-    canvas.drawPath(
-      road,
-      Paint()
-        ..color = const Color(0xFF647B8C)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = h * .080
-        ..strokeCap = StrokeCap.round,
-    );
-    canvas.drawPath(
-      road,
-      Paint()
-        ..color = const Color(0xFF9AB4C1).withValues(alpha: .55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..strokeCap = StrokeCap.round,
-    );
-    final roadMetric = road.computeMetrics().first;
-    for (var d = 0.0; d < roadMetric.length; d += 18) {
-      canvas.drawPath(
-        roadMetric.extractPath(d, math.min(d + 7, roadMetric.length).toDouble()),
-        Paint()
-          ..color = const Color(0xFFFFD17C)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    // Open subsurface section: layered geology, trench walls and depth datum.
-    final cutY = h * .585;
-    final soil = Path()
-      ..moveTo(w * .055, cutY - h * .10)
-      ..lineTo(w * .965, cutY - h * .18)
-      ..lineTo(w * .965, h * .97)
-      ..lineTo(w * .055, h * .97)
-      ..close();
-    canvas.drawPath(
-      soil,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF42545A),
-            Color(0xFF33454D),
-            Color(0xFF243B48),
-            Color(0xFF112638),
-          ],
-          stops: [0, .25, .64, 1],
-        ).createShader(Rect.fromLTWH(0, cutY - h * .10, w, h * .58)),
-    );
-    final strata = [
-      (y: .66, c: const Color(0xFFB4A58A)),
-      (y: .77, c: const Color(0xFF8D9A91)),
-      (y: .88, c: const Color(0xFF6B8790)),
-    ];
-    for (final layer in strata) {
-      final y = h * layer.y;
-      final band = Path()
-        ..moveTo(w * .055, y)
-        ..cubicTo(w * .28, y - h * .025, w * .67, y + h * .018, w * .965, y - h * .035);
-      canvas.drawPath(
-        band,
-        Paint()
-          ..color = layer.c.withValues(alpha: .33)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 7,
-      );
-      canvas.drawPath(
-        band,
-        Paint()
-          ..color = Colors.white.withValues(alpha: .13)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = .8,
-      );
-    }
-    canvas.drawLine(
-      Offset(w * .055, cutY - h * .10),
-      Offset(w * .965, cutY - h * .18),
-      Paint()..color = const Color(0xFF7FE6D8)..strokeWidth = 2,
-    );
-    label('SURFACE DATUM  ·  DEPTHS ILLUSTRATIVE ONLY',
-      Offset(w * .055, cutY - h * .085), color: const Color(0xFFFFD99A), font: 6.8);
-
-    // Isometric utility corridors: casing, inner service, specular highlight and flow.
-    void tube(Path path, Color color, double diameter, bool visible, double phaseOffset) {
-      if (!visible) return;
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = const Color(0xFF061321)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = diameter + 9
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = Color.lerp(color, Colors.black, .38)!
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = diameter + 4
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = diameter
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = Colors.white.withValues(alpha: .42)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = math.max(1.1, diameter * .17).toDouble()
-          ..strokeCap = StrokeCap.round,
-      );
-      final metrics = path.computeMetrics().toList();
-      if (metrics.isEmpty) return;
-      final metric = metrics.first;
-      for (var i = 0; i < 4; i++) {
-        final d = ((flow + phaseOffset + i / 4) % 1.0) * metric.length;
-        final tangent = metric.getTangentForOffset(d);
-        if (tangent == null) continue;
-        canvas.drawCircle(
-          tangent.position,
-          diameter * .68,
-          Paint()
-            ..color = color.withValues(alpha: .36)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-        );
-        canvas.drawCircle(
-          tangent.position,
-          math.max(1.0, diameter * .20).toDouble(),
-          Paint()..color = Colors.white.withValues(alpha: .95),
-        );
-      }
-    }
-
-    Path corridor(double y, double bend, double depth) => Path()
-      ..moveTo(w * -.02, y + h * .035)
-      ..cubicTo(w * .20, y - h * .06, w * .29, y + h * .07, w * .47, y + bend * h)
-      ..cubicTo(w * .66, y + h * .085, w * .80, y - h * .035, w * 1.02, y + h * .02 + depth * h);
-
-    final waterPath = corridor(h * .685, .005, .015);
-    final sewerPath = corridor(h * .785, .040, .0);
-    final powerPath = corridor(h * .865, .055, .035);
-    final fibrePath = corridor(h * .925, .020, .0);
-    tube(waterPath, const Color(0xFF27BDF5), 8.0, waterVisible, 0.00);
-    tube(sewerPath, const Color(0xFFFFA64D), 7.2, sewerVisible, .23);
-    tube(powerPath, const Color(0xFFB78CFF), 5.0, powerVisible, .48);
-    tube(fibrePath, const Color(0xFF35D79B), 4.0, fibreVisible, .71);
-
-    // Vertical service risers join the surface access points to each corridor.
-    void riser(double x, double yTop, double yBottom, Color color, bool visible) {
-      if (!visible) return;
-      final p = Path()
-        ..moveTo(w * x, h * yTop)
-        ..lineTo(w * x, h * (yTop + .035))
-        ..cubicTo(w * (x - .012), h * (yTop + .055), w * (x + .018), h * (yBottom - .045), w * x, h * yBottom);
-      tube(p, color, 4.2, true, .12);
-      canvas.drawCircle(Offset(w * x, h * yTop), 5,
-        Paint()..color = color.withValues(alpha: .72)..style = PaintingStyle.stroke..strokeWidth = 1.4);
-      canvas.drawCircle(Offset(w * x, h * yTop), 2,
-        Paint()..color = const Color(0xFFE8F8FF));
-    }
-    riser(.22, .53, .685, const Color(0xFF27BDF5), waterVisible);
-    riser(.46, .55, .785, const Color(0xFFFFA64D), sewerVisible);
-    riser(.71, .54, .865, const Color(0xFFB78CFF), powerVisible);
-    riser(.84, .54, .925, const Color(0xFF35D79B), fibreVisible);
-
-    // Instrumented inspection / junction chambers.
-    for (var i = 0; i < 4; i++) {
-      final x = w * (.17 + i * .22);
-      final y = h * (.625 + (i % 2) * .08);
-      final chamber = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(x, y), width: 16, height: 11),
-        const Radius.circular(3),
-      );
-      canvas.drawRRect(chamber, Paint()..color = const Color(0xFF162A3C));
-      canvas.drawRRect(chamber, Paint()
-        ..color = const Color(0xFF80DAD9)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1);
-      canvas.drawCircle(Offset(x, y), 2.1, Paint()..color = const Color(0xFFB5FFF1));
-    }
-
-    label('3D SUBSURFACE CUTAWAY', Offset(w * .055, h * .585), color: const Color(0xFF7FE6D8), font: 7);
-    label('WATER  ·  PRESSURISED', Offset(w * .06, h * .715), color: const Color(0xFF8DDFFF), font: 6.2);
-    label('SEWER  ·  GRAVITY NETWORK', Offset(w * .06, h * .815), color: const Color(0xFFFFC18B), font: 6.2);
-    label('POWER / FIBRE  ·  DUCT BANK', Offset(w * .06, h * .90), color: const Color(0xFFD3BEFF), font: 6.2);
-
-    // Pulsing connection beacon and depth scale.
-    final pulse = .5 + .5 * math.sin(flow * math.pi * 2).abs();
-    final beacon = Offset(w * .91, h * .59);
-    canvas.drawCircle(beacon, 7 + pulse * 8,
-      Paint()..color = const Color(0xFF66F0D6).withValues(alpha: .19)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11));
-    canvas.drawCircle(beacon, 3.1,
-      Paint()..color = const Color(0xFFC4FFF4));
-    canvas.drawLine(Offset(w * .94, h * .65), Offset(w * .94, h * .91),
-      Paint()..color = const Color(0xFFBED5E2).withValues(alpha: .45)..strokeWidth = 1);
-    for (var i = 0; i <= 4; i++) {
-      final yy = h * (.65 + i * .065);
-      canvas.drawLine(Offset(w * .925, yy), Offset(w * .955, yy),
-        Paint()..color = const Color(0xFFBED5E2).withValues(alpha: .65)..strokeWidth = 1);
-    }
-    label('DEPTH', Offset(w * .89, h * .93), font: 5.5);
-    label('MODEL · NOT SURVEYED · NOT TO SCALE', Offset(w * .055, h * .965),
-      color: const Color(0xFFFFD99A), font: 6.1);
-  }
-
-  @override
-  bool shouldRepaint(covariant _LpuCampusModelPainter oldDelegate) =>
-      oldDelegate.flow != flow ||
-      oldDelegate.waterVisible != waterVisible ||
-      oldDelegate.sewerVisible != sewerVisible ||
-      oldDelegate.powerVisible != powerVisible ||
-      oldDelegate.fibreVisible != fibreVisible;
+  Widget build(BuildContext context) => const MapPage(
+    initialCenter: _campusCentre,
+    initialZoom: 16.1,
+    initialTilt: 54,
+    contextLabel: 'LPU CAMPUS · PHAGWARA',
+  );
 }
 
 class ClashVisualizerPage extends StatefulWidget {
@@ -12719,7 +11838,18 @@ class _Clash3DScenePainter extends CustomPainter {
 }
 
 class MapPage extends StatefulWidget {
-  const MapPage({super.key});
+  const MapPage({
+    super.key,
+    this.initialCenter,
+    this.initialZoom = 3.5,
+    this.initialTilt = 0,
+    this.contextLabel,
+  });
+
+  final LatLng? initialCenter;
+  final double initialZoom;
+  final double initialTilt;
+  final String? contextLabel;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -15871,7 +15001,7 @@ class _MapPageState extends State<MapPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'SAMANVAY GIS',
+              widget.contextLabel == null ? 'SAMANVAY GIS' : 'SAMANVAY GIS · ${widget.contextLabel}',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -15880,7 +15010,9 @@ class _MapPageState extends State<MapPage> {
             ),
             SizedBox(height: 2),
             Text(
-              'GEOSPATIAL INFRASTRUCTURE WORKSPACE',
+              widget.contextLabel == null
+                  ? 'GEOSPATIAL INFRASTRUCTURE WORKSPACE'
+                  : 'LIVE BASEMAP · VERIFIED UTILITY ASSETS ONLY',
               style: TextStyle(
                 fontSize: 9,
                 letterSpacing: 1.35,
@@ -15891,7 +15023,7 @@ class _MapPageState extends State<MapPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'LPU campus underground model',
+            tooltip: 'Open LPU campus in the live GIS map',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
             ),
@@ -15958,9 +15090,9 @@ class _MapPageState extends State<MapPage> {
               // Regional fallback only; a granted device GPS fix immediately
               // replaces this camera. Never present 0,0 as the user's location.
               initialCameraPosition: const CameraPosition(
-                target: LatLng(22.5, 79.0),
-                zoom: 3.5,
-                tilt: 0,
+                target: widget.initialCenter ?? const LatLng(22.5, 79.0),
+                zoom: widget.initialZoom,
+                tilt: widget.initialTilt,
                 bearing: 0,
               ),
               onMapCreated: _onMapCreated,
