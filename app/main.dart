@@ -325,19 +325,17 @@ class SamanvayApp extends StatelessWidget {
               onSurface: navy,
             ),
             fontFamily: 'Inter',
-            textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme)
-                .apply(bodyColor: Colors.black, displayColor: Colors.black)
-                .copyWith(
-                  bodyLarge: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
-                  bodyMedium: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
-                  bodySmall: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
-                  labelLarge: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
-                  labelMedium: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
-                  labelSmall: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700),
-                  titleLarge: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w900),
-                  titleMedium: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
-                  titleSmall: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800),
-                ),
+            textTheme: const TextTheme(
+              bodyLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+              bodyMedium: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+              bodySmall: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+              labelLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+              labelMedium: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+              labelSmall: TextStyle(color: Colors.black, fontWeight: FontWeight.w700),
+              titleLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+              titleMedium: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+              titleSmall: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+            ),
             appBarTheme: AppBarTheme(
               backgroundColor: navy,
               foregroundColor: Colors.white,
@@ -491,7 +489,7 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
 }
 
 class _SamanvaySplashReveal extends StatelessWidget {
-  const _SamanvaySplashReveal({required this.controller});
+  const _SamanvaySplashReveal({super.key, required this.controller});
   final AnimationController controller;
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
