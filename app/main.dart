@@ -3164,7 +3164,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                       child: Icon(widget.icon, color: _usesLegacyLightPalette ? teal : const Color(0xFFB9F3E8), size: 25),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(child: Column(
+                    Expanded(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('SAMANVAY',
