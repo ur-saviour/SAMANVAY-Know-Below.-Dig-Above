@@ -583,7 +583,7 @@ class _SamanvayRoadPipeMarkPainter extends CustomPainter {
     final metrics = path.computeMetrics().toList();
     if (metrics.isEmpty || amount <= 0) return Path();
     final metric = metrics.first;
-    return metric.extractPath(0, metric.length * amount.clamp(0.0, 1.0));
+    return metric.extractPath(0, metric.length * amount.clamp(0.0, 1.0).toDouble());
   }
 
   void _drawPipe(Canvas canvas, Path path, Color color, double width, double amount) {
@@ -957,18 +957,20 @@ class _SamanvayOpeningCityPainter extends CustomPainter {
       for (int i = 0; i < 3; i++) {
         final offset = ((ambient + phase + i / 3) % 1.0) * metric.length;
         final tangent = metric.getTangentForOffset(offset);
-        canvas.drawCircle(
-          tangent.position,
-          2.5,
-          Paint()
-            ..color = color.withValues(alpha: 0.26 * reveal)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-        );
-        canvas.drawCircle(
-          tangent.position,
-          1.1,
-          Paint()..color = Colors.white.withValues(alpha: 0.92 * reveal),
-        );
+        if (tangent != null) {
+          canvas.drawCircle(
+            tangent.position,
+            2.5,
+            Paint()
+              ..color = color.withValues(alpha: 0.26 * reveal)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+          );
+          canvas.drawCircle(
+            tangent.position,
+            1.1,
+            Paint()..color = Colors.white.withValues(alpha: 0.92 * reveal),
+          );
+        }
       }
     }
 
