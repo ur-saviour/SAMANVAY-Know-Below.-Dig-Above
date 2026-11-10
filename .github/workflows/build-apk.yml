@@ -2,6 +2,7 @@
 
 
 name: Build SAMANVAY Android APK
+# Rebuild final reference assets and splash/locator transition from latest app code.
 
 on:
   workflow_dispatch:
