@@ -3071,7 +3071,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
       backgroundColor: background,
       appBar: AppBar(
         toolbarHeight: 72,
-        backgroundColor: background,
+        backgroundColor: navy,
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Column(
