@@ -238,7 +238,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: _aiNavy,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     appBar: AppBar(backgroundColor: _aiNavy, foregroundColor: Colors.white, title: const Text('SAMANVAY AI Assistant')),
     body: FutureBuilder<List<Map<String, dynamic>>>(
       future: _requestsFuture,
