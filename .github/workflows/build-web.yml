@@ -77,7 +77,7 @@ jobs:
 
       - name: Install Flutter dependencies
         run: |
-          flutter pub add supabase_flutter
+          flutter pub add supabase_flutter:2.18.3
           flutter pub add flutter_svg
           flutter pub add maplibre_gl:0.27.1
           flutter pub add latlong2
