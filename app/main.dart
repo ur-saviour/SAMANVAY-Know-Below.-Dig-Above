@@ -5309,7 +5309,7 @@ class _DashboardPageState extends State<DashboardPage>
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
-            ),
+            ]),
           ),
           const SizedBox(height: 18),
           Text('My activity', style: GoogleFonts.spaceGrotesk(
