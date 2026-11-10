@@ -20,6 +20,7 @@ import 'asset_evidence_page.dart';
 import 'public_excavation_tracker_page.dart';
 import 'ai_assistant_page.dart';
 import 'coordinated_work_calendar_page.dart';
+import 'public_transparency_dashboard_page.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -5204,9 +5205,10 @@ class _DashboardPageState extends State<DashboardPage> {
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('TOWARDS OUR DEVELOPMENT 📈',
-                style: GoogleFonts.inter(color: const Color(0xFFB7D8E0),
-                  fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+              const _AnimatedDevelopmentTagline(fontSize: 10, textAlign: TextAlign.left),
+              const SizedBox(height: 4),
+              const Text('PUBLIC COORDINATION • TRANSPARENT GOVERNANCE • INDIA',
+                style: TextStyle(color: Color(0xFFD1E0EA), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .45)),
               const SizedBox(height: 15),
               Text('Good day, $name',
                 style: GoogleFonts.spaceGrotesk(color: Colors.white,
@@ -5224,6 +5226,35 @@ class _DashboardPageState extends State<DashboardPage> {
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
             ]),
+          ),
+          const SizedBox(height: 15),
+          Card(
+            color: panelNavy,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(children: [
+                const _SamanvayBrandLogo(size: 52, radius: 13),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('PUBLIC TRANSPARENCY DASHBOARD',
+                    style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 11)),
+                  const SizedBox(height: 4),
+                  Text('Published projects, department activity and public impact across India.',
+                    style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
+                ])),
+                IconButton(
+                  tooltip: 'Open public transparency dashboard',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => PublicTransparencyDashboardPage(
+                      client: supabase,
+                      onOpenMap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MapPage())),
+                      onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage())),
+                    ),
+                  )),
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                ),
+              ]),
+            ),
           ),
           const SizedBox(height: 19),
           Text('Quick actions', style: GoogleFonts.spaceGrotesk(
@@ -5249,7 +5280,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       Icon(icon, color: accent, size: 22),
                       const SizedBox(height: 7),
                       Text(title, textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                        style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w800)),
                     ]),
                   ),
                 ),
