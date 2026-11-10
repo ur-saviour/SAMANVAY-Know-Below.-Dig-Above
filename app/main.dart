@@ -4505,13 +4505,13 @@ class _MainScreenState extends State<MainScreen> {
         body: Row(children: [
           if (wide) ...[
             Container(
-              color: navy,
+              color: _usesLegacyLightPalette ? Colors.white : navy,
               child: SafeArea(
                 child: NavigationRail(
                   extended: extended,
                   minWidth: 76,
                   minExtendedWidth: 205,
-                  backgroundColor: navy,
+                  backgroundColor: _usesLegacyLightPalette ? Colors.white : navy,
                   selectedIndex: selectedIndex,
                   onDestinationSelected: (index) => setState(() => selectedIndex = index),
                   labelType: extended ? NavigationRailLabelType.none : NavigationRailLabelType.all,
@@ -4524,7 +4524,7 @@ class _MainScreenState extends State<MainScreen> {
                     padding: const EdgeInsets.fromLTRB(8, 14, 8, 20),
                     child: extended
                       ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                          Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 2),
                            Text('KNOW BELOW. DIG ABOVE.', style: TextStyle(color: cyanAccent, fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w800)),
                         ])
@@ -4534,7 +4534,7 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
-            const VerticalDivider(width: 1, thickness: 1, color: Color(0xFF1D3853)),
+            VerticalDivider(width: 1, thickness: 1, color: borderColor),
           ],
           Expanded(child: IndexedStack(index: selectedIndex, children: pages)),
         ]),
