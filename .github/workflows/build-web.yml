@@ -98,6 +98,7 @@ jobs:
               "    - assets/brand/home_city_banner.jpg",
               "    - assets/brand/profile_avatar.jpg",
               "    - assets/brand/profile_footer.jpg",
+              "    - assets/brand/splash_city.jpg",
           ]
           if chr(10) + "flutter:" + chr(10) not in content:
               raise SystemExit("Flutter section not found in generated pubspec.yaml")
@@ -153,7 +154,8 @@ jobs:
             build/web/assets/assets/brand/samanvay_logo.jpg \
             build/web/assets/assets/brand/home_city_banner.jpg \
             build/web/assets/assets/brand/profile_avatar.jpg \
-            build/web/assets/assets/brand/profile_footer.jpg; do
+            build/web/assets/assets/brand/profile_footer.jpg \
+            build/web/assets/assets/brand/splash_city.jpg; do
             if [ ! -s "$asset" ]; then
               echo "ERROR: Compiled browser bundle is missing GIS asset: $asset"
               exit 1
