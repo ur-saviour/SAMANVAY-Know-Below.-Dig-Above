@@ -16436,8 +16436,15 @@ class _ProfilePageState extends State<ProfilePage> {
             borderRadius: BorderRadius.circular(22),
             border: Border.all(color: cyanAccent.withValues(alpha: .25))),
           child: Column(children: [
-             CircleAvatar(radius: 35, backgroundColor: Color(0xFF244D70),
-              child: Icon(Icons.person_rounded, size: 36, color: cyanAccent)),
+             CircleAvatar(
+              radius: 38,
+              backgroundColor: cyanAccent,
+              child: const CircleAvatar(
+                radius: 35,
+                backgroundImage: AssetImage('assets/brand/profile_avatar.jpg'),
+                backgroundColor: Color(0xFF244D70),
+              ),
+            ),
             const SizedBox(height: 12),
             Text(data['name'].toString(), textAlign: TextAlign.center,
               style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
@@ -16550,6 +16557,17 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 10),
          Text('Account identity and activity are loaded from authenticated records. Evidence remains in private storage.',
           textAlign: TextAlign.center, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+        const SizedBox(height: 18),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.asset(
+            'assets/brand/profile_footer.jpg',
+            width: double.infinity,
+            height: 59,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
       ]);
     }),
   );
