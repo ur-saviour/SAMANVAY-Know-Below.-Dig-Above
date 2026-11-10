@@ -1,0 +1,381 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'ai_assistant_page.dart';
+
+/// Authenticated SAMANVAY chatbot. Conversation text remains in screen memory only.
+class SamanvayAiChatPage extends StatefulWidget {
+  const SamanvayAiChatPage({super.key});
+  @override
+  State<SamanvayAiChatPage> createState() => _SamanvayAiChatPageState();
+}
+
+class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
+  final SupabaseClient _db = Supabase.instance.client;
+  final TextEditingController _input = TextEditingController();
+  final ScrollController _scroll = ScrollController();
+  final List<Map<String, String>> _messages = [
+    {
+      'role': 'assistant',
+      'content': 'Hello! I’m SAMANVAY AI. I can guide you through the app, explain infrastructure coordination, help you understand request categories and statuses, and suggest practical next steps. What would you like to know?',
+    },
+  ];
+  bool _busy = false;
+  bool _roleChecked = false;
+  bool _canOpenCaseIntelligence = false;
+  String? _error;
+
+  Color get _surface => Theme.of(context).colorScheme.surface;
+  Color get _ink => Theme.of(context).colorScheme.onSurface;
+  Color get _muted => Theme.of(context).colorScheme.onSurfaceVariant;
+  Color get _primary => Theme.of(context).colorScheme.primary;
+  Color get _outline => Theme.of(context).colorScheme.outlineVariant;
+  bool get _light => Theme.of(context).brightness == Brightness.light;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoleAccess();
+  }
+
+  @override
+  void dispose() {
+    _input.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadRoleAccess() async {
+    final user = _db.auth.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _roleChecked = true);
+      return;
+    }
+    try {
+      final row = await _db.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      final role = row?['role']?.toString();
+      if (!mounted) return;
+      setState(() {
+        _canOpenCaseIntelligence = ['department', 'coordinator', 'admin'].contains(role);
+        _roleChecked = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _roleChecked = true);
+    }
+  }
+
+  void _scrollToLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  String _friendlyError(Object error) {
+    final value = error.toString();
+    if (value.contains('AI_NOT_CONFIGURED')) {
+      return 'AI is not enabled yet. A project administrator must configure the OPENAI_API_KEY Edge Function secret.';
+    }
+    if (value.contains('DAILY_AI_LIMIT_REACHED') || value.contains('429')) {
+      return 'You have reached the daily AI message allowance. Please try again after the 24-hour usage window.';
+    }
+    if (value.contains('AUTHENTICATION_REQUIRED') || value.contains('INVALID_SESSION') || value.contains('401')) {
+      return 'Your sign-in session is not valid. Sign in again and reopen SAMANVAY AI.';
+    }
+    if (value.contains('PROFILE_NOT_FOUND')) {
+      return 'Your SAMANVAY profile is not ready. Please contact the platform administrator.';
+    }
+    if (value.contains('FUNCTION_NOT_FOUND') || value.contains('404')) {
+      return 'The SAMANVAY AI service is not available in this app build yet.';
+    }
+    if (value.contains('AI_PROVIDER_ERROR')) {
+      return 'The AI provider could not complete this reply. Please try again shortly.';
+    }
+    if (value.contains('AI_USAGE_LIMITER_UNAVAILABLE')) {
+      return 'The AI usage-control service is temporarily unavailable. Please try again later.';
+    }
+    return 'SAMANVAY AI could not send that message. Check your connection and try again.';
+  }
+
+  Future<void> _send([String? suggestion]) async {
+    if (_busy) return;
+    final text = (suggestion ?? _input.text).trim();
+    if (text.isEmpty) return;
+    if (text.length > 1200) {
+      setState(() => _error = 'Please keep each message within 1,200 characters.');
+      return;
+    }
+    if (_db.auth.currentSession == null) {
+      setState(() => _error = 'Please sign in to use SAMANVAY AI.');
+      return;
+    }
+    final next = <Map<String, String>>[
+      ..._messages,
+      {'role': 'user', 'content': text},
+    ];
+    setState(() {
+      _messages..clear()..addAll(next);
+      _input.clear();
+      _busy = true;
+      _error = null;
+    });
+    _scrollToLatest();
+
+    try {
+      final history = _messages.length > 12
+          ? _messages.sublist(_messages.length - 12)
+          : List<Map<String, String>>.from(_messages);
+      final response = await _db.functions.invoke(
+        'samanvay-ai-chat',
+        body: {'messages': history},
+      );
+      final data = response.data;
+      if (response.status < 200 || response.status >= 300) {
+        final code = data is Map ? (data['error'] ?? 'AI_PROVIDER_ERROR').toString() : 'AI_PROVIDER_ERROR';
+        throw StateError(code);
+      }
+      if (data is! Map || data['reply'] is! String || (data['reply'] as String).trim().isEmpty) {
+        throw StateError('EMPTY_AI_RESPONSE');
+      }
+      if (!mounted) return;
+      setState(() => _messages.add({
+        'role': 'assistant',
+        'content': (data['reply'] as String).trim(),
+      }));
+      _scrollToLatest();
+    } catch (error) {
+      if (mounted) setState(() => _error = _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _newChat() {
+    if (_busy) return;
+    setState(() {
+      _messages..clear()..add({
+        'role': 'assistant',
+        'content': 'New chat started. Ask me about SAMANVAY, infrastructure requests, department coordination, or how to use the app.',
+      });
+      _error = null;
+    });
+    _scrollToLatest();
+  }
+
+  Widget _bubble(Map<String, String> message) {
+    final fromUser = message['role'] == 'user';
+    final color = fromUser ? _primary : (_light ? const Color(0xFFF0F5F8) : const Color(0xFF142B42));
+    return Align(
+      alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(17),
+              topRight: const Radius.circular(17),
+              bottomLeft: Radius.circular(fromUser ? 17 : 5),
+              bottomRight: Radius.circular(fromUser ? 5 : 17),
+            ),
+            border: fromUser ? null : Border.all(color: _outline),
+          ),
+          child: SelectableText(
+            message['content'] ?? '',
+            style: TextStyle(color: fromUser ? Colors.white : _ink, fontSize: 13, height: 1.48),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _suggestion(String label, IconData icon, String query) => ActionChip(
+    avatar: Icon(icon, size: 16, color: _primary),
+    label: Text(label, style: TextStyle(color: _ink, fontSize: 10)),
+    backgroundColor: _surface,
+    side: BorderSide(color: _outline),
+    onPressed: _busy ? null : () => _send(query),
+  );
+
+  Widget _composer() {
+    final signedIn = _db.auth.currentSession != null;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(color: _surface, border: Border(top: BorderSide(color: _outline))),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _input,
+                minLines: 1,
+                maxLines: 4,
+                maxLength: 1200,
+                enabled: signedIn && !_busy,
+                textCapitalization: TextCapitalization.sentences,
+                keyboardType: TextInputType.multiline,
+                onSubmitted: (_) => _send(),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: signedIn ? 'Ask SAMANVAY AI…' : 'Sign in to chat with SAMANVAY AI',
+                  hintStyle: TextStyle(color: _muted, fontSize: 12),
+                  filled: true,
+                  fillColor: _light ? const Color(0xFFF4F7FA) : const Color(0xFF0A1C2E),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: _outline)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: _outline)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 48,
+              width: 48,
+              child: FilledButton(
+                onPressed: !signedIn || _busy ? null : () => _send(),
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  backgroundColor: _primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                ),
+                child: _busy
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final signedIn = _db.auth.currentSession != null;
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Row(children: [
+          Container(
+            height: 34,
+            width: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF31BFD0).withValues(alpha: .16),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(Icons.smart_toy_rounded, color: Color(0xFF31BFD0), size: 21),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('SAMANVAY AI')),
+        ]),
+        actions: [
+          if (_roleChecked && _canOpenCaseIntelligence)
+            IconButton(
+              tooltip: 'Open case intelligence',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SamanvayAiAssistantPage()),
+              ),
+              icon: const Icon(Icons.analytics_outlined),
+            ),
+          IconButton(
+            tooltip: 'New chat',
+            onPressed: _busy ? null : _newChat,
+            icon: const Icon(Icons.add_comment_outlined),
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 11),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: _light
+                  ? const [Color(0xFFE4F5F3), Color(0xFFE7F0FA)]
+                  : const [Color(0xFF102C45), Color(0xFF123D60)],
+            ),
+            border: Border(bottom: BorderSide(color: _outline)),
+          ),
+          child: Row(children: [
+            Icon(Icons.public_rounded, color: _primary, size: 19),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                'Your guide to infrastructure coordination and the SAMANVAY app',
+                style: TextStyle(color: _ink, fontSize: 11, height: 1.35, fontWeight: FontWeight.w600),
+              ),
+            ),
+            if (signedIn)
+              const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFF42B98D)),
+          ]),
+        ),
+        Expanded(
+          child: ListView(
+            controller: _scroll,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            children: [
+              if (_messages.length == 1) ...[
+                Text('SUGGESTED QUESTIONS', style: TextStyle(color: _muted, fontSize: 9, letterSpacing: 1, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 1,
+                  children: [
+                    _suggestion('Explore the app', Icons.explore_outlined, 'What can I do with SAMANVAY?'),
+                    _suggestion('Raise a request', Icons.add_task_outlined, 'How do I submit an infrastructure request?'),
+                    _suggestion('Request statuses', Icons.track_changes_outlined, 'Explain the different request statuses.'),
+                    _suggestion('Department coordination', Icons.account_tree_outlined, 'How does SAMANVAY coordinate work across departments?'),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              ..._messages.map(_bubble),
+              if (_busy)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                    decoration: BoxDecoration(color: _surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _outline)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: _primary)),
+                      const SizedBox(width: 9),
+                      Text('SAMANVAY AI is thinking…', style: TextStyle(color: _muted, fontSize: 10)),
+                    ]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_error != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: _light ? const Color(0xFFFFF0E4) : const Color(0xFF422F25),
+              border: Border.all(color: const Color(0xFFCF8B49)),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Text(_error!, style: TextStyle(color: _ink, fontSize: 10, height: 1.35)),
+          ),
+        _composer(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            'AI guidance is advisory. It cannot verify live records, approve work, or provide underground utility clearance. Chat text is not saved to SAMANVAY.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _muted, fontSize: 9, height: 1.35),
+          ),
+        ),
+      ]),
+    );
+  }
+}

@@ -20,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'asset_evidence_page.dart';
 import 'public_excavation_tracker_page.dart';
 import 'ai_assistant_page.dart';
+import 'samanvay_ai_chat_page.dart';
 import 'coordinated_work_calendar_page.dart';
 import 'public_transparency_dashboard_page.dart';
 
@@ -3482,7 +3483,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SamanvayAiAssistantPage()),
+                  MaterialPageRoute(builder: (_) => const SamanvayAiChatPage()),
                 ),
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('OPEN SAMANVAY AI ASSISTANT'),
