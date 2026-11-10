@@ -60,14 +60,14 @@ final supabase = Supabase.instance.client;
 
 final ValueNotifier<ThemeMode> samanvayThemeMode = ValueNotifier(ThemeMode.dark);
 
+
 bool get _usesLegacyLightPalette => samanvayThemeMode.value == ThemeMode.light;
 
-// Shared semantic colours adapt every screen to the selected appearance.
-// The light palette intentionally restores Alpha 0.2's navy / teal / soft-grey
-// visual language instead of mixing a white ThemeData with dark fixed surfaces.
+// Shared semantic colours. These values reproduce Alpha 0.2's light-mode
+// navy / teal / soft-grey palette while keeping the current dark palette.
 Color get navy => _usesLegacyLightPalette
-    ? navy
-    : navy;
+    ? const Color(0xFF10243A)
+    : const Color(0xFF08182B);
 Color get teal => _usesLegacyLightPalette
     ? const Color(0xFF13A89E)
     : const Color(0xFF20D6C2);
@@ -76,22 +76,22 @@ Color get electricBlue => _usesLegacyLightPalette
     : const Color(0xFF3D83F6);
 Color get cyanAccent => _usesLegacyLightPalette
     ? const Color(0xFF13A89E)
-    : cyanAccent;
+    : const Color(0xFF35D7F2);
 Color get panelNavy => _usesLegacyLightPalette
     ? const Color(0xFFFFFFFF)
-    : panelNavy;
+    : const Color(0xFF102842);
 Color get background => _usesLegacyLightPalette
     ? const Color(0xFFF4F7FA)
-    : background;
+    : const Color(0xFF061426);
 Color get ink => _usesLegacyLightPalette
-    ? navy
+    ? const Color(0xFF10243A)
     : const Color(0xFFE8F1FA);
 Color get mutedInk => _usesLegacyLightPalette
     ? const Color(0xFF63788A)
     : const Color(0xFFA6B9CA);
 Color get borderColor => _usesLegacyLightPalette
     ? const Color(0xFFDCE5EC)
-    : borderColor;
+    : const Color(0xFF25415E);
 
 String _displayRoleName(String role) => switch (role) {
   'requester' => 'Citizen',
@@ -3377,7 +3377,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: ink,
                     ),
                   ),
                 ),
@@ -3763,7 +3763,7 @@ class _AuthPageState extends State<AuthPage> {
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 30,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                      color: ink,
                       letterSpacing: 2.2,
                     ),
                   ),
@@ -3859,8 +3859,10 @@ class _AuthPageState extends State<AuthPage> {
                               padding: const EdgeInsets.all(11),
                               decoration: BoxDecoration(
                                 color: standard
-                                    ? const Color(0xFF12384B)
-                                    : const Color(0xFF102943),
+                                    ? (_usesLegacyLightPalette
+                                        ? const Color(0xFFE5F4F1)
+                                        : const Color(0xFF12384B))
+                                    : panelNavy,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: canOpenDemo
@@ -3885,8 +3887,8 @@ class _AuthPageState extends State<AuthPage> {
                                     children: [
                                       Text(
                                         title,
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: ink,
                                           fontSize: 11,
                                           fontWeight: FontWeight.w800,
                                         ),
@@ -4475,6 +4477,24 @@ class _MainScreenState extends State<MainScreen> {
     NavigationRailDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: Text('Profile')),
   ];
 
+  Future<void> _switchProfiles() async {
+    final selected = await _showProfileSwitcher(
+      context,
+      currentRole: 'requester',
+    );
+    if (!mounted || selected == null || selected == 'requester') return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (previewContext) => _StaffDemoPreview(
+          role: selected,
+          staffId: _publicDemoStaffIds[selected]!,
+          onExit: () => Navigator.of(previewContext).pop(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -4518,6 +4538,13 @@ class _MainScreenState extends State<MainScreen> {
           ],
           Expanded(child: IndexedStack(index: selectedIndex, children: pages)),
         ]),
+        floatingActionButton: FloatingActionButton.extended(
+          heroTag: 'samanvay-switch-profile',
+          tooltip: 'Switch between Citizen and official demo profiles',
+          onPressed: _switchProfiles,
+          icon: const Icon(Icons.switch_account_rounded),
+          label: const Text('SWITCH PROFILE'),
+        ),
         bottomNavigationBar: wide ? null : NavigationBar(
           selectedIndex: selectedIndex,
           onDestinationSelected: (index) => setState(() => selectedIndex = index),
