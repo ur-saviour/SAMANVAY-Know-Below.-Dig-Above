@@ -280,11 +280,11 @@ class SamanvayApp extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: borderColor),
+          borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: borderColor),
+          borderSide: BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -305,7 +305,7 @@ class SamanvayApp extends StatelessWidget {
         color: panelNavy, elevation: 0, margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: borderColor)),
+          side: BorderSide(color: borderColor)),
       ),
     );
     final lightTheme = ThemeData(
@@ -992,7 +992,7 @@ class _SamanvayOpeningCityPainter extends CustomPainter {
     canvas.drawRect(
       Offset.zero & size,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
@@ -1847,7 +1847,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.alt_route, color: teal),
+              Icon(Icons.alt_route, color: teal),
               const SizedBox(width: 9),
                Expanded(child: Text('Potential clash screening & joint-work opportunities',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
@@ -1887,7 +1887,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     const SizedBox(height: 4),
                     Text('$metres m apart · overlapping dates: ${start.day.toString().padLeft(2, '0')}/${start.month.toString().padLeft(2, '0')}/${start.year}–${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
                       style:  TextStyle(fontSize: 10, color: mutedInk)),
-                    const Text('Suggested action: coordinator review for possible joint execution.',
+                    Text('Suggested action: coordinator review for possible joint execution.',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: teal)),
                   ]),
                 );
@@ -2073,7 +2073,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                               fontWeight: FontWeight.w800, color: Colors.white)),
                           const SizedBox(height: 5),
                           Text(steps[index].$3,
-                            style: const TextStyle(fontSize: 10,
+                            style: TextStyle(fontSize: 10,
                               color: mutedInk, height: 1.35)),
                         ],
                       ),
@@ -2253,7 +2253,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
         const Text('Live operations metrics',
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white)),
         const SizedBox(height: 4),
-        const Text('Counts are calculated from records visible to the signed-in role.',
+        Text('Counts are calculated from records visible to the signed-in role.',
           style: TextStyle(color: mutedInk, fontSize: 11)),
         const SizedBox(height: 12),
         LayoutBuilder(
@@ -2654,7 +2654,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                           subtitle: Text(isPrimary ? 'Primary suggested department' : 'Supporting department',
                             style: const TextStyle(fontSize: 10)),
                           trailing: selectedDepartment == departmentId
-                              ? const Icon(Icons.check_circle, color: teal)
+                              ? Icon(Icons.check_circle, color: teal)
                               : TextButton(
                                   onPressed: () => setDialogState(() => selectedDepartment = departmentId),
                                   child: const Text('Select'),
@@ -3139,7 +3139,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [navy, Color(0xFF11485A), Color(0xFF0B5E62)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                 ),
@@ -3198,12 +3198,12 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                     style: const TextStyle(color: Color(0xFFD0E3E8), fontSize: 12)),
                   const SizedBox(height: 8),
                   Text(widget.subtitle,
-                    style: const TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                    style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'WORKSPACE QUICK NAVIGATION',
               style: TextStyle(
                 color: cyanAccent,
@@ -3249,7 +3249,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             SizedBox(key: _coordinationAnchor, height: 1),
             CommandCentreActivityBoard(isAdmin: widget.isAdmin),
             const SizedBox(height: 7),
-            const Text(
+            Text(
               'Live metrics reflect records visible to this role and the current query window. They are not national totals.',
               style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
             ),
@@ -3371,7 +3371,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             SizedBox(key: _requestsAnchor, height: 1),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Infrastructure requests',
                     style: TextStyle(
@@ -3383,7 +3383,7 @@ class _OperationalPortalState extends State<_OperationalPortal> {
                 ),
                 Text(
                   '${requests.length} records',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: mutedInk,
                     fontSize: 12,
                   ),
@@ -3783,7 +3783,7 @@ class _AuthPageState extends State<AuthPage> {
 
                   const SizedBox(height: 8),
 
-                  const Text(
+                  Text(
                     'National Infrastructure Coordination Platform',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -3830,7 +3830,7 @@ class _AuthPageState extends State<AuthPage> {
 
                     const SizedBox(height: 16),
                   ],
-                  const Text(
+                  Text(
                     'PORTAL ACCESS',
                     style: TextStyle(color: cyanAccent, fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
                   ),
@@ -3898,7 +3898,7 @@ class _AuthPageState extends State<AuthPage> {
                                         canOpenDemo
                                             ? 'Open public demonstration workspace'
                                             : detail,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: mutedInk,
                                           fontSize: 9,
                                           height: 1.25,
@@ -3955,7 +3955,7 @@ class _AuthPageState extends State<AuthPage> {
                     ]);
                   }),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Tap any official role to open its permanent public demo workspace. Demo content is synthetic and read-only; live records and administrative actions still require an authorised account.',
                     style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
                   ),
@@ -4712,7 +4712,7 @@ class _DashboardPageState extends State<DashboardPage> {
           Container(
             padding: const EdgeInsets.all(21),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [navy, Color(0xFF173B55), Color(0xFF075E67)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
@@ -7668,7 +7668,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             colors: [navy, Color(0xFF14515E)],
                             begin: Alignment.topLeft, end: Alignment.bottomRight),
                           borderRadius: BorderRadius.circular(17),
@@ -14144,7 +14144,7 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
           const SizedBox(height: 5),
-          const Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
+          Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
             style: TextStyle(color: mutedInk, fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           ...layers.map((layer) => Padding(
@@ -14189,7 +14189,7 @@ class _MapPageState extends State<MapPage> {
           Text('Latest timestamp among loaded records (up to 1,000 in this map extent): $_groundwaterFreshnessLabel',
             style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 8, height: 1.35)),
           Text('Publisher: $_groundwaterLatestAgency · source-reported values; coordinate accuracy is not independently validated here.',
-            style: const TextStyle(color: mutedInk, fontSize: 7.5, height: 1.35)),
+            style: TextStyle(color: mutedInk, fontSize: 7.5, height: 1.35)),
           const Divider(height: 9, color: Color(0x334B647C)),
           Row(
             children: [
@@ -14228,7 +14228,7 @@ class _MapPageState extends State<MapPage> {
         Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
         Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w700, height: 1.25)),
+          style: TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w700, height: 1.25)),
       ]),
     ));
   }
@@ -14243,7 +14243,7 @@ class _MapPageState extends State<MapPage> {
     contentPadding: EdgeInsets.zero,
     activeThumbColor: const Color(0xFF55D9CE),
     title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-    subtitle: Text(detail, style: const TextStyle(color: mutedInk, fontSize: 8, height: 1.3)),
+    subtitle: Text(detail, style: TextStyle(color: mutedInk, fontSize: 8, height: 1.3)),
     value: value,
     onChanged: onChanged,
   );
@@ -14272,7 +14272,7 @@ class _MapPageState extends State<MapPage> {
           onPressed: _openLayerPanel, icon:  Icon(Icons.tune_rounded, color: mutedInk, size: 18)),
       ]),
       const SizedBox(height: 9),
-      const Text('LIVE COUNTS · CURRENT MAP EXTENT',
+      Text('LIVE COUNTS · CURRENT MAP EXTENT',
         style: TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)),
       const SizedBox(height: 7),
       Row(children: [
@@ -14364,7 +14364,7 @@ class _MapPageState extends State<MapPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: mutedInk, fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
+        Text(label, style: TextStyle(color: mutedInk, fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
         const SizedBox(height: 2),
         Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
       ],
@@ -14462,7 +14462,7 @@ class _MapPageState extends State<MapPage> {
         backgroundColor: navy,
         foregroundColor: Colors.white,
         titleSpacing: 16,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -14615,7 +14615,7 @@ class _MapPageState extends State<MapPage> {
                 children: [
                   Text(
                     _satellite ? 'SATELLITE HYBRID' : 'VECTOR BASEMAP',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: mutedInk,
                       fontSize: 9,
                       letterSpacing: 1.3,
@@ -14698,7 +14698,7 @@ class _MapPageState extends State<MapPage> {
                       textInputAction: TextInputAction.search,
                       onSubmitted: _searchPlaces,
                       style: const TextStyle(color: Colors.white, fontSize: 12),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Search India: state, district, city, ward or road',
                         hintStyle: TextStyle(color: mutedInk, fontSize: 11),
                         border: InputBorder.none,
@@ -17229,7 +17229,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
             Container(
               padding: const EdgeInsets.all(17),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [navy, Color(0xFF14515E)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(18),
