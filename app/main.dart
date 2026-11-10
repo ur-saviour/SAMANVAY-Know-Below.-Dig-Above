@@ -203,12 +203,13 @@ class SamanvayApp extends StatelessWidget {
 
 
 // ==========================================
-// CINEMATIC OPENING EXPERIENCE
+// SAMANVAY ANIMATED WELCOME / OPENING SCREEN
 // ==========================================
 //
-// The opening runs once on each cold app launch, then hands control to the
-// existing AuthGate. It does not create a session, change a role, or bypass
-// Supabase authentication. The same widget is used by Android and Flutter Web.
+// Branded opening shown before the existing AuthGate. The welcome screen
+// animates the road-and-pipeline mark, city lights, underground networks,
+// flowing utility signals, wordmark and tagline. "Get Started" then opens
+// the original authentication flow; no role or Supabase access is bypassed.
 
 class OpeningExperience extends StatefulWidget {
   const OpeningExperience({super.key});
@@ -218,34 +219,40 @@ class OpeningExperience extends StatefulWidget {
 }
 
 class _OpeningExperienceState extends State<OpeningExperience>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _introController;
+  late final AnimationController _ambientController;
   bool _showApplication = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3900),
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed && mounted) {
-          setState(() => _showApplication = true);
-        }
-      });
-    _controller.forward();
+      duration: const Duration(milliseconds: 4600),
+    )..forward();
+    _ambientController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _introController.dispose();
+    _ambientController.dispose();
     super.dispose();
+  }
+
+  void _startApplication() {
+    if (!mounted || _showApplication) return;
+    setState(() => _showApplication = true);
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 620),
+      duration: const Duration(milliseconds: 680),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) =>
@@ -254,7 +261,9 @@ class _OpeningExperienceState extends State<OpeningExperience>
           ? const AuthGate(key: ValueKey<String>('samanvay-auth-gate'))
           : _SamanvayOpeningScreen(
               key: const ValueKey<String>('samanvay-opening-screen'),
-              controller: _controller,
+              introController: _introController,
+              ambientController: _ambientController,
+              onGetStarted: _startApplication,
             ),
     );
   }
@@ -263,39 +272,53 @@ class _OpeningExperienceState extends State<OpeningExperience>
 class _SamanvayOpeningScreen extends StatelessWidget {
   const _SamanvayOpeningScreen({
     super.key,
-    required this.controller,
+    required this.introController,
+    required this.ambientController,
+    required this.onGetStarted,
   });
 
-  final AnimationController controller;
+  final AnimationController introController;
+  final AnimationController ambientController;
+  final VoidCallback onGetStarted;
 
   double _reveal(double value, double start, double end) {
-    final amount = ((value - start) / (end - start)).clamp(0.0, 1.0).toDouble();
+    final amount = ((value - start) / (end - start))
+        .clamp(0.0, 1.0)
+        .toDouble();
     return Curves.easeOutCubic.transform(amount);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF030B16),
+      backgroundColor: const Color(0xFF061326),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final markSize = math.min(158.0, constraints.maxWidth * 0.43).toDouble();
-          final compact = constraints.maxHeight < 650;
+          final compact = constraints.maxHeight < 700;
+          final markSize = math.min(
+            compact ? 170.0 : 205.0,
+            constraints.maxWidth * 0.53,
+          ).toDouble();
 
           return AnimatedBuilder(
-            animation: controller,
+            animation: Listenable.merge([introController, ambientController]),
             builder: (context, _) {
-              final progress = controller.value;
-              final markReveal = _reveal(progress, 0.04, 0.48);
-              final nameReveal = _reveal(progress, 0.34, 0.70);
-              final taglineReveal = _reveal(progress, 0.62, 0.88);
-              final barReveal = _reveal(progress, 0.72, 0.98);
+              final progress = introController.value;
+              final ambient = ambientController.value;
+              final logoReveal = _reveal(progress, 0.04, 0.54);
+              final titleReveal = _reveal(progress, 0.30, 0.68);
+              final taglineReveal = _reveal(progress, 0.48, 0.78);
+              final featureReveal = _reveal(progress, 0.64, 0.88);
+              final buttonReveal = _reveal(progress, 0.76, 1.0);
 
               return Stack(
                 fit: StackFit.expand,
                 children: [
                   CustomPaint(
-                    painter: _OpeningBackdropPainter(progress: progress),
+                    painter: _SamanvayOpeningCityPainter(
+                      progress: progress,
+                      ambient: ambient,
+                    ),
                   ),
                   DecoratedBox(
                     decoration: BoxDecoration(
@@ -303,126 +326,211 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          const Color(0xFF061426).withValues(alpha: 0.08),
-                          const Color(0xFF061426).withValues(alpha: 0.02),
-                          const Color(0xFF020914).withValues(alpha: 0.48),
+                          const Color(0xFF061326).withValues(alpha: 0.10),
+                          const Color(0xFF061326).withValues(alpha: 0.02),
+                          const Color(0xFF061326).withValues(alpha: 0.32),
+                          const Color(0xFF020916).withValues(alpha: 0.78),
                         ],
+                        stops: const [0, 0.43, 0.76, 1],
                       ),
                     ),
                   ),
                   SafeArea(
                     child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Opacity(
-                              opacity: markReveal,
-                              child: Transform.scale(
-                                scale: 0.72 + (0.28 * markReveal),
-                                child: SizedBox(
-                                  width: markSize,
-                                  height: markSize,
-                                  child: CustomPaint(
-                                    painter: _SamanvayOpeningMarkPainter(
-                                      progress: progress,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: compact ? 18 : 27),
-                            Opacity(
-                              opacity: nameReveal,
-                              child: Transform.translate(
-                                offset: Offset(0, 18 * (1 - nameReveal)),
-                                child: SizedBox(
-                                  width: constraints.maxWidth * 0.88,
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      'SAMANVAY',
-                                      maxLines: 1,
-                                      style: GoogleFonts.spaceGrotesk(
-                                        color: const Color(0xFFF3FAFF),
-                                        fontSize: 37,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 6.5,
-                                        height: 1.05,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 560),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            25,
+                            compact ? 18 : 28,
+                            25,
+                            compact ? 18 : 26,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const SizedBox(height: 2),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Opacity(
+                                    opacity: logoReveal,
+                                    child: Transform.translate(
+                                      offset: Offset(0, 22 * (1 - logoReveal)),
+                                      child: Transform.scale(
+                                        scale: 0.70 + (0.30 * logoReveal),
+                                        child: SizedBox(
+                                          width: markSize,
+                                          height: markSize,
+                                          child: CustomPaint(
+                                            painter: _SamanvayRoadPipeMarkPainter(
+                                              progress: progress,
+                                              ambient: ambient,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 13),
-                            Opacity(
-                              opacity: taglineReveal,
-                              child: Transform.translate(
-                                offset: Offset(0, 10 * (1 - taglineReveal)),
-                                child: Text(
-                                  'KNOW BELOW. DIG ABOVE.',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.inter(
-                                    color: const Color(0xFF70E9DB),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 3.1,
+                                  SizedBox(height: compact ? 8 : 16),
+                                  Opacity(
+                                    opacity: titleReveal,
+                                    child: Transform.translate(
+                                      offset: Offset(0, 16 * (1 - titleReveal)),
+                                      child: SizedBox(
+                                        width: constraints.maxWidth * 0.90,
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            'SAMANVAY',
+                                            maxLines: 1,
+                                            style: GoogleFonts.spaceGrotesk(
+                                              color: const Color(0xFFF5FAFF),
+                                              fontSize: 42,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 5.5,
+                                              height: 1.0,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: compact ? 24 : 34),
-                            Opacity(
-                              opacity: barReveal,
-                              child: Container(
-                                width: 116,
-                                height: 2,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF29465B),
-                                  borderRadius: BorderRadius.circular(99),
-                                ),
-                                alignment: Alignment.centerLeft,
-                                child: FractionallySizedBox(
-                                  widthFactor: _reveal(progress, 0.70, 1.0),
-                                  heightFactor: 1,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF35D7C4),
-                                      borderRadius: BorderRadius.circular(99),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFF35D7C4)
-                                              .withValues(alpha: 0.7),
-                                          blurRadius: 10,
-                                          spreadRadius: 1,
+                                  const SizedBox(height: 10),
+                                  Opacity(
+                                    opacity: taglineReveal,
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Know Below. Dig Above.',
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFFE5F5FF),
+                                            fontSize: compact ? 14 : 16,
+                                            fontWeight: FontWeight.w500,
+                                            letterSpacing: 0.65,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 9),
+                                        Container(
+                                          width: 116 * taglineReveal,
+                                          height: 2,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(8),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF25BDF4),
+                                                Color(0xFF34E0C2),
+                                              ],
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF34E0C2)
+                                                    .withValues(alpha: 0.5),
+                                                blurRadius: 12,
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 20,
-                    child: Opacity(
-                      opacity: _reveal(progress, 0.78, 0.98),
-                      child: Text(
-                        'NATIONAL INFRASTRUCTURE COORDINATION',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF7691A8),
-                          fontSize: 8,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 2.0,
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Opacity(
+                                    opacity: featureReveal,
+                                    child: Text(
+                                      'SMART COORDINATION   •   TRANSPARENT GOVERNANCE',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFFB5C9DD),
+                                        fontSize: compact ? 8 : 9,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1.15,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 15 : 22),
+                                  Opacity(
+                                    opacity: buttonReveal,
+                                    child: Transform.translate(
+                                      offset: Offset(0, 12 * (1 - buttonReveal)),
+                                      child: SizedBox(
+                                        width: 225,
+                                        height: 52,
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(30),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF13B9F4),
+                                                Color(0xFF5365F5),
+                                                Color(0xFF843CF4),
+                                              ],
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF4478F8)
+                                                    .withValues(alpha: 0.30 + 0.16 * math.sin(ambient * math.pi * 2).abs()),
+                                                blurRadius: 22,
+                                                spreadRadius: 1,
+                                              ),
+                                            ],
+                                          ),
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(30),
+                                              onTap: progress >= 0.82
+                                                  ? onGetStarted
+                                                  : null,
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    'GET STARTED',
+                                                    style: GoogleFonts.inter(
+                                                      color: Colors.white,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w800,
+                                                      letterSpacing: 1.4,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 11),
+                                                  const Icon(
+                                                    Icons.arrow_forward_rounded,
+                                                    color: Colors.white,
+                                                    size: 19,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 13),
+                                  Opacity(
+                                    opacity: _reveal(progress, 0.90, 1.0),
+                                    child: Text(
+                                      'SMART LIVING  •  URBAN INTELLIGENCE',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF7893AA),
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 1.65,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -437,216 +545,473 @@ class _SamanvayOpeningScreen extends StatelessWidget {
   }
 }
 
-class _OpeningBackdropPainter extends CustomPainter {
-  const _OpeningBackdropPainter({required this.progress});
+class _SamanvayRoadPipeMarkPainter extends CustomPainter {
+  const _SamanvayRoadPipeMarkPainter({
+    required this.progress,
+    required this.ambient,
+  });
 
   final double progress;
+  final double ambient;
+
+  Path _sPath(Size size, double verticalShift) {
+    return Path()
+      ..moveTo(size.width * 0.79, size.height * 0.17 + verticalShift)
+      ..cubicTo(
+        size.width * 0.99, size.height * 0.12 + verticalShift,
+        size.width * 0.96, size.height * 0.39 + verticalShift,
+        size.width * 0.69, size.height * 0.43 + verticalShift,
+      )
+      ..cubicTo(
+        size.width * 0.39, size.height * 0.47 + verticalShift,
+        size.width * 0.20, size.height * 0.54 + verticalShift,
+        size.width * 0.34, size.height * 0.66 + verticalShift,
+      )
+      ..cubicTo(
+        size.width * 0.47, size.height * 0.79 + verticalShift,
+        size.width * 0.76, size.height * 0.70 + verticalShift,
+        size.width * 0.72, size.height * 0.83 + verticalShift,
+      )
+      ..cubicTo(
+        size.width * 0.69, size.height * 0.98 + verticalShift,
+        size.width * 0.42, size.height * 0.91 + verticalShift,
+        size.width * 0.25, size.height * 0.89 + verticalShift,
+      );
+  }
+
+  Path _drawProgress(Path path, double amount) {
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty || amount <= 0) return Path();
+    final metric = metrics.first;
+    return metric.extractPath(0, metric.length * amount.clamp(0.0, 1.0));
+  }
+
+  void _drawPipe(Canvas canvas, Path path, Color color, double width, double amount) {
+    final visiblePath = _drawProgress(path, amount);
+    if (visiblePath.computeMetrics().isEmpty) return;
+    canvas.drawPath(
+      visiblePath,
+      Paint()
+        ..color = const Color(0xFF071421)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width + 7
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      visiblePath,
+      Paint()
+        ..color = color.withValues(alpha: 0.84)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      visiblePath,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.32)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.2, width * 0.20).toDouble()
+        ..strokeCap = StrokeCap.round,
+    );
+    final metric = path.computeMetrics().first;
+    final dot = metric.getTangentForOffset(
+      metric.length * ((ambient + 0.12) % 1.0),
+    );
+    if (dot != null && amount >= 0.96) {
+      canvas.drawCircle(
+        dot.position,
+        width * 0.85,
+        Paint()
+          ..color = color.withValues(alpha: 0.45)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(dot.position, width * 0.24, Paint()..color = Colors.white);
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerPath = _sPath(size, 0);
+    final cyanPipe = _sPath(size, size.height * 0.055);
+    final greenPipe = _sPath(size, -size.height * 0.055);
+    final pipeProgress = Curves.easeInOutCubic.transform(
+      ((progress - 0.08) / 0.80).clamp(0.0, 1.0),
+    );
+
+    final halo = Paint()
+      ..color = const Color(0xFF21D9CB).withValues(alpha: 0.10 + 0.08 * math.sin(ambient * math.pi * 2).abs())
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
+    canvas.drawCircle(
+      Offset(size.width * 0.52, size.height * 0.52),
+      size.width * 0.43,
+      halo,
+    );
+
+    _drawPipe(canvas, greenPipe, const Color(0xFF21C783), 7, pipeProgress);
+    _drawPipe(canvas, cyanPipe, const Color(0xFF18C9F5), 7, pipeProgress);
+    _drawPipe(canvas, centerPath, const Color(0xFFE5A34B), 5, pipeProgress);
+
+    final roadProgress = Curves.easeOutCubic.transform(
+      ((progress - 0.02) / 0.66).clamp(0.0, 1.0),
+    );
+    final road = _drawProgress(centerPath, roadProgress);
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = const Color(0xFF9EABB7).withValues(alpha: 0.96)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.width * 0.16
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = const Color(0xFF263544)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.width * 0.13
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Animated center markings make the road itself draw in, rather than
+    // simply fading a static monogram onto the screen.
+    final metrics = centerPath.computeMetrics().toList();
+    if (metrics.isNotEmpty && roadProgress > 0.08) {
+      final metric = metrics.first;
+      final dashPaint = Paint()
+        ..color = const Color(0xFFFFD36A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round;
+      final travelled = metric.length * roadProgress;
+      for (double d = 0; d < travelled; d += 12) {
+        canvas.drawPath(
+          metric.extractPath(d, math.min(d + 5, travelled).toDouble()),
+          dashPaint,
+        );
+      }
+    }
+
+    if (progress > 0.35) {
+      final pinProgress = Curves.easeOutBack.transform(
+        ((progress - 0.35) / 0.35).clamp(0.0, 1.0),
+      );
+      final pin = Offset(size.width * 0.79, size.height * 0.17);
+      canvas.drawCircle(
+        pin,
+        size.width * 0.055 * pinProgress,
+        Paint()
+          ..color = const Color(0xFFFF4E69).withValues(alpha: 0.22)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+      );
+      canvas.drawCircle(
+        pin,
+        size.width * 0.034 * pinProgress,
+        Paint()..color = const Color(0xFFFF4E69),
+      );
+      canvas.drawCircle(
+        pin,
+        size.width * 0.012 * pinProgress,
+        Paint()..color = Colors.white,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SamanvayRoadPipeMarkPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.ambient != ambient;
+}
+
+class _SamanvayOpeningCityPainter extends CustomPainter {
+  const _SamanvayOpeningCityPainter({
+    required this.progress,
+    required this.ambient,
+  });
+
+  final double progress;
+  final double ambient;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFF030B16),
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF061326),
+            Color(0xFF0B2440),
+            Color(0xFF102E49),
+            Color(0xFF061626),
+          ],
+        ).createShader(Offset.zero & size),
     );
 
-    final glowCenter = Offset(size.width * 0.5, size.height * 0.43);
-    final glowRadius = (math.max(size.width, size.height) * 0.58).toDouble();
-    final glowPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0xFF0D6B75).withValues(alpha: 0.22 * progress),
-          const Color(0xFF0C4A64).withValues(alpha: 0.10 * progress),
-          const Color(0xFF030B16).withValues(alpha: 0),
-        ],
-      ).createShader(Rect.fromCircle(center: glowCenter, radius: glowRadius));
-    canvas.drawCircle(glowCenter, glowRadius, glowPaint);
+    final reveal = Curves.easeOutCubic.transform(progress);
+    final horizon = size.height * 0.70;
 
-    final gridPaint = Paint()
-      ..color = const Color(0xFF6EA1B8).withValues(alpha: 0.075 * progress)
-      ..strokeWidth = 0.65;
-    const grid = 36.0;
-    for (double x = 0; x <= size.width; x += grid) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y <= size.height; y += grid) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    final surfaceY = size.height * 0.605;
-    final surfacePaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          const Color(0x0035D7C4),
-          const Color(0xAA35D7C4).withValues(alpha: 0.68 * progress),
-          const Color(0x0035D7C4),
-        ],
-      ).createShader(Rect.fromLTWH(0, surfaceY, size.width, 1))
-      ..strokeWidth = 1.15;
-    canvas.drawLine(
-      Offset(0, surfaceY),
-      Offset(size.width, surfaceY),
-      surfacePaint,
+    // Distant skyline glow.
+    canvas.drawCircle(
+      Offset(size.width * 0.5, horizon - size.height * 0.02),
+      size.width * 0.62,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFF1A91AE).withValues(alpha: 0.19 * reveal),
+            const Color(0xFF163D5C).withValues(alpha: 0.08 * reveal),
+            const Color(0xFF061326).withValues(alpha: 0),
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.5, horizon - size.height * 0.02),
+            radius: size.width * 0.62,
+          ),
+        ),
     );
 
-    for (int layer = 0; layer < 5; layer++) {
-      final baseY = surfaceY + 30.0 + (layer * size.height * 0.078);
-      final path = Path();
-      for (int step = 0; step <= 40; step++) {
-        final x = size.width * step / 40;
-        final wave = math.sin((step / 40 * math.pi * 2.1) + layer * 0.72) *
-            (8.0 + layer * 2.0);
-        final y = baseY + wave;
-        if (step == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
+    // City skyline with animated windows.
+    const buildings = <List<double>>[
+      [0.00, 0.15, 0.18], [0.11, 0.10, 0.23], [0.20, 0.12, 0.34],
+      [0.32, 0.09, 0.27], [0.41, 0.10, 0.42], [0.53, 0.12, 0.31],
+      [0.65, 0.08, 0.46], [0.74, 0.12, 0.29], [0.86, 0.10, 0.36],
+      [0.95, 0.12, 0.22],
+    ];
+    for (int i = 0; i < buildings.length; i++) {
+      final building = buildings[i];
+      final x = size.width * building[0];
+      final width = size.width * building[1];
+      final height = size.height * building[2] * reveal;
+      final top = horizon - height;
+      final rect = Rect.fromLTWH(x, top, width, height);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              const Color(0xFF213F5B),
+              const Color(0xFF0C1F35),
+            ],
+          ).createShader(rect),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(x, top, width, 2),
+        Paint()..color = const Color(0xFF53CDE4).withValues(alpha: 0.42 * reveal),
+      );
+      final columns = math.max(2, (width / 9).floor());
+      final rows = math.max(2, (height / 15).floor());
+      for (int row = 0; row < rows; row++) {
+        for (int column = 0; column < columns; column++) {
+          final seed = (i * 17 + row * 7 + column * 11) % 9;
+          final lit = ((seed / 9) < (0.30 + 0.10 * math.sin(ambient * math.pi * 2 + i).abs()));
+          final window = Rect.fromLTWH(
+            x + 4 + column * (width - 8) / columns,
+            top + 7 + row * 13,
+            math.max(1.8, width / columns * 0.28).toDouble(),
+            3.2,
+          );
+          canvas.drawRect(
+            window,
+            Paint()
+              ..color = (lit
+                      ? const Color(0xFF76E7E6)
+                      : const Color(0xFF49627A))
+                  .withValues(alpha: (lit ? 0.56 : 0.14) * reveal),
+          );
         }
       }
-      final layerPaint = Paint()
-        ..color = (layer.isEven
-                ? const Color(0xFF2A9E9A)
-                : const Color(0xFF347DA0))
-            .withValues(alpha: (0.14 - layer * 0.016) * progress)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = layer == 0 ? 1.25 : 0.85;
-      canvas.drawPath(path, layerPaint);
     }
 
-    final routePaint = Paint()
-      ..color = const Color(0xFF42DCCB).withValues(alpha: 0.30 * progress)
-      ..strokeWidth = 1.05
-      ..style = PaintingStyle.stroke;
-    final route = Path()
-      ..moveTo(size.width * 0.14, size.height * 0.80)
-      ..cubicTo(
-        size.width * 0.29, size.height * 0.73,
-        size.width * 0.34, size.height * 0.94,
-        size.width * 0.51, size.height * 0.86,
-      )
-      ..cubicTo(
-        size.width * 0.67, size.height * 0.78,
-        size.width * 0.73, size.height * 0.96,
-        size.width * 0.88, size.height * 0.84,
+    // Rooftop antennas and a few lit towers.
+    final antennaPaint = Paint()
+      ..color = const Color(0xFF58B9D4).withValues(alpha: 0.54 * reveal)
+      ..strokeWidth = 1.3;
+    for (final x in [0.25, 0.46, 0.69, 0.88]) {
+      final px = size.width * x;
+      final ph = size.height * (0.30 + x * 0.08);
+      canvas.drawLine(
+        Offset(px, horizon - ph),
+        Offset(px, horizon - ph - 11 * reveal),
+        antennaPaint,
       );
-    canvas.drawPath(route, routePaint);
-
-    final nodePaint = Paint()
-      ..color = const Color(0xFF65F3DC).withValues(alpha: 0.78 * progress);
-    for (final point in [
-      Offset(size.width * 0.14, size.height * 0.80),
-      Offset(size.width * 0.51, size.height * 0.86),
-      Offset(size.width * 0.88, size.height * 0.84),
-    ]) {
-      canvas.drawCircle(point, 2.2, nodePaint);
       canvas.drawCircle(
-        point,
-        6.5,
+        Offset(px, horizon - ph - 12 * reveal),
+        2.1,
         Paint()
-          ..color = const Color(0xFF35D7C4).withValues(alpha: 0.12 * progress)
-          ..style = PaintingStyle.stroke
+          ..color = const Color(0xFF41D9E5)
+              .withValues(alpha: 0.40 + 0.44 * math.sin(ambient * math.pi * 2).abs())
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+    }
+
+    // Road surface across the city.
+    final roadTop = horizon - size.height * 0.015;
+    final roadBottom = horizon + size.height * 0.11;
+    final road = Path()
+      ..moveTo(size.width * 0.38, roadTop)
+      ..lineTo(size.width * 0.62, roadTop)
+      ..lineTo(size.width * 0.95, roadBottom)
+      ..lineTo(size.width * 0.05, roadBottom)
+      ..close();
+    canvas.drawPath(
+      road,
+      Paint()..color = const Color(0xFF182A3B).withValues(alpha: 0.92 * reveal),
+    );
+    final roadLine = Paint()
+      ..color = const Color(0xFF77CDE0).withValues(alpha: 0.55 * reveal)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(size.width * 0.38, roadTop),
+      Offset(size.width * 0.05, roadBottom),
+      roadLine,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.62, roadTop),
+      Offset(size.width * 0.95, roadBottom),
+      roadLine,
+    );
+    for (int i = 0; i < 7; i++) {
+      final y = roadTop + (roadBottom - roadTop) * (i + 1) / 8;
+      final half = size.width * (0.015 + (i / 7) * 0.06);
+      canvas.drawLine(
+        Offset(size.width * 0.5 - half, y),
+        Offset(size.width * 0.5 + half, y),
+        Paint()
+          ..color = const Color(0xFFFFC867).withValues(alpha: 0.7 * reveal)
+          ..strokeWidth = 1.5,
+      );
+    }
+
+    // Exposed ground cross-section: the underground system is visible below
+    // the street, matching the central SAMANVAY product idea.
+    final groundTop = horizon + size.height * 0.11;
+    final groundPath = Path()
+      ..moveTo(0, groundTop)
+      ..lineTo(size.width, groundTop)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      groundPath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF213D50),
+            Color(0xFF112A3C),
+            Color(0xFF081B2B),
+          ],
+        ).createShader(Rect.fromLTWH(0, groundTop, size.width, size.height - groundTop)),
+    );
+    for (int layer = 0; layer < 4; layer++) {
+      final y = groundTop + size.height * (0.035 + layer * 0.055);
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        Paint()
+          ..color = const Color(0xFF8AA0AE).withValues(alpha: 0.13 * reveal)
           ..strokeWidth = 1,
       );
     }
+
+    void drawNetwork(Color color, double y, double phase) {
+      final path = Path()
+        ..moveTo(-size.width * 0.06, y)
+        ..cubicTo(
+          size.width * 0.20,
+          y - size.height * 0.035,
+          size.width * 0.34,
+          y + size.height * 0.026,
+          size.width * 0.53,
+          y - size.height * 0.002,
+        )
+        ..cubicTo(
+          size.width * 0.72,
+          y - size.height * 0.028,
+          size.width * 0.84,
+          y + size.height * 0.036,
+          size.width * 1.06,
+          y + size.height * 0.004,
+        );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF03101C)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color.withValues(alpha: 0.91 * reveal)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round,
+      );
+      final metric = path.computeMetrics().first;
+      for (int i = 0; i < 3; i++) {
+        final offset = ((ambient + phase + i / 3) % 1.0) * metric.length;
+        final tangent = metric.getTangentForOffset(offset);
+        canvas.drawCircle(
+          tangent.position,
+          2.5,
+          Paint()
+            ..color = color.withValues(alpha: 0.26 * reveal)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+        canvas.drawCircle(
+          tangent.position,
+          1.1,
+          Paint()..color = Colors.white.withValues(alpha: 0.92 * reveal),
+        );
+      }
+    }
+
+    drawNetwork(const Color(0xFF23C8F2), groundTop + size.height * 0.055, 0.0);
+    drawNetwork(const Color(0xFFF4A64D), groundTop + size.height * 0.12, 0.33);
+    drawNetwork(const Color(0xFF29D28B), groundTop + size.height * 0.185, 0.66);
+
+    // Small city/utility connection markers.
+    for (int i = 0; i < 7; i++) {
+      final x = size.width * (0.08 + i * 0.14);
+      final y = groundTop + size.height * (0.04 + (i % 3) * 0.055);
+      canvas.drawCircle(
+        Offset(x, y),
+        3.2,
+        Paint()
+          ..color = const Color(0xFF5BE9D5).withValues(alpha: 0.22 * reveal)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+      canvas.drawCircle(
+        Offset(x, y),
+        1.4,
+        Paint()..color = const Color(0xFFA4FFF0).withValues(alpha: 0.86 * reveal),
+      );
+    }
+
+    // Floating city lights.
+    for (int i = 0; i < 24; i++) {
+      final x = size.width * ((i * 0.173 + 0.07) % 1.0);
+      final y = size.height * (0.12 + ((i * 0.117) % 0.47));
+      final pulse = 0.25 + 0.55 * math.sin((ambient + i * 0.09) * math.pi * 2).abs();
+      canvas.drawCircle(
+        Offset(x, y),
+        1.1 + pulse,
+        Paint()..color = const Color(0xFF8AE9F3).withValues(alpha: pulse * 0.30 * reveal),
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _OpeningBackdropPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _SamanvayOpeningCityPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.ambient != ambient;
 }
 
-class _SamanvayOpeningMarkPainter extends CustomPainter {
-  const _SamanvayOpeningMarkPainter({required this.progress});
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final rotation = progress * math.pi * 0.72;
-
-    final haloPaint = Paint()
-      ..color = const Color(0xFF35D7C4).withValues(alpha: 0.11 * progress)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 17);
-    canvas.drawCircle(center, size.width * 0.34, haloPaint);
-
-    final outerPaint = Paint()
-      ..color = const Color(0xFF4CE2D0).withValues(alpha: 0.48 * progress)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15;
-    final outerRect = Rect.fromCircle(center: center, radius: size.width * 0.43);
-    canvas.drawArc(outerRect, rotation, math.pi * 1.34, false, outerPaint);
-    canvas.drawArc(
-      outerRect,
-      rotation + math.pi * 1.56,
-      math.pi * 0.28,
-      false,
-      outerPaint,
-    );
-
-    final innerPaint = Paint()
-      ..color = const Color(0xFF5FEBD9).withValues(alpha: 0.34 * progress)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(center, size.width * 0.27, innerPaint);
-
-    final nodes = <Offset>[
-      Offset(center.dx, center.dy - size.height * 0.25),
-      Offset(center.dx + size.width * 0.22, center.dy + size.height * 0.13),
-      Offset(center.dx - size.width * 0.22, center.dy + size.height * 0.13),
-    ];
-
-    final connectionPaint = Paint()
-      ..color = const Color(0xFF67EBDD).withValues(alpha: 0.78 * progress)
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    for (final node in nodes) {
-      canvas.drawLine(center, node, connectionPaint);
-    }
-
-    canvas.drawLine(
-      Offset(center.dx, center.dy - size.height * 0.25),
-      Offset(center.dx, center.dy - size.height * 0.37),
-      connectionPaint,
-    );
-    canvas.drawLine(
-      Offset(center.dx - size.width * 0.30, center.dy + size.height * 0.20),
-      Offset(center.dx + size.width * 0.30, center.dy + size.height * 0.20),
-      Paint()
-        ..color = const Color(0xFF3D83F6).withValues(alpha: 0.38 * progress)
-        ..strokeWidth = 1.0,
-    );
-
-    final nodeGlow = Paint()
-      ..color = const Color(0xFF35D7C4).withValues(alpha: 0.18 * progress)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-    for (final node in nodes) {
-      canvas.drawCircle(node, 7, nodeGlow);
-    }
-
-    final nodeCore = Paint()
-      ..color = const Color(0xFF9BFFF0).withValues(alpha: progress);
-    for (final node in nodes) {
-      canvas.drawCircle(node, 3.4, nodeCore);
-    }
-
-    canvas.drawCircle(
-      center,
-      8.5,
-      Paint()
-        ..color = const Color(0xFF35D7C4).withValues(alpha: 0.18 * progress),
-    );
-    canvas.drawCircle(
-      center,
-      4.8,
-      Paint()..color = const Color(0xFFF1FFFC).withValues(alpha: progress),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SamanvayOpeningMarkPainter oldDelegate) =>
-      oldDelegate.progress != progress;
-}
 
 // ==========================================
 // AUTHENTICATION GATE
