@@ -29,11 +29,13 @@ class _CoordinatedWorkCalendarPageState
   Set<String> _overlapIds = <String>{};
   DateTime _today = DateUtils.dateOnly(DateTime.now());
 
-  static const Color _background = Color(0xFF061426);
-  static const Color _panel = Color(0xFF10243A);
-  static const Color _border = Color(0xFF25415E);
-  static const Color _accent = Color(0xFF35C6B5);
-  static const Color _muted = Color(0xFFB6C7D6);
+  Color get _background => Theme.of(context).scaffoldBackgroundColor;
+  Color get _panel => Theme.of(context).colorScheme.surface;
+  Color get _border => Theme.of(context).colorScheme.outlineVariant;
+  Color get _accent => Theme.of(context).colorScheme.primary;
+  Color get _muted => Theme.of(context).colorScheme.onSurfaceVariant;
+  Color get _ink => Theme.of(context).colorScheme.onSurface;
+  bool get _isLight => Theme.of(context).brightness == Brightness.light;
 
   @override
   void initState() {
@@ -237,7 +239,7 @@ class _CoordinatedWorkCalendarPageState
                     fontWeight: FontWeight.w800)),
             Text(label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: _muted, fontSize: 9)),
+                style: TextStyle(color: _muted, fontSize: 9)),
           ]),
         ),
       );
@@ -258,13 +260,13 @@ class _CoordinatedWorkCalendarPageState
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(11)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(11),
-            borderSide: const BorderSide(color: _border),
+            borderSide: BorderSide(color: _border),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
         ),
         dropdownColor: _panel,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
+        style: TextStyle(color: _ink, fontSize: 12),
         items: items,
         onChanged: onChanged,
       );
@@ -297,7 +299,7 @@ class _CoordinatedWorkCalendarPageState
           Expanded(
             child: Text(
               'CASE ${_text(row, 'request_number', id)}',
-              style: const TextStyle(
+              style: TextStyle(
                   color: _accent,
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
@@ -364,7 +366,7 @@ class _CoordinatedWorkCalendarPageState
           const SizedBox(width: 7),
           Expanded(
               child: Text(value,
-                  style: const TextStyle(color: _muted, fontSize: 11))),
+                  style: TextStyle(color: _muted, fontSize: 11))),
         ]),
       );
 
@@ -400,7 +402,7 @@ class _CoordinatedWorkCalendarPageState
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _accent))
+          ? Center(child: CircularProgressIndicator(color: _accent))
           : _error != null
               ? Center(
                   child: Padding(
@@ -413,7 +415,7 @@ class _CoordinatedWorkCalendarPageState
                         const SizedBox(height: 10),
                         Text(_error!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white)),
+                            style: TextStyle(color: _ink)),
                         const SizedBox(height: 12),
                         FilledButton.icon(
                             onPressed: _load,
@@ -472,13 +474,13 @@ class _CoordinatedWorkCalendarPageState
                         controller: _search,
                         onChanged: (value) =>
                             setState(() => _searchText = value),
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: _ink),
                         decoration: InputDecoration(
                           hintText: 'Search case, road, city or work type',
                           hintStyle:
-                              const TextStyle(color: _muted, fontSize: 12),
+                              TextStyle(color: _muted, fontSize: 12),
                           prefixIcon:
-                              const Icon(Icons.search, color: _accent),
+                              Icon(Icons.search, color: _accent),
                           filled: true,
                           fillColor: _panel,
                           border: OutlineInputBorder(
@@ -555,7 +557,7 @@ class _CoordinatedWorkCalendarPageState
                                   letterSpacing: .7)),
                         ),
                         Text('${rows.length} records',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: _muted, fontSize: 10)),
                       ]),
                       const SizedBox(height: 9),
@@ -567,7 +569,7 @@ class _CoordinatedWorkCalendarPageState
                             borderRadius: BorderRadius.circular(13),
                             border: Border.all(color: _border),
                           ),
-                          child: const Column(children: [
+                          child: Column(children: [
                             Icon(Icons.event_busy_outlined,
                                 color: _accent, size: 32),
                             SizedBox(height: 9),
@@ -586,7 +588,7 @@ class _CoordinatedWorkCalendarPageState
                       else
                         ...rows.map(_workCard),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Planning advisory only. Nearby cases are flagged using their submitted coordinates and planned dates; this is not a verified utility conflict, permit approval, site-safety clearance or proof that two works can be combined. Confirm with each asset owner and competent authority.',
                         style: TextStyle(
                             color: _muted, fontSize: 9, height: 1.45),
