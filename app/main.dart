@@ -915,6 +915,41 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                       ambient: ambient,
                     ),
                   ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: constraints.maxHeight * .40,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: .92 * featureReveal,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.asset(
+                              'assets/brand/splash_city.jpg',
+                              fit: BoxFit.cover,
+                              alignment: Alignment.center,
+                            ),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    const Color(0xFF061629).withValues(alpha: .04),
+                                    const Color(0xFF061629).withValues(alpha: .28),
+                                    const Color(0xFF020916).withValues(alpha: .78),
+                                  ],
+                                  stops: const [0, .55, 1],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                   // A soft, continuous flag layer remains behind the welcome
                   // content after the opening reveal, like a real flag in the wind.
                   Positioned.fill(
