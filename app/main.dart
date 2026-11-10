@@ -556,47 +556,194 @@ class _TricolourBorderPainter extends CustomPainter {
 }
 
 class _WavingFlagPainter extends CustomPainter {
-  const _WavingFlagPainter({required this.progress});
+  const _WavingFlagPainter({
+    required this.progress,
+    this.opacity = 1,
+    this.ambientBackground = false,
+  });
   final double progress;
+  final double opacity;
+  final bool ambientBackground;
+
   @override
   void paint(Canvas canvas, Size size) {
-    if (progress <= 0) return;
-    final reveal = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0).toDouble());
-    final width = math.min(220.0, size.width * .62) * reveal;
+    if (progress <= 0 || opacity <= 0) return;
+    final t = progress.clamp(0.0, 1.0).toDouble();
+    final reveal = ambientBackground ? 1.0 : Curves.easeOutCubic.transform(t);
+    final width = (ambientBackground
+        ? math.min(560.0, size.width * .78)
+        : math.min(300.0, size.width * .70)) * reveal;
+    if (width < 2) return;
     final height = width * 2 / 3;
-    final poleX = size.width * .40, top = size.height * .40, bottom = top + height;
-    final pole = Paint()..color = const Color(0xFFD9E4EF)..strokeWidth = 3..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(poleX, top - 16), Offset(poleX, bottom + 14), pole);
-    final phase = progress * math.pi * 4;
-    double wave(double x) => math.sin(x / math.max(width, 1) * math.pi * 2.1 + phase) *
-      height * .06 * (x / math.max(width, 1));
-    const colours = [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)];
-    for (var stripe = 0; stripe < 3; stripe++) {
-      final h = height / 3, path = Path();
-      const count = 26;
-      for (var i = 0; i <= count; i++) {
-        final x = width * i / count, y = top + stripe * h + wave(x);
-        if (i == 0) { path.moveTo(poleX + 3, y); } else { path.lineTo(poleX + 3 + x, y); }
-      }
-      for (var i = count; i >= 0; i--) {
-        final x = width * i / count;
-        path.lineTo(poleX + 3 + x, top + (stripe + 1) * h + wave(x));
-      }
-      path.close();
-      canvas.drawPath(path, Paint()..color = colours[stripe]);
+    final poleX = ambientBackground ? size.width * .105 : size.width * .27;
+    final top = ambientBackground ? size.height * .105 : size.height * .34;
+    final phase = t * math.pi * 4.0;
+    final safeWidth = math.max(width, 1.0);
+
+    // A planted mast, cap, finial and soft cast shadow.
+    final pole = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF52677C), Color(0xFFE8F1F8), Color(0xFF7E91A6)],
+      ).createShader(Rect.fromLTWH(poleX - 2, top - 20, 5, height + 42))
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(poleX + 1.8, top - 18), Offset(poleX + 1.8, top + height + 18), pole);
+    canvas.drawCircle(Offset(poleX + 1.8, top - 20), 3.2,
+      Paint()..color = const Color(0xFFDDE8F1));
+    canvas.drawLine(Offset(poleX - 4, top + height + 18),
+      Offset(poleX + 8, top + height + 18),
+      Paint()..color = const Color(0xFF9FB1C0)..strokeWidth = 2.5..strokeCap = StrokeCap.round);
+
+    double waveY(double u) {
+      final amplitude = height * (ambientBackground ? .10 : .082);
+      final primary = math.sin(u * math.pi * 2.15 + phase);
+      final secondary = math.sin(u * math.pi * 4.3 + phase * .72) * .23;
+      return (primary + secondary) * amplitude * u;
     }
-    final cx = poleX + 3 + width * .5, cy = top + height * .5 + wave(width * .5);
-    final r = height * .105;
-    final chakra = Paint()..color = const Color(0xFF000080)..style = PaintingStyle.stroke..strokeWidth = 1.4;
-    canvas.drawCircle(Offset(cx, cy), r, chakra);
+    double waveX(double u) =>
+        math.sin(u * math.pi * 2.0 + phase * .82) * height * .016 * u;
+
+    // Curved flag hem, sampled cloth surface and gently tapered free edge.
+    final cloth = Path();
+    const samples = 64;
+    for (var i = 0; i <= samples; i++) {
+      final u = i / samples;
+      final x = poleX + 5 + width * u + waveX(u);
+      final y = top + waveY(u);
+      if (i == 0) {
+        cloth.moveTo(x, y);
+      } else {
+        cloth.lineTo(x, y);
+      }
+    }
+    for (var i = samples; i >= 0; i--) {
+      final u = i / samples;
+      final x = poleX + 5 + width * u + waveX(u);
+      final y = top + height + waveY(u) + height * .012 * math.sin(u * math.pi);
+      cloth.lineTo(x, y);
+    }
+    cloth.close();
+    canvas.save();
+    canvas.clipPath(cloth);
+
+    const bands = [
+      Color(0xFFFF9933),
+      Color(0xFFFFFFFF),
+      Color(0xFF138808),
+    ];
+    for (var stripe = 0; stripe < 3; stripe++) {
+      final bandHeight = height / 3;
+      final stripePath = Path();
+      for (var i = 0; i <= samples; i++) {
+        final u = i / samples;
+        final x = poleX + 5 + width * u + waveX(u);
+        final y = top + stripe * bandHeight + waveY(u);
+        if (i == 0) {
+          stripePath.moveTo(x, y);
+        } else {
+          stripePath.lineTo(x, y);
+        }
+      }
+      for (var i = samples; i >= 0; i--) {
+        final u = i / samples;
+        final x = poleX + 5 + width * u + waveX(u);
+        final y = top + (stripe + 1) * bandHeight + waveY(u);
+        stripePath.lineTo(x, y);
+      }
+      stripePath.close();
+      final base = bands[stripe];
+      canvas.drawPath(
+        stripePath,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(base, Colors.black, .12)!,
+              base,
+              Color.lerp(base, Colors.black, .16)!,
+            ],
+          ).createShader(Rect.fromLTWH(poleX, top, width, height))
+          ..color = Colors.white.withValues(alpha: opacity),
+      );
+    }
+
+    // Moving folds: alternating highlights and shadows create a woven-cloth read.
+    for (var i = 0; i < 26; i++) {
+      final u = i / 25;
+      final x = poleX + 5 + width * u + waveX(u);
+      final fold = Paint()
+        ..color = (i.isEven ? Colors.white : const Color(0xFF06172C))
+            .withValues(alpha: (i.isEven ? .12 : .10) * opacity * u)
+        ..strokeWidth = math.max(1.2, width * .0028)
+        ..strokeCap = StrokeCap.round;
+      final bend = waveY(u);
+      canvas.drawLine(
+        Offset(x, top + bend - height * .012),
+        Offset(x + waveX(u) * .45, top + height + bend + height * .012),
+        fold,
+      );
+    }
+    canvas.drawRect(
+      Rect.fromLTWH(poleX + 5, top, width, height),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.black.withValues(alpha: .16 * opacity),
+            Colors.transparent,
+            Colors.white.withValues(alpha: .12 * opacity),
+            Colors.black.withValues(alpha: .20 * opacity),
+          ],
+          stops: const [0, .28, .62, 1],
+        ).createShader(Rect.fromLTWH(poleX + 5, top, width, height)),
+    );
+
+    // Ashoka Chakra follows the local cloth wave, retaining the 24-spoke design.
+    final chakraU = .49;
+    final chakraX = poleX + 5 + width * chakraU + waveX(chakraU);
+    final chakraY = top + height * .5 + waveY(chakraU);
+    final radius = height * .105;
+    final chakraPaint = Paint()
+      ..color = const Color(0xFF000080).withValues(alpha: opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.2, height * .009);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(chakraX, chakraY), width: radius * 2,
+        height: radius * 1.93),
+      chakraPaint,
+    );
     for (var i = 0; i < 24; i++) {
       final a = math.pi * 2 * i / 24 - math.pi / 2;
-      canvas.drawLine(Offset(cx + math.cos(a) * r * .12, cy + math.sin(a) * r * .12),
-        Offset(cx + math.cos(a) * r * .92, cy + math.sin(a) * r * .92), chakra);
+      canvas.drawLine(
+        Offset(chakraX + math.cos(a) * radius * .10,
+          chakraY + math.sin(a) * radius * .10),
+        Offset(chakraX + math.cos(a) * radius * .91,
+          chakraY + math.sin(a) * radius * .91),
+        chakraPaint,
+      );
     }
+    canvas.drawCircle(Offset(chakraX, chakraY), radius * .10,
+      Paint()..color = const Color(0xFF000080).withValues(alpha: opacity));
+    canvas.restore();
+
+    // Cloth silhouette and a restrained luminous edge.
+    canvas.drawPath(cloth, Paint()
+      ..color = Colors.white.withValues(alpha: .34 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1);
+    canvas.drawPath(cloth, Paint()
+      ..color = const Color(0xFF56BDF4).withValues(alpha: .08 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7));
   }
+
   @override
-  bool shouldRepaint(covariant _WavingFlagPainter old) => old.progress != progress;
+  bool shouldRepaint(covariant _WavingFlagPainter old) =>
+      old.progress != progress || old.opacity != opacity ||
+      old.ambientBackground != ambientBackground;
 }
 
 
@@ -766,6 +913,19 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                     painter: _SamanvayOpeningCityPainter(
                       progress: progress,
                       ambient: ambient,
+                    ),
+                  ),
+                  // A soft, continuous flag layer remains behind the welcome
+                  // content after the opening reveal, like a real flag in the wind.
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _WavingFlagPainter(
+                          progress: ambient,
+                          opacity: .22,
+                          ambientBackground: true,
+                        ),
+                      ),
                     ),
                   ),
                   DecoratedBox(
@@ -3947,17 +4107,25 @@ class _AuthPageState extends State<AuthPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    width: 76,
-                    height: 76,
+                    width: 104,
+                    height: 104,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: cyanAccent.withValues(alpha: .10),
-                      borderRadius: BorderRadius.circular(23),
+                      color: const Color(0xFF0A1B36),
+                      borderRadius: BorderRadius.circular(28),
                       border: Border.all(
-                        color: cyanAccent.withValues(alpha: .38),
+                        color: cyanAccent.withValues(alpha: .55),
+                        width: 1.5,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: cyanAccent.withValues(alpha: .18),
+                          blurRadius: 26,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                    child: _SamanvayBrandLogo(size: 76, radius: 22),
+                    child: const _SamanvayBrandLogo(size: 102, radius: 27),
                   ),
 
                   const SizedBox(height: 14),
