@@ -197,6 +197,7 @@ jobs:
           test -s assets/brand/home_city_banner.jpg
           test -s assets/brand/profile_avatar.jpg
           test -s assets/brand/profile_footer.jpg
+          test -s assets/brand/splash_city.jpg
           test -s lib/public_transparency_dashboard_page.dart
 
       # 5. Install dependencies
@@ -237,6 +238,7 @@ jobs:
               "    - assets/brand/home_city_banner.jpg",
               "    - assets/brand/profile_avatar.jpg",
               "    - assets/brand/profile_footer.jpg",
+              "    - assets/brand/splash_city.jpg",
           ]
           if groundwater_entry not in content:
               if asset_entry not in content:
@@ -329,7 +331,8 @@ jobs:
               "assets/flutter_assets/assets/brand/samanvay_logo.jpg" \
               "assets/flutter_assets/assets/brand/home_city_banner.jpg" \
               "assets/flutter_assets/assets/brand/profile_avatar.jpg" \
-              "assets/flutter_assets/assets/brand/profile_footer.jpg"; do
+              "assets/flutter_assets/assets/brand/profile_footer.jpg" \
+              "assets/flutter_assets/assets/brand/splash_city.jpg"; do
               if ! unzip -l "$APK" | grep -Fq "$REQUIRED_ASSET"; then
                 echo "ERROR: Required GIS data asset missing from APK: $REQUIRED_ASSET"
                 exit 1
