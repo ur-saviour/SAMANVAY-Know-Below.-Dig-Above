@@ -44,12 +44,14 @@ jobs:
           cp /tmp/samanvay_web_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_web_scaffold/.metadata .
 
-          mkdir -p lib assets/reference
+          mkdir -p lib assets/reference assets/brand
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
           cp app/coordinated_work_calendar_page.dart lib/coordinated_work_calendar_page.dart
+          cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
+          cp app/assets/brand/samanvay_logo.jpg assets/brand/samanvay_logo.jpg
           cp app/joint_work_coordination_page.dart lib/joint_work_coordination_page.dart
           cp -R app/assets/reference/. assets/reference/
 
@@ -67,7 +69,7 @@ jobs:
           from pathlib import Path
           p = Path("web/index.html")
           html = p.read_text()
-          html = html.replace("<title>samanvay</title>", "<title>SAMANVAY | Know Below. Dig Above.</title>")
+          html = html.replace("<title>samanvay</title>", "<title>SAMANVAY | Towards Our Development</title>")
           p.write_text(html)
           PY
 
@@ -91,6 +93,7 @@ jobs:
           asset_entries = [
               "    - assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson",
               "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson",
+              "    - assets/brand/samanvay_logo.jpg",
           ]
           if chr(10) + "flutter:" + chr(10) not in content:
               raise SystemExit("Flutter section not found in generated pubspec.yaml")
@@ -142,7 +145,8 @@ jobs:
           test -s build/web/main.dart.js
           for asset in \
             build/web/assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson \
-            build/web/assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson; do
+            build/web/assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson \
+            build/web/assets/assets/brand/samanvay_logo.jpg; do
             if [ ! -s "$asset" ]; then
               echo "ERROR: Compiled browser bundle is missing GIS asset: $asset"
               exit 1
