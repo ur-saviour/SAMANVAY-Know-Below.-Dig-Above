@@ -4174,8 +4174,8 @@ class _AuthPageState extends State<AuthPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    width: 104,
-                    height: 104,
+                    width: 142,
+                    height: 142,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: const Color(0xFF0A1B36),
@@ -4192,7 +4192,7 @@ class _AuthPageState extends State<AuthPage> {
                         ),
                       ],
                     ),
-                    child: const _SamanvayBrandLogo(size: 102, radius: 27),
+                    child: const _SamanvayBrandLogo(size: 140, radius: 30),
                   ),
 
                   const SizedBox(height: 14),
@@ -4227,8 +4227,8 @@ class _AuthPageState extends State<AuthPage> {
 
                   Text(
                     isLogin
-                        ? 'Welcome back'
-                        : 'Create your account',
+                        ? 'Welcome Back!'
+                        : 'Create Your Account',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -5018,7 +5018,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         child: FilledButton.icon(
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LpuCampusModelPage())),
           icon: const Icon(Icons.view_in_ar_rounded),
-          label: const Text('OPEN 3D UNDERGROUND CAMPUS MODEL'),
+          label: const Text('OPEN LPU LIVE GIS MAP'),
         ),
       ),
     ],
