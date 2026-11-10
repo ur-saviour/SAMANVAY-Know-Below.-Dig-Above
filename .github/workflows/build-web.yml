@@ -51,7 +51,7 @@ jobs:
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
           cp app/coordinated_work_calendar_page.dart lib/coordinated_work_calendar_page.dart
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
-          cp app/assets/brand/samanvay_logo.jpg assets/brand/samanvay_logo.jpg
+          cp -R app/assets/brand/. assets/brand/
           cp app/joint_work_coordination_page.dart lib/joint_work_coordination_page.dart
           cp -R app/assets/reference/. assets/reference/
 
@@ -94,6 +94,7 @@ jobs:
               "    - assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson",
               "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson",
               "    - assets/brand/samanvay_logo.jpg",
+              "    - assets/brand/home_city_banner.jpg",
           ]
           if chr(10) + "flutter:" + chr(10) not in content:
               raise SystemExit("Flutter section not found in generated pubspec.yaml")
@@ -146,7 +147,8 @@ jobs:
           for asset in \
             build/web/assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson \
             build/web/assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson \
-            build/web/assets/assets/brand/samanvay_logo.jpg; do
+            build/web/assets/assets/brand/samanvay_logo.jpg \
+            build/web/assets/assets/brand/home_city_banner.jpg; do
             if [ ! -s "$asset" ]; then
               echo "ERROR: Compiled browser bundle is missing GIS asset: $asset"
               exit 1
