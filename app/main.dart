@@ -5014,12 +5014,16 @@ class _MainScreenState extends State<MainScreen> {
                   leading: Padding(
                     padding: const EdgeInsets.fromLTRB(8, 14, 8, 20),
                     child: extended
-                      ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 2),
-                           Text('TOWARDS OUR DEVELOPMENT 📈', style: TextStyle(color: cyanAccent, fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w800)),
+                      ? Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                          const _SamanvayBrandLogo(size: 42, radius: 11),
+                          const SizedBox(width: 9),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 2),
+                            Text('TOWARDS OUR DEVELOPMENT 📈', style: TextStyle(color: cyanAccent, fontSize: 7.5, letterSpacing: .45, fontWeight: FontWeight.w800)),
+                          ])),
                         ])
-                      :  Icon(Icons.hub_rounded, color: cyanAccent, size: 27),
+                      : const _SamanvayBrandLogo(size: 48, radius: 13),
                   ),
                   destinations: destinations,
                 ),
@@ -5218,45 +5222,46 @@ class _DashboardPageState extends State<DashboardPage> {
               border: Border.all(color: const Color(0x5534E5D1)),
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              const SizedBox(height: 3),
+              const _SamanvayBrandLogo(size: 126, radius: 29),
+              const SizedBox(height: 9),
+              const _AnimatedDevelopmentTagline(fontSize: 14),
+              const SizedBox(height: 6),
+              const Text(
+                'SMART COORDINATION  •  TRANSPARENT GOVERNANCE  •  A DEVELOPED INDIA',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFFE3EDF7), fontSize: 8,
+                  fontWeight: FontWeight.w900, letterSpacing: .55),
+              ),
+              const SizedBox(height: 18),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const _SamanvayBrandLogo(size: 46, radius: 12),
-                  const SizedBox(width: 11),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _AnimatedDevelopmentTagline(fontSize: 10, textAlign: TextAlign.left),
-                        SizedBox(height: 5),
-                        Text(
-                          'PUBLIC COORDINATION • TRANSPARENT GOVERNANCE • INDIA',
-                          style: TextStyle(
-                            color: Color(0xFFD1E0EA),
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .45,
-                          ),
-                        ),
-                      ],
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Hello, $name! 👋',
+                      style: GoogleFonts.spaceGrotesk(color: Colors.white,
+                        fontSize: 23, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('Towards a smarter, better-coordinated India',
+                      style: GoogleFonts.inter(color: const Color(0xFFD1E0EA), fontSize: 10)),
+                  ])),
+                  const CircleAvatar(
+                    radius: 22,
+                    backgroundColor: Color(0xFF35D7F2),
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundImage: AssetImage('assets/brand/profile_avatar.jpg'),
+                      backgroundColor: Color(0xFF173B55),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 15),
-              Text('Good day, $name',
-                style: GoogleFonts.spaceGrotesk(color: Colors.white,
-                  fontSize: 25, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 7),
-              Text('Connected infrastructure. Coordinated development.',
-                style: GoogleFonts.inter(color: const Color(0xFFD1E0EA), fontSize: 12)),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const MapPage())),
                 icon: const Icon(Icons.layers_rounded),
-                label: const Text('OPEN GIS WORKSPACE'),
+                label: const Text('LIVE UNDERGROUND VIEW  ↗'),
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
@@ -11915,7 +11920,7 @@ class _MapPageState extends State<MapPage> {
   String _scaleLabel = '';
   double _scaleWidth = 80;
   bool _is3D = true;
-  bool _undergroundMode = false;
+  bool _undergroundMode = true;
   bool _styleReady = false;
   bool _buildingReadinessLoaded = false;
   bool _utilityReadinessLoaded = false;
@@ -11928,7 +11933,7 @@ class _MapPageState extends State<MapPage> {
   int _utilityLayersOperational = 0;
   int _groundwaterCoverageJurisdictions = 0;
   int _groundwaterTelemetryGaps = 0;
-  bool _satellite = true;
+  bool _satellite = false;
   bool _showRequests = true;
   bool _showUtilityZones = true;
   bool _canViewUtilityOverview = false;
