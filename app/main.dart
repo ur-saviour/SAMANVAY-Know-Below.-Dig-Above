@@ -10743,6 +10743,7 @@ class _LpuCampusModelPainter extends CustomPainter {
     for (int i = 0; i < 3; i++) {
       final distance = ((flow + phase + i / 3) % 1.0) * metric.length;
       final tangent = metric.getTangentForOffset(distance);
+      if (tangent == null) continue;
       canvas.drawCircle(
         tangent.position,
         width * 0.90,
