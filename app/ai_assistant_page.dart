@@ -129,9 +129,9 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
   Widget _notice(String text, {bool warning = false}) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: warning ? const Color(0xFF462B32) : _aiPanel,
+      color: warning ? (_isLight ? const Color(0xFFFFE8E8) : const Color(0xFF462B32)) : _aiPanel,
       borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: warning ? const Color(0xFFB85D67) : const Color(0xFF31536F)),
+      border: Border.all(color: warning ? const Color(0xFFB85D67) : _aiBorder),
     ),
     child: Text(text, style: TextStyle(color: _aiInk, fontSize: 12, height: 1.4)),
   );
@@ -167,7 +167,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('• ', style: TextStyle(color: _aiCyan, fontSize: 13)),
-            Expanded(child: Text(item, style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.35))),
+            Expanded(child: Text(item, style: TextStyle(color: _aiInk, fontSize: 12, height: 1.35))),
           ]),
         )),
       ]),
@@ -282,7 +282,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
                 filled: true, fillColor: _aiPanel, hintText: 'Choose an accessible infrastructure case',
                 hintStyle: TextStyle(color: _aiMuted, fontSize: 11),
                 prefixIcon: Icon(Icons.folder_open, color: _aiCyan),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: const BorderSide(color: Color(0xFF31536F))),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: BorderSide(color: _aiBorder)),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(13), borderSide: const BorderSide(color: Color(0xFF31536F))),
               ),
               items: requests.map((r) {
@@ -305,7 +305,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
               onSelectionChanged: _running ? null : (value) => setState(() => _purpose = value.first),
               style: SegmentedButton.styleFrom(
                 foregroundColor: Colors.white, selectedForegroundColor: _aiNavy,
-                selectedBackgroundColor: _aiCyan, side: const BorderSide(color: Color(0xFF31536F)),
+                selectedBackgroundColor: _aiCyan, side: BorderSide(color: _aiBorder),
               ),
             ),
             const SizedBox(height: 14),
