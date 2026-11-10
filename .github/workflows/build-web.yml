@@ -50,6 +50,7 @@ jobs:
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
+          cp app/samanvay_ai_chat_page.dart lib/samanvay_ai_chat_page.dart
           cp app/coordinated_work_calendar_page.dart lib/coordinated_work_calendar_page.dart
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp -R app/assets/brand/. assets/brand/
@@ -77,6 +78,7 @@ jobs:
       - name: Install Flutter dependencies
         run: |
           flutter pub add supabase_flutter
+          flutter pub add flutter_svg
           flutter pub add maplibre_gl:0.27.1
           flutter pub add latlong2
           flutter pub add google_fonts
