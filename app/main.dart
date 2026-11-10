@@ -279,7 +279,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF030B16),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final markSize = math.min(158.0, constraints.maxWidth * 0.43);
+          final markSize = math.min(158.0, constraints.maxWidth * 0.43).toDouble();
           final compact = constraints.maxHeight < 650;
 
           return AnimatedBuilder(
@@ -450,7 +450,7 @@ class _OpeningBackdropPainter extends CustomPainter {
     );
 
     final glowCenter = Offset(size.width * 0.5, size.height * 0.43);
-    final glowRadius = math.max(size.width, size.height) * 0.58;
+    final glowRadius = (math.max(size.width, size.height) * 0.58).toDouble();
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
