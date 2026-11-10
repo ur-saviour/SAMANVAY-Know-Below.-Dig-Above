@@ -508,7 +508,13 @@ class _SamanvaySplashReveal extends StatelessWidget {
             center: Alignment(0, -.12), radius: .9,
             colors: [Color(0xFF173B67), Color(0xFF07182D), Color(0xFF020916)],
             stops: [0, .58, 1]))),
-          Center(child: CustomPaint(size: Size.square(size + 30), painter: _TricolourBorderPainter(progress: orbit))),
+          Center(child: Opacity(
+            opacity: 1.0 - Curves.easeInOut.transform(flag),
+            child: CustomPaint(
+              size: Size.square(size + 30),
+              painter: _TricolourBorderPainter(progress: orbit),
+            ),
+          )),
           Center(child: Transform.scale(scale: scale, alignment: const Alignment(0, .22),
             child: Opacity(opacity: opacity, child: _SamanvayBrandLogo(size: size, radius: size * .14)))),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _WavingFlagPainter(progress: flag)))),
@@ -5195,8 +5201,16 @@ class _DashboardPageState extends State<DashboardPage> {
           Container(
             padding: const EdgeInsets.all(21),
             decoration: BoxDecoration(
+              image: const DecorationImage(
+                image: AssetImage('assets/brand/home_city_banner.jpg'),
+                fit: BoxFit.cover,
+              ),
               gradient: LinearGradient(
-                colors: [navy, Color(0xFF173B55), Color(0xFF075E67)],
+                colors: [
+                  navy.withValues(alpha: .72),
+                  const Color(0xFF173B55).withValues(alpha: .58),
+                  const Color(0xFF075E67).withValues(alpha: .66),
+                ],
                 begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0x5534E5D1)),
