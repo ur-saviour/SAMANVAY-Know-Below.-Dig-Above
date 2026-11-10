@@ -15781,16 +15781,23 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _tile(IconData icon, String title, String subtitle, VoidCallback action,
-      {Color color = electricBlue}) => Card(
-    color: panelNavy,
-    margin: const EdgeInsets.only(bottom: 8),
-    child: ListTile(
-      leading: CircleAvatar(backgroundColor: color.withValues(alpha: .12),
-        child: Icon(icon, color: color)),
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: ink)),
-      subtitle: Text(subtitle, style: TextStyle(fontSize: 11, color: mutedInk)),
-      trailing:  Icon(Icons.chevron_right_rounded, color: mutedInk), onTap: action),
-  );
+      {Color? color}) {
+    final tileColor = color ?? electricBlue;
+    return Card(
+      color: panelNavy,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: tileColor.withValues(alpha: .12),
+          child: Icon(icon, color: tileColor),
+        ),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: ink)),
+        subtitle: Text(subtitle, style: TextStyle(fontSize: 11, color: mutedInk)),
+        trailing: Icon(Icons.chevron_right_rounded, color: mutedInk),
+        onTap: action,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
