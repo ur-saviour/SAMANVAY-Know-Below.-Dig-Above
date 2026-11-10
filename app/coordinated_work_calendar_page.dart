@@ -433,17 +433,19 @@ class _CoordinatedWorkCalendarPageState
                       Container(
                         padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF123B65), Color(0xFF075E72)],
+                          gradient: LinearGradient(
+                            colors: _isLight
+                                ? const [Color(0xFFE3F2EF), Color(0xFFDDECF0)]
+                                : const [Color(0xFF123B65), Color(0xFF075E72)],
                           ),
                           borderRadius: BorderRadius.circular(15),
                         ),
-                        child: const Column(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('ONE PLAN · MULTIPLE DEPARTMENTS',
                                 style: TextStyle(
-                                    color: Color(0xFF9DECE1),
+                                    color: _isLight ? _accent : const Color(0xFF9DECE1),
                                     fontSize: 9,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 1)),
@@ -451,7 +453,7 @@ class _CoordinatedWorkCalendarPageState
                             Text(
                               'See planned infrastructure works together to identify opportunities for joint scheduling and reduce repeated road openings.',
                               style: TextStyle(
-                                  color: Colors.white,
+                                  color: _isLight ? _ink : Colors.white,
                                   fontSize: 12,
                                   height: 1.45),
                             ),
