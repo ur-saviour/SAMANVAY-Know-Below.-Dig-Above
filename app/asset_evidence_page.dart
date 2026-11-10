@@ -3,9 +3,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const Color _evidenceNavy = Color(0xFF0B1728);
-const Color _evidenceMuted = Color(0xFF718096);
-
 class UtilityAssetEvidenceSubmissionPage extends StatefulWidget {
   const UtilityAssetEvidenceSubmissionPage({super.key});
 
@@ -16,6 +13,9 @@ class UtilityAssetEvidenceSubmissionPage extends StatefulWidget {
 
 class _UtilityAssetEvidenceSubmissionPageState
     extends State<UtilityAssetEvidenceSubmissionPage> {
+  Color get _evidenceNavy => Theme.of(context).colorScheme.onSurface;
+  Color get _evidenceMuted => Theme.of(context).colorScheme.onSurfaceVariant;
+
   final _db = Supabase.instance.client;
   bool _loading = true;
   bool _busy = false;
@@ -97,7 +97,7 @@ class _UtilityAssetEvidenceSubmissionPageState
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Enter the survey details and official evidence reference. Keep the source document in your department’s authorised records system.',
                     style: TextStyle(fontSize: 12, color: _evidenceMuted, height: 1.4),
                   ),
@@ -283,19 +283,19 @@ class _UtilityAssetEvidenceSubmissionPageState
             Row(children: [
               Expanded(child: Text(
                 (row['asset_type'] ?? 'unknown').toString().toUpperCase(),
-                style: const TextStyle(fontWeight: FontWeight.w900, color: _evidenceNavy),
+                style: TextStyle(fontWeight: FontWeight.w900, color: _evidenceNavy),
               )),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(8)),
                 child: Text(status.replaceAll('_', ' ').toUpperCase(),
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _evidenceNavy)),
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _evidenceNavy)),
               ),
             ]),
             const SizedBox(height: 6),
             Text(
               'Submission created: ${_date(row['created_at'])} · Evidence references: ${row['evidence_count'] ?? 0}',
-              style: const TextStyle(fontSize: 11, color: _evidenceMuted),
+              style: TextStyle(fontSize: 11, color: _evidenceMuted),
             ),
             if (evidence.isNotEmpty)
               ExpansionTile(
@@ -309,7 +309,7 @@ class _UtilityAssetEvidenceSubmissionPageState
                   title: Text((item['evidence_reference_code'] ?? 'Reference').toString()),
                   subtitle: Text(
                     '${_methods[item['survey_method']] ?? item['survey_method']} · ${_date(item['survey_date'])}\nSHA-256: ${(item['evidence_sha256'] ?? '').toString()}',
-                    style: const TextStyle(fontSize: 9, color: _evidenceMuted),
+                    style: TextStyle(fontSize: 9, color: _evidenceMuted),
                   ),
                 )).toList(),
               ),
@@ -345,7 +345,7 @@ class _UtilityAssetEvidenceSubmissionPageState
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const Card(
+                  Card(
                     child: Padding(
                       padding: EdgeInsets.all(14),
                       child: Column(
@@ -380,7 +380,7 @@ class _UtilityAssetEvidenceSubmissionPageState
                     ))
                   else ...[
                     Text('${_assets.length} eligible submission(s)',
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: _evidenceNavy)),
+                      style: TextStyle(fontWeight: FontWeight.w800, color: _evidenceNavy)),
                     const SizedBox(height: 9),
                     ..._assets.map(_assetCard),
                   ],
