@@ -3672,10 +3672,17 @@ class _AuthPageState extends State<AuthPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _otpController = TextEditingController();
 
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
+  bool usePhoneLogin = false;
+  bool otpSent = false;
+  int otpResendSeconds = 0;
+  Timer? _otpResendTimer;
+  String? _pendingOtpEmail;
+  String? _pendingOtpPhone;
   String message = '';
   bool messageIsSuccess = false;
   String? demoPreviewRole;
@@ -3686,6 +3693,8 @@ class _AuthPageState extends State<AuthPage> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _otpController.dispose();
+    _otpResendTimer?.cancel();
     super.dispose();
   }
 
@@ -3698,7 +3707,166 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  String? _validateLoginIdentifier(String? value) {
+    final input = (value ?? '').trim();
+    if (input.isEmpty) return 'Enter your email address or mobile number';
+
+    if (usePhoneLogin) {
+      final phone = _normalisePhoneForAuth(input);
+      return RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)
+          ? null
+          : 'Enter a valid mobile number. Indian 10-digit numbers are supported.';
+    }
+
+    final resolved = _existingTestAccountAliases[input.toLowerCase()] ?? input;
+    return RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$').hasMatch(resolved)
+        ? null
+        : 'Enter a valid email address or an existing staff demo ID';
+  }
+
+  void _startOtpResendCountdown() {
+    _otpResendTimer?.cancel();
+    setState(() => otpResendSeconds = 60);
+    _otpResendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (otpResendSeconds <= 1) {
+        timer.cancel();
+        setState(() => otpResendSeconds = 0);
+      } else {
+        setState(() => otpResendSeconds--);
+      }
+    });
+  }
+
+  Future<void> sendLoginOtp() async {
+    if (loading) return;
+    final validation = _validateLoginIdentifier(_emailController.text);
+    if (validation != null) {
+      showMessage(validation);
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      message = '';
+      messageIsSuccess = false;
+    });
+
+    try {
+      if (usePhoneLogin) {
+        final phone = _normalisePhoneForAuth(_emailController.text);
+        await supabase.auth.signInWithOtp(
+          phone: phone,
+          shouldCreateUser: false,
+        );
+        _pendingOtpPhone = phone;
+        _pendingOtpEmail = null;
+      } else {
+        final raw = _emailController.text.trim();
+        final email = (_existingTestAccountAliases[raw.toLowerCase()] ?? raw)
+            .trim()
+            .toLowerCase();
+        await supabase.auth.signInWithOtp(
+          email: email,
+          shouldCreateUser: false,
+        );
+        _pendingOtpEmail = email;
+        _pendingOtpPhone = null;
+      }
+
+      _otpController.clear();
+      if (!mounted) return;
+      setState(() {
+        otpSent = true;
+        message = usePhoneLogin
+            ? 'If this number is registered, a six-digit code has been requested by SMS.'
+            : 'If this email is registered, a six-digit code has been requested. Check your inbox and spam folder.';
+        messageIsSuccess = true;
+      });
+      _startOtpResendCountdown();
+    } on AuthException catch (authError) {
+      final detail = authError.message.toLowerCase();
+      if (detail.contains('rate limit') || detail.contains('too many')) {
+        showMessage('Please wait before requesting another code.');
+      } else if (usePhoneLogin &&
+          (detail.contains('sms') || detail.contains('provider'))) {
+        showMessage('SMS delivery is not configured or is temporarily unavailable. Check the Supabase Auth SMS provider settings.');
+      } else {
+        showMessage('Unable to send the code. Confirm that the contact is registered and try again. ' + authError.message);
+      }
+    } catch (_) {
+      showMessage('Unable to send the code. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> verifyLoginOtp() async {
+    if (loading) return;
+    final token = _otpController.text.trim();
+    if (!RegExp(r'^\\d{6}$').hasMatch(token)) {
+      showMessage('Enter the six-digit verification code.');
+      return;
+    }
+    if (_pendingOtpEmail == null && _pendingOtpPhone == null) {
+      showMessage('Request a new verification code first.');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      message = '';
+      messageIsSuccess = false;
+    });
+
+    try {
+      final response = await supabase.auth.verifyOTP(
+        email: _pendingOtpEmail,
+        phone: _pendingOtpPhone,
+        token: token,
+        type: _pendingOtpPhone != null ? OtpType.sms : OtpType.email,
+      );
+      if (response.session == null || response.user == null) {
+        throw const AuthException('The verification code did not create a sign-in session. Request a new code.');
+      }
+      _otpResendTimer?.cancel();
+      if (!mounted) return;
+      showMessage('Verification successful. Opening your authorised SAMANVAY workspace…', success: true);
+    } on AuthException catch (authError) {
+      final detail = authError.message.toLowerCase();
+      if (detail.contains('expired') || detail.contains('invalid')) {
+        showMessage('That code is invalid or expired. Check the newest message and try again.');
+      } else {
+        showMessage(authError.message);
+      }
+    } catch (_) {
+      showMessage('Unable to verify the code. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  void changeLoginIdentifier() {
+    _otpResendTimer?.cancel();
+    setState(() {
+      otpSent = false;
+      otpResendSeconds = 0;
+      _pendingOtpEmail = null;
+      _pendingOtpPhone = null;
+      _otpController.clear();
+      message = '';
+      messageIsSuccess = false;
+    });
+  }
+
   Future<void> submit() async {
+    if (isLogin) {
+      await sendLoginOtp();
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -3713,57 +3881,33 @@ class _AuthPageState extends State<AuthPage> {
             rawIdentifier.toLowerCase()] ??
           rawIdentifier;
 
-      if (isLogin) {
-        if (identifier.contains('@')) {
-          await supabase.auth.signInWithPassword(
-            email: identifier,
-            password: _passwordController.text,
-          );
-        } else {
-          final phone = _normalisePhoneForAuth(identifier);
-          if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
-            throw const AuthException(
-              'Enter a valid email address or mobile number with country code.',
-            );
-          }
-          await supabase.auth.signInWithPassword(
-            phone: phone,
-            password: _passwordController.text,
-          );
-        }
-        showMessage('Login successful.', success: true);
-      } else {
-        if (!identifier.contains('@') || !identifier.contains('.')) {
-          throw const AuthException(
-            'New account registration currently requires an email address.',
-          );
-        }
-        final response = await supabase.auth.signUp(
-          email: identifier,
-          password: _passwordController.text,
-          emailRedirectTo: redirectUrl,
-          data: {
-            'display_name': _nameController.text.trim(),
-          },
+      if (!identifier.contains('@') || !identifier.contains('.')) {
+        throw const AuthException(
+          'New account registration currently requires an email address.',
         );
-
-        if (response.session == null) {
-          showMessage(
-            'Registration request submitted. '
-            'Check your inbox and spam folder for '
-            'the confirmation email. '
-            'After confirming, return here and log in.',
-            success: true,
-          );
-        } else {
-          showMessage(
-            'Your account has been created successfully.',
-            success: true,
-          );
-        }
       }
-    } on AuthException catch (error) {
-      showMessage(error.message);
+      final response = await supabase.auth.signUp(
+        email: identifier,
+        password: _passwordController.text,
+        emailRedirectTo: redirectUrl,
+        data: {
+          'display_name': _nameController.text.trim(),
+        },
+      );
+
+      if (response.session == null) {
+        showMessage(
+          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here to sign in with an OTP.',
+          success: true,
+        );
+      } else {
+        showMessage(
+          'Your account has been created successfully.',
+          success: true,
+        );
+      }
+    } on AuthException catch (authError) {
+      showMessage(authError.message);
     } catch (error) {
       showMessage(
         'Unexpected request error (' + error.runtimeType.toString() + '). ' +
@@ -3799,79 +3943,6 @@ class _AuthPageState extends State<AuthPage> {
       message = '';
       messageIsSuccess = false;
     });
-  }
-
-  Future<void> requestLoginPasswordReset() async {
-    final rawIdentifier = _emailController.text.trim();
-    final email = _existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
-        rawIdentifier;
-    if (!email.contains('@') || !email.contains('.')) {
-      showMessage('Enter a registered email address or one of the staff IDs shown by your administrator.');
-      return;
-    }
-    setState(() { loading = true; message = ''; messageIsSuccess = false; });
-    try {
-      await supabase.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
-      showMessage('Password reset instructions requested. Check the registered email inbox.', success: true);
-    } on AuthException catch (error) {
-      showMessage(error.message);
-    } catch (_) {
-      showMessage('Unable to request a password reset. Check your connection and try again.');
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
-  // Resend the confirmation email to an existing
-  // unconfirmed Supabase signup.
-
-  Future<void> resendConfirmationEmail() async {
-    final rawIdentifier = _emailController.text.trim();
-    final email = _existingTestAccountAliases[rawIdentifier.toLowerCase()] ?? rawIdentifier;
-
-    if (!email.contains('@') || !email.contains('.')) {
-      showMessage(
-        'Enter your registered email address or a listed staff ID first.',
-      );
-      return;
-    }
-
-    setState(() {
-      loading = true;
-      message = '';
-      messageIsSuccess = false;
-    });
-
-    try {
-      await supabase.auth.resend(
-        type: OtpType.signup,
-        email: email,
-        emailRedirectTo: redirectUrl,
-      );
-
-      showMessage(
-        'Supabase accepted the confirmation email request. '
-        'Check your inbox, spam and promotions folders. '
-        'Open the newest confirmation email.',
-        success: true,
-      );
-    } on AuthException catch (error) {
-      showMessage(
-        'Confirmation email could not be requested: '
-        '${error.message}',
-      );
-    } catch (error) {
-      showMessage(
-        'Unable to request the confirmation email. '
-        'Check your internet connection and try again.',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          loading = false;
-        });
-      }
-    }
   }
 
   @override
@@ -3993,7 +4064,7 @@ class _AuthPageState extends State<AuthPage> {
 
                   Text(
                     isLogin
-                        ? 'Welcome Back!'
+                        ? 'Sign in with OTP'
                         : 'Create Your Account',
                     style: TextStyle(
                       fontSize: 24,
@@ -4189,81 +4260,168 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                   const SizedBox(height: 16),
                                     const SizedBox(height: 16),
+                  if (isLogin) ...[
+                    Text(
+                      'CHOOSE YOUR SIGN-IN METHOD',
+                      style: TextStyle(color: cyanAccent, fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          avatar: const Icon(Icons.email_outlined, size: 17),
+                          label: const Text('Email OTP'),
+                          selected: !usePhoneLogin,
+                          onSelected: loading || otpSent ? null : (_) => setState(() {
+                            usePhoneLogin = false;
+                            message = '';
+                            messageIsSuccess = false;
+                          }),
+                        ),
+                        ChoiceChip(
+                          avatar: const Icon(Icons.sms_outlined, size: 17),
+                          label: const Text('Mobile OTP'),
+                          selected: usePhoneLogin,
+                          onSelected: loading || otpSent ? null : (_) => setState(() {
+                            usePhoneLogin = true;
+                            message = '';
+                            messageIsSuccess = false;
+                          }),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   TextFormField(
                     controller: _emailController,
-                    keyboardType: isLogin
-                        ? TextInputType.text
-                        : TextInputType.emailAddress,
+                    enabled: !isLogin || !otpSent,
+                    keyboardType: !isLogin
+                        ? TextInputType.emailAddress
+                        : (usePhoneLogin ? TextInputType.phone : TextInputType.emailAddress),
                     textInputAction: TextInputAction.next,
                     autocorrect: false,
                     decoration: InputDecoration(
-                      labelText: isLogin ? 'Email, mobile number or staff ID' : 'Email address',
-                      hintText: isLogin ? 'name@example.com, 9876543210 or 9013' : 'name@example.com',
-                      prefixIcon: Icon(isLogin ? Icons.alternate_email_rounded : Icons.email_outlined),
+                      labelText: isLogin
+                          ? (usePhoneLogin ? 'Registered mobile number' : 'Registered email address')
+                          : 'Email address',
+                      hintText: isLogin
+                          ? (usePhoneLogin ? '+91 9876543210 or 9876543210' : 'name@example.com or staff ID 9013')
+                          : 'name@example.com',
+                      prefixIcon: Icon(
+                        isLogin
+                            ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
+                            : Icons.email_outlined,
+                      ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
-                          ? 'Use your registered credentials for live access, or tap an official role above to open its interactive demonstration portal.'
+                          ? (usePhoneLogin
+                              ? 'Indian 10-digit numbers are automatically prefixed with +91. International numbers can use +country code.'
+                              : 'A six-digit code will be sent to your registered inbox. Existing staff IDs such as 9013 resolve to their saved email.')
                           : null,
-                      helperMaxLines: 2,
+                      helperMaxLines: 3,
                     ),
+                    onFieldSubmitted: (_) {
+                      if (isLogin && !otpSent && !loading) sendLoginOtp();
+                    },
                     validator: (value) {
-                      final input = (value ?? '').trim();
                       if (!isLogin) {
+                        final input = (value ?? '').trim();
                         return input.contains('@') && input.contains('.')
                             ? null : 'Enter a valid email address';
                       }
-                      if (input.contains('@')) {
-                        return input.contains('.') ? null : 'Enter a valid email address';
-                      }
-                      if (_existingTestAccountAliases.containsKey(input.toLowerCase())) {
-                        return null;
-                      }
-                      final phone = _normalisePhoneForAuth(input);
-                      return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
-                          ? null
-                          : 'Enter a valid email, staff test ID or mobile number';
+                      return _validateLoginIdentifier(value);
                     },
                   ),
 
-                  const SizedBox(height: 16),
+                  if (isLogin && otpSent) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _otpController,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      maxLength: 6,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Six-digit verification code',
+                        hintText: '000000',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                        border: OutlineInputBorder(),
+                        counterText: '',
+                      ),
+                      onFieldSubmitted: (_) {
+                        if (!loading) verifyLoginOtp();
+                      },
+                      validator: (value) {
+                        final code = (value ?? '').trim();
+                        return RegExp(r'^\\d{6}$').hasMatch(code)
+                            ? null
+                            : 'Enter the six-digit code';
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: loading || otpResendSeconds > 0
+                                ? null
+                                : sendLoginOtp,
+                            icon: const Icon(Icons.refresh_rounded, size: 17),
+                            label: Text(
+                              otpResendSeconds > 0
+                                  ? 'Resend in ${otpResendSeconds}s'
+                                  : 'Resend code',
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: loading ? null : changeLoginIdentifier,
+                            icon: const Icon(Icons.edit_outlined, size: 17),
+                            label: const Text('Change contact'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
 
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: hidePassword,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) {
-                      if (isLogin && !loading) submit();
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon:
-                          const Icon(Icons.lock_outline),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        onPressed: () {
-                          setState(() {
-                            hidePassword = !hidePassword;
-                          });
-                        },
-                        icon: Icon(
-                          hidePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                  if (!isLogin) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: hidePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!loading) submit();
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Create password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() => hidePassword = !hidePassword);
+                          },
+                          icon: Icon(
+                            hidePassword ? Icons.visibility : Icons.visibility_off,
+                          ),
                         ),
                       ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Create a password';
+                        }
+                        if (value.length < 8) {
+                          return 'Password must contain at least 8 characters';
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Enter your password';
-                      }
-                      if (!isLogin && value.length < 8) {
-                        return 'Password must contain '
-                            'at least 8 characters';
-                      }
-
-                      return null;
-                    },
-                  ),
+                  ],
 
                   if (isLogin) ...[
                     OutlinedButton.icon(
@@ -4310,7 +4468,11 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 16),
 
                   FilledButton(
-                    onPressed: loading ? null : submit,
+                    onPressed: loading
+                        ? null
+                        : (isLogin
+                            ? (otpSent ? verifyLoginOtp : sendLoginOtp)
+                            : submit),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
                       padding:
@@ -4330,42 +4492,12 @@ class _AuthPageState extends State<AuthPage> {
                           )
                         : Text(
                             isLogin
-                                ? 'LOGIN'
+                                ? (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP')
                                 : 'CREATE ACCOUNT',
                           ),
                   ),
 
-                  if (isLogin) ...[
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: loading ? null : requestLoginPasswordReset,
-                        child: const Text('Forgot password?'),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    OutlinedButton.icon(
-                      onPressed: loading
-                          ? null
-                          : resendConfirmationEmail,
-                      icon: const Icon(
-                        Icons.mark_email_unread_outlined,
-                      ),
-                      label: const Text(
-                        'RESEND CONFIRMATION EMAIL',
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: cyanAccent,
-                        side: const BorderSide(color: Color(0xFF2D6A87)),
-                        padding:
-                            const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 12),
+                                    const SizedBox(height: 12),
 
                   TextButton(
                     onPressed: loading
@@ -4373,6 +4505,13 @@ class _AuthPageState extends State<AuthPage> {
                         : () {
                             setState(() {
                               isLogin = !isLogin;
+                              usePhoneLogin = false;
+                              otpSent = false;
+                              otpResendSeconds = 0;
+                              _pendingOtpEmail = null;
+                              _pendingOtpPhone = null;
+                              _otpController.clear();
+                              _otpResendTimer?.cancel();
                               message = '';
                               messageIsSuccess = false;
                             });
