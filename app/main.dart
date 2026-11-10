@@ -441,11 +441,12 @@ class _SamanvayBrandLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
-    child: SvgPicture.asset(
-      'assets/brand/samanvay_logo.svg',
+    child: Image.asset(
+      'assets/brand/samanvay_logo.jpg',
       width: size,
       height: size,
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
     ),
   );
 }
@@ -14732,6 +14733,112 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Future<void> _openLpuPublicSources() async {
+    const sources = <Map<String, String>>[
+      {
+        'title': 'Water conservation infrastructure and campus map',
+        'subtitle': 'LPU published infrastructure overview, including its rainwater-harvesting bore map',
+        'url': 'https://www.lpu.in/SUSTAINABLE/sdg6/lpu-building-plan-strategy.php',
+      },
+      {
+        'title': 'Sustainable water extraction',
+        'subtitle': 'Official information about campus extraction bores and water meters',
+        'url': 'https://www.lpu.in/SUSTAINABLE/sdg6/sustainable-water-extraction.php',
+      },
+      {
+        'title': 'Wastewater treatment',
+        'subtitle': 'Official overview of campus sewage-treatment and water-reuse facilities',
+        'url': 'https://www.lpu.in/SUSTAINABLE/sdg6/waste-water-treatment.php',
+      },
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0D2034),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'LPU OFFICIAL PUBLIC REFERENCES',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
+                ),
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'These LPU pages document public water and wastewater infrastructure. They are reference material, not survey-grade underground utility geometry or excavation clearance.',
+                style: TextStyle(
+                  color: Color(0xFFB9CADA),
+                  fontSize: 10,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              ...sources.map((source) => Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Material(
+                  color: const Color(0xFF142D47),
+                  borderRadius: BorderRadius.circular(12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 4),
+                    title: Text(
+                      source['title']!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    subtitle: Text(
+                      source['subtitle']!,
+                      style: const TextStyle(
+                        color: Color(0xFFB9CADA),
+                        fontSize: 9,
+                        height: 1.3,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.open_in_new_rounded,
+                      color: Color(0xFF55D9CE),
+                      size: 17,
+                    ),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      final uri = Uri.parse(source['url']!);
+                      try {
+                        final opened = await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                        if (!opened && mounted) {
+                          _showMessage('Unable to open the LPU official reference page.');
+                        }
+                      } catch (_) {
+                        if (mounted) {
+                          _showMessage('Unable to open the LPU official reference page.');
+                        }
+                      }
+                    },
+                  ),
+                ),
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _jumpToIndiaRegion(String region) async {
     final controller = _controller;
     if (controller == null) {
@@ -14796,11 +14903,19 @@ class _MapPageState extends State<MapPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Open LPU campus in the live GIS map',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
+            tooltip: widget.contextLabel == 'LPU CAMPUS · PHAGWARA'
+                ? 'LPU official public infrastructure references'
+                : 'Open LPU campus in the live GIS map',
+            onPressed: widget.contextLabel == 'LPU CAMPUS · PHAGWARA'
+                ? _openLpuPublicSources
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
+                  ),
+            icon: Icon(
+              widget.contextLabel == 'LPU CAMPUS · PHAGWARA'
+                  ? Icons.account_balance_outlined
+                  : Icons.school_outlined,
             ),
-            icon: const Icon(Icons.school_outlined),
           ),
           IconButton(
             tooltip: 'Import underground survey GeoJSON',
