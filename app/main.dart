@@ -290,6 +290,8 @@ class _OpeningExperienceState extends State<OpeningExperience>
               introController: _introController,
               ambientController: _ambientController,
               onGetStarted: _startApplication,
+              isStarting: _startingApplication,
+              startupError: _startupError,
             ),
     );
   }
@@ -301,11 +303,15 @@ class _SamanvayOpeningScreen extends StatelessWidget {
     required this.introController,
     required this.ambientController,
     required this.onGetStarted,
+    required this.isStarting,
+    required this.startupError,
   });
 
   final AnimationController introController;
   final AnimationController ambientController;
   final VoidCallback onGetStarted;
+  final bool isStarting;
+  final String? startupError;
 
   double _reveal(double value, double start, double end) {
     final amount = ((value - start) / (end - start))
@@ -510,17 +516,17 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                             color: Colors.transparent,
                                             child: InkWell(
                                               borderRadius: BorderRadius.circular(30),
-                                              onTap: progress >= 0.82 && !_startingApplication
+                                              onTap: progress >= 0.82 && !isStarting
                                                   ? onGetStarted
                                                   : null,
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
                                                   Text(
-                                                    _startingApplication ? 'CONNECTING SECURE PORTAL' : 'GET STARTED',
+                                                    isStarting ? 'CONNECTING SECURE PORTAL' : 'GET STARTED',
                                                     style: GoogleFonts.inter(
                                                       color: Colors.white,
-                                                      fontSize: _startingApplication ? 10 : 13,
+                                                      fontSize: isStarting ? 10 : 13,
                                                       fontWeight: FontWeight.w800,
                                                       letterSpacing: 1.1,
                                                     ),
@@ -539,10 +545,10 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  if (_startupError != null) ...[
+                                  if (startupError != null) ...[
                                     const SizedBox(height: 10),
                                     Text(
-                                      _startupError!,
+                                      startupError!,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: Color(0xFFFFB9A9),
