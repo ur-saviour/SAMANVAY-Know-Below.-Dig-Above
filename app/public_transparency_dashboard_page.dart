@@ -195,7 +195,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
                     style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w700)),
                   if (progress != null) ...[
                     const SizedBox(height: 8),
-                    LinearProgressIndicator(value: (progress / 100).clamp(0.0, 1.0), minHeight: 7),
+                    LinearProgressIndicator(value: (progress / 100).clamp(0.0, 1.0).toDouble(), minHeight: 7),
                   ],
                   const SizedBox(height: 8),
                   Text('Status: ' + (row['notice_status'] ?? '').toString() +
