@@ -5483,7 +5483,6 @@ class _DashboardPageState extends State<DashboardPage> {
               )),
             ]),
           ),
-          const SizedBox(height: 15),
           const SizedBox(height: 18),
           Text('My activity', style: GoogleFonts.spaceGrotesk(
             color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
@@ -5588,7 +5587,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 24),
           Text('Department network', style: GoogleFonts.spaceGrotesk(
-            color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text('Live directory from the SAMANVAY database',
             style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
@@ -5620,8 +5619,8 @@ class _DashboardPageState extends State<DashboardPage> {
               borderRadius: BorderRadius.circular(14), border: Border.all(color: borderColor)),
             child: Text(
               'Underground visibility depends on verified survey records and access permissions. An empty layer does not prove that no utility exists.',
-              style: GoogleFonts.inter(color: const Color(0xFF42627E),
-                fontSize: 11, height: 1.45))),
+              style: GoogleFonts.inter(color: mutedInk,
+                fontSize: 11, fontWeight: FontWeight.w700, height: 1.45))),
         ]),
       ),
     );
