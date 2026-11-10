@@ -3964,16 +3964,7 @@ class _AuthPageState extends State<AuthPage> {
 
                   const SizedBox(height: 5),
 
-                   Text(
-                    'TOWARDS OUR DEVELOPMENT 📈',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: cyanAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                    ),
-                  ),
+                  const _AnimatedDevelopmentTagline(fontSize: 10),
 
                   const SizedBox(height: 8),
 
@@ -3992,10 +3983,10 @@ class _AuthPageState extends State<AuthPage> {
                     isLogin
                         ? 'Welcome back'
                         : 'Create your account',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      color: ink,
                     ),
                   ),
 
@@ -5217,10 +5208,31 @@ class _DashboardPageState extends State<DashboardPage> {
               boxShadow: const [BoxShadow(color: Color(0x180B1728),
                 blurRadius: 20, offset: Offset(0, 9))]),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const _AnimatedDevelopmentTagline(fontSize: 10, textAlign: TextAlign.left),
-              const SizedBox(height: 4),
-              const Text('PUBLIC COORDINATION • TRANSPARENT GOVERNANCE • INDIA',
-                style: TextStyle(color: Color(0xFFD1E0EA), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .45)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const _SamanvayBrandLogo(size: 46, radius: 12),
+                  const SizedBox(width: 11),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _AnimatedDevelopmentTagline(fontSize: 10, textAlign: TextAlign.left),
+                        SizedBox(height: 5),
+                        Text(
+                          'PUBLIC COORDINATION • TRANSPARENT GOVERNANCE • INDIA',
+                          style: TextStyle(
+                            color: Color(0xFFD1E0EA),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 15),
               Text('Good day, $name',
                 style: GoogleFonts.spaceGrotesk(color: Colors.white,
