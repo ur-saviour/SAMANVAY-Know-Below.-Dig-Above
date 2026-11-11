@@ -4008,9 +4008,9 @@ class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
-  // Existing accounts use registered-email OTP by default; password
-  // sign-in remains available through the adjacent mode chip.
-  bool usePasswordLogin = false;
+  // Keep password sign-in as the default because this project's live
+  // Auth logs currently report otp_disabled for an OTP request.
+  bool usePasswordLogin = true;
   bool usePhoneLogin = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
@@ -4278,9 +4278,21 @@ class _AuthPageState extends State<AuthPage> {
         showMessage(
           'No verified mobile number is linked to this existing SAMANVAY account yet. Use Email OTP or Password sign-in with the registered email address.',
         );
+      } else if (!usePhoneLogin &&
+          (detail.contains('otp_disabled') ||
+              detail.contains('otp') &&
+                  (detail.contains('disabled') ||
+                      detail.contains('not allowed')))) {
+        showMessage(
+          'Email OTP sign-in is disabled by the connected Supabase Auth configuration. Use Password sign-in for now, or ask the platform administrator to enable Email OTP in Authentication settings.',
+        );
       } else if (usePhoneLogin &&
-          (detail.contains('sms') || detail.contains('provider'))) {
-        showMessage('Mobile OTP delivery is not configured or is temporarily unavailable. Ask the platform administrator to enable the SMS + WhatsApp Auth Hook.');
+          (detail.contains('otp_disabled') ||
+              detail.contains('sms') ||
+              detail.contains('provider'))) {
+        showMessage(
+          'Mobile OTP sign-in is disabled or its delivery provider is unavailable. Use your registered email and password until the administrator enables and verifies mobile OTP delivery.',
+        );
       } else {
         showMessage('Unable to send the code. Confirm that the contact is registered and try again. ' + authError.message);
       }
@@ -5073,7 +5085,7 @@ class _AuthPageState extends State<AuthPage> {
                         : () {
                             setState(() {
                               isLogin = !isLogin;
-                              usePasswordLogin = !isLogin;
+                              usePasswordLogin = true;
                               usePhoneLogin = false;
                               otpSent = false;
                               otpResendSeconds = 0;
