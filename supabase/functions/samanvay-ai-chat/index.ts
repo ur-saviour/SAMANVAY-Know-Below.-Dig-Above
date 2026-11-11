@@ -113,7 +113,9 @@ async function exactPublicRowCount(
     });
     if (!response.ok) return null;
     const contentRange = response.headers.get("content-range") ?? "";
-    const match = contentRange.match(/\\/(\\d+)$/);
+    const countText = contentRange.substring(contentRange.lastIndexOf("/") + 1);
+    if (!countText || !Array.from(countText).every((character) => character >= "0" && character <= "9")) return null;
+    return Number(countText);
     return match ? Number(match[1]) : null;
   } catch {
     return null;
