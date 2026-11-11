@@ -70,10 +70,10 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
   String _errorMessage(Object error) {
     final value = error.toString();
     if (value.contains('AI_NOT_CONFIGURED')) {
-      return 'AI is not enabled. The project administrator must configure the OPENAI_API_KEY Edge Function secret.';
+      return 'The built-in case assistant is temporarily unavailable. Check your connection and try again.';
     }
     if (value.contains('DAILY_AI_LIMIT_REACHED') || value.contains('429')) {
-      return 'The per-user daily AI assessment limit has been reached. Try again after the 24-hour usage window.';
+      return 'The per-user daily Rule-based case assessment limit has been reached. Try again after the 24-hour usage window.';
     }
     if (value.contains('STAFF_ACCESS_REQUIRED') ||
         value.contains('CASE_NOT_ASSIGNED_TO_YOUR_DEPARTMENT')) {
@@ -82,7 +82,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
     if (value.contains('FUNCTION_NOT_FOUND') || value.contains('404')) {
       return 'The samanvay-case-assistant Edge Function is not deployed in this Supabase project.';
     }
-    return 'The assessment could not be completed. Check the function deployment, AI secret and case permissions.';
+    return 'The assessment could not be completed. Check the function deployment and case permissions.';
   }
 
   Future<void> _runAssessment() async {
@@ -196,7 +196,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
         Wrap(spacing: 7, runSpacing: 7, children: [
           _tag('CATEGORY', _readable((data['category'] ?? 'other').toString())),
           _tag('PRIORITY', _readable((data['priority_band'] ?? 'not reported').toString()).toUpperCase()),
-          _tag('CONFIDENCE', confidenceText),
+          _tag('RULE MATCH', confidenceText),
         ]),
         _section('Suggested departments', data['suggested_departments'], Icons.account_tree_outlined),
         _section('Coordination flags', data['coordination_flags'], Icons.flag_outlined),
@@ -326,7 +326,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
           Container(
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(color: _aiPanel, borderRadius: BorderRadius.circular(14), border: Border.all(color: _aiBorder)),
-            child: Text('Privacy and safety: the existing server-side assistant validates the session and department assignment, enforces a per-user usage limit, and sends case text only. It does not send exact coordinates, private evidence or utility geometry to the AI provider. Never use an AI result as a no-dig clearance or statutory approval.', style: TextStyle(color: _aiMuted, fontSize: 10, height: 1.45)),
+            child: Text('Zero-cost mode: the existing Supabase function validates the session and department assignment, applies a per-user usage limit, and analyses selected case text using built-in rules. No paid AI API or external model is called. Never use this rule-based assessment as a no-dig clearance or statutory approval.', style: TextStyle(color: _aiMuted, fontSize: 10, height: 1.45)),
           ),
         ]);
       },
