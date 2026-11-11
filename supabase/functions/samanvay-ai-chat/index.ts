@@ -134,7 +134,6 @@ async function exactPublicRowCount(
     const countText = contentRange.substring(contentRange.lastIndexOf("/") + 1);
     if (!countText || !Array.from(countText).every((character) => character >= "0" && character <= "9")) return null;
     return Number(countText);
-    return match ? Number(match[1]) : null;
   } catch {
     return null;
   }
@@ -264,7 +263,7 @@ function contextualReply(prompt: string, context: UserContext): string | null {
     "my request", "my requests", "request status", "track my", "my case",
     "my cases", "show my request", "show my cases", "status of request",
   ])) {
-    const number = prompt.match(/(?:request|case)\\s*(?:number|no\\.?|#)?\\s*(\\d{1,14})/i)?.[1];
+    const number = prompt.match(/(?:request|case)\s*(?:number|no\.?|#)?\s*(\d{1,14})/i)?.[1];
     const matches = number
       ? context.requests.filter((item) => String(item.request_number ?? "") === number)
       : context.requests.slice(0, 6);
@@ -283,7 +282,7 @@ function contextualReply(prompt: string, context: UserContext): string | null {
         place ? "Location: " + place : "",
         dates ? "Planned dates: " + dates : "",
       ].filter(Boolean).join(" · ");
-    }).join("\\n");
+    }).join("\n`);
   }
 
   if (includesAny(q, ["my profile", "my department", "which department am i", "who am i"])) {
@@ -297,7 +296,7 @@ function contextualReply(prompt: string, context: UserContext): string | null {
     "works near", "excavation around", "public work near", "no-dig notice",
     "no dig notice", "active excavation",
   ])) {
-    const explicit = prompt.match(/\\b(?:near|around|in|at)\\s+([a-z][a-z\\s-]{1,35})/i)?.[1]?.trim();
+    const explicit = prompt.match(/\b(?:near|around|in|at)\s+([a-z][a-z\s-]{1,35})/i)?.[1]?.trim();
     const recentCity = context.requests.find((item) => item.city)?.city ?? "";
     const candidate = (explicit && !["me", "my location", "here"].includes(explicit.toLowerCase()))
       ? explicit
@@ -312,14 +311,14 @@ function contextualReply(prompt: string, context: UserContext): string | null {
     if (!matches.length) {
       return "I found no published SAMANVAY work notices matching " + candidate + " in the current public notice feed. This feed may be incomplete; check the relevant local authority before making decisions.";
     }
-    return "Published public-work notices matching " + candidate + ":\\n" + matches.slice(0, 6).map((item) => [
+    return "Published public-work notices matching " + candidate + ":\n" + matches.slice(0, 6).map((item) => [
       item.notice_code ?? "Notice",
       item.title ?? "Public work",
       [item.area_label, item.city, item.district].filter(Boolean).join(", "),
       item.responsible_department_name ? "Department: " + item.responsible_department_name : "",
       [item.starts_on, item.ends_on].filter(Boolean).join(" to "),
       item.notice_status ?? "",
-    ].filter(Boolean).join(" · ")).join("\\n");
+    ].filter(Boolean).join(" · ")).join("\n`);
   }
 
   return null;
