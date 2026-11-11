@@ -11855,6 +11855,17 @@ class _MapPageState extends State<MapPage> {
   bool _showVerifiedAssets = true;
   bool _showCoimbatoreWardBoundaries = true;
   int _coimbatoreWardCount = 0;
+  bool _showIndiaStateBoundaries = true;
+  bool _showIndiaDistrictBoundaries = false;
+  bool _indiaBoundaryLoadInFlight = false;
+  bool _indiaBoundaryRefreshPending = false;
+  int _indiaStateBoundaryCount = 0;
+  int _indiaDistrictBoundaryCount = 0;
+  String _indiaStateBoundaryVintage = 'Not loaded';
+  String _indiaDistrictBoundaryVintage = 'Not loaded';
+  String _indiaStateBoundaryAttribution = 'geoBoundaries / DataMeet / Election Commission of India';
+  String _indiaDistrictBoundaryAttribution = 'geoBoundaries / Pathways Data / LG Directory';
+  String _indiaBoundaryStatus = 'India reference boundaries are loading on demand.';
   bool _showGroundwaterTelemetry = true;
   int _groundwaterStationCount = 0;
   String _groundwaterFreshnessLabel = 'Not loaded';
@@ -13153,6 +13164,146 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+
+  Future<void> _loadIndiaAdministrativeBoundaries() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (_indiaBoundaryLoadInFlight) {
+      _indiaBoundaryRefreshPending = true;
+      return;
+    }
+    _indiaBoundaryLoadInFlight = true;
+    try {
+      if (_showIndiaStateBoundaries) {
+        await _loadIndiaBoundaryLevel('ADM1');
+      } else {
+        final layers = await controller.getLayerIds();
+        if (layers.contains('samanvay-india-adm1-lines')) {
+          await controller.setLayerVisibility('samanvay-india-adm1-lines', false);
+        }
+      }
+      if (_showIndiaDistrictBoundaries) {
+        await _loadIndiaBoundaryLevel('ADM2');
+      } else {
+        final layers = await controller.getLayerIds();
+        if (layers.contains('samanvay-india-adm2-lines')) {
+          await controller.setLayerVisibility('samanvay-india-adm2-lines', false);
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _indiaBoundaryStatus = 'Reference boundaries loaded. They are not LGD-code verified statutory boundaries.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _indiaBoundaryStatus = 'India reference boundary service unavailable. Existing map layers remain available.';
+        });
+      }
+    } finally {
+      _indiaBoundaryLoadInFlight = false;
+      if (_indiaBoundaryRefreshPending) {
+        _indiaBoundaryRefreshPending = false;
+        unawaited(_loadIndiaAdministrativeBoundaries());
+      }
+    }
+  }
+
+  Future<void> _loadIndiaBoundaryLevel(String level) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    final isState = level == 'ADM1';
+    final sourceId = isState
+        ? 'samanvay-india-adm1-reference'
+        : 'samanvay-india-adm2-reference';
+    final layerId = isState
+        ? 'samanvay-india-adm1-lines'
+        : 'samanvay-india-adm2-lines';
+
+    // The Edge Function proxies only public geoBoundaries reference data.
+    // No underground-asset data is requested or returned here.
+    final response = await supabase.functions.invoke(
+      'samanvay-public-boundaries',
+      body: {'level': level},
+    );
+    if (response.status < 200 || response.status >= 300 ||
+        response.data is! Map) {
+      throw StateError('India reference boundary fetch failed.');
+    }
+    final payload = Map<String, dynamic>.from(response.data as Map);
+    final metadata = payload['metadata'] is Map
+        ? Map<String, dynamic>.from(payload['metadata'] as Map)
+        : <String, dynamic>{};
+    final rawGeoJson = payload['geojson'];
+    if (rawGeoJson is! Map) {
+      throw const FormatException('Boundary service did not return GeoJSON.');
+    }
+    final collection = Map<String, dynamic>.from(rawGeoJson);
+    final features = collection['features'];
+    if (collection['type'] != 'FeatureCollection' ||
+        features is! List || features.isEmpty) {
+      throw const FormatException('Boundary GeoJSON is invalid or empty.');
+    }
+
+    final sourceIds = await controller.getSourceIds();
+    if (sourceIds.contains(sourceId)) {
+      await controller.setGeoJsonSource(sourceId, collection);
+    } else {
+      await controller.addGeoJsonSource(sourceId, collection);
+    }
+
+    var layerIds = await controller.getLayerIds();
+    if (!layerIds.contains(layerId)) {
+      await controller.addLineLayer(
+        sourceId,
+        layerId,
+        LineLayerProperties(
+          lineColor: isState ? '#45D9CE' : '#B9CAD8',
+          lineWidth: isState ? 2.0 : 0.72,
+          lineOpacity: isState ? 0.92 : 0.62,
+        ),
+        minzoom: isState ? 2.0 : 5.2,
+        maxzoom: 20,
+        enableInteraction: false,
+      );
+    }
+    layerIds = await controller.getLayerIds();
+    if (layerIds.contains(layerId)) {
+      await controller.setLayerVisibility(
+        layerId,
+        isState ? _showIndiaStateBoundaries : _showIndiaDistrictBoundaries,
+      );
+    }
+
+    final year = (metadata['boundaryYearRepresented'] ?? 'Vintage not reported').toString();
+    final source = (metadata['boundarySource'] ?? 'Source not reported').toString();
+    final license = (metadata['boundaryLicense'] ?? 'Licence not reported').toString();
+    if (mounted) {
+      setState(() {
+        if (isState) {
+          _indiaStateBoundaryCount = features.length;
+          _indiaStateBoundaryVintage = year;
+          _indiaStateBoundaryAttribution = '$source · $license';
+        } else {
+          _indiaDistrictBoundaryCount = features.length;
+          _indiaDistrictBoundaryVintage = year;
+          _indiaDistrictBoundaryAttribution = '$source · $license';
+        }
+      });
+    }
+  }
+
+  void _toggleIndiaStateBoundaries(bool value) {
+    if (mounted) setState(() => _showIndiaStateBoundaries = value);
+    unawaited(_loadIndiaAdministrativeBoundaries());
+  }
+
+  void _toggleIndiaDistrictBoundaries(bool value) {
+    if (mounted) setState(() => _showIndiaDistrictBoundaries = value);
+    unawaited(_loadIndiaAdministrativeBoundaries());
+  }
+
   Future<void> _loadCoimbatoreWardBoundaries() async {
     final controller = _controller;
     if (controller == null || !_styleReady) return;
@@ -13385,6 +13536,10 @@ class _MapPageState extends State<MapPage> {
       final authorised = ['admin', 'coordinator', 'department'].contains(role);
       final departmentAssigned = role == 'department' &&
           profile?['department_id'] != null;
+
+      // Public administrative reference boundaries are separate from the
+      // owner-restricted underground-utility layers.
+      unawaited(_loadIndiaAdministrativeBoundaries());
 
       if (mounted) {
         setState(() {
@@ -14465,6 +14620,39 @@ class _MapPageState extends State<MapPage> {
                       },
                     ),
                     SwitchListTile(
+                      value: _showIndiaStateBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('India State / UT boundaries', style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_indiaStateBoundaryCount areas · vintage $_indiaStateBoundaryVintage · $_indiaStateBoundaryAttribution · reference only',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleIndiaStateBoundaries(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showIndiaDistrictBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('India district boundaries', style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_indiaDistrictBoundaryCount districts · vintage $_indiaDistrictBoundaryVintage · $_indiaDistrictBoundaryAttribution · optional detail layer',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleIndiaDistrictBoundaries(value);
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Text(
+                        _indiaBoundaryStatus + ' Use the Local Government Directory / competent authority for official jurisdiction codes and decisions.',
+                        style: const TextStyle(color: Color(0xFFF6C66B), fontSize: 9, height: 1.35),
+                      ),
+                    ),
+                    SwitchListTile(
                       value: _showGroundwaterTelemetry,
                       activeThumbColor: const Color(0xFFA78BFA),
                       title: const Text(
@@ -14772,6 +14960,12 @@ class _MapPageState extends State<MapPage> {
         _desktopGisLayerToggle(title: 'Groundwater monitoring',
           detail: 'Published observations in the current extent', value: _showGroundwaterTelemetry,
           onChanged: (value) => _toggleGroundwaterTelemetry(value)),
+        _desktopGisLayerToggle(title: 'India State / UT boundaries',
+          detail: 'Vintage $_indiaStateBoundaryVintage · non-statutory reference', value: _showIndiaStateBoundaries,
+          onChanged: (value) => _toggleIndiaStateBoundaries(value)),
+        _desktopGisLayerToggle(title: 'India district boundaries',
+          detail: 'Optional detail · vintage $_indiaDistrictBoundaryVintage', value: _showIndiaDistrictBoundaries,
+          onChanged: (value) => _toggleIndiaDistrictBoundaries(value)),
         _desktopGisLayerToggle(title: 'Coimbatore ward reference',
           detail: '2024 public-domain reference; not legal certification', value: _showCoimbatoreWardBoundaries,
           onChanged: (value) => _toggleCoimbatoreWardBoundaries(value)),

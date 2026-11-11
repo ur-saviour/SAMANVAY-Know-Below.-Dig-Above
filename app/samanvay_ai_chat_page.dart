@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'ai_assistant_page.dart';
 
 /// Authenticated SAMANVAY chatbot. Conversation text remains in screen memory only.
@@ -13,7 +14,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
   final SupabaseClient _db = Supabase.instance.client;
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
-  final List<Map<String, String>> _messages = [
+  final List<Map<String, dynamic>> _messages = [
     {
       'role': 'assistant',
       'content': 'Hello! I’m SAMANVAY AI. I can guide you through the app, explain infrastructure coordination, help you understand request categories and statuses, and suggest practical next steps. What would you like to know?',
@@ -112,7 +113,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       setState(() => _error = 'Please sign in to use SAMANVAY AI.');
       return;
     }
-    final next = <Map<String, String>>[
+    final next = <Map<String, dynamic>>[
       ..._messages,
       {'role': 'user', 'content': text},
     ];
@@ -127,7 +128,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
     try {
       final history = _messages.length > 12
           ? _messages.sublist(_messages.length - 12)
-          : List<Map<String, String>>.from(_messages);
+          : List<Map<String, dynamic>>.from(_messages);
       final response = await _db.functions.invoke(
         'samanvay-ai-chat',
         body: {'messages': history},
@@ -144,6 +145,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       setState(() => _messages.add({
         'role': 'assistant',
         'content': (data['reply'] as String).trim(),
+        'sources': data['sources'] is List ? List<dynamic>.from(data['sources'] as List) : <dynamic>[],
       }));
       _scrollToLatest();
     } catch (error) {
@@ -165,7 +167,76 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
     _scrollToLatest();
   }
 
-  Widget _bubble(Map<String, String> message) {
+
+  Widget _sourceReferences(dynamic rawSources) {
+    if (rawSources is! List || rawSources.isEmpty) return const SizedBox.shrink();
+    final sources = rawSources
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .take(6)
+        .toList();
+    if (sources.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _light ? const Color(0xFFE8F0F5) : const Color(0xFF0B2033),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('RETRIEVED SOURCE REFERENCES',
+              style: TextStyle(color: _primary, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .7)),
+          const SizedBox(height: 5),
+          ...sources.map((source) {
+            final id = (source['id'] ?? '').toString();
+            final title = (source['title'] ?? 'Reference source').toString();
+            final agency = (source['agency'] ?? '').toString();
+            final status = (source['status'] ?? '').toString();
+            final url = (source['url'] ?? '').toString();
+            final uri = Uri.tryParse(url);
+            final canOpen = uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
+            return Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: InkWell(
+                onTap: canOpen ? () async {
+                  try {
+                    await launchUrl(uri!, mode: LaunchMode.externalApplication);
+                  } catch (_) {
+                    if (mounted) setState(() => _error = 'Unable to open the source reference.');
+                  }
+                } : null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('[$id] ', style: TextStyle(color: _primary, fontSize: 10, fontWeight: FontWeight.w900)),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: TextStyle(color: _ink, fontSize: 10, fontWeight: FontWeight.w800)),
+                        if (agency.isNotEmpty)
+                          Text(agency, style: TextStyle(color: _muted, fontSize: 9)),
+                        if (status.isNotEmpty)
+                          Text('Catalogue status: $status', style: TextStyle(color: _muted, fontSize: 8)),
+                      ],
+                    )),
+                    if (canOpen) const Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF31BFD0)),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 5),
+          Text('Catalogue references support provenance and discovery; they do not prove complete live coverage or a verified underground asset at a location.',
+              style: TextStyle(color: _muted, fontSize: 8, height: 1.35)),
+        ],
+      ),
+    );
+  }
+
+  Widget _bubble(Map<String, dynamic> message) {
     final fromUser = message['role'] == 'user';
     final color = fromUser ? _primary : (_light ? const Color(0xFFF0F5F8) : const Color(0xFF142B42));
     return Align(
@@ -185,9 +256,16 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
             ),
             border: fromUser ? null : Border.all(color: _outline),
           ),
-          child: SelectableText(
-            message['content'] ?? '',
-            style: TextStyle(color: fromUser ? Colors.white : _ink, fontSize: 13, height: 1.48),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SelectableText(
+                (message['content'] ?? '').toString(),
+                style: TextStyle(color: fromUser ? Colors.white : _ink, fontSize: 13, height: 1.48),
+              ),
+              if (!fromUser) _sourceReferences(message['sources']),
+            ],
           ),
         ),
       ),
