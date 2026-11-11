@@ -14731,8 +14731,8 @@ class _MapPageState extends State<MapPage> {
       if (enabled) {
         // Hide the surface extrusions and ward outlines to make the
         // underground operational layer visually distinct.
-        await setVisibility('samanvay-3d-buildings', _is3D);
-        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-3d-buildings', false);
+        await setVisibility('samanvay-3d-building-outlines', false);
         await setVisibility('samanvay-coimbatore-ward-fill', false);
         await setVisibility('samanvay-coimbatore-ward-lines', false);
 
