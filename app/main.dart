@@ -4248,6 +4248,7 @@ class _AuthPageState extends State<AuthPage> {
             .toLowerCase();
         await supabase.auth.signInWithOtp(
           email: email,
+          emailRedirectTo: redirectUrl,
           shouldCreateUser: false,
         );
         _pendingOtpEmail = email;
@@ -4266,7 +4267,11 @@ class _AuthPageState extends State<AuthPage> {
       _startOtpResendCountdown();
     } on AuthException catch (authError) {
       final detail = authError.message.toLowerCase();
-      if (detail.contains('over_email_send_rate_limit')) {
+      if (detail.contains('otp_disabled') && !usePhoneLogin) {
+        showMessage(
+          'Email OTP/Magic Link sign-in is disabled in this Supabase project. Use Password sign-in for now. The platform owner must enable Email OTP in Supabase Authentication; to receive a six-digit code instead of a link, the Magic Link email template must contain {{ .Token }}.',
+        );
+      } else if (detail.contains('over_email_send_rate_limit')) {
         showMessage(
           'Email delivery is temporarily rate-limited by Supabase. Wait for the cooldown to expire, then request one new code. Password sign-in remains available.',
         );
