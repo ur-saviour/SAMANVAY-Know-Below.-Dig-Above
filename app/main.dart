@@ -447,9 +447,11 @@ class _SamanvayBrandLogo extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
     child: Image.asset(
-      'assets/brand/samanvay_logo.jpg',
+      'assets/brand/samanvay_logo_8k.webp',
       width: size,
       height: size,
+      cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
+      cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
     ),
@@ -783,41 +785,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                     painter: _SamanvayOpeningCityPainter(
                       progress: progress,
                       ambient: ambient,
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: constraints.maxHeight * .40,
-                    child: IgnorePointer(
-                      child: Opacity(
-                        opacity: .92 * featureReveal,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            SvgPicture.asset(
-                              'assets/brand/samanvay_city_background.svg',
-                              fit: BoxFit.cover,
-                              alignment: Alignment.center,
-                            ),
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    const Color(0xFF061629).withValues(alpha: .04),
-                                    const Color(0xFF061629).withValues(alpha: .28),
-                                    const Color(0xFF020916).withValues(alpha: .78),
-                                  ],
-                                  stops: const [0, .55, 1],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      lightMode: _usesLegacyLightPalette,
                     ),
                   ),
                   DecoratedBox(
@@ -826,10 +794,13 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          background.withValues(alpha: 0.10),
-                          background.withValues(alpha: 0.02),
-                          background.withValues(alpha: 0.32),
-                          const Color(0xFF020916).withValues(alpha: 0.78),
+                          background.withValues(alpha: _usesLegacyLightPalette ? .04 : .10),
+                          background.withValues(alpha: _usesLegacyLightPalette ? .02 : .02),
+                          background.withValues(alpha: _usesLegacyLightPalette ? .25 : .32),
+                          (_usesLegacyLightPalette
+                                  ? const Color(0xFFEAF4F8)
+                                  : const Color(0xFF020916))
+                              .withValues(alpha: _usesLegacyLightPalette ? .80 : .78),
                         ],
                         stops: const [0, 0.43, 0.76, 1],
                       ),
@@ -883,7 +854,9 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                             'SAMANVAY',
                                             maxLines: 1,
                                             style: GoogleFonts.spaceGrotesk(
-                                              color: const Color(0xFFF5FAFF),
+                                              color: _usesLegacyLightPalette
+                                                  ? const Color(0xFF10243A)
+                                                  : const Color(0xFFF5FAFF),
                                               fontSize: 42,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: 5.5,
@@ -935,7 +908,9 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                       'SMART COORDINATION   •   TRANSPARENT GOVERNANCE   •   A DEVELOPED INDIA',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
-                                        color: const Color(0xFFB5C9DD),
+                                        color: _usesLegacyLightPalette
+                                            ? const Color(0xFF476579)
+                                            : const Color(0xFFB5C9DD),
                                         fontSize: compact ? 8 : 9,
                                         fontWeight: FontWeight.w700,
                                         letterSpacing: 1.15,
@@ -1241,291 +1216,577 @@ class _SamanvayOpeningCityPainter extends CustomPainter {
   const _SamanvayOpeningCityPainter({
     required this.progress,
     required this.ambient,
+    required this.lightMode,
   });
 
   final double progress;
   final double ambient;
+  final bool lightMode;
+
+  double _reveal(double value, double start, double duration) {
+    final t = ((value - start) / duration).clamp(0.0, 1.0).toDouble();
+    return Curves.easeOutCubic.transform(t);
+  }
+
+  Path _partial(Path path, double amount) {
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty || amount <= 0) return Path();
+    return metrics.first.extractPath(
+      0,
+      metrics.first.length * amount.clamp(0.0, 1.0).toDouble(),
+    );
+  }
+
+  void _drawTower(
+    Canvas canvas,
+    Size size,
+    List<double> spec,
+    int index,
+    double horizon,
+  ) {
+    final x = size.width * spec[0];
+    final width = size.width * spec[1];
+    final targetHeight = size.height * spec[2];
+    final depth = width * spec[3];
+    final delay = spec[4];
+    final style = spec[5].round();
+    final raw = ((progress - delay) / .43).clamp(0.0, 1.0).toDouble();
+    final reveal = Curves.easeOutBack.transform(raw);
+    if (reveal <= .001) return;
+
+    final height = targetHeight * reveal;
+    final lift = targetHeight * (1 - reveal) * .24;
+    final top = horizon - height + lift;
+    final front = Rect.fromLTWH(x, top, width, height);
+    final alpha = Curves.easeOutCubic.transform(raw);
+    final palette = lightMode
+        ? <Color>[
+            const Color(0xFFF8FDFF),
+            const Color(0xFFD7EAF3),
+            const Color(0xFFB4CFDD),
+          ]
+        : <Color>[
+            const Color(0xFFB9E3F0),
+            const Color(0xFF315A78),
+            const Color(0xFF102A43),
+          ];
+    final faceTop = palette[0].withValues(alpha: alpha);
+    final faceMid = palette[1].withValues(alpha: alpha);
+    final faceBottom = palette[2].withValues(alpha: alpha);
+
+    // Soft contact shadow keeps each tower visually anchored to the city plane.
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(x + width * .55, horizon + 2),
+        width: width * 1.8,
+        height: math.max(4.0, width * .22).toDouble(),
+      ),
+      Paint()
+        ..color = const Color(0xFF05243B).withValues(alpha: .11 * alpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+
+    // Right-hand extruded face and roof plane establish a real 3-D volume.
+    final side = Path()
+      ..moveTo(x + width, top)
+      ..lineTo(x + width + depth, top - depth * .48)
+      ..lineTo(x + width + depth, horizon - depth * .48)
+      ..lineTo(x + width, horizon)
+      ..close();
+    canvas.drawPath(
+      side,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: lightMode
+              ? const [Color(0xFF8EAEBE), Color(0xFF64899F)]
+              : const [Color(0xFF214A67), Color(0xFF0A2138)],
+        ).createShader(Rect.fromLTWH(x + width, top, depth, height)),
+    );
+    final roof = Path()
+      ..moveTo(x, top)
+      ..lineTo(x + depth, top - depth * .48)
+      ..lineTo(x + width + depth, top - depth * .48)
+      ..lineTo(x + width, top)
+      ..close();
+    canvas.drawPath(
+      roof,
+      Paint()
+        ..shader = LinearGradient(
+          colors: lightMode
+              ? const [Color(0xFFFFFFFF), Color(0xFFB7D5E3)]
+              : const [Color(0xFFD8F5FB), Color(0xFF4F83A3)],
+        ).createShader(Rect.fromLTWH(x, top - depth * .5, width + depth, depth)),
+    );
+
+    // Glass facade with controlled vertical reflection.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(front, const Radius.circular(2)),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [faceTop, faceMid, faceBottom],
+          stops: const [0, .48, 1],
+        ).createShader(front),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + width * .08, top, width * .055, height),
+      Paint()
+        ..color = (lightMode ? Colors.white : const Color(0xFFBDF5FF))
+            .withValues(alpha: .30 * alpha),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(x + width * .88, top, width * .025, height),
+      Paint()
+        ..color = (lightMode ? const Color(0xFF6B9DB2) : const Color(0xFF0B1D31))
+            .withValues(alpha: .30 * alpha),
+    );
+
+    // Floor slabs and window grids resolve independently from the base upward.
+    final floors = math.max(3, (height / math.max(12.0, size.height * .018)).floor());
+    final columns = math.max(2, (width / math.max(11.0, size.width * .018)).floor());
+    final windowWidth = math.max(1.5, width / (columns * 3.1)).toDouble();
+    final windowHeight = math.max(2.0, height / (floors * 3.9)).toDouble();
+    final horizontalPad = width * .16;
+    for (int row = 0; row < floors; row++) {
+      final rowProgress = ((alpha - row * .012) / .78).clamp(0.0, 1.0).toDouble();
+      if (rowProgress <= 0) continue;
+      final y = top + height * (row + .5) / floors;
+      if (row > 0) {
+        canvas.drawLine(
+          Offset(x + width * .07, y - height / floors * .5),
+          Offset(x + width * .93, y - height / floors * .5),
+          Paint()
+            ..color = (lightMode ? const Color(0xFF6F9EAF) : Colors.white)
+                .withValues(alpha: .10 * rowProgress),
+        );
+      }
+      for (int column = 0; column < columns; column++) {
+        final seed = (index * 31 + row * 13 + column * 7) % 17;
+        final pulse = .5 + .5 * math.sin((ambient * math.pi * 2) + seed * .61);
+        final isLit = seed % 5 != 0 || pulse > .72;
+        final wx = x + horizontalPad +
+            (width - horizontalPad * 2) * (column + .5) / columns -
+            windowWidth / 2;
+        final wy = y - windowHeight / 2;
+        final windowRect = Rect.fromLTWH(wx, wy, windowWidth, windowHeight);
+        if (isLit) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(windowRect.inflate(1.2), const Radius.circular(1)),
+            Paint()
+              ..color = (lightMode
+                      ? const Color(0xFF31A8C0)
+                      : const Color(0xFF5CE8F0))
+                  .withValues(alpha: (.08 + pulse * .12) * rowProgress)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+          );
+        }
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(windowRect, const Radius.circular(1)),
+          Paint()
+            ..color = (isLit
+                    ? (lightMode ? const Color(0xFF3E8EA9) : const Color(0xFF8AF0F4))
+                    : (lightMode ? const Color(0xFF8FAFBD) : const Color(0xFF385B72)))
+                .withValues(alpha: (isLit ? .72 : .24) * rowProgress),
+        );
+      }
+    }
+
+    // Individual roof profiles: parapet, stepped crown, mechanical penthouse or mast.
+    final roofPaint = Paint()
+      ..color = (lightMode ? const Color(0xFF6D94A8) : const Color(0xFF79CBE2))
+          .withValues(alpha: .78 * alpha)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.15;
+    if (style == 0) {
+      canvas.drawLine(Offset(x, top), Offset(x + width, top), roofPaint);
+      canvas.drawLine(
+        Offset(x + width * .15, top - 4 * reveal),
+        Offset(x + width * .15, top),
+        roofPaint,
+      );
+      canvas.drawLine(
+        Offset(x + width * .85, top - 4 * reveal),
+        Offset(x + width * .85, top),
+        roofPaint,
+      );
+    } else if (style == 1) {
+      final crown = Path()
+        ..moveTo(x + width * .18, top)
+        ..lineTo(x + width * .18, top - width * .10 * reveal)
+        ..lineTo(x + width * .50, top - width * .19 * reveal)
+        ..lineTo(x + width * .82, top - width * .10 * reveal)
+        ..lineTo(x + width * .82, top);
+      canvas.drawPath(crown, Paint()..color = faceTop);
+      canvas.drawPath(crown, roofPaint);
+    } else if (style == 2) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x + width * .27, top - 9 * reveal, width * .46, 9 * reveal),
+          const Radius.circular(2),
+        ),
+        Paint()..color = faceMid,
+      );
+      canvas.drawLine(
+        Offset(x + width * .5, top - 9 * reveal),
+        Offset(x + width * .5, top - 22 * reveal),
+        roofPaint,
+      );
+    } else {
+      canvas.drawLine(
+        Offset(x + width * .5, top),
+        Offset(x + width * .5, top - width * .25 * reveal),
+        roofPaint,
+      );
+      canvas.drawCircle(
+        Offset(x + width * .5, top - width * .25 * reveal),
+        2.3,
+        Paint()
+          ..color = (lightMode ? const Color(0xFFE7A642) : const Color(0xFF50E9F0))
+              .withValues(alpha: .85 * alpha)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+    }
+
+    // Vertical edge glints travel with the rising structure.
+    canvas.drawLine(
+      Offset(x, top + height * .05),
+      Offset(x, horizon),
+      Paint()
+        ..color = (lightMode ? Colors.white : const Color(0xFF8BEAF1))
+            .withValues(alpha: .36 * alpha)
+        ..strokeWidth = 1.2,
+    );
+  }
+
+  void _drawConduit(
+    Canvas canvas,
+    Size size,
+    Color color,
+    double y,
+    double phase,
+    double thickness,
+  ) {
+    final path = Path()
+      ..moveTo(-size.width * .08, y + size.height * .015)
+      ..cubicTo(
+        size.width * .18, y - size.height * .04,
+        size.width * .28, y + size.height * .06,
+        size.width * .48, y + size.height * .01,
+      )
+      ..cubicTo(
+        size.width * .66, y - size.height * .04,
+        size.width * .82, y + size.height * .05,
+        size.width * 1.08, y,
+      );
+    final visible = _partial(path, _reveal(progress, .28 + phase * .12, .60));
+    if (visible.computeMetrics().isEmpty) return;
+    canvas.drawPath(
+      visible,
+      Paint()
+        ..color = const Color(0xFF00111F).withValues(alpha: lightMode ? .13 : .84)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = thickness + 8
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      visible,
+      Paint()
+        ..color = color.withValues(alpha: lightMode ? .72 : .90)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = thickness
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      visible,
+      Paint()
+        ..color = (lightMode ? Colors.white : Colors.white).withValues(alpha: .56)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.1, thickness * .18).toDouble()
+        ..strokeCap = StrokeCap.round,
+    );
+    final metric = path.computeMetrics().first;
+    for (int i = 0; i < 4; i++) {
+      final offset = ((ambient + phase + i / 4) % 1.0) * metric.length;
+      final tangent = metric.getTangentForOffset(offset);
+      if (tangent == null) continue;
+      canvas.drawCircle(
+        tangent.position,
+        thickness * .82,
+        Paint()
+          ..color = color.withValues(alpha: .40)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(
+        tangent.position,
+        math.max(1.2, thickness * .24).toDouble(),
+        Paint()..color = Colors.white.withValues(alpha: .95),
+      );
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
+    final horizon = size.height * .70;
+    final groundTop = size.height * .83;
+    final skyColors = lightMode
+        ? const [
+            Color(0xFFF4FAFD),
+            Color(0xFFDCECF4),
+            Color(0xFFC5DCE8),
+            Color(0xFFECF4F7),
+          ]
+        : const [
+            Color(0xFF041326),
+            Color(0xFF0A2948),
+            Color(0xFF102F4A),
+            Color(0xFF061526),
+          ];
     canvas.drawRect(
       Offset.zero & size,
       Paint()
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            background,
-            Color(0xFF0B2440),
-            Color(0xFF102E49),
-            Color(0xFF061626),
-          ],
+          colors: skyColors,
+          stops: const [0, .42, .72, 1],
         ).createShader(Offset.zero & size),
     );
 
-    final reveal = Curves.easeOutCubic.transform(progress);
-    final horizon = size.height * 0.70;
-
-    // Distant skyline glow.
-    canvas.drawCircle(
-      Offset(size.width * 0.5, horizon - size.height * 0.02),
-      size.width * 0.62,
+    // Atmospheric horizon light and a soft, theme-specific sun bloom.
+    final bloomCenter = Offset(size.width * .52, horizon - size.height * .16);
+    canvas.drawRect(
+      Rect.fromLTWH(0, horizon - size.height * .52, size.width, size.height * .52),
       Paint()
         ..shader = RadialGradient(
-          colors: [
-            const Color(0xFF1A91AE).withValues(alpha: 0.19 * reveal),
-            const Color(0xFF163D5C).withValues(alpha: 0.08 * reveal),
-            background.withValues(alpha: 0),
-          ],
-        ).createShader(
-          Rect.fromCircle(
-            center: Offset(size.width * 0.5, horizon - size.height * 0.02),
-            radius: size.width * 0.62,
-          ),
-        ),
+          center: Alignment(.02, .68),
+          radius: .82,
+          colors: lightMode
+              ? const [Color(0xB4FFFFFF), Color(0x16FFFFFF), Color(0x00FFFFFF)]
+              : const [Color(0x4439D2F0), Color(0x1438B6DB), Color(0x0004182A)],
+        ).createShader(Offset.zero & size),
+    );
+    canvas.drawCircle(
+      bloomCenter,
+      size.width * .52,
+      Paint()
+        ..shader = RadialGradient(
+          colors: lightMode
+              ? const [Color(0x55FFFFFF), Color(0x00FFFFFF)]
+              : const [Color(0x3336C6E8), Color(0x0036C6E8)],
+        ).createShader(Rect.fromCircle(center: bloomCenter, radius: size.width * .52)),
     );
 
-    // City skyline with animated windows.
-    const buildings = <List<double>>[
-      [0.00, 0.15, 0.18], [0.11, 0.10, 0.23], [0.20, 0.12, 0.34],
-      [0.32, 0.09, 0.27], [0.41, 0.10, 0.42], [0.53, 0.12, 0.31],
-      [0.65, 0.08, 0.46], [0.74, 0.12, 0.29], [0.86, 0.10, 0.36],
-      [0.95, 0.12, 0.22],
-    ];
-    for (int i = 0; i < buildings.length; i++) {
-      final building = buildings[i];
-      final x = size.width * building[0];
-      final width = size.width * building[1];
-      final height = size.height * building[2] * reveal;
-      final top = horizon - height;
-      final rect = Rect.fromLTWH(x, top, width, height);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+    // Fine atmospheric grid and distant building silhouettes create depth.
+    for (int i = 0; i < 16; i++) {
+      final x = size.width * (i / 15);
+      canvas.drawLine(
+        Offset(x, horizon - size.height * .48),
+        Offset(x + (x - size.width * .5) * .10, groundTop),
         Paint()
-          ..shader = LinearGradient(
-            colors: [
-              const Color(0xFF213F5B),
-              const Color(0xFF0C1F35),
-            ],
-          ).createShader(rect),
+          ..color = (lightMode ? const Color(0xFF7A9DAE) : const Color(0xFF4B7F9C))
+              .withValues(alpha: lightMode ? .045 : .10),
+      );
+    }
+    const distant = <List<double>>[
+      [.00, .10, .18, .08, .00, 0],
+      [.08, .07, .22, .09, .04, 1],
+      [.17, .10, .28, .07, .02, 2],
+      [.27, .08, .20, .08, .06, 3],
+      [.38, .09, .30, .08, .03, 1],
+      [.49, .08, .25, .07, .08, 2],
+      [.59, .10, .32, .08, .04, 3],
+      [.72, .09, .24, .08, .06, 0],
+      [.82, .10, .29, .09, .03, 2],
+      [.92, .10, .21, .08, .07, 1],
+    ];
+    final distantHorizon = size.height * .70;
+    for (int i = 0; i < distant.length; i++) {
+      final spec = distant[i];
+      final delay = spec[4];
+      final fade = _reveal(progress, delay, .48);
+      final height = size.height * spec[2] * fade;
+      final rect = Rect.fromLTWH(
+        size.width * spec[0],
+        distantHorizon - height,
+        size.width * spec[1],
+        height,
       );
       canvas.drawRect(
-        Rect.fromLTWH(x, top, width, 2),
-        Paint()..color = const Color(0xFF53CDE4).withValues(alpha: 0.42 * reveal),
-      );
-      final columns = math.max(2, (width / 9).floor());
-      final rows = math.max(2, (height / 15).floor());
-      for (int row = 0; row < rows; row++) {
-        for (int column = 0; column < columns; column++) {
-          final seed = (i * 17 + row * 7 + column * 11) % 9;
-          final lit = ((seed / 9) < (0.30 + 0.10 * math.sin(ambient * math.pi * 2 + i).abs()));
-          final window = Rect.fromLTWH(
-            x + 4 + column * (width - 8) / columns,
-            top + 7 + row * 13,
-            math.max(1.8, width / columns * 0.28).toDouble(),
-            3.2,
-          );
-          canvas.drawRect(
-            window,
-            Paint()
-              ..color = (lit
-                      ? const Color(0xFF76E7E6)
-                      : const Color(0xFF49627A))
-                  .withValues(alpha: (lit ? 0.56 : 0.14) * reveal),
-          );
-        }
-      }
-    }
-
-    // Rooftop antennas and a few lit towers.
-    final antennaPaint = Paint()
-      ..color = const Color(0xFF58B9D4).withValues(alpha: 0.54 * reveal)
-      ..strokeWidth = 1.3;
-    for (final x in [0.25, 0.46, 0.69, 0.88]) {
-      final px = size.width * x;
-      final ph = size.height * (0.30 + x * 0.08);
-      canvas.drawLine(
-        Offset(px, horizon - ph),
-        Offset(px, horizon - ph - 11 * reveal),
-        antennaPaint,
-      );
-      canvas.drawCircle(
-        Offset(px, horizon - ph - 12 * reveal),
-        2.1,
+        rect,
         Paint()
-          ..color = const Color(0xFF41D9E5)
-              .withValues(alpha: 0.40 + 0.44 * math.sin(ambient * math.pi * 2).abs())
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          ..color = (lightMode ? const Color(0xFFB5C9D3) : const Color(0xFF1C405B))
+              .withValues(alpha: .24 * fade),
       );
     }
 
-    // Road surface across the city.
-    final roadTop = horizon - size.height * 0.015;
-    final roadBottom = horizon + size.height * 0.11;
+    // Main skyline: separate reveal envelopes make towers emerge in a wave,
+    // not as a single block or a uniform fade.
+    const towers = <List<double>>[
+      [-.01, .095, .26, .15, .04, 0],
+      [.075, .078, .33, .13, .10, 1],
+      [.145, .105, .42, .13, .15, 2],
+      [.245, .074, .31, .12, .20, 3],
+      [.315, .105, .48, .14, .09, 1],
+      [.415, .075, .37, .13, .25, 2],
+      [.485, .112, .54, .14, .13, 3],
+      [.595, .082, .39, .13, .22, 0],
+      [.675, .105, .47, .14, .16, 2],
+      [.775, .076, .34, .12, .30, 1],
+      [.845, .104, .42, .14, .19, 3],
+      [.945, .09, .28, .13, .34, 0],
+    ];
+    for (int i = 0; i < towers.length; i++) {
+      _drawTower(canvas, size, towers[i], i, horizon);
+    }
+
+    // A glass-and-steel viaduct gives the skyline a believable foreground plane.
+    final roadTop = horizon + size.height * .015;
+    final roadBottom = groundTop;
     final road = Path()
-      ..moveTo(size.width * 0.38, roadTop)
-      ..lineTo(size.width * 0.62, roadTop)
-      ..lineTo(size.width * 0.95, roadBottom)
-      ..lineTo(size.width * 0.05, roadBottom)
+      ..moveTo(size.width * .30, roadTop)
+      ..lineTo(size.width * .70, roadTop)
+      ..lineTo(size.width * 1.06, roadBottom)
+      ..lineTo(-size.width * .06, roadBottom)
       ..close();
     canvas.drawPath(
       road,
-      Paint()..color = const Color(0xFF182A3B).withValues(alpha: 0.92 * reveal),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: lightMode
+              ? const [Color(0xFF647D8D), Color(0xFF314C60), Color(0xFF213A4E)]
+              : const [Color(0xFF22394D), Color(0xFF0B1F32), Color(0xFF061626)],
+        ).createShader(Rect.fromLTWH(0, roadTop, size.width, roadBottom - roadTop)),
     );
-    final roadLine = Paint()
-      ..color = const Color(0xFF77CDE0).withValues(alpha: 0.55 * reveal)
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(size.width * 0.38, roadTop),
-      Offset(size.width * 0.05, roadBottom),
-      roadLine,
+    canvas.drawPath(
+      road,
+      Paint()
+        ..color = (lightMode ? const Color(0xFF8BAEBD) : const Color(0xFF63CFE1))
+            .withValues(alpha: .72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
     );
-    canvas.drawLine(
-      Offset(size.width * 0.62, roadTop),
-      Offset(size.width * 0.95, roadBottom),
-      roadLine,
-    );
-    for (int i = 0; i < 7; i++) {
-      final y = roadTop + (roadBottom - roadTop) * (i + 1) / 8;
-      final half = size.width * (0.015 + (i / 7) * 0.06);
+    for (int i = 0; i < 8; i++) {
+      final t = (i + 1) / 9;
+      final y = roadTop + (roadBottom - roadTop) * t;
+      final half = size.width * (.025 + t * .09);
       canvas.drawLine(
-        Offset(size.width * 0.5 - half, y),
-        Offset(size.width * 0.5 + half, y),
+        Offset(size.width * .5 - half, y),
+        Offset(size.width * .5 + half, y),
         Paint()
-          ..color = const Color(0xFFFFC867).withValues(alpha: 0.7 * reveal)
-          ..strokeWidth = 1.5,
+          ..color = const Color(0xFFFFCB69).withValues(alpha: .72)
+          ..strokeWidth = 1.4 + t * .8,
+      );
+    }
+    for (int i = 0; i < 18; i++) {
+      final x = size.width * (i / 17);
+      canvas.drawLine(
+        Offset(x, roadTop + 2),
+        Offset(x + (x - size.width * .5) * .10, roadBottom),
+        Paint()
+          ..color = Colors.white.withValues(alpha: lightMode ? .12 : .09)
+          ..strokeWidth = .8,
       );
     }
 
-    // Exposed ground cross-section: the underground system is visible below
-    // the street, matching the central SAMANVAY product idea.
-    final groundTop = horizon + size.height * 0.11;
-    final groundPath = Path()
+    // Underground cutaway. Multiple strata and a soft boundary reveal the
+    // utility network without allowing the old flat SVG skyline to dominate.
+    final soil = Path()
       ..moveTo(0, groundTop)
       ..lineTo(size.width, groundTop)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
     canvas.drawPath(
-      groundPath,
+      soil,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF213D50),
-            Color(0xFF112A3C),
-            Color(0xFF081B2B),
-          ],
+          colors: lightMode
+              ? const [Color(0xFFE4E8E4), Color(0xFFC7D7D4), Color(0xFFB4C9C9)]
+              : const [Color(0xFF203D4E), Color(0xFF102A3D), Color(0xFF071B2D)],
         ).createShader(Rect.fromLTWH(0, groundTop, size.width, size.height - groundTop)),
     );
     for (int layer = 0; layer < 4; layer++) {
-      final y = groundTop + size.height * (0.035 + layer * 0.055);
+      final y = groundTop + size.height * (.035 + layer * .045);
       canvas.drawLine(
         Offset(0, y),
         Offset(size.width, y),
         Paint()
-          ..color = const Color(0xFF8AA0AE).withValues(alpha: 0.13 * reveal)
+          ..color = (lightMode ? const Color(0xFF6B8991) : const Color(0xFF9AB7C5))
+              .withValues(alpha: .17)
           ..strokeWidth = 1,
       );
     }
+    _drawConduit(canvas, size, const Color(0xFF1AAEE5), groundTop + size.height * .035, .00, 5.0);
+    _drawConduit(canvas, size, const Color(0xFFF49A36), groundTop + size.height * .105, .26, 4.7);
+    _drawConduit(canvas, size, const Color(0xFF18B987), groundTop + size.height * .175, .51, 4.2);
+    _drawConduit(canvas, size, const Color(0xFFA2B5C6), groundTop + size.height * .235, .74, 3.3);
 
-    void drawNetwork(Color color, double y, double phase) {
-      final path = Path()
-        ..moveTo(-size.width * 0.06, y)
-        ..cubicTo(
-          size.width * 0.20,
-          y - size.height * 0.035,
-          size.width * 0.34,
-          y + size.height * 0.026,
-          size.width * 0.53,
-          y - size.height * 0.002,
-        )
-        ..cubicTo(
-          size.width * 0.72,
-          y - size.height * 0.028,
-          size.width * 0.84,
-          y + size.height * 0.036,
-          size.width * 1.06,
-          y + size.height * 0.004,
+    // Park islands and trees add organic scale to the otherwise geometric city.
+    final parkY = horizon + size.height * .004;
+    for (int i = 0; i < 5; i++) {
+      final px = size.width * (.10 + i * .19);
+      final height = size.height * (.055 + (i % 3) * .014);
+      final reveal = _reveal(progress, .32 + i * .035, .34);
+      if (reveal <= 0) continue;
+      canvas.drawLine(
+        Offset(px, parkY),
+        Offset(px, parkY - height * reveal),
+        Paint()
+          ..color = const Color(0xFF795B3D).withValues(alpha: .8 * reveal)
+          ..strokeWidth = 2.2,
+      );
+      for (int leaf = 0; leaf < 4; leaf++) {
+        final angle = leaf * math.pi / 2;
+        final c = Offset(
+          px + math.cos(angle) * height * .22 * reveal,
+          parkY - height * reveal + math.sin(angle) * height * .18 * reveal,
         );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = const Color(0xFF03101C)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 8
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = color.withValues(alpha: 0.91 * reveal)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4
-          ..strokeCap = StrokeCap.round,
-      );
-      final metric = path.computeMetrics().first;
-      for (int i = 0; i < 3; i++) {
-        final offset = ((ambient + phase + i / 3) % 1.0) * metric.length;
-        final tangent = metric.getTangentForOffset(offset);
-        if (tangent != null) {
-          canvas.drawCircle(
-            tangent.position,
-            2.5,
-            Paint()
-              ..color = color.withValues(alpha: 0.26 * reveal)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-          );
-          canvas.drawCircle(
-            tangent.position,
-            1.1,
-            Paint()..color = Colors.white.withValues(alpha: 0.92 * reveal),
-          );
-        }
+        canvas.drawCircle(
+          c,
+          height * (.19 + .015 * (leaf % 2)) * reveal,
+          Paint()
+            ..color = (lightMode
+                    ? const Color(0xFF3F9E78)
+                    : const Color(0xFF259D79))
+                .withValues(alpha: .82 * reveal),
+        );
       }
-    }
-
-    drawNetwork(const Color(0xFF23C8F2), groundTop + size.height * 0.055, 0.0);
-    drawNetwork(const Color(0xFFF4A64D), groundTop + size.height * 0.12, 0.33);
-    drawNetwork(const Color(0xFF29D28B), groundTop + size.height * 0.185, 0.66);
-
-    // Small city/utility connection markers.
-    for (int i = 0; i < 7; i++) {
-      final x = size.width * (0.08 + i * 0.14);
-      final y = groundTop + size.height * (0.04 + (i % 3) * 0.055);
       canvas.drawCircle(
-        Offset(x, y),
-        3.2,
+        Offset(px - height * .06, parkY - height * .88 * reveal),
+        height * .22 * reveal,
         Paint()
-          ..color = const Color(0xFF5BE9D5).withValues(alpha: 0.22 * reveal)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-      );
-      canvas.drawCircle(
-        Offset(x, y),
-        1.4,
-        Paint()..color = const Color(0xFFA4FFF0).withValues(alpha: 0.86 * reveal),
+          ..color = const Color(0xFF53C78B).withValues(alpha: .82 * reveal),
       );
     }
 
-    // Floating city lights.
-    for (int i = 0; i < 24; i++) {
-      final x = size.width * ((i * 0.173 + 0.07) % 1.0);
-      final y = size.height * (0.12 + ((i * 0.117) % 0.47));
-      final pulse = 0.25 + 0.55 * math.sin((ambient + i * 0.09) * math.pi * 2).abs();
+    // Signal particles flow through the underground conduits.
+    for (int i = 0; i < 28; i++) {
+      final x = size.width * ((i * .173 + .047) % 1.0);
+      final y = size.height * (.10 + ((i * .117) % .49));
+      final pulse = .25 + .55 * math.sin((ambient + i * .09) * math.pi * 2).abs();
       canvas.drawCircle(
         Offset(x, y),
-        1.1 + pulse,
-        Paint()..color = const Color(0xFF8AE9F3).withValues(alpha: pulse * 0.30 * reveal),
+        1.0 + pulse,
+        Paint()
+          ..color = (lightMode ? const Color(0xFF398BA6) : const Color(0xFF8AE9F3))
+              .withValues(alpha: pulse * .28),
       );
     }
   }
 
   @override
   bool shouldRepaint(covariant _SamanvayOpeningCityPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.ambient != ambient;
+      oldDelegate.progress != progress ||
+      oldDelegate.ambient != ambient ||
+      oldDelegate.lightMode != lightMode;
 }
-
 
 // ==========================================
 // AUTHENTICATION GATE
