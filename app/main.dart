@@ -488,12 +488,17 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
 }
 
 class _SamanvaySplashReveal extends StatelessWidget {
-  const _SamanvaySplashReveal({super.key, required this.controller});
+  const _SamanvaySplashReveal({
+    super.key,
+    required this.controller,
+    required this.ambientController,
+  });
   final AnimationController controller;
+  final AnimationController ambientController;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: controller,
+    animation: Listenable.merge([controller, ambientController]),
     builder: (_, __) {
       final progress = Curves.easeOutCubic.transform(controller.value);
       final size = math.min(
@@ -519,7 +524,7 @@ class _SamanvaySplashReveal extends StatelessWidget {
               child: CustomPaint(
                 size: Size.square(size + 30),
                 painter: _AnimatedLogoColourLinePainter(
-                  progress: (controller.value / .70).clamp(0.0, 1.0).toDouble(),
+                  progress: ambientController.value,
                 ),
               ),
             ),
@@ -707,6 +712,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
               ? _SamanvaySplashReveal(
                   key: const ValueKey<String>('samanvay-splash-reveal'),
                   controller: _splashController,
+                  ambientController: _ambientController,
                 )
               : _SamanvayOpeningScreen(
               key: const ValueKey<String>('samanvay-opening-screen'),
