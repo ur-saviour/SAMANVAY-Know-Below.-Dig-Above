@@ -4008,7 +4008,9 @@ class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
-  bool usePasswordLogin = true;
+  // Existing accounts use registered-email OTP by default; password
+  // sign-in remains available through the adjacent mode chip.
+  bool usePasswordLogin = false;
   bool usePhoneLogin = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
@@ -5071,7 +5073,7 @@ class _AuthPageState extends State<AuthPage> {
                         : () {
                             setState(() {
                               isLogin = !isLogin;
-                              usePasswordLogin = true;
+                              usePasswordLogin = !isLogin;
                               usePhoneLogin = false;
                               otpSent = false;
                               otpResendSeconds = 0;
