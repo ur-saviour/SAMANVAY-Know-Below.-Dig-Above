@@ -506,8 +506,8 @@ class _SamanvaySplashReveal extends StatelessWidget {
     builder: (_, __) {
       final progress = Curves.easeOutCubic.transform(controller.value);
       final size = math.min(
-        296.0,
-        math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .70,
+        356.0,
+        math.min(MediaQuery.sizeOf(context).width, MediaQuery.sizeOf(context).height) * .82,
       );
       return Scaffold(
         backgroundColor: const Color(0xFF030D1C),
@@ -761,8 +761,8 @@ class _SamanvayOpeningScreen extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
           final markSize = math.min(
-            compact ? 300.0 : 340.0,
-            constraints.maxWidth * 0.88,
+            compact ? 326.0 : 368.0,
+            constraints.maxWidth * 0.90,
           ).toDouble();
 
           return AnimatedBuilder(
@@ -3884,6 +3884,7 @@ class _AuthPageState extends State<AuthPage> {
       final identifier =
           _existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
           rawIdentifier;
+      final phoneAttempt = !identifier.contains('@');
 
       if (identifier.contains('@')) {
         await supabase.auth.signInWithPassword(
@@ -3918,10 +3919,18 @@ class _AuthPageState extends State<AuthPage> {
       );
     } on AuthException catch (authError) {
       final detail = authError.message.toLowerCase();
-      if (detail.contains('invalid login credentials') ||
+      if (phoneAttempt &&
+          (detail.contains('invalid login credentials') ||
+              detail.contains('invalid_credentials') ||
+              detail.contains('phone not confirmed') ||
+              detail.contains('phone_not_confirmed'))) {
+        showMessage(
+          'No verified mobile number is linked to this existing SAMANVAY account yet. Sign in with the registered email address, then link and verify your mobile number from My Profile.',
+        );
+      } else if (detail.contains('invalid login credentials') ||
           detail.contains('invalid_credentials')) {
         showMessage(
-          'The email/mobile number or password is incorrect. Check the details for this existing account, or use Forgot password? to recover access.',
+          'The registered email or password did not match. Check the details, use Email OTP, or select Forgot password? to recover the existing account.',
         );
       } else if (detail.contains('email not confirmed')) {
         showMessage(
@@ -4037,8 +4046,19 @@ class _AuthPageState extends State<AuthPage> {
       _startOtpResendCountdown();
     } on AuthException catch (authError) {
       final detail = authError.message.toLowerCase();
-      if (detail.contains('rate limit') || detail.contains('too many')) {
+      if (detail.contains('over_email_send_rate_limit')) {
+        showMessage(
+          'Email delivery is temporarily rate-limited by Supabase. Wait for the cooldown to expire, then request one new code. Password sign-in remains available.',
+        );
+      } else if (detail.contains('rate limit') || detail.contains('too many')) {
         showMessage('Please wait before requesting another code.');
+      } else if (usePhoneLogin &&
+          (detail.contains('phone not found') ||
+              detail.contains('phone_not_found') ||
+              detail.contains('invalid phone'))) {
+        showMessage(
+          'No verified mobile number is linked to this existing SAMANVAY account yet. Use Email OTP or Password sign-in with the registered email address.',
+        );
       } else if (usePhoneLogin &&
           (detail.contains('sms') || detail.contains('provider'))) {
         showMessage('Mobile OTP delivery is not configured or is temporarily unavailable. Ask the platform administrator to enable the SMS + WhatsApp Auth Hook.');
@@ -4085,7 +4105,14 @@ class _AuthPageState extends State<AuthPage> {
       showMessage('Verification successful. Opening your authorised SAMANVAY workspace…', success: true);
     } on AuthException catch (authError) {
       final detail = authError.message.toLowerCase();
-      if (detail.contains('expired') || detail.contains('invalid')) {
+      if (_pendingOtpPhone != null &&
+          (detail.contains('phone not found') ||
+              detail.contains('phone_not_found') ||
+              detail.contains('phone not confirmed'))) {
+        showMessage(
+          'This account does not have a verified mobile number linked yet. Return to sign-in and use the registered email address.',
+        );
+      } else if (detail.contains('expired') || detail.contains('invalid')) {
         showMessage('That code is invalid or expired. Check the newest message and try again.');
       } else {
         showMessage(authError.message);
@@ -4266,7 +4293,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final logoSize = math.min(
-                          272.0,
+                          328.0,
                           constraints.maxWidth,
                         ).toDouble();
                         return Container(
@@ -4622,7 +4649,7 @@ class _AuthPageState extends State<AuthPage> {
                           ? (usePasswordLogin
                               ? 'Use the password already linked to this account. Existing staff IDs resolve to their saved email.'
                               : (usePhoneLogin
-                                  ? 'Indian 10-digit numbers are automatically prefixed with +91. International numbers can use +country code.'
+                                  ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
                                   : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
                           : null,
                       helperMaxLines: 3,
