@@ -181,7 +181,6 @@ jobs:
           fi
           cp -R app/assets/reference/. assets/reference/
           cp -R app/assets/brand/. assets/brand/
-          test -s assets/brand/samanvay_logo_768_q76.webp
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
@@ -249,7 +248,6 @@ jobs:
           groundwater_entry = "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"
           brand_entries = [
               "    - assets/brand/samanvay_logo.jpg",
-              "    - assets/brand/samanvay_logo_768_q76.webp",
               "    - assets/brand/home_city_banner.jpg",
               "    - assets/brand/profile_avatar.jpg",
               "    - assets/brand/profile_footer.jpg",
@@ -371,7 +369,6 @@ jobs:
               "assets/flutter_assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" \
               "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson" \
               "assets/flutter_assets/assets/brand/samanvay_logo.jpg" \
-              "assets/flutter_assets/assets/brand/samanvay_logo_768_q76.webp" \
               "assets/flutter_assets/assets/brand/home_city_banner.jpg" \
               "assets/flutter_assets/assets/brand/profile_avatar.jpg" \
               "assets/flutter_assets/assets/brand/profile_footer.jpg" \
