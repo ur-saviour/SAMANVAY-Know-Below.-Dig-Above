@@ -230,6 +230,7 @@ String _normalisePhoneForAuth(String input) {
 // their original Supabase Auth identifiers; password verification, sessions,
 // profile roles and RLS are unchanged.
 const Map<String, String> _existingTestAccountAliases = {
+  '11004': '11004.cis26@gmail.com',
   '9013': '9013.cis25@gmail.com',
   'adheera': '9013.cis25@gmail.com',
   '10011': '10011.cis25@gmail.com',
@@ -447,7 +448,7 @@ class _SamanvayBrandLogo extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
     child: Image.asset(
-      'assets/brand/samanvay_logo_8k.webp',
+      'assets/brand/samanvay_logo_768_q76.webp',
       width: size,
       height: size,
       cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
@@ -763,8 +764,8 @@ class _SamanvayOpeningScreen extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
           final markSize = math.min(
-            compact ? 326.0 : 368.0,
-            constraints.maxWidth * 0.90,
+            compact ? 348.0 : 392.0,
+            constraints.maxWidth * 0.94,
           ).toDouble();
 
           return AnimatedBuilder(
@@ -4554,7 +4555,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final logoSize = math.min(
-                          328.0,
+                          360.0,
                           constraints.maxWidth,
                         ).toDouble();
                         return Container(
@@ -6038,7 +6039,7 @@ class _DashboardPageState extends State<DashboardPage>
                 Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
               _SamanvayBrandLogo(
-                size: math.min(280.0, MediaQuery.sizeOf(context).width * .78),
+                size: math.min(340.0, MediaQuery.sizeOf(context).width * .88),
                 radius: 38,
               ),
               const SizedBox(height: 9),
