@@ -77,7 +77,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
 
   String _friendlyError(Object error) {
     final value = error.toString();
-    if (value.contains('AI_NOT_CONFIGURED')) {
+    if (value.contains('SUPABASE_FUNCTION_CONFIG_MISSING') || value.contains('INTERNAL_SERVER_ERROR') || value.contains('BUILTIN_ASSISTANT_ERROR')) {
       return 'The built-in assistant is temporarily unavailable. Check your connection and try again.';
     }
     if (value.contains('DAILY_AI_LIMIT_REACHED') || value.contains('429')) {
@@ -91,12 +91,6 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
     }
     if (value.contains('FUNCTION_NOT_FOUND') || value.contains('404')) {
       return 'The SAMANVAY assistant service is not available in this app build yet.';
-    }
-    if (value.contains('AI_PROVIDER_ERROR')) {
-      return 'The assistant could not complete this reply. Please try again shortly.';
-    }
-    if (value.contains('AI_USAGE_LIMITER_UNAVAILABLE')) {
-      return 'The assistant usage-control service is temporarily unavailable. Please try again later.';
     }
     return 'SAMANVAY could not process that message. Check your connection and try again.';
   }
@@ -135,7 +129,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       );
       final data = response.data;
       if (response.status < 200 || response.status >= 300) {
-        final code = data is Map ? (data['error'] ?? 'AI_PROVIDER_ERROR').toString() : 'AI_PROVIDER_ERROR';
+        final code = data is Map ? (data['error'] ?? 'BUILTIN_ASSISTANT_ERROR').toString() : 'BUILTIN_ASSISTANT_ERROR';
         throw StateError(code);
       }
       if (data is! Map || data['reply'] is! String || (data['reply'] as String).trim().isEmpty) {
