@@ -449,13 +449,19 @@ class _SamanvayBrandLogo extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
     child: Image.asset(
-      'assets/brand/samanvay_logo_768_q76.webp',
+      'assets/brand/samanvay_logo.jpg',
       width: size,
       height: size,
       cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) => SvgPicture.asset(
+        'assets/brand/samanvay_logo.svg',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      ),
     ),
   );
 }
@@ -782,11 +788,18 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  CustomPaint(
-                    painter: _SamanvayOpeningCityPainter(
-                      progress: progress,
-                      ambient: ambient,
-                      lightMode: _usesLegacyLightPalette,
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment(0.12, -0.36),
+                        radius: 1.18,
+                        colors: [
+                          Color(0xFF173B67),
+                          Color(0xFF0A2038),
+                          Color(0xFF020916),
+                        ],
+                        stops: [0, 0.58, 1],
+                      ),
                     ),
                   ),
                   DecoratedBox(
@@ -11891,6 +11904,7 @@ class LpuCampusModelPage extends StatelessWidget {
     initialCenter: _campusCentre,
     initialZoom: 16.1,
     initialTilt: 54,
+    initialSatellite: true,
     contextLabel: 'LPU CAMPUS · PHAGWARA',
   );
 }
@@ -12310,12 +12324,14 @@ class MapPage extends StatefulWidget {
     this.initialZoom = 3.5,
     this.initialTilt = 0,
     this.contextLabel,
+    this.initialSatellite = false,
   });
 
   final LatLng? initialCenter;
   final double initialZoom;
   final double initialTilt;
   final String? contextLabel;
+  final bool initialSatellite;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -12431,6 +12447,12 @@ class _MapPageState extends State<MapPage> {
       return _esriImageryStyle;
     }
     return _vectorStyle;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _satellite = widget.initialSatellite;
   }
 
   void _onMapCreated(MapLibreMapController controller) {
@@ -12797,13 +12819,15 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
+      // Surface building blocks must never remain visible in underground mode.
+      // The underground view is driven by its own verified/generalised layers.
       await controller.setLayerVisibility(
         'samanvay-3d-buildings',
-        _is3D,
+        _is3D && !_undergroundMode,
       );
       await controller.setLayerVisibility(
         'samanvay-3d-building-outlines',
-        _is3D,
+        _is3D && !_undergroundMode,
       );
     } catch (_) {
       // If a provider style lacks the expected source/attributes, the
