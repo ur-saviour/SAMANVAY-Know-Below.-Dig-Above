@@ -195,6 +195,8 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
             final title = (source['title'] ?? 'Reference source').toString();
             final agency = (source['agency'] ?? '').toString();
             final status = (source['status'] ?? '').toString();
+            final note = (source['note'] ?? '').toString();
+            final checkedAt = (source['checked_at'] ?? '').toString();
             final url = (source['url'] ?? '').toString();
             final uri = Uri.tryParse(url);
             final canOpen = uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
@@ -220,6 +222,11 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
                           Text(agency, style: TextStyle(color: _muted, fontSize: 9)),
                         if (status.isNotEmpty)
                           Text('Catalogue status: $status', style: TextStyle(color: _muted, fontSize: 8)),
+                        if (checkedAt.isNotEmpty)
+                          Text('Checked: $checkedAt', style: TextStyle(color: _muted, fontSize: 8)),
+                        if (note.isNotEmpty)
+                          Text(note, maxLines: 3, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: _muted, fontSize: 8, height: 1.3)),
                       ],
                     )),
                     if (canOpen) const Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF31BFD0)),
