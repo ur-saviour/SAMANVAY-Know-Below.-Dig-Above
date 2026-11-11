@@ -4276,7 +4276,7 @@ class _AuthPageState extends State<AuthPage> {
               detail.contains('phone_not_found') ||
               detail.contains('invalid phone'))) {
         showMessage(
-          'No verified mobile number is linked to this existing SAMANVAY account yet. Use Email OTP or Password sign-in with the registered email address.',
+          'No verified mobile number is linked to this existing SAMANVAY account yet. Use Password sign-in with the registered email address, then link and verify your mobile number from My Profile.',
         );
       } else if (!usePhoneLogin &&
           (detail.contains('otp_disabled') ||
@@ -4407,7 +4407,7 @@ class _AuthPageState extends State<AuthPage> {
 
       if (response.session == null) {
         showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here to sign in with an OTP.',
+          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here and sign in with the password you created. Email OTP can be used once the platform administrator enables it.',
           success: true,
         );
       } else {
@@ -17529,7 +17529,7 @@ class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
     if (_busy) return;
     final user = supabase.auth.currentUser;
     if (user == null) {
-      _say('Your session expired. Sign in with your email OTP first.');
+      _say('Your session expired. Sign in with your registered email address and password first.');
       return;
     }
     final number = _normalisePhoneForAuth(_phone.text);
