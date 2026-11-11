@@ -30,6 +30,12 @@ const String supabaseUrl =
 const String supabasePublishableKey =
     String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 
+// Official LPU Press & Media campus photographs. Presentation use only; not GIS geometry.
+const String _lpuCampusHeroImage =
+    'https://www.lpu.in/lpu-assets/images/media-kit/LPU-campus-1.jpg';
+const String _lpuCampusWideImage =
+    'https://www.lpu.in/lpu-assets/images/media-kit/LPU-campus.jpg';
+
 // Render the branded opening immediately. Backend startup runs in parallel,
 // so slow storage/network initialization cannot hide the opening animation.
 Future<void> _samanvayBootFuture = Future<void>.value();
@@ -456,6 +462,12 @@ class _SamanvayBrandLogo extends StatelessWidget {
       cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
+      errorBuilder: (_, __, ___) => SvgPicture.asset(
+        'assets/brand/samanvay_logo.svg',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      ),
     ),
   );
 }
@@ -490,7 +502,7 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
           : const [Color(0xFF20D6C2), Color(0xFFB9E8FF), Color(0xFF3D83F6)],
       ).createShader(bounds),
       child: Text('TOWARDS OUR DEVELOPMENT 📈', textAlign: widget.textAlign,
-        style: GoogleFonts.inter(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .45)),
+        style: GoogleFonts.spaceGrotesk(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .7)),
     ),
   );
 }
@@ -764,10 +776,10 @@ class _SamanvayOpeningScreen extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
-          final widthLimit = math.max(220.0, constraints.maxWidth - 44.0);
-          final heightLimit = constraints.maxHeight * (compact ? 0.48 : 0.52);
+          final widthLimit = math.max(220.0, constraints.maxWidth - 16.0);
+          final heightLimit = constraints.maxHeight * (compact ? 0.52 : 0.58);
           final markSize = math.min(
-            compact ? 356.0 : 420.0,
+            compact ? 390.0 : 460.0,
             math.min(widthLimit, heightLimit),
           ).toDouble();
 
@@ -782,11 +794,20 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  CustomPaint(
-                    painter: _SamanvayOpeningCityPainter(
-                      progress: progress,
-                      ambient: ambient,
-                      lightMode: _usesLegacyLightPalette,
+                  Positioned.fill(
+                    child: Image.network(
+                      _lpuCampusHeroImage,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                      errorBuilder: (_, __, ___) => const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF173B55), Color(0xFF061426)],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                   DecoratedBox(
@@ -941,7 +962,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                   Opacity(
                                     opacity: _reveal(progress, 0.90, 1.0),
                                     child: Text(
-                                      'SMART LIVING  •  URBAN INTELLIGENCE',
+                                      'LOVELY PROFESSIONAL UNIVERSITY · PHAGWARA',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         color: const Color(0xFF7893AA),
@@ -3991,6 +4012,7 @@ class _AuthPageState extends State<AuthPage> {
   bool hidePassword = true;
   bool usePasswordLogin = true;
   bool usePhoneLogin = false;
+  bool usePhoneRegistration = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
@@ -4226,6 +4248,7 @@ class _AuthPageState extends State<AuthPage> {
             .toLowerCase();
         await supabase.auth.signInWithOtp(
           email: email,
+          emailRedirectTo: redirectUrl,
           shouldCreateUser: false,
         );
         _pendingOtpEmail = email;
@@ -4244,7 +4267,11 @@ class _AuthPageState extends State<AuthPage> {
       _startOtpResendCountdown();
     } on AuthException catch (authError) {
       final detail = authError.message.toLowerCase();
-      if (detail.contains('over_email_send_rate_limit')) {
+      if (detail.contains('otp_disabled') && !usePhoneLogin) {
+        showMessage(
+          'Email OTP/Magic Link sign-in is disabled in this Supabase project. Use Password sign-in for now. The platform owner must enable Email OTP in Supabase Authentication; to receive a six-digit code instead of a link, the Magic Link email template must contain {{ .Token }}.',
+        );
+      } else if (detail.contains('over_email_send_rate_limit')) {
         showMessage(
           'Email delivery is temporarily rate-limited by Supabase. Wait for the cooldown to expire, then request one new code. Password sign-in remains available.',
         );
@@ -4335,6 +4362,28 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  Future<void> resendCurrentOtp() async {
+    if (!isLogin && _pendingOtpPhone != null) {
+      if (loading || otpResendSeconds > 0) return;
+      setState(() { loading = true; message = ''; messageIsSuccess = false; });
+      try {
+        await supabase.auth.resend(
+          type: OtpType.sms,
+          phone: _pendingOtpPhone!,
+        );
+        if (!mounted) return;
+        showMessage('A new phone verification code was requested. Check SMS; WhatsApp depends on the active Auth Hook.', success: true);
+        _startOtpResendCountdown();
+      } on AuthException catch (error) {
+        showMessage(error.message);
+      } finally {
+        if (mounted) setState(() => loading = false);
+      }
+      return;
+    }
+    await sendLoginOtp();
+  }
+
   Future<void> submit() async {
     if (isLogin) {
       if (usePasswordLogin) {
@@ -4358,30 +4407,47 @@ class _AuthPageState extends State<AuthPage> {
             rawIdentifier.toLowerCase()] ??
           rawIdentifier;
 
-      if (!identifier.contains('@') || !identifier.contains('.')) {
-        throw const AuthException(
-          'New account registration currently requires an email address.',
+      if (usePhoneRegistration) {
+        final phone = _normalisePhoneForAuth(identifier);
+        if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
+          throw const AuthException('Enter a valid mobile number with its country code.');
+        }
+        final response = await supabase.auth.signUp(
+          phone: phone,
+          password: _passwordController.text,
+          data: {'display_name': _nameController.text.trim()},
         );
-      }
-      final response = await supabase.auth.signUp(
-        email: identifier,
-        password: _passwordController.text,
-        emailRedirectTo: redirectUrl,
-        data: {
-          'display_name': _nameController.text.trim(),
-        },
-      );
-
-      if (response.session == null) {
-        showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here to sign in with an OTP.',
-          success: true,
-        );
+        if (response.session == null) {
+          _pendingOtpPhone = phone;
+          _pendingOtpEmail = null;
+          _otpController.clear();
+          if (mounted) setState(() {
+            otpSent = true;
+            message = 'Account created. Enter the six-digit phone verification code. SMS is controlled by Supabase; WhatsApp is available only when the configured Auth Hook succeeds.';
+            messageIsSuccess = true;
+          });
+          _startOtpResendCountdown();
+        } else {
+          showMessage('Your mobile account has been created and verified.', success: true);
+        }
       } else {
-        showMessage(
-          'Your account has been created successfully.',
-          success: true,
+        if (!identifier.contains('@') || !identifier.contains('.')) {
+          throw const AuthException('Enter a valid email address.');
+        }
+        final response = await supabase.auth.signUp(
+          email: identifier.trim().toLowerCase(),
+          password: _passwordController.text,
+          emailRedirectTo: redirectUrl,
+          data: {'display_name': _nameController.text.trim()},
         );
+        if (response.session == null) {
+          showMessage(
+            'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, use Email OTP to sign in.',
+            success: true,
+          );
+        } else {
+          showMessage('Your account has been created successfully.', success: true);
+        }
       }
     } on AuthException catch (authError) {
       showMessage(authError.message);
@@ -4443,10 +4509,11 @@ class _AuthPageState extends State<AuthPage> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            SvgPicture.asset(
-              'assets/brand/samanvay_city_background.svg',
+            Image.network(
+              _lpuCampusWideImage,
               fit: BoxFit.cover,
               alignment: Alignment.center,
+              errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF0A1B30)),
             ),
             const Positioned.fill(
               child: DecoratedBox(
@@ -4589,6 +4656,35 @@ class _AuthPageState extends State<AuthPage> {
                     ),
 
                     const SizedBox(height: 16),
+                  ],
+                  if (!isLogin) ...[
+                    Text('CREATE ACCOUNT WITH', style: TextStyle(
+                      color: cyanAccent, fontSize: 10, letterSpacing: 1.1,
+                      fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.email_outlined, size: 17),
+                        label: const Text('Email'),
+                        selected: !usePhoneRegistration,
+                        onSelected: loading || otpSent ? null : (_) => setState(() {
+                          usePhoneRegistration = false;
+                          message = '';
+                          messageIsSuccess = false;
+                        }),
+                      ),
+                      ChoiceChip(
+                        avatar: const Icon(Icons.phone_android_rounded, size: 17),
+                        label: const Text('Mobile number'),
+                        selected: usePhoneRegistration,
+                        onSelected: loading || otpSent ? null : (_) => setState(() {
+                          usePhoneRegistration = true;
+                          message = '';
+                          messageIsSuccess = false;
+                        }),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
                   ],
                   Text(
                     'PORTAL ACCESS',
@@ -4812,9 +4908,9 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   TextFormField(
                     controller: _emailController,
-                    enabled: !isLogin || !otpSent || usePasswordLogin,
+                    enabled: !otpSent,
                     keyboardType: !isLogin
-                        ? TextInputType.emailAddress
+                        ? (usePhoneRegistration ? TextInputType.phone : TextInputType.emailAddress)
                         : (usePasswordLogin
                             ? TextInputType.text
                             : (usePhoneLogin
@@ -4829,18 +4925,18 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePasswordLogin
                                   ? 'Registered email, mobile number or staff ID'
                                   : 'Registered email address'))
-                          : 'Email address',
+                          : (usePhoneRegistration ? 'Mobile number' : 'Email address'),
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
                                   ? 'name@example.com, mobile number or staff ID'
                                   : 'name@example.com or staff ID 9013'))
-                          : 'name@example.com',
+                          : (usePhoneRegistration ? '+91 9876543210 or 9876543210' : 'name@example.com'),
                       prefixIcon: Icon(
-                        isLogin
-                            ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
-                            : Icons.email_outlined,
+                        (isLogin && usePhoneLogin) || (!isLogin && usePhoneRegistration)
+                            ? Icons.phone_android_rounded
+                            : Icons.alternate_email_rounded,
                       ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
@@ -4849,7 +4945,9 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePhoneLogin
                                   ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
                                   : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
-                          : null,
+                          : (usePhoneRegistration
+                              ? 'A verification code is sent to this mobile number. WhatsApp delivery requires an active Supabase Auth Hook and approved provider template.'
+                              : 'A confirmation message will be sent to this email. Check your inbox and spam folder.'),
                       helperMaxLines: 3,
                     ),
                     onFieldSubmitted: (_) {
@@ -4860,6 +4958,11 @@ class _AuthPageState extends State<AuthPage> {
                     validator: (value) {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
+                        if (usePhoneRegistration) {
+                          final phone = _normalisePhoneForAuth(input);
+                          return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
+                              ? null : 'Enter a valid mobile number with its country code';
+                        }
                         return input.contains('@') && input.contains('.')
                             ? null : 'Enter a valid email address';
                       }
@@ -4867,7 +4970,7 @@ class _AuthPageState extends State<AuthPage> {
                     },
                   ),
 
-                  if (isLogin && otpSent) ...[
+                  if (otpSent) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _otpController,
@@ -4902,7 +5005,7 @@ class _AuthPageState extends State<AuthPage> {
                           child: TextButton.icon(
                             onPressed: loading || otpResendSeconds > 0
                                 ? null
-                                : sendLoginOtp,
+                                : resendCurrentOtp,
                             icon: const Icon(Icons.refresh_rounded, size: 17),
                             label: Text(
                               otpResendSeconds > 0
@@ -5017,7 +5120,7 @@ class _AuthPageState extends State<AuthPage> {
                             ? (usePasswordLogin
                                 ? submit
                                 : (otpSent ? verifyLoginOtp : sendLoginOtp))
-                            : submit),
+                            : (otpSent ? verifyLoginOtp : submit)),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
                       padding:
@@ -5040,7 +5143,7 @@ class _AuthPageState extends State<AuthPage> {
                                 ? (usePasswordLogin
                                     ? 'SIGN IN'
                                     : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
-                                : 'CREATE ACCOUNT',
+                                : (otpSent ? 'VERIFY & CREATE ACCOUNT' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
@@ -5054,6 +5157,7 @@ class _AuthPageState extends State<AuthPage> {
                               isLogin = !isLogin;
                               usePasswordLogin = true;
                               usePhoneLogin = false;
+                              usePhoneRegistration = false;
                               otpSent = false;
                               otpResendSeconds = 0;
                               _pendingOtpEmail = null;
@@ -5952,9 +6056,11 @@ class _DashboardPageState extends State<DashboardPage>
               fit: StackFit.passthrough,
               children: [
                 Positioned.fill(
-                  child: SvgPicture.asset(
-                    'assets/brand/samanvay_home_banner.svg',
+                  child: Image.network(
+                    _lpuCampusWideImage,
                     fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF123B55)),
                   ),
                 ),
                 Positioned.fill(
@@ -5975,11 +6081,17 @@ class _DashboardPageState extends State<DashboardPage>
                 Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
               _SamanvayBrandLogo(
-                size: math.min(340.0, MediaQuery.sizeOf(context).width * .88),
-                radius: 38,
+                size: math.min(390.0, MediaQuery.sizeOf(context).width * .94),
+                radius: 42,
               ),
               const SizedBox(height: 9),
               const _AnimatedDevelopmentTagline(fontSize: 14),
+              const SizedBox(height: 4),
+              const Text(
+                'CAMPUS PHOTOGRAPHY · LPU OFFICIAL PRESS & MEDIA KIT',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFFE3EDF7), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .35),
+              ),
               const SizedBox(height: 6),
               const Text(
                 'SMART COORDINATION  •  TRANSPARENT GOVERNANCE  •  A DEVELOPED INDIA',
@@ -6015,9 +6127,9 @@ class _DashboardPageState extends State<DashboardPage>
               const SizedBox(height: 16),
               SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const MapPage())),
+                  MaterialPageRoute(builder: (_) => const LpuCampusModelPage())),
                 icon: const Icon(Icons.layers_rounded),
-                label: const Text('LIVE UNDERGROUND VIEW  ↗'),
+                label: const Text('LPU CAMPUS · 3D + UNDERGROUND  ↗'),
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
@@ -11891,6 +12003,8 @@ class LpuCampusModelPage extends StatelessWidget {
     initialCenter: _campusCentre,
     initialZoom: 16.1,
     initialTilt: 54,
+    initial3D: true,
+    initialUnderground: false,
     contextLabel: 'LPU CAMPUS · PHAGWARA',
   );
 }
@@ -12310,12 +12424,16 @@ class MapPage extends StatefulWidget {
     this.initialZoom = 3.5,
     this.initialTilt = 0,
     this.contextLabel,
+    this.initial3D = false,
+    this.initialUnderground = false,
   });
 
   final LatLng? initialCenter;
   final double initialZoom;
   final double initialTilt;
   final String? contextLabel;
+  final bool initial3D;
+  final bool initialUnderground;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -12324,9 +12442,12 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   static const String _mapTilerKey =
       String.fromEnvironment('MAPTILER_API_KEY');
-  // Dark OpenFreeMap OSM vector style; satellite uses the MapTiler source key.
+  // National GIS stays 2D. LPU campus uses a brighter basemap for legible
+  // surface building geometry and natural tagged building colours.
   static const String _vectorStyle =
       'https://tiles.openfreemap.org/styles/dark';
+  static const String _lpuVectorStyle =
+      'https://tiles.openfreemap.org/styles/liberty';
 
   static const String _esriImageryStyle = '''
   {
@@ -12364,8 +12485,8 @@ class _MapPageState extends State<MapPage> {
   bool _requestLayerRefreshPending = false;
   String _scaleLabel = '';
   double _scaleWidth = 80;
-  bool _is3D = true;
-  bool _undergroundMode = true;
+  late bool _is3D = widget.initial3D;
+  late bool _undergroundMode = widget.initialUnderground;
   bool _styleReady = false;
   bool _buildingReadinessLoaded = false;
   bool _utilityReadinessLoaded = false;
@@ -12424,6 +12545,9 @@ class _MapPageState extends State<MapPage> {
   Map<String, dynamic>? _activeRouteGeoJson;
 
   String get _mapStyle {
+    if (widget.contextLabel == 'LPU CAMPUS · PHAGWARA' && !_satellite) {
+      return _lpuVectorStyle;
+    }
     if (_satellite) {
       if (_mapTilerKey.isNotEmpty) {
         return 'https://api.maptiler.com/maps/hybrid/style.json?key=$_mapTilerKey';
@@ -12679,6 +12803,17 @@ class _MapPageState extends State<MapPage> {
     _viewportRefreshTimer?.cancel();
     _viewportRefreshTimer = Timer(const Duration(milliseconds: 420), () async {
       if (!mounted) return;
+      if (widget.contextLabel == 'LPU CAMPUS · PHAGWARA') {
+        try {
+          final camera = await _controller?.queryCameraPosition();
+          if (camera != null) {
+            final showCampusUnderground = camera.zoom >= 18.2;
+            if (showCampusUnderground != _undergroundMode) {
+              await _setUndergroundMode(showCampusUnderground);
+            }
+          }
+        } catch (_) {}
+      }
       await _refreshMapScale();
       if (!mounted) return;
       await _loadVisibleWorkRequests();
@@ -12732,6 +12867,8 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _ensure3DBuildings() async {
+    // The requested 3D building workspace is campus-scoped to LPU.
+    if (widget.contextLabel != 'LPU CAMPUS · PHAGWARA' || !_is3D) return;
     final controller = _controller;
     if (controller == null) return;
 
@@ -12745,7 +12882,19 @@ class _MapPageState extends State<MapPage> {
           'openmaptiles',
           'samanvay-3d-buildings',
           FillExtrusionLayerProperties(
-            fillExtrusionColor: '#66849A',
+            fillExtrusionColor: [
+              'coalesce',
+              ['get', 'colour'],
+              ['get', 'building:colour'],
+              ['get', 'render_color'],
+              ['match', ['get', 'building:material'],
+                'brick', '#B87555',
+                'concrete', '#A8A9A5',
+                'glass', '#69A8BD',
+                'wood', '#B99161',
+                'stone', '#A99F91',
+                '#C5B39C'],
+            ],
             fillExtrusionHeight: [
               'interpolate',
               ['linear'],
@@ -12771,7 +12920,13 @@ class _MapPageState extends State<MapPage> {
               ['get', 'min_height'],
               0,
             ],
-            fillExtrusionOpacity: 0.84,
+            fillExtrusionOpacity: [
+              'interpolate', ['linear'], ['zoom'],
+              14, 0.0,
+              14.8, 0.28,
+              15.5, 0.72,
+              16.2, 0.92,
+            ],
           ),
           sourceLayer: 'building',
           minzoom: 14,
@@ -14681,6 +14836,10 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _setUndergroundMode(bool enabled) async {
     if (_undergroundMode == enabled) return;
+    if (enabled && widget.contextLabel != 'LPU CAMPUS · PHAGWARA') {
+      _showMessage('Detailed underground cutaway is available only in the LPU campus workspace.');
+      return;
+    }
 
     final controller = _controller;
     setState(() {
@@ -14707,8 +14866,8 @@ class _MapPageState extends State<MapPage> {
       if (enabled) {
         // Hide the surface extrusions and ward outlines to make the
         // underground operational layer visually distinct.
-        await setVisibility('samanvay-3d-buildings', _is3D);
-        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-3d-buildings', false);
+        await setVisibility('samanvay-3d-building-outlines', false);
         await setVisibility('samanvay-coimbatore-ward-fill', false);
         await setVisibility('samanvay-coimbatore-ward-lines', false);
 
@@ -14772,6 +14931,10 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _changePerspective(bool use3D) async {
+    if (use3D && widget.contextLabel != 'LPU CAMPUS · PHAGWARA') {
+      _showMessage('3D campus building view is currently scoped to LPU.');
+      return;
+    }
     final controller = _controller;
     if (controller == null || !_styleReady) return;
 
@@ -17233,6 +17396,26 @@ class _ProfilePageState extends State<ProfilePage> {
         _ => const RequestsPage(),
       };
       return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [
+        Container(
+          height: 132,
+          margin: const EdgeInsets.only(bottom: 14),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: cyanAccent.withValues(alpha: .30))),
+          child: Stack(fit: StackFit.expand, children: [
+            Image.network(_lpuCampusHeroImage, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF123B55))),
+            const DecoratedBox(decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                colors: [Color(0xD908182B), Color(0x1808182B)]))),
+            const Positioned(left: 14, bottom: 12, child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text('LOVELY PROFESSIONAL UNIVERSITY', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .6)),
+                SizedBox(height: 3),
+                Text('Official campus photography · LPU Press & Media', style: TextStyle(color: Color(0xFFE2EDF5), fontSize: 8, fontWeight: FontWeight.w600)),
+              ],
+            )),
+          ]),
+        ),
         Container(
           padding: const EdgeInsets.all(21),
           decoration: BoxDecoration(

@@ -17,7 +17,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
   final List<Map<String, dynamic>> _messages = [
     {
       'role': 'assistant',
-      'content': 'Hello! I’m the SAMANVAY Smart Assistant. I use built-in guidance and SAMANVAY’s existing public data metadata, with no paid AI API. I can help with app navigation, requests, department routing, GIS and groundwater-data interpretation. What would you like to know?',
+      'content': 'ANIL is ready. Ask about your own SAMANVAY requests, published work notices, department coordination or GIS.',
     },
   ];
   bool _busy = false;
@@ -154,7 +154,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
     setState(() {
       _messages..clear()..add({
         'role': 'assistant',
-        'content': 'New chat started. Ask about SAMANVAY, infrastructure requests, department coordination, GIS or how to use the app.',
+        'content': 'New chat. What SAMANVAY task do you need help with?',
       });
       _error = null;
     });
@@ -303,7 +303,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
                 onSubmitted: (_) => _send(),
                 decoration: InputDecoration(
                   counterText: '',
-                  hintText: signedIn ? 'Ask SAMANVAY…' : 'Sign in to chat',
+                  hintText: signedIn ? 'Ask ANIL…' : 'Sign in to chat',
                   hintStyle: TextStyle(color: _muted, fontSize: 12),
                   filled: true,
                   fillColor: _light ? const Color(0xFFF4F7FA) : const Color(0xFF0A1C2E),
@@ -352,12 +352,12 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
             child: const Icon(Icons.smart_toy_rounded, color: Color(0xFF31BFD0), size: 21),
           ),
           const SizedBox(width: 10),
-          const Expanded(child: Text('SAMANVAY ASSISTANT')),
+          const Expanded(child: Text('ANIL')),
         ]),
         actions: [
           if (_roleChecked && _canOpenCaseIntelligence)
             IconButton(
-              tooltip: 'Open case intelligence',
+              tooltip: 'Open authorised case intelligence',
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SamanvayAiAssistantPage()),
               ),
@@ -387,7 +387,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
             const SizedBox(width: 9),
             Expanded(
               child: Text(
-                'Your guide to infrastructure coordination and the SAMANVAY app',
+                'ANIL · live account context and public work notices',
                 style: TextStyle(color: _ink, fontSize: 11, height: 1.35, fontWeight: FontWeight.w600),
               ),
             ),
@@ -426,7 +426,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: _primary)),
                       const SizedBox(width: 9),
-                      Text('Checking built-in guidance…', style: TextStyle(color: _muted, fontSize: 10)),
+                      Text('ANIL is checking your SAMANVAY data…', style: TextStyle(color: _muted, fontSize: 10)),
                     ]),
                   ),
                 ),
