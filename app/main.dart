@@ -4404,7 +4404,7 @@ class _AuthPageState extends State<AuthPage> {
 
       if (usePhoneRegistration) {
         final phone = _normalisePhoneForAuth(identifier);
-        if (!RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)) {
+        if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
           throw const AuthException('Enter a valid mobile number with its country code.');
         }
         final response = await supabase.auth.signUp(
@@ -4955,7 +4955,7 @@ class _AuthPageState extends State<AuthPage> {
                         final input = (value ?? '').trim();
                         if (usePhoneRegistration) {
                           final phone = _normalisePhoneForAuth(input);
-                          return RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)
+                          return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
                               ? null : 'Enter a valid mobile number with its country code';
                         }
                         return input.contains('@') && input.contains('.')
