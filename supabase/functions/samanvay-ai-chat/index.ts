@@ -52,6 +52,41 @@ async function readJson<T>(url: string, serviceKey: string): Promise<T> {
   return await response.json() as T;
 }
 
+type RequestContextRow = {
+  request_number?: number | string;
+  title?: string;
+  status?: string;
+  case_category?: string;
+  road_name?: string;
+  city?: string;
+  planned_start_date?: string;
+  planned_end_date?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+type NoticeContextRow = {
+  notice_code?: string;
+  title?: string;
+  notice_type?: string;
+  summary?: string;
+  city?: string;
+  district?: string;
+  area_label?: string;
+  responsible_department_name?: string;
+  starts_on?: string;
+  ends_on?: string;
+  progress_percent?: number;
+  notice_status?: string;
+  source_url?: string;
+};
+type UserContext = {
+  displayName: string;
+  role: string;
+  departmentName: string;
+  requests: RequestContextRow[];
+  notices: NoticeContextRow[];
+};
+
 type OfficialSourceRow = {
   source_key?: string; agency?: string; dataset_name?: string; source_url?: string;
   geography?: string; data_theme?: string; access_mode?: string;
@@ -148,6 +183,148 @@ async function retrieveLivePublicSnapshot(
     note: note.slice(0, 1800),
   };
 }
+
+async function retrieveUserContext(
+  supabaseUrl: string,
+  serviceKey: string,
+  userId: string,
+  profile: { role: string; display_name?: string | null; department_id?: string | null },
+): Promise<UserContext> {
+  let departmentName = "";
+  if (profile.department_id) {
+    try {
+      const departmentUrl = new URL(supabaseUrl + "/rest/v1/departments");
+      departmentUrl.searchParams.set("select", "name");
+      departmentUrl.searchParams.set("id", "eq." + profile.department_id);
+      departmentUrl.searchParams.set("limit", "1");
+      const departments = await readJson<Array<{ name?: string }>>(departmentUrl.toString(), serviceKey);
+      departmentName = departments[0]?.name ?? "";
+    } catch {
+      departmentName = "";
+    }
+  }
+
+  // Only retrieve case metadata the authenticated role is entitled to see.
+  // Descriptions, attachments, chat messages, private identifiers, coordinates,
+  // and exact underground-asset geometry are deliberately excluded.
+  const requestUrl = new URL(supabaseUrl + "/rest/v1/excavation_requests");
+  requestUrl.searchParams.set(
+    "select",
+    "request_number,title,status,case_category,road_name,city,planned_start_date,planned_end_date,created_at,updated_at",
+  );
+  requestUrl.searchParams.set("order", "created_at.desc");
+  requestUrl.searchParams.set("limit", "30");
+  if (profile.role === "requester" || profile.role === "citizen") {
+    requestUrl.searchParams.set("requester_id", "eq." + userId);
+  } else if (profile.role === "department") {
+    if (!profile.department_id) {
+      requestUrl.searchParams.set("request_number", "eq.-1");
+    } else {
+      requestUrl.searchParams.set("department_id", "eq." + profile.department_id);
+    }
+  }
+  // Coordinator/admin roles can see request metadata under their authorised
+  // app role. They still receive no descriptions, attachments or utility routes.
+  let requests: RequestContextRow[] = [];
+  try {
+    requests = await readJson<RequestContextRow[]>(requestUrl.toString(), serviceKey);
+  } catch {
+    requests = [];
+  }
+
+  // Only authority-published public notices are included in the assistant.
+  const noticesUrl = new URL(supabaseUrl + "/rest/v1/public_excavation_notices");
+  noticesUrl.searchParams.set(
+    "select",
+    "notice_code,title,notice_type,summary,city,district,area_label,responsible_department_name,starts_on,ends_on,progress_percent,notice_status,source_url",
+  );
+  noticesUrl.searchParams.set("notice_status", "in.(published,active)");
+  noticesUrl.searchParams.set("order", "starts_on.asc");
+  noticesUrl.searchParams.set("limit", "50");
+  let notices: NoticeContextRow[] = [];
+  try {
+    notices = await readJson<NoticeContextRow[]>(noticesUrl.toString(), serviceKey);
+  } catch {
+    notices = [];
+  }
+
+  return {
+    displayName: (profile.display_name ?? "").trim(),
+    role: profile.role,
+    departmentName,
+    requests,
+    notices,
+  };
+}
+
+function contextualReply(prompt: string, context: UserContext): string | null {
+  const q = prompt.toLowerCase();
+
+  if (includesAny(q, [
+    "my request", "my requests", "request status", "track my", "my case",
+    "my cases", "show my request", "show my cases", "status of request",
+  ])) {
+    const number = prompt.match(/(?:request|case)\\s*(?:number|no\\.?|#)?\\s*(\\d{1,14})/i)?.[1];
+    const matches = number
+      ? context.requests.filter((item) => String(item.request_number ?? "") === number)
+      : context.requests.slice(0, 6);
+    if (!matches.length) {
+      return number
+        ? "I could not find that request number in the cases visible to your signed-in account. Check the number or contact the assigned department."
+        : "There are no request records currently visible to your signed-in account. Once you submit a request, ANIL can summarise its recorded status here.";
+    }
+    return matches.map((item) => {
+      const place = [item.road_name, item.city].filter(Boolean).join(", ");
+      const dates = [item.planned_start_date, item.planned_end_date].filter(Boolean).join(" to ");
+      return [
+        "Request #" + String(item.request_number ?? "—"),
+        (item.title ?? item.case_category ?? "Infrastructure request").replaceAll("_", " "),
+        "Status: " + String(item.status ?? "not reported"),
+        place ? "Location: " + place : "",
+        dates ? "Planned dates: " + dates : "",
+      ].filter(Boolean).join(" · ");
+    }).join("\\n");
+  }
+
+  if (includesAny(q, ["my profile", "my department", "which department am i", "who am i"])) {
+    const name = context.displayName || "Signed-in user";
+    const department = context.departmentName ? " · Department: " + context.departmentName : "";
+    return name + " · Role: " + context.role + department + ".";
+  }
+
+  if (includesAny(q, [
+    "nearby excavation", "excavations near", "near me", "nearby work",
+    "works near", "excavation around", "public work near", "no-dig notice",
+    "no dig notice", "active excavation",
+  ])) {
+    const explicit = prompt.match(/\\b(?:near|around|in|at)\\s+([a-z][a-z\\s-]{1,35})/i)?.[1]?.trim();
+    const recentCity = context.requests.find((item) => item.city)?.city ?? "";
+    const candidate = (explicit && !["me", "my location", "here"].includes(explicit.toLowerCase()))
+      ? explicit
+      : recentCity;
+    if (!candidate) {
+      return "ANIL has no live GPS location in this chat. Share your city or locality name and I can check the published public-work notices available in SAMANVAY for that area.";
+    }
+    const area = candidate.toLowerCase();
+    const matches = context.notices.filter((item) => [
+      item.city, item.district, item.area_label,
+    ].some((value) => (value ?? "").toLowerCase().includes(area) || area.includes((value ?? "").toLowerCase()) && (value ?? "").length > 2));
+    if (!matches.length) {
+      return "I found no published SAMANVAY work notices matching " + candidate + " in the current public notice feed. This feed may be incomplete; check the relevant local authority before making decisions.";
+    }
+    return "Published public-work notices matching " + candidate + ":\\n" + matches.slice(0, 6).map((item) => [
+      item.notice_code ?? "Notice",
+      item.title ?? "Public work",
+      [item.area_label, item.city, item.district].filter(Boolean).join(", "),
+      item.responsible_department_name ? "Department: " + item.responsible_department_name : "",
+      [item.starts_on, item.ends_on].filter(Boolean).join(" to "),
+      item.notice_status ?? "",
+    ].filter(Boolean).join(" · ")).join("\\n");
+  }
+
+  return null;
+}
+
 
 async function retrieveSafeReferences(
   supabaseUrl: string,
@@ -253,7 +430,14 @@ function includesAny(text: string, terms: string[]): boolean {
   return terms.some((term) => text.includes(term));
 }
 
-function buildZeroCostReply(prompt: string, references: SafeReference[], liveSnapshot: SafeReference | null): string {
+function buildZeroCostReply(
+  prompt: string,
+  references: SafeReference[],
+  liveSnapshot: SafeReference | null,
+  userContext: UserContext,
+): string {
+  const personalised = contextualReply(prompt, userContext);
+  if (personalised) return personalised;
   const q = prompt.toLowerCase();
   const refs = references.slice(0, 4).map((item) => "[" + item.id + "] " + item.title + " — " + item.agency);
   const refsText = refs.length ? "\n\nRelevant catalogue references:\n" + refs.join("\n") : "";
@@ -297,7 +481,7 @@ function buildZeroCostReply(prompt: string, references: SafeReference[], liveSna
   if (includesAny(q, ["login", "sign in", "cannot login", "forgot password", "profile"])) {
     return "Use the account registered for your SAMANVAY role and sign in through the app's login screen. The role and department access are checked against the authenticated profile. If the correct portal is missing, ask the administrator to verify the profile role and department assignment; do not share your password or OTP in chat.";
   }
-  return "I am SAMANVAY's built-in zero-cost assistant. I use predefined guidance and SAMANVAY's existing public database metadata; I do not use a paid external language-model API. I can help with app navigation, Citizen requests, request tracking, department routing, GIS concepts, groundwater data and source-coverage interpretation. Ask one specific question and I will give the most relevant guidance.\n\nNote: this is a rule-based assistant, not an unrestricted generative chatbot. It does not see your private cases, issue approvals, or certify underground utility locations.";
+  return "Tell me what you need help with in SAMANVAY. I can check request metadata visible to your role, published public-work notices, department routing, GIS layer status and registered data sources. For nearby works, include a city or locality; live GPS is not shared with ANIL automatically.";
 }
 
 Deno.serve(async (request: Request) => {
@@ -343,9 +527,11 @@ Deno.serve(async (request: Request) => {
 
   try {
     const profileUrl = new URL(keys.url + "/rest/v1/profiles");
-    profileUrl.searchParams.set("select", "id,role");
+    profileUrl.searchParams.set("select", "id,role,display_name,department_id");
     profileUrl.searchParams.set("id", "eq." + authUser.id);
-    const profiles = await readJson<Array<{ id: string; role: string }>>(profileUrl.toString(), keys.secret);
+    const profiles = await readJson<Array<{
+      id: string; role: string; display_name?: string | null; department_id?: string | null;
+    }>>(profileUrl.toString(), keys.secret);
     const profile = profiles[0];
     if (!profile) return json(403, { error: "PROFILE_NOT_FOUND" });
     if (!["requester", "citizen", "department", "coordinator", "admin"].includes(profile.role)) {
@@ -353,19 +539,22 @@ Deno.serve(async (request: Request) => {
     }
 
     const prompt = messages[messages.length - 1].content;
+    const [userContext, catalogueReferences] = await Promise.all([
+      retrieveUserContext(keys.url, keys.secret, authUser.id, profile),
+      retrieveSafeReferences(keys.url, keys.secret, prompt),
+    ]);
     const isDataQuestion = includesAny(prompt.toLowerCase(), [
       "dataset", "coverage", "data", "records", "groundwater", "source", "district", "state", "india",
     ]);
-    const [catalogueReferences, liveSnapshot] = await Promise.all([
-      retrieveSafeReferences(keys.url, keys.secret, prompt),
-      isDataQuestion ? retrieveLivePublicSnapshot(keys.url, keys.secret) : Promise.resolve(null),
-    ]);
+    const liveSnapshot = isDataQuestion
+      ? await retrieveLivePublicSnapshot(keys.url, keys.secret)
+      : null;
     const references = liveSnapshot ? [...catalogueReferences, liveSnapshot] : catalogueReferences;
-    const reply = buildZeroCostReply(prompt, references, liveSnapshot);
+    const reply = buildZeroCostReply(prompt, references, liveSnapshot, userContext);
     return json(200, {
       reply,
-      mode: "zero_cost_rules",
-      model: "samanvay-built-in-guidance-v1",
+      mode: "contextual_retrieval",
+      model: "anil-samanvay-context-v1",
       sources: references.map(({ id, title, agency, url, geography, status, checked_at, kind, note }) => ({
         id, title, agency, url, geography, status, checked_at, kind, note,
       })),
