@@ -12,6 +12,7 @@ on:
       - feature/alpha-03-integrated-platform
     paths:
       - 'app/**'
+      - '!app/assets/brand/*.part*'
       - 'lib/**'
       - 'android/**'
       - 'pubspec.yaml'
@@ -19,7 +20,7 @@ on:
       - '.github/workflows/build-apk.yml'
 
 concurrency:
-  group: samanvay-android-${{ github.ref }}-${{ github.sha }}
+  group: samanvay-android-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
