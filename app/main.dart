@@ -4370,6 +4370,37 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  Future<void> resendCurrentOtp() async {
+    if (!isLogin && _pendingOtpPhone != null) {
+      if (loading || otpResendSeconds > 0) return;
+      setState(() {
+        loading = true;
+        message = '';
+        messageIsSuccess = false;
+      });
+      try {
+        await supabase.auth.resend(
+          type: OtpType.sms,
+          phone: _pendingOtpPhone!,
+        );
+        if (!mounted) return;
+        showMessage(
+          'A new mobile verification code was requested. Check your SMS inbox.',
+          success: true,
+        );
+        _startOtpResendCountdown();
+      } on AuthException catch (error) {
+        showMessage(error.message);
+      } catch (_) {
+        showMessage('Unable to resend the mobile verification code. Check the SMS provider configuration.');
+      } finally {
+        if (mounted) setState(() => loading = false);
+      }
+      return;
+    }
+    await sendLoginOtp();
+  }
+
   Future<void> submit() async {
     if (isLogin) {
       if (usePasswordLogin) {
@@ -4664,6 +4695,51 @@ class _AuthPageState extends State<AuthPage> {
 
                     const SizedBox(height: 16),
                   ],
+                  if (!isLogin) ...[
+                    Text(
+                      'CREATE ACCOUNT WITH',
+                      style: TextStyle(
+                        color: cyanAccent,
+                        fontSize: 10,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          avatar: const Icon(Icons.email_outlined, size: 17),
+                          label: const Text('Email'),
+                          selected: !usePhoneRegistration,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePhoneRegistration = false;
+                                    _emailController.clear();
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
+                        ),
+                        ChoiceChip(
+                          avatar: const Icon(Icons.phone_android_rounded, size: 17),
+                          label: const Text('Mobile number'),
+                          selected: usePhoneRegistration,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePhoneRegistration = true;
+                                    _emailController.clear();
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Text(
                     'PORTAL ACCESS',
                     style: TextStyle(color: cyanAccent, fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
@@ -4886,9 +4962,11 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   TextFormField(
                     controller: _emailController,
-                    enabled: !isLogin || !otpSent || usePasswordLogin,
+                    enabled: !otpSent,
                     keyboardType: !isLogin
-                        ? TextInputType.emailAddress
+                        ? (usePhoneRegistration
+                            ? TextInputType.phone
+                            : TextInputType.emailAddress)
                         : (usePasswordLogin
                             ? TextInputType.text
                             : (usePhoneLogin
@@ -4903,27 +4981,32 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePasswordLogin
                                   ? 'Registered email, mobile number or staff ID'
                                   : 'Registered email address'))
-                          : 'Email address',
+                          : (usePhoneRegistration ? 'Mobile number' : 'Email address'),
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
                                   ? 'name@example.com, mobile number or staff ID'
                                   : 'name@example.com or staff ID 9013'))
-                          : 'name@example.com',
+                          : (usePhoneRegistration
+                              ? '+91 9876543210 or 9876543210'
+                              : 'name@example.com'),
                       prefixIcon: Icon(
-                        isLogin
-                            ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
-                            : Icons.email_outlined,
+                        (isLogin && usePhoneLogin) ||
+                                (!isLogin && usePhoneRegistration)
+                            ? Icons.phone_android_rounded
+                            : Icons.alternate_email_rounded,
                       ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
                           ? (usePasswordLogin
                               ? 'Use the password already linked to this account. Existing staff IDs resolve to their saved email.'
                               : (usePhoneLogin
-                                  ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
-                                  : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
-                          : null,
+                                  ? 'Use a previously verified mobile number. New mobile accounts must be registered and verified first.'
+                                  : 'Email OTP is currently disabled in this project. Use Password sign-in.'))
+                          : (usePhoneRegistration
+                              ? 'Enter an Indian 10-digit number or an international number with country code. A six-digit code is required before the account is activated.'
+                              : 'A confirmation message will be sent to this email. Check your inbox and spam folder.'),
                       helperMaxLines: 3,
                     ),
                     onFieldSubmitted: (_) {
@@ -4934,14 +5017,21 @@ class _AuthPageState extends State<AuthPage> {
                     validator: (value) {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
+                        if (usePhoneRegistration) {
+                          final phone = _normalisePhoneForAuth(input);
+                          return RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)
+                              ? null
+                              : 'Enter a valid mobile number with country code';
+                        }
                         return input.contains('@') && input.contains('.')
-                            ? null : 'Enter a valid email address';
+                            ? null
+                            : 'Enter a valid email address';
                       }
                       return _validateLoginIdentifier(value);
                     },
                   ),
 
-                  if (isLogin && otpSent) ...[
+                  if (otpSent) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _otpController,
@@ -4976,7 +5066,7 @@ class _AuthPageState extends State<AuthPage> {
                           child: TextButton.icon(
                             onPressed: loading || otpResendSeconds > 0
                                 ? null
-                                : sendLoginOtp,
+                                : resendCurrentOtp,
                             icon: const Icon(Icons.refresh_rounded, size: 17),
                             label: Text(
                               otpResendSeconds > 0
@@ -5091,7 +5181,7 @@ class _AuthPageState extends State<AuthPage> {
                             ? (usePasswordLogin
                                 ? submit
                                 : (otpSent ? verifyLoginOtp : sendLoginOtp))
-                            : submit),
+                            : (otpSent ? verifyLoginOtp : submit)),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
                       padding:
@@ -5114,7 +5204,7 @@ class _AuthPageState extends State<AuthPage> {
                                 ? (usePasswordLogin
                                     ? 'SIGN IN'
                                     : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
-                                : 'CREATE ACCOUNT',
+                                : (otpSent ? 'VERIFY MOBILE & CREATE ACCOUNT' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
@@ -5128,6 +5218,7 @@ class _AuthPageState extends State<AuthPage> {
                               isLogin = !isLogin;
                               usePasswordLogin = true;
                               usePhoneLogin = false;
+                              usePhoneRegistration = false;
                               otpSent = false;
                               otpResendSeconds = 0;
                               _pendingOtpEmail = null;
