@@ -4012,6 +4012,7 @@ class _AuthPageState extends State<AuthPage> {
   bool hidePassword = true;
   bool usePasswordLogin = true;
   bool usePhoneLogin = false;
+  bool usePhoneRegistration = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
@@ -4356,6 +4357,28 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  Future<void> resendCurrentOtp() async {
+    if (!isLogin && _pendingOtpPhone != null) {
+      if (loading || otpResendSeconds > 0) return;
+      setState(() { loading = true; message = ''; messageIsSuccess = false; });
+      try {
+        await supabase.auth.signInWithOtp(
+          phone: _pendingOtpPhone!,
+          shouldCreateUser: false,
+        );
+        if (!mounted) return;
+        showMessage('A new phone verification code was requested. Check SMS; WhatsApp depends on the active Auth Hook.', success: true);
+        _startOtpResendCountdown();
+      } on AuthException catch (error) {
+        showMessage(error.message);
+      } finally {
+        if (mounted) setState(() => loading = false);
+      }
+      return;
+    }
+    await sendLoginOtp();
+  }
+
   Future<void> submit() async {
     if (isLogin) {
       if (usePasswordLogin) {
@@ -4379,30 +4402,47 @@ class _AuthPageState extends State<AuthPage> {
             rawIdentifier.toLowerCase()] ??
           rawIdentifier;
 
-      if (!identifier.contains('@') || !identifier.contains('.')) {
-        throw const AuthException(
-          'New account registration currently requires an email address.',
+      if (usePhoneRegistration) {
+        final phone = _normalisePhoneForAuth(identifier);
+        if (!RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)) {
+          throw const AuthException('Enter a valid mobile number with its country code.');
+        }
+        final response = await supabase.auth.signUp(
+          phone: phone,
+          password: _passwordController.text,
+          data: {'display_name': _nameController.text.trim()},
         );
-      }
-      final response = await supabase.auth.signUp(
-        email: identifier,
-        password: _passwordController.text,
-        emailRedirectTo: redirectUrl,
-        data: {
-          'display_name': _nameController.text.trim(),
-        },
-      );
-
-      if (response.session == null) {
-        showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here to sign in with an OTP.',
-          success: true,
-        );
+        if (response.session == null) {
+          _pendingOtpPhone = phone;
+          _pendingOtpEmail = null;
+          _otpController.clear();
+          if (mounted) setState(() {
+            otpSent = true;
+            message = 'Account created. Enter the six-digit phone verification code. SMS is controlled by Supabase; WhatsApp is available only when the configured Auth Hook succeeds.';
+            messageIsSuccess = true;
+          });
+          _startOtpResendCountdown();
+        } else {
+          showMessage('Your mobile account has been created and verified.', success: true);
+        }
       } else {
-        showMessage(
-          'Your account has been created successfully.',
-          success: true,
+        if (!identifier.contains('@') || !identifier.contains('.')) {
+          throw const AuthException('Enter a valid email address.');
+        }
+        final response = await supabase.auth.signUp(
+          email: identifier.trim().toLowerCase(),
+          password: _passwordController.text,
+          emailRedirectTo: redirectUrl,
+          data: {'display_name': _nameController.text.trim()},
         );
+        if (response.session == null) {
+          showMessage(
+            'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, use Email OTP to sign in.',
+            success: true,
+          );
+        } else {
+          showMessage('Your account has been created successfully.', success: true);
+        }
       }
     } on AuthException catch (authError) {
       showMessage(authError.message);
@@ -4611,6 +4651,35 @@ class _AuthPageState extends State<AuthPage> {
                     ),
 
                     const SizedBox(height: 16),
+                  ],
+                  if (!isLogin) ...[
+                    Text('CREATE ACCOUNT WITH', style: TextStyle(
+                      color: cyanAccent, fontSize: 10, letterSpacing: 1.1,
+                      fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.email_outlined, size: 17),
+                        label: const Text('Email'),
+                        selected: !usePhoneRegistration,
+                        onSelected: loading || otpSent ? null : (_) => setState(() {
+                          usePhoneRegistration = false;
+                          message = '';
+                          messageIsSuccess = false;
+                        }),
+                      ),
+                      ChoiceChip(
+                        avatar: const Icon(Icons.phone_android_rounded, size: 17),
+                        label: const Text('Mobile number'),
+                        selected: usePhoneRegistration,
+                        onSelected: loading || otpSent ? null : (_) => setState(() {
+                          usePhoneRegistration = true;
+                          message = '';
+                          messageIsSuccess = false;
+                        }),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
                   ],
                   Text(
                     'PORTAL ACCESS',
@@ -4834,9 +4903,9 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   TextFormField(
                     controller: _emailController,
-                    enabled: !isLogin || !otpSent || usePasswordLogin,
+                    enabled: !otpSent,
                     keyboardType: !isLogin
-                        ? TextInputType.emailAddress
+                        ? (usePhoneRegistration ? TextInputType.phone : TextInputType.emailAddress)
                         : (usePasswordLogin
                             ? TextInputType.text
                             : (usePhoneLogin
@@ -4851,18 +4920,18 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePasswordLogin
                                   ? 'Registered email, mobile number or staff ID'
                                   : 'Registered email address'))
-                          : 'Email address',
+                          : (usePhoneRegistration ? 'Mobile number' : 'Email address'),
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
                                   ? 'name@example.com, mobile number or staff ID'
                                   : 'name@example.com or staff ID 9013'))
-                          : 'name@example.com',
+                          : (usePhoneRegistration ? '+91 9876543210 or 9876543210' : 'name@example.com'),
                       prefixIcon: Icon(
-                        isLogin
-                            ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
-                            : Icons.email_outlined,
+                        (isLogin && usePhoneLogin) || (!isLogin && usePhoneRegistration)
+                            ? Icons.phone_android_rounded
+                            : Icons.alternate_email_rounded,
                       ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
@@ -4871,7 +4940,9 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePhoneLogin
                                   ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
                                   : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
-                          : null,
+                          : (usePhoneRegistration
+                              ? 'A verification code is sent to this mobile number. WhatsApp delivery requires an active Supabase Auth Hook and approved provider template.'
+                              : 'A confirmation message will be sent to this email. Check your inbox and spam folder.'),
                       helperMaxLines: 3,
                     ),
                     onFieldSubmitted: (_) {
@@ -4882,6 +4953,11 @@ class _AuthPageState extends State<AuthPage> {
                     validator: (value) {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
+                        if (usePhoneRegistration) {
+                          final phone = _normalisePhoneForAuth(input);
+                          return RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)
+                              ? null : 'Enter a valid mobile number with its country code';
+                        }
                         return input.contains('@') && input.contains('.')
                             ? null : 'Enter a valid email address';
                       }
@@ -4889,7 +4965,7 @@ class _AuthPageState extends State<AuthPage> {
                     },
                   ),
 
-                  if (isLogin && otpSent) ...[
+                  if (otpSent) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _otpController,
@@ -4924,7 +5000,7 @@ class _AuthPageState extends State<AuthPage> {
                           child: TextButton.icon(
                             onPressed: loading || otpResendSeconds > 0
                                 ? null
-                                : sendLoginOtp,
+                                : resendCurrentOtp,
                             icon: const Icon(Icons.refresh_rounded, size: 17),
                             label: Text(
                               otpResendSeconds > 0
@@ -5039,7 +5115,7 @@ class _AuthPageState extends State<AuthPage> {
                             ? (usePasswordLogin
                                 ? submit
                                 : (otpSent ? verifyLoginOtp : sendLoginOtp))
-                            : submit),
+                            : (otpSent ? verifyLoginOtp : submit)),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
                       padding:
@@ -5062,7 +5138,7 @@ class _AuthPageState extends State<AuthPage> {
                                 ? (usePasswordLogin
                                     ? 'SIGN IN'
                                     : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
-                                : 'CREATE ACCOUNT',
+                                : (otpSent ? 'VERIFY & CREATE ACCOUNT' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
@@ -5076,6 +5152,7 @@ class _AuthPageState extends State<AuthPage> {
                               isLogin = !isLogin;
                               usePasswordLogin = true;
                               usePhoneLogin = false;
+                              usePhoneRegistration = false;
                               otpSent = false;
                               otpResendSeconds = 0;
                               _pendingOtpEmail = null;
