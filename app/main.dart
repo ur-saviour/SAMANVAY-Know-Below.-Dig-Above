@@ -3283,6 +3283,13 @@ class _OperationalPortalState extends State<_OperationalPortal> {
             ),
           ),
           IconButton(
+            tooltip: 'Open SAMANVAY AI assistant',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SamanvayAiChatPage()),
+            ),
+            icon: const Icon(Icons.auto_awesome_rounded),
+          ),
+          IconButton(
             tooltip: 'My profile',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ProfilePage()),
