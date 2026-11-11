@@ -449,13 +449,19 @@ class _SamanvayBrandLogo extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
     borderRadius: BorderRadius.circular(radius),
     child: Image.asset(
-      'assets/brand/samanvay_logo_768_q76.webp',
+      'assets/brand/samanvay_logo.jpg',
       width: size,
       height: size,
       cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) => SvgPicture.asset(
+        'assets/brand/samanvay_logo.svg',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      ),
     ),
   );
 }
@@ -782,11 +788,24 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  CustomPaint(
-                    painter: _SamanvayOpeningCityPainter(
-                      progress: progress,
-                      ambient: ambient,
-                      lightMode: _usesLegacyLightPalette,
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: const Alignment(0.12, -0.36),
+                        radius: 1.18,
+                        colors: _usesLegacyLightPalette
+                            ? const [
+                                Color(0xFFE0F0F4),
+                                Color(0xFFF4F7FA),
+                                Color(0xFFE7EFF5),
+                              ]
+                            : const [
+                                Color(0xFF173B67),
+                                Color(0xFF0A2038),
+                                Color(0xFF020916),
+                              ],
+                        stops: const [0, 0.58, 1],
+                      ),
                     ),
                   ),
                   DecoratedBox(
@@ -3989,8 +4008,12 @@ class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
+  // Keep password sign-in as the default because this project's live
+  // Auth logs currently report otp_disabled for an OTP request.
   bool usePasswordLogin = true;
   bool usePhoneLogin = false;
+  // Registration can use either email/password or mobile/password.
+  bool usePhoneRegistration = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
@@ -4128,7 +4151,7 @@ class _AuthPageState extends State<AuthPage> {
       } else if (detail.contains('invalid login credentials') ||
           detail.contains('invalid_credentials')) {
         showMessage(
-          'The registered email or password did not match. Check the details, use Email OTP, or select Forgot password? to recover the existing account.',
+          'The registered email or password did not match. Check the registered email (or supported staff ID), or select Forgot password? to recover the existing account. Email OTP is currently unavailable in this project.',
         );
       } else if (detail.contains('email not confirmed')) {
         showMessage(
@@ -4255,11 +4278,23 @@ class _AuthPageState extends State<AuthPage> {
               detail.contains('phone_not_found') ||
               detail.contains('invalid phone'))) {
         showMessage(
-          'No verified mobile number is linked to this existing SAMANVAY account yet. Use Email OTP or Password sign-in with the registered email address.',
+          'No verified mobile number is linked to this existing SAMANVAY account yet. Use Password sign-in with the registered email address, then link and verify your mobile number from My Profile.',
+        );
+      } else if (!usePhoneLogin &&
+          (detail.contains('otp_disabled') ||
+              detail.contains('otp') &&
+                  (detail.contains('disabled') ||
+                      detail.contains('not allowed')))) {
+        showMessage(
+          'Email OTP sign-in is disabled by the connected Supabase Auth configuration. Use Password sign-in for now, or ask the platform administrator to enable Email OTP in Authentication settings.',
         );
       } else if (usePhoneLogin &&
-          (detail.contains('sms') || detail.contains('provider'))) {
-        showMessage('Mobile OTP delivery is not configured or is temporarily unavailable. Ask the platform administrator to enable the SMS + WhatsApp Auth Hook.');
+          (detail.contains('otp_disabled') ||
+              detail.contains('sms') ||
+              detail.contains('provider'))) {
+        showMessage(
+          'Mobile OTP sign-in is disabled or its delivery provider is unavailable. Use your registered email and password until the administrator enables and verifies mobile OTP delivery.',
+        );
       } else {
         showMessage('Unable to send the code. Confirm that the contact is registered and try again. ' + authError.message);
       }
@@ -4335,6 +4370,37 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  Future<void> resendCurrentOtp() async {
+    if (!isLogin && _pendingOtpPhone != null) {
+      if (loading || otpResendSeconds > 0) return;
+      setState(() {
+        loading = true;
+        message = '';
+        messageIsSuccess = false;
+      });
+      try {
+        await supabase.auth.resend(
+          type: OtpType.sms,
+          phone: _pendingOtpPhone!,
+        );
+        if (!mounted) return;
+        showMessage(
+          'A new mobile verification code was requested. Check your SMS inbox.',
+          success: true,
+        );
+        _startOtpResendCountdown();
+      } on AuthException catch (error) {
+        showMessage(error.message);
+      } catch (_) {
+        showMessage('Unable to resend the mobile verification code. Check the SMS provider configuration.');
+      } finally {
+        if (mounted) setState(() => loading = false);
+      }
+      return;
+    }
+    await sendLoginOtp();
+  }
+
   Future<void> submit() async {
     if (isLogin) {
       if (usePasswordLogin) {
@@ -4358,30 +4424,69 @@ class _AuthPageState extends State<AuthPage> {
             rawIdentifier.toLowerCase()] ??
           rawIdentifier;
 
-      if (!identifier.contains('@') || !identifier.contains('.')) {
-        throw const AuthException(
-          'New account registration currently requires an email address.',
-        );
-      }
-      final response = await supabase.auth.signUp(
-        email: identifier,
-        password: _passwordController.text,
-        emailRedirectTo: redirectUrl,
-        data: {
-          'display_name': _nameController.text.trim(),
-        },
-      );
+      if (usePhoneRegistration) {
+        final phone = _normalisePhoneForAuth(identifier);
+        if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
+          throw const AuthException(
+            'Enter a valid mobile number. Indian 10-digit numbers are supported.',
+          );
+        }
 
-      if (response.session == null) {
-        showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here to sign in with an OTP.',
-          success: true,
+        final response = await supabase.auth.signUp(
+          phone: phone,
+          password: _passwordController.text,
+          data: {
+            'display_name': _nameController.text.trim(),
+          },
         );
+
+        if (response.user == null) {
+          throw const AuthException(
+            'The mobile registration request did not create an account.',
+          );
+        }
+
+        if (response.session == null) {
+          _pendingOtpPhone = phone;
+          _pendingOtpEmail = null;
+          _otpController.clear();
+          if (!mounted) return;
+          setState(() {
+            otpSent = true;
+            message = 'A six-digit verification code has been requested for your mobile number. Enter it below to activate your account.';
+            messageIsSuccess = true;
+          });
+          _startOtpResendCountdown();
+        } else {
+          await supabase.auth.signOut();
+          showMessage(
+            'The project created a session without requiring phone verification. Ask the administrator to enable Supabase Confirm phone and configure the SMS Auth Hook before using mobile registration.',
+          );
+        }
       } else {
-        showMessage(
-          'Your account has been created successfully.',
-          success: true,
+        if (!identifier.contains('@') || !identifier.contains('.')) {
+          throw const AuthException('Enter a valid email address.');
+        }
+        final response = await supabase.auth.signUp(
+          email: identifier.trim().toLowerCase(),
+          password: _passwordController.text,
+          emailRedirectTo: redirectUrl,
+          data: {
+            'display_name': _nameController.text.trim(),
+          },
         );
+
+        if (response.session == null) {
+          showMessage(
+            'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, sign in with the password you created.',
+            success: true,
+          );
+        } else {
+          showMessage(
+            'Your account has been created successfully.',
+            success: true,
+          );
+        }
       }
     } on AuthException catch (authError) {
       showMessage(authError.message);
@@ -4589,6 +4694,51 @@ class _AuthPageState extends State<AuthPage> {
                     ),
 
                     const SizedBox(height: 16),
+                  ],
+                  if (!isLogin) ...[
+                    Text(
+                      'CREATE ACCOUNT WITH',
+                      style: TextStyle(
+                        color: cyanAccent,
+                        fontSize: 10,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          avatar: const Icon(Icons.email_outlined, size: 17),
+                          label: const Text('Email'),
+                          selected: !usePhoneRegistration,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePhoneRegistration = false;
+                                    _emailController.clear();
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
+                        ),
+                        ChoiceChip(
+                          avatar: const Icon(Icons.phone_android_rounded, size: 17),
+                          label: const Text('Mobile number'),
+                          selected: usePhoneRegistration,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePhoneRegistration = true;
+                                    _emailController.clear();
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                   ],
                   Text(
                     'PORTAL ACCESS',
@@ -4812,9 +4962,11 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   TextFormField(
                     controller: _emailController,
-                    enabled: !isLogin || !otpSent || usePasswordLogin,
+                    enabled: !otpSent,
                     keyboardType: !isLogin
-                        ? TextInputType.emailAddress
+                        ? (usePhoneRegistration
+                            ? TextInputType.phone
+                            : TextInputType.emailAddress)
                         : (usePasswordLogin
                             ? TextInputType.text
                             : (usePhoneLogin
@@ -4829,27 +4981,32 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePasswordLogin
                                   ? 'Registered email, mobile number or staff ID'
                                   : 'Registered email address'))
-                          : 'Email address',
+                          : (usePhoneRegistration ? 'Mobile number' : 'Email address'),
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
                                   ? 'name@example.com, mobile number or staff ID'
                                   : 'name@example.com or staff ID 9013'))
-                          : 'name@example.com',
+                          : (usePhoneRegistration
+                              ? '+91 9876543210 or 9876543210'
+                              : 'name@example.com'),
                       prefixIcon: Icon(
-                        isLogin
-                            ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
-                            : Icons.email_outlined,
+                        (isLogin && usePhoneLogin) ||
+                                (!isLogin && usePhoneRegistration)
+                            ? Icons.phone_android_rounded
+                            : Icons.alternate_email_rounded,
                       ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
                           ? (usePasswordLogin
                               ? 'Use the password already linked to this account. Existing staff IDs resolve to their saved email.'
                               : (usePhoneLogin
-                                  ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
-                                  : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
-                          : null,
+                                  ? 'Use a previously verified mobile number. New mobile accounts must be registered and verified first.'
+                                  : 'Email OTP is currently disabled in this project. Use Password sign-in.'))
+                          : (usePhoneRegistration
+                              ? 'Enter an Indian 10-digit number or an international number with country code. A six-digit code is required before the account is activated.'
+                              : 'A confirmation message will be sent to this email. Check your inbox and spam folder.'),
                       helperMaxLines: 3,
                     ),
                     onFieldSubmitted: (_) {
@@ -4860,14 +5017,21 @@ class _AuthPageState extends State<AuthPage> {
                     validator: (value) {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
+                        if (usePhoneRegistration) {
+                          final phone = _normalisePhoneForAuth(input);
+                          return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
+                              ? null
+                              : 'Enter a valid mobile number with country code';
+                        }
                         return input.contains('@') && input.contains('.')
-                            ? null : 'Enter a valid email address';
+                            ? null
+                            : 'Enter a valid email address';
                       }
                       return _validateLoginIdentifier(value);
                     },
                   ),
 
-                  if (isLogin && otpSent) ...[
+                  if (otpSent) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _otpController,
@@ -4902,7 +5066,7 @@ class _AuthPageState extends State<AuthPage> {
                           child: TextButton.icon(
                             onPressed: loading || otpResendSeconds > 0
                                 ? null
-                                : sendLoginOtp,
+                                : resendCurrentOtp,
                             icon: const Icon(Icons.refresh_rounded, size: 17),
                             label: Text(
                               otpResendSeconds > 0
@@ -5017,7 +5181,7 @@ class _AuthPageState extends State<AuthPage> {
                             ? (usePasswordLogin
                                 ? submit
                                 : (otpSent ? verifyLoginOtp : sendLoginOtp))
-                            : submit),
+                            : (otpSent ? verifyLoginOtp : submit)),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
                       padding:
@@ -5040,7 +5204,7 @@ class _AuthPageState extends State<AuthPage> {
                                 ? (usePasswordLogin
                                     ? 'SIGN IN'
                                     : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
-                                : 'CREATE ACCOUNT',
+                                : (otpSent ? 'VERIFY MOBILE & CREATE ACCOUNT' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
@@ -5054,6 +5218,7 @@ class _AuthPageState extends State<AuthPage> {
                               isLogin = !isLogin;
                               usePasswordLogin = true;
                               usePhoneLogin = false;
+                              usePhoneRegistration = false;
                               otpSent = false;
                               otpResendSeconds = 0;
                               _pendingOtpEmail = null;
@@ -11891,6 +12056,7 @@ class LpuCampusModelPage extends StatelessWidget {
     initialCenter: _campusCentre,
     initialZoom: 16.1,
     initialTilt: 54,
+    initialSatellite: true,
     contextLabel: 'LPU CAMPUS · PHAGWARA',
   );
 }
@@ -12310,12 +12476,14 @@ class MapPage extends StatefulWidget {
     this.initialZoom = 3.5,
     this.initialTilt = 0,
     this.contextLabel,
+    this.initialSatellite = false,
   });
 
   final LatLng? initialCenter;
   final double initialZoom;
   final double initialTilt;
   final String? contextLabel;
+  final bool initialSatellite;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -12431,6 +12599,12 @@ class _MapPageState extends State<MapPage> {
       return _esriImageryStyle;
     }
     return _vectorStyle;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _satellite = widget.initialSatellite;
   }
 
   void _onMapCreated(MapLibreMapController controller) {
@@ -12797,13 +12971,15 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
+      // Surface building blocks must never remain visible in underground mode.
+      // The underground view is driven by its own verified/generalised layers.
       await controller.setLayerVisibility(
         'samanvay-3d-buildings',
-        _is3D,
+        _is3D && !_undergroundMode,
       );
       await controller.setLayerVisibility(
         'samanvay-3d-building-outlines',
-        _is3D,
+        _is3D && !_undergroundMode,
       );
     } catch (_) {
       // If a provider style lacks the expected source/attributes, the
@@ -14707,8 +14883,8 @@ class _MapPageState extends State<MapPage> {
       if (enabled) {
         // Hide the surface extrusions and ward outlines to make the
         // underground operational layer visually distinct.
-        await setVisibility('samanvay-3d-buildings', _is3D);
-        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-3d-buildings', false);
+        await setVisibility('samanvay-3d-building-outlines', false);
         await setVisibility('samanvay-coimbatore-ward-fill', false);
         await setVisibility('samanvay-coimbatore-ward-lines', false);
 
@@ -15790,7 +15966,7 @@ class _MapPageState extends State<MapPage> {
             Text(
               widget.contextLabel == null
                   ? 'GEOSPATIAL INFRASTRUCTURE WORKSPACE'
-                  : 'CAMPUS BASEMAP · VERIFIED DATA ONLY',
+                  : 'SATELLITE BASEMAP · CAMPUS ASSETS NOT YET VERIFIED',
               style: TextStyle(
                 fontSize: 9,
                 letterSpacing: 1.35,
@@ -17485,7 +17661,7 @@ class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
     if (_busy) return;
     final user = supabase.auth.currentUser;
     if (user == null) {
-      _say('Your session expired. Sign in with your email OTP first.');
+      _say('Your session expired. Sign in with your registered email address and password first.');
       return;
     }
     final number = _normalisePhoneForAuth(_phone.text);
