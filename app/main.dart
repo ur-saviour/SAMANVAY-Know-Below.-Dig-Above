@@ -445,19 +445,22 @@ class _SamanvayBrandLogo extends StatelessWidget {
   const _SamanvayBrandLogo({this.size = 100, this.radius = 22});
   final double size;
   final double radius;
+
   @override
   Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(radius),
-    child: Image.asset(
-      'assets/brand/samanvay_logo_768_q76.webp',
-      width: size,
-      height: size,
-      cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
-      cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
-    ),
-  );
+        borderRadius: BorderRadius.circular(radius),
+        child: SvgPicture.asset(
+          'assets/brand/samanvay_logo.svg',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          placeholderBuilder: (_) => SizedBox(
+            width: size,
+            height: size,
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      );
 }
 
 class _AnimatedDevelopmentTagline extends StatefulWidget {
@@ -4248,6 +4251,8 @@ class _AuthPageState extends State<AuthPage> {
         showMessage(
           'Email delivery is temporarily rate-limited by Supabase. Wait for the cooldown to expire, then request one new code. Password sign-in remains available.',
         );
+      } else if (detail.contains('otp_disabled')) {
+        showMessage('Email OTP is disabled for this Supabase project. Use Password sign-in with your registered email address and password.');
       } else if (detail.contains('rate limit') || detail.contains('too many')) {
         showMessage('Please wait before requesting another code.');
       } else if (usePhoneLogin &&
@@ -4374,7 +4379,7 @@ class _AuthPageState extends State<AuthPage> {
 
       if (response.session == null) {
         showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here to sign in with an OTP.',
+          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, sign in here with your registered email address and password.',
           success: true,
         );
       } else {
@@ -4782,29 +4787,15 @@ class _AuthPageState extends State<AuthPage> {
                         ),
                         ChoiceChip(
                           avatar: const Icon(Icons.email_outlined, size: 17),
-                          label: const Text('Email OTP'),
-                          selected: !usePasswordLogin && !usePhoneLogin,
-                          onSelected: loading || otpSent
-                              ? null
-                              : (_) => setState(() {
-                                    usePasswordLogin = false;
-                                    usePhoneLogin = false;
-                                    message = '';
-                                    messageIsSuccess = false;
-                                  }),
+                          label: const Text('Email OTP (disabled)'),
+                          selected: false,
+                          onSelected: null,
                         ),
                         ChoiceChip(
                           avatar: const Icon(Icons.sms_outlined, size: 17),
-                          label: const Text('Mobile OTP'),
-                          selected: !usePasswordLogin && usePhoneLogin,
-                          onSelected: loading || otpSent
-                              ? null
-                              : (_) => setState(() {
-                                    usePasswordLogin = false;
-                                    usePhoneLogin = true;
-                                    message = '';
-                                    messageIsSuccess = false;
-                                  }),
+                          label: const Text('Mobile OTP (not configured)'),
+                          selected: false,
+                          onSelected: null,
                         ),
                       ],
                     ),
@@ -4845,7 +4836,7 @@ class _AuthPageState extends State<AuthPage> {
                       border: const OutlineInputBorder(),
                       helperText: isLogin
                           ? (usePasswordLogin
-                              ? 'Use the password already linked to this account. Existing staff IDs resolve to their saved email.'
+                              ? 'Use your registered email address and password. Existing staff IDs resolve to their saved email. Email OTP is disabled and mobile OTP is not configured for this project.'
                               : (usePhoneLogin
                                   ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
                                   : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))

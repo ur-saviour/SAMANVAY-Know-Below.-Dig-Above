@@ -129,13 +129,23 @@ jobs:
           echo "PASS: Android namespace and applicationId verified."
 
           # Use the uploaded SAMANVAY mark for the Android launcher icon.
-          python3 -m pip install --quiet pillow
+          python3 -m pip install --quiet pillow cairosvg
           python3 - <<'PY'
           from pathlib import Path
           from PIL import Image
+          import cairosvg
           import xml.etree.ElementTree as ET
 
-          source = Image.open('app/assets/brand/samanvay_logo.jpg').convert('RGBA')
+          logo_svg = Path('app/assets/brand/samanvay_logo.svg')
+          if not logo_svg.is_file() or '<svg' not in logo_svg.read_text():
+              raise SystemExit('ERROR: SAMANVAY vector logo is missing or malformed.')
+          rendered_logo = Path('/tmp/samanvay_logo_launcher.png')
+          cairosvg.svg2png(url=str(logo_svg), write_to=str(rendered_logo), output_width=768, output_height=768)
+          with Image.open(rendered_logo) as check:
+              if check.format != 'PNG' or check.size != (768, 768):
+                  raise SystemExit('ERROR: SAMANVAY launcher logo did not render at 768x768.')
+              check.verify()
+          source = Image.open(rendered_logo).convert('RGBA')
           res = Path('android/app/src/main/res')
           sizes = {'mdpi':48, 'hdpi':72, 'xhdpi':96, 'xxhdpi':144, 'xxxhdpi':192}
           for density, pixels in sizes.items():
@@ -177,7 +187,20 @@ jobs:
           fi
           cp -R app/assets/reference/. assets/reference/
           cp -R app/assets/brand/. assets/brand/
-          test -s assets/brand/samanvay_logo_768_q76.webp
+          test -s assets/brand/samanvay_logo.svg
+          python3 - <<'PY'
+          from PIL import Image
+          import cairosvg
+
+          logo_svg = 'assets/brand/samanvay_logo.svg'
+          rendered = '/tmp/samanvay_logo_asset_check.png'
+          cairosvg.svg2png(url=logo_svg, write_to=rendered, output_width=768, output_height=768)
+          with Image.open(rendered) as logo:
+              if logo.size != (768, 768):
+                  raise SystemExit('ERROR: packaged logo failed its 768x768 render check.')
+              logo.verify()
+          print('PASS: packaged SAMANVAY vector logo parsed and decoded at 768x768.')
+          PY
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp app/main.dart lib/main.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
@@ -245,7 +268,6 @@ jobs:
           groundwater_entry = "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"
           brand_entries = [
               "    - assets/brand/samanvay_logo.jpg",
-              "    - assets/brand/samanvay_logo_768_q76.webp",
               "    - assets/brand/home_city_banner.jpg",
               "    - assets/brand/profile_avatar.jpg",
               "    - assets/brand/profile_footer.jpg",
@@ -345,7 +367,6 @@ jobs:
               "assets/flutter_assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" \
               "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson" \
               "assets/flutter_assets/assets/brand/samanvay_logo.jpg" \
-              "assets/flutter_assets/assets/brand/samanvay_logo_768_q76.webp" \
               "assets/flutter_assets/assets/brand/home_city_banner.jpg" \
               "assets/flutter_assets/assets/brand/profile_avatar.jpg" \
               "assets/flutter_assets/assets/brand/profile_footer.jpg" \
