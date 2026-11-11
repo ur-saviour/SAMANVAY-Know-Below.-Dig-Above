@@ -100,13 +100,13 @@ async function exactPublicRowCount(
   try {
     const url = new URL(supabaseUrl + "/rest/v1/" + table);
     url.searchParams.set("select", "id");
-    url.searchParams.set("limit", "0");
     const response = await fetch(url.toString(), {
-      method: "GET",
+      method: "HEAD",
       headers: {
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
-        Accept: "application/json",
+        "Range-Unit": "items",
+        Range: "0-0",
         Prefer: "count=exact",
       },
       signal: AbortSignal.timeout(8000),
