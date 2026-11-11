@@ -17,7 +17,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
   final List<Map<String, dynamic>> _messages = [
     {
       'role': 'assistant',
-      'content': 'Hello! I’m SAMANVAY AI. I can guide you through the app, explain infrastructure coordination, help you understand request categories and statuses, and suggest practical next steps. What would you like to know?',
+      'content': 'Hello! I’m the SAMANVAY Smart Assistant. I use built-in guidance and SAMANVAY’s existing public data metadata, with no paid AI API. I can help with app navigation, requests, department routing, GIS and groundwater-data interpretation. What would you like to know?',
     },
   ];
   bool _busy = false;
@@ -78,13 +78,13 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
   String _friendlyError(Object error) {
     final value = error.toString();
     if (value.contains('AI_NOT_CONFIGURED')) {
-      return 'AI is not enabled yet. A project administrator must configure the OPENAI_API_KEY Edge Function secret.';
+      return 'The built-in assistant is temporarily unavailable. Check your connection and try again.';
     }
     if (value.contains('DAILY_AI_LIMIT_REACHED') || value.contains('429')) {
       return 'You have reached the daily AI message allowance. Please try again after the 24-hour usage window.';
     }
     if (value.contains('AUTHENTICATION_REQUIRED') || value.contains('INVALID_SESSION') || value.contains('401')) {
-      return 'Your sign-in session is not valid. Sign in again and reopen SAMANVAY AI.';
+      return 'Your sign-in session is not valid. Sign in again and reopen SAMANVAY ASSISTANT.';
     }
     if (value.contains('PROFILE_NOT_FOUND')) {
       return 'Your SAMANVAY profile is not ready. Please contact the platform administrator.';
@@ -93,12 +93,12 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       return 'The SAMANVAY AI service is not available in this app build yet.';
     }
     if (value.contains('AI_PROVIDER_ERROR')) {
-      return 'The AI provider could not complete this reply. Please try again shortly.';
+      return 'The assistant could not complete this reply. Please try again shortly.';
     }
     if (value.contains('AI_USAGE_LIMITER_UNAVAILABLE')) {
       return 'The AI usage-control service is temporarily unavailable. Please try again later.';
     }
-    return 'SAMANVAY AI could not send that message. Check your connection and try again.';
+    return 'SAMANVAY could not process that message. Check your connection and try again.';
   }
 
   Future<void> _send([String? suggestion]) async {
@@ -160,7 +160,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
     setState(() {
       _messages..clear()..add({
         'role': 'assistant',
-        'content': 'New chat started. Ask me about SAMANVAY, infrastructure requests, department coordination, or how to use the app.',
+        'content': 'New chat started. Ask about SAMANVAY, infrastructure requests, department coordination, GIS or how to use the app.',
       });
       _error = null;
     });
@@ -455,7 +455,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text(
-            'AI guidance is advisory. It cannot verify live records, approve work, or provide underground utility clearance. Chat text is not saved to SAMANVAY.',
+            'Zero-cost rule-based guidance using existing SAMANVAY data metadata. It is advisory, cannot verify site conditions or approve work, and cannot provide underground utility clearance. Chat text is not saved.',
             textAlign: TextAlign.center,
             style: TextStyle(color: _muted, fontSize: 9, height: 1.35),
           ),
