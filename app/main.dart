@@ -788,17 +788,23 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: RadialGradient(
-                        center: Alignment(0.12, -0.36),
+                        center: const Alignment(0.12, -0.36),
                         radius: 1.18,
-                        colors: [
-                          Color(0xFF173B67),
-                          Color(0xFF0A2038),
-                          Color(0xFF020916),
-                        ],
-                        stops: [0, 0.58, 1],
+                        colors: _usesLegacyLightPalette
+                            ? const [
+                                Color(0xFFE0F0F4),
+                                Color(0xFFF4F7FA),
+                                Color(0xFFE7EFF5),
+                              ]
+                            : const [
+                                Color(0xFF173B67),
+                                Color(0xFF0A2038),
+                                Color(0xFF020916),
+                              ],
+                        stops: const [0, 0.58, 1],
                       ),
                     ),
                   ),
@@ -15814,7 +15820,7 @@ class _MapPageState extends State<MapPage> {
             Text(
               widget.contextLabel == null
                   ? 'GEOSPATIAL INFRASTRUCTURE WORKSPACE'
-                  : 'CAMPUS BASEMAP · VERIFIED DATA ONLY',
+                  : 'SATELLITE BASEMAP · CAMPUS ASSETS NOT YET VERIFIED',
               style: TextStyle(
                 fontSize: 9,
                 letterSpacing: 1.35,
