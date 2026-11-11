@@ -288,6 +288,28 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
         run: |
+          set -euo pipefail
+
+          # Never publish an APK with blank backend configuration. A successful
+          # Flutter compile alone does not prove that runtime authentication works.
+          if [ -z "${SUPABASE_URL:-}" ]; then
+            echo "::error::SUPABASE_URL is missing; refusing to publish an unusable APK."
+            exit 1
+          fi
+          if [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+            echo "::error::SUPABASE_PUBLISHABLE_KEY is missing; refusing to publish an unusable APK."
+            exit 1
+          fi
+          python3 - "$SUPABASE_URL" <<'PY'
+          import sys
+          from urllib.parse import urlparse
+
+          parsed = urlparse(sys.argv[1])
+          if parsed.scheme != "https" or not parsed.hostname:
+              raise SystemExit("SUPABASE_URL must be a valid HTTPS project URL.")
+          print("PASS: Supabase URL and publishable key are configured.")
+          PY
+
           flutter build apk --release --split-per-abi \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
