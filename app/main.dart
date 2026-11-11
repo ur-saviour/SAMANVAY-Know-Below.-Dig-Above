@@ -5019,7 +5019,7 @@ class _AuthPageState extends State<AuthPage> {
                         final input = (value ?? '').trim();
                         if (usePhoneRegistration) {
                           final phone = _normalisePhoneForAuth(input);
-                          return RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)
+                          return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
                               ? null
                               : 'Enter a valid mobile number with country code';
                         }
