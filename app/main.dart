@@ -502,7 +502,7 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
           : const [Color(0xFF20D6C2), Color(0xFFB9E8FF), Color(0xFF3D83F6)],
       ).createShader(bounds),
       child: Text('TOWARDS OUR DEVELOPMENT 📈', textAlign: widget.textAlign,
-        style: GoogleFonts.inter(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .45)),
+        style: GoogleFonts.spaceGrotesk(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .7)),
     ),
   );
 }
@@ -776,10 +776,10 @@ class _SamanvayOpeningScreen extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
-          final widthLimit = math.max(220.0, constraints.maxWidth - 44.0);
-          final heightLimit = constraints.maxHeight * (compact ? 0.48 : 0.52);
+          final widthLimit = math.max(220.0, constraints.maxWidth - 16.0);
+          final heightLimit = constraints.maxHeight * (compact ? 0.52 : 0.58);
           final markSize = math.min(
-            compact ? 356.0 : 420.0,
+            compact ? 390.0 : 460.0,
             math.min(widthLimit, heightLimit),
           ).toDouble();
 
@@ -6076,8 +6076,8 @@ class _DashboardPageState extends State<DashboardPage>
                 Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
               _SamanvayBrandLogo(
-                size: math.min(340.0, MediaQuery.sizeOf(context).width * .88),
-                radius: 38,
+                size: math.min(390.0, MediaQuery.sizeOf(context).width * .94),
+                radius: 42,
               ),
               const SizedBox(height: 9),
               const _AnimatedDevelopmentTagline(fontSize: 14),
