@@ -231,6 +231,7 @@ String _normalisePhoneForAuth(String input) {
 // profile roles and RLS are unchanged.
 const Map<String, String> _existingTestAccountAliases = {
   '11004': '11004.cis26@gmail.com',
+  'lokith': '11004.cis26@gmail.com',
   '9013': '9013.cis25@gmail.com',
   'adheera': '9013.cis25@gmail.com',
   '10011': '10011.cis25@gmail.com',
@@ -763,9 +764,11 @@ class _SamanvayOpeningScreen extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
+          final widthLimit = math.max(220.0, constraints.maxWidth - 44.0);
+          final heightLimit = constraints.maxHeight * (compact ? 0.48 : 0.52);
           final markSize = math.min(
-            compact ? 348.0 : 392.0,
-            constraints.maxWidth * 0.94,
+            compact ? 356.0 : 420.0,
+            math.min(widthLimit, heightLimit),
           ).toDouble();
 
           return AnimatedBuilder(
@@ -774,9 +777,6 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               final progress = introController.value;
               final ambient = ambientController.value;
               final logoReveal = _reveal(progress, 0.04, 0.54);
-              final titleReveal = _reveal(progress, 0.30, 0.68);
-              final taglineReveal = _reveal(progress, 0.48, 0.78);
-              final featureReveal = _reveal(progress, 0.64, 0.88);
               final buttonReveal = _reveal(progress, 0.76, 1.0);
 
               return Stack(
@@ -813,10 +813,10 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                         constraints: const BoxConstraints(maxWidth: 560),
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
-                            25,
-                            compact ? 18 : 28,
-                            25,
-                            compact ? 18 : 26,
+                            12,
+                            compact ? 16 : 22,
+                            12,
+                            compact ? 16 : 22,
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -828,74 +828,25 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                   Opacity(
                                     opacity: logoReveal,
                                     child: Transform.translate(
-                                      offset: Offset(0, 22 * (1 - logoReveal)),
+                                      offset: Offset(0, 18 * (1 - logoReveal)),
                                       child: Transform.scale(
-                                        scale: 0.70 + (0.30 * logoReveal),
+                                        scale: 0.88 + (0.12 * logoReveal),
                                         child: SizedBox(
-                                          width: markSize,
-                                          height: markSize,
-                                          child: _SamanvayBrandLogo(
-                                            size: markSize,
-                                            radius: markSize * .14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: compact ? 8 : 16),
-                                  Opacity(
-                                    opacity: titleReveal,
-                                    child: Transform.translate(
-                                      offset: Offset(0, 16 * (1 - titleReveal)),
-                                      child: SizedBox(
-                                        width: constraints.maxWidth * 0.90,
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            'SAMANVAY',
-                                            maxLines: 1,
-                                            style: GoogleFonts.spaceGrotesk(
-                                              color: _usesLegacyLightPalette
-                                                  ? const Color(0xFF10243A)
-                                                  : const Color(0xFFF5FAFF),
-                                              fontSize: 42,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 5.5,
-                                              height: 1.0,
+                                          width: markSize + 20,
+                                          height: markSize + 20,
+                                          child: CustomPaint(
+                                            painter: _AnimatedLogoColourLinePainter(
+                                              progress: ambient,
                                             ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Opacity(
-                                    opacity: taglineReveal,
-                                    child: Column(
-                                      children: [
-                                        _AnimatedDevelopmentTagline(fontSize: compact ? 13 : 15),
-                                        const SizedBox(height: 9),
-                                        Container(
-                                          width: 116 * taglineReveal,
-                                          height: 2,
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(8),
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFF25BDF4),
-                                                Color(0xFF34E0C2),
-                                              ],
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: const Color(0xFF34E0C2)
-                                                    .withValues(alpha: 0.5),
-                                                blurRadius: 12,
+                                            child: Center(
+                                              child: _SamanvayBrandLogo(
+                                                size: markSize,
+                                                radius: markSize * .12,
                                               ),
-                                            ],
+                                            ),
                                           ),
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -903,22 +854,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                               Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Opacity(
-                                    opacity: featureReveal,
-                                    child: Text(
-                                      'SMART COORDINATION   •   TRANSPARENT GOVERNANCE   •   A DEVELOPED INDIA',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                        color: _usesLegacyLightPalette
-                                            ? const Color(0xFF476579)
-                                            : const Color(0xFFB5C9DD),
-                                        fontSize: compact ? 8 : 9,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.15,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: compact ? 15 : 22),
+                              SizedBox(height: compact ? 8 : 18),
                                   Opacity(
                                     opacity: buttonReveal,
                                     child: Transform.translate(
