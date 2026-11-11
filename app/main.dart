@@ -5470,6 +5470,19 @@ class _DashboardPageState extends State<DashboardPage>
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SamanvayAiChatPage())),
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: const Text('ASK SAMANVAY AI'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0x332C6EBE),
+                  side: const BorderSide(color: Color(0xFF5CA9FF)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              )),
             ]),
               ],
             ),
