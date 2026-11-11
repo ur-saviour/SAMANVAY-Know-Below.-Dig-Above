@@ -282,7 +282,7 @@ function contextualReply(prompt: string, context: UserContext): string | null {
         place ? "Location: " + place : "",
         dates ? "Planned dates: " + dates : "",
       ].filter(Boolean).join(" · ");
-    }).join("\n`);
+    }).join("\n");
   }
 
   if (includesAny(q, ["my profile", "my department", "which department am i", "who am i"])) {
@@ -318,7 +318,7 @@ function contextualReply(prompt: string, context: UserContext): string | null {
       item.responsible_department_name ? "Department: " + item.responsible_department_name : "",
       [item.starts_on, item.ends_on].filter(Boolean).join(" to "),
       item.notice_status ?? "",
-    ].filter(Boolean).join(" · ")).join("\n`);
+    ].filter(Boolean).join(" · ")).join("\n");
   }
 
   return null;
