@@ -11998,6 +11998,8 @@ class LpuCampusModelPage extends StatelessWidget {
     initialCenter: _campusCentre,
     initialZoom: 16.1,
     initialTilt: 54,
+    initial3D: true,
+    initialUnderground: false,
     contextLabel: 'LPU CAMPUS · PHAGWARA',
   );
 }
@@ -12417,12 +12419,16 @@ class MapPage extends StatefulWidget {
     this.initialZoom = 3.5,
     this.initialTilt = 0,
     this.contextLabel,
+    this.initial3D = false,
+    this.initialUnderground = false,
   });
 
   final LatLng? initialCenter;
   final double initialZoom;
   final double initialTilt;
   final String? contextLabel;
+  final bool initial3D;
+  final bool initialUnderground;
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -12431,9 +12437,12 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   static const String _mapTilerKey =
       String.fromEnvironment('MAPTILER_API_KEY');
-  // Dark OpenFreeMap OSM vector style; satellite uses the MapTiler source key.
+  // National GIS stays 2D. LPU campus uses a brighter basemap for legible
+  // surface building geometry and natural tagged building colours.
   static const String _vectorStyle =
       'https://tiles.openfreemap.org/styles/dark';
+  static const String _lpuVectorStyle =
+      'https://tiles.openfreemap.org/styles/liberty';
 
   static const String _esriImageryStyle = '''
   {
@@ -12471,8 +12480,8 @@ class _MapPageState extends State<MapPage> {
   bool _requestLayerRefreshPending = false;
   String _scaleLabel = '';
   double _scaleWidth = 80;
-  bool _is3D = true;
-  bool _undergroundMode = true;
+  late bool _is3D = widget.initial3D;
+  late bool _undergroundMode = widget.initialUnderground;
   bool _styleReady = false;
   bool _buildingReadinessLoaded = false;
   bool _utilityReadinessLoaded = false;
@@ -12531,6 +12540,9 @@ class _MapPageState extends State<MapPage> {
   Map<String, dynamic>? _activeRouteGeoJson;
 
   String get _mapStyle {
+    if (widget.contextLabel == 'LPU CAMPUS · PHAGWARA' && !_satellite) {
+      return _lpuVectorStyle;
+    }
     if (_satellite) {
       if (_mapTilerKey.isNotEmpty) {
         return 'https://api.maptiler.com/maps/hybrid/style.json?key=$_mapTilerKey';
@@ -12786,6 +12798,17 @@ class _MapPageState extends State<MapPage> {
     _viewportRefreshTimer?.cancel();
     _viewportRefreshTimer = Timer(const Duration(milliseconds: 420), () async {
       if (!mounted) return;
+      if (widget.contextLabel == 'LPU CAMPUS · PHAGWARA') {
+        try {
+          final camera = await _controller?.queryCameraPosition();
+          if (camera != null) {
+            final showCampusUnderground = camera.zoom >= 18.2;
+            if (showCampusUnderground != _undergroundMode) {
+              await _setUndergroundMode(showCampusUnderground);
+            }
+          }
+        } catch (_) {}
+      }
       await _refreshMapScale();
       if (!mounted) return;
       await _loadVisibleWorkRequests();
@@ -12839,6 +12862,8 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _ensure3DBuildings() async {
+    // The requested 3D building workspace is campus-scoped to LPU.
+    if (widget.contextLabel != 'LPU CAMPUS · PHAGWARA' || !_is3D) return;
     final controller = _controller;
     if (controller == null) return;
 
@@ -12852,7 +12877,19 @@ class _MapPageState extends State<MapPage> {
           'openmaptiles',
           'samanvay-3d-buildings',
           FillExtrusionLayerProperties(
-            fillExtrusionColor: '#66849A',
+            fillExtrusionColor: [
+              'coalesce',
+              ['get', 'colour'],
+              ['get', 'building:colour'],
+              ['get', 'render_color'],
+              ['match', ['get', 'building:material'],
+                'brick', '#B87555',
+                'concrete', '#A8A9A5',
+                'glass', '#69A8BD',
+                'wood', '#B99161',
+                'stone', '#A99F91',
+                '#C5B39C'],
+            ],
             fillExtrusionHeight: [
               'interpolate',
               ['linear'],
@@ -12878,7 +12915,13 @@ class _MapPageState extends State<MapPage> {
               ['get', 'min_height'],
               0,
             ],
-            fillExtrusionOpacity: 0.84,
+            fillExtrusionOpacity: [
+              'interpolate', ['linear'], ['zoom'],
+              14, 0.0,
+              14.8, 0.28,
+              15.5, 0.72,
+              16.2, 0.92,
+            ],
           ),
           sourceLayer: 'building',
           minzoom: 14,
@@ -14788,6 +14831,10 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _setUndergroundMode(bool enabled) async {
     if (_undergroundMode == enabled) return;
+    if (enabled && widget.contextLabel != 'LPU CAMPUS · PHAGWARA') {
+      _showMessage('Detailed underground cutaway is available only in the LPU campus workspace.');
+      return;
+    }
 
     final controller = _controller;
     setState(() {
@@ -14814,8 +14861,8 @@ class _MapPageState extends State<MapPage> {
       if (enabled) {
         // Hide the surface extrusions and ward outlines to make the
         // underground operational layer visually distinct.
-        await setVisibility('samanvay-3d-buildings', _is3D);
-        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-3d-buildings', false);
+        await setVisibility('samanvay-3d-building-outlines', false);
         await setVisibility('samanvay-coimbatore-ward-fill', false);
         await setVisibility('samanvay-coimbatore-ward-lines', false);
 
@@ -14879,6 +14926,10 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _changePerspective(bool use3D) async {
+    if (use3D && widget.contextLabel != 'LPU CAMPUS · PHAGWARA') {
+      _showMessage('3D campus building view is currently scoped to LPU.');
+      return;
+    }
     final controller = _controller;
     if (controller == null || !_styleReady) return;
 
