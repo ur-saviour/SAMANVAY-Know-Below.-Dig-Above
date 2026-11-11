@@ -4012,6 +4012,8 @@ class _AuthPageState extends State<AuthPage> {
   // Auth logs currently report otp_disabled for an OTP request.
   bool usePasswordLogin = true;
   bool usePhoneLogin = false;
+  // Registration can use either email/password or mobile/password.
+  bool usePhoneRegistration = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
@@ -4391,30 +4393,69 @@ class _AuthPageState extends State<AuthPage> {
             rawIdentifier.toLowerCase()] ??
           rawIdentifier;
 
-      if (!identifier.contains('@') || !identifier.contains('.')) {
-        throw const AuthException(
-          'New account registration currently requires an email address.',
-        );
-      }
-      final response = await supabase.auth.signUp(
-        email: identifier,
-        password: _passwordController.text,
-        emailRedirectTo: redirectUrl,
-        data: {
-          'display_name': _nameController.text.trim(),
-        },
-      );
+      if (usePhoneRegistration) {
+        final phone = _normalisePhoneForAuth(identifier);
+        if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
+          throw const AuthException(
+            'Enter a valid mobile number. Indian 10-digit numbers are supported.',
+          );
+        }
 
-      if (response.session == null) {
-        showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, return here and sign in with the password you created. Email OTP can be used once the platform administrator enables it.',
-          success: true,
+        final response = await supabase.auth.signUp(
+          phone: phone,
+          password: _passwordController.text,
+          data: {
+            'display_name': _nameController.text.trim(),
+          },
         );
+
+        if (response.user == null) {
+          throw const AuthException(
+            'The mobile registration request did not create an account.',
+          );
+        }
+
+        if (response.session == null) {
+          _pendingOtpPhone = phone;
+          _pendingOtpEmail = null;
+          _otpController.clear();
+          if (!mounted) return;
+          setState(() {
+            otpSent = true;
+            message = 'A six-digit verification code has been requested for your mobile number. Enter it below to activate your account.';
+            messageIsSuccess = true;
+          });
+          _startOtpResendCountdown();
+        } else {
+          await supabase.auth.signOut();
+          showMessage(
+            'The project created a session without requiring phone verification. Ask the administrator to enable Supabase Confirm phone and configure the SMS Auth Hook before using mobile registration.',
+          );
+        }
       } else {
-        showMessage(
-          'Your account has been created successfully.',
-          success: true,
+        if (!identifier.contains('@') || !identifier.contains('.')) {
+          throw const AuthException('Enter a valid email address.');
+        }
+        final response = await supabase.auth.signUp(
+          email: identifier.trim().toLowerCase(),
+          password: _passwordController.text,
+          emailRedirectTo: redirectUrl,
+          data: {
+            'display_name': _nameController.text.trim(),
+          },
         );
+
+        if (response.session == null) {
+          showMessage(
+            'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, sign in with the password you created.',
+            success: true,
+          );
+        } else {
+          showMessage(
+            'Your account has been created successfully.',
+            success: true,
+          );
+        }
       }
     } on AuthException catch (authError) {
       showMessage(authError.message);
