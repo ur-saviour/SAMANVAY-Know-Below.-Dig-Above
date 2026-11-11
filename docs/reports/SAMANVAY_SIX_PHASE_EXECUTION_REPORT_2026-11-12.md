@@ -15,15 +15,16 @@ This report records completed engineering work, evidence-backed readiness, and t
 ### Findings
 - The last observed Android Actions run on the audited branch completed its build, Dart analysis, APK packaging and artifact checks. It did not validate real device login, GPS permission, map-tile delivery, file upload or role journeys.
 - The in-app logo widget referred to `samanvay_logo_768_q76.webp`. The tracked binary was truncated: its WebP RIFF header declared 32,460 bytes while the stored file was 30,401 bytes. The fallback JPEG is only 176 × 176 pixels.
-- The existing vector asset `samanvay_logo.svg` is a scalable, complete 512-viewBox brand mark. The in-app widget is being switched to this vector. The Android launcher artwork will be rendered from the same SVG at 768 × 768 pixels.
-- The previous workflow only checked that the WebP file existed and generated launcher icons from the 176 × 176 JPEG. The workflow is being changed to parse the SVG, render it, decode the resulting PNG, and verify its dimensions before building.
+- The existing vector asset `samanvay_logo.svg` is a scalable, complete 512-viewBox brand mark. The in-app widget now renders this vector. The Android launcher artwork is generated from the same SVG at 768 × 768 pixels.
+- The Android workflow now parses the SVG, renders it, decodes the resulting PNG, and verifies its dimensions before building. The truncated WebP is no longer declared as a Flutter asset or required inside the APK.
 - Supabase Auth currently has six confirmed users and six matching profile rows: three `requester`, one `department`, one `coordinator`, and one `admin`. No orphan profile rows were found. The department account has a department assignment.
 - Auth logs include successful password-grant responses (HTTP 200) as well as OTP failures tagged `otp_disabled`. This identifies an unsupported Email OTP path, not proof that every password login succeeds. Account-specific password credentials were not available for a controlled sign-in test.
-- Email OTP and Mobile OTP controls are being disabled in the app UI; password sign-in remains the default. Registration instructions are being aligned with password sign-in. No auth policy or role authorisation is being bypassed.
+- Email OTP and Mobile OTP controls are disabled in the app UI; password sign-in remains the default. Registration instructions now point to password sign-in. No auth policy or role authorisation was bypassed.
+- The Android build for commit `9407827bd04d9a2e8e66a7b856abb57ca5c49323` passed Dart analysis, release compilation, APK package/signature/alignment checks and artifact upload. Artifact: `SAMANVAY-Alpha-0.3-APK` (44,274,779 bytes). The browser portal build and GIS smoke test also passed; its artifact is `SAMANVAY-Browser-Portal` (14,972,692 bytes). These are CI results, not on-device acceptance tests.
 
 ### Phase status
-**Engineering actions in this patch:** vector logo restoration, matching vector-based launcher generation, image decode checks in CI, and removal of misleading OTP choices.  
-**Still required:** install the resulting APK on physical Android devices and test each authorised account and all role routes.
+**Engineering actions and CI:** complete for the source patch; Android and browser workflows both passed.  
+**Still required:** install the resulting APK on physical Android devices and test each authorised account, role route, map, GPS, and media workflow.
 
 ## Phase 2 — GIS and conflict detection
 
@@ -62,6 +63,7 @@ The groundwater register is not an underground water-pipeline map. State/UT dire
 - Excavation requests: 4 rows.
 - Department review records: 3 rows.
 - Coordination-check records: 1 row.
+- Repeated department assignment defect: fixed in the live RPC; repeated calls now return the existing review ID instead of raising a unique-key error.
 - Road-cut permit records: 0 rows.
 - Road-restoration records: 0 rows.
 - Drainage inspection records: 0 rows.
@@ -69,8 +71,13 @@ The groundwater register is not an underground water-pipeline map. State/UT dire
 
 The existence of a request or review row does not establish statutory authorisation or prove a live joint-work agreement. A draft notice is not a published public notice.
 
+### Duplicate-assignment defect repair and verification
+The prior `public.assign_request_department` function inserted a new review row on every call. The table has a unique constraint on `(request_id, department_id)`, so assigning the same department twice raised a unique-key error. Migration `20261111222102_make_department_assignment_idempotent.sql` now uses `ON CONFLICT ... DO NOTHING` and returns the already-existing review ID. The admin/coordinator authorization check, request/department existence checks, SECURITY DEFINER setting, and empty search path remain in place.
+
+A live database test ran as an authenticated administrator against an already-assigned request inside a transaction. The function returned the same ID as the stored review row (`returns_existing_assignment = true`); the matching row count remained one, and the test transaction was rolled back.
+
 ### Phase status
-**Workflow foundation:** present.  
+**Workflow foundation:** present; duplicate-assignment failure fixed and transaction-tested.  
 **Operational status:** incomplete until participating authorities exercise the permit, acknowledgement, rejection, escalation, joint-work and emergency-exception paths against authorised cases and statutory rules.
 
 ## Phase 4 — Field verification
@@ -130,11 +137,11 @@ The application must be revalidated after this patch on a physical Android devic
 
 | Phase | Software foundation | Operational completion |
 |---|---|---|
-| 1. Evidence and code audit | Branding/auth-path corrections and CI checks in this patch; previous audit complete | Awaiting this patch's CI result and real-device validation |
+| 1. Evidence and code audit | Vector branding, OTP UI correction, image decode checks; Android + browser CI passed | Physical-device login, role, map, GPS and media validation remains |
 | 2. GIS and conflict detection | PostGIS schema and advisory logic present | Blocked by 0 authorised underground assets/evidence |
-| 3. Permits and coordination | Workflow/RPC foundations present | Blocked by 0 live permits/restoration/inspection records and authority validation |
+| 3. Permits and coordination | Workflow/RPC foundations present; idempotent assignment RPC fixed and verified | Blocked by 0 live permits/restoration/inspection records and authority validation |
 | 4. Field verification | Upload and inspection foundations present | Blocked by field capture, authorised evidence and device verification |
 | 5. Controlled pilot | Pilot protocol and KPIs specified | Not run; no authorised cohort or measured baseline |
 | 6. Integration and expansion | National directory/catalogue metadata present | Blocked by 0 admin-unit rows, data agreements and tested integrations |
 
-**Conclusion:** the source-side fixes in Phase 1 can be committed and tested here. Phases 2–6 cannot truthfully be marked 100% complete until official asset owners, municipal authorities, field teams, integration credentials and a measured pilot are available. No synthetic utility geometry, fake approval, false field evidence or unmeasured savings has been introduced by this execution.
+**Conclusion:** Phase 1 source fixes are committed and both CI pipelines passed; the Phase 3 duplicate-assignment RPC fix is deployed and transaction-tested. Phases 2–6 cannot truthfully be marked 100% operationally complete until official asset owners, municipal authorities, field teams, integration credentials and a measured pilot are available. No synthetic utility geometry, fake approval, false field evidence or unmeasured savings has been introduced by this execution.
