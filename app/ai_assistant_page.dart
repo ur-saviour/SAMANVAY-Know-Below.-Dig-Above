@@ -73,7 +73,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
       return 'The built-in case assistant is temporarily unavailable. Check your connection and try again.';
     }
     if (value.contains('DAILY_AI_LIMIT_REACHED') || value.contains('429')) {
-      return 'The per-user daily Rule-based case assessment limit has been reached. Try again after the 24-hour usage window.';
+      return 'The per-user daily rule-based assessment limit has been reached. Try again after the 24-hour usage window.';
     }
     if (value.contains('STAFF_ACCESS_REQUIRED') ||
         value.contains('CASE_NOT_ASSIGNED_TO_YOUR_DEPARTMENT')) {
@@ -186,7 +186,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.auto_awesome, color: _aiCyan, size: 20), const SizedBox(width: 8),
-          Expanded(child: Text('AI assessment', style: TextStyle(color: _aiInk, fontSize: 16, fontWeight: FontWeight.w800))),
+          Expanded(child: Text('Rule-based case assessment', style: TextStyle(color: _aiInk, fontSize: 16, fontWeight: FontWeight.w800))),
           if (_assessmentId != null && _assessmentId!.isNotEmpty)
             const Icon(Icons.verified_outlined, color: Color(0xFF77D5B0), size: 18),
         ]),
@@ -315,7 +315,7 @@ class _SamanvayAiAssistantPageState extends State<SamanvayAiAssistantPage> {
                 onPressed: _selectedRequestId == null || _running ? null : _runAssessment,
                 style: FilledButton.styleFrom(backgroundColor: _aiBlue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
                 icon: _running ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.auto_awesome),
-                label: Text(_running ? 'ANALYSING CASE…' : 'RUN AI ASSESSMENT'),
+                label: Text(_running ? 'CHECKING CASE…' : 'RUN RULE-BASED REVIEW'),
               ),
             ),
           ],
