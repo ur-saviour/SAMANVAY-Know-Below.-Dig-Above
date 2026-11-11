@@ -3879,13 +3879,13 @@ class _AuthPageState extends State<AuthPage> {
       messageIsSuccess = false;
     });
 
-    try {
-      final rawIdentifier = _emailController.text.trim();
-      final identifier =
-          _existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
-          rawIdentifier;
-      final phoneAttempt = !identifier.contains('@');
+    final rawIdentifier = _emailController.text.trim();
+    final identifier =
+        _existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
+        rawIdentifier;
+    final phoneAttempt = !identifier.contains('@');
 
+    try {
       if (identifier.contains('@')) {
         await supabase.auth.signInWithPassword(
           email: identifier.trim().toLowerCase(),
