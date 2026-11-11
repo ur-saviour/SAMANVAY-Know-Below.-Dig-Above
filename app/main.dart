@@ -4362,9 +4362,9 @@ class _AuthPageState extends State<AuthPage> {
       if (loading || otpResendSeconds > 0) return;
       setState(() { loading = true; message = ''; messageIsSuccess = false; });
       try {
-        await supabase.auth.signInWithOtp(
+        await supabase.auth.resend(
+          type: OtpType.sms,
           phone: _pendingOtpPhone!,
-          shouldCreateUser: false,
         );
         if (!mounted) return;
         showMessage('A new phone verification code was requested. Check SMS; WhatsApp depends on the active Auth Hook.', success: true);
