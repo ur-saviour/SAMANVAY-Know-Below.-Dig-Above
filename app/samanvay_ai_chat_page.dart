@@ -81,7 +81,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       return 'The built-in assistant is temporarily unavailable. Check your connection and try again.';
     }
     if (value.contains('DAILY_AI_LIMIT_REACHED') || value.contains('429')) {
-      return 'You have reached the daily AI message allowance. Please try again after the 24-hour usage window.';
+      return 'You have reached the daily assistant message allowance. Please try again after the 24-hour usage window.';
     }
     if (value.contains('AUTHENTICATION_REQUIRED') || value.contains('INVALID_SESSION') || value.contains('401')) {
       return 'Your sign-in session is not valid. Sign in again and reopen SAMANVAY ASSISTANT.';
@@ -90,13 +90,13 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       return 'Your SAMANVAY profile is not ready. Please contact the platform administrator.';
     }
     if (value.contains('FUNCTION_NOT_FOUND') || value.contains('404')) {
-      return 'The SAMANVAY AI service is not available in this app build yet.';
+      return 'The SAMANVAY assistant service is not available in this app build yet.';
     }
     if (value.contains('AI_PROVIDER_ERROR')) {
       return 'The assistant could not complete this reply. Please try again shortly.';
     }
     if (value.contains('AI_USAGE_LIMITER_UNAVAILABLE')) {
-      return 'The AI usage-control service is temporarily unavailable. Please try again later.';
+      return 'The assistant usage-control service is temporarily unavailable. Please try again later.';
     }
     return 'SAMANVAY could not process that message. Check your connection and try again.';
   }
@@ -110,7 +110,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       return;
     }
     if (_db.auth.currentSession == null) {
-      setState(() => _error = 'Please sign in to use SAMANVAY AI.');
+      setState(() => _error = 'Please sign in to use the SAMANVAY assistant.');
       return;
     }
     final next = <Map<String, dynamic>>[
@@ -309,7 +309,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
                 onSubmitted: (_) => _send(),
                 decoration: InputDecoration(
                   counterText: '',
-                  hintText: signedIn ? 'Ask SAMANVAY AI…' : 'Sign in to chat with SAMANVAY AI',
+                  hintText: signedIn ? 'Ask SAMANVAY…' : 'Sign in to chat',
                   hintStyle: TextStyle(color: _muted, fontSize: 12),
                   filled: true,
                   fillColor: _light ? const Color(0xFFF4F7FA) : const Color(0xFF0A1C2E),
@@ -358,7 +358,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
             child: const Icon(Icons.smart_toy_rounded, color: Color(0xFF31BFD0), size: 21),
           ),
           const SizedBox(width: 10),
-          const Expanded(child: Text('SAMANVAY AI')),
+          const Expanded(child: Text('SAMANVAY ASSISTANT')),
         ]),
         actions: [
           if (_roleChecked && _canOpenCaseIntelligence)
@@ -432,7 +432,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: _primary)),
                       const SizedBox(width: 9),
-                      Text('SAMANVAY AI is thinking…', style: TextStyle(color: _muted, fontSize: 10)),
+                      Text('Checking built-in guidance…', style: TextStyle(color: _muted, fontSize: 10)),
                     ]),
                   ),
                 ),
