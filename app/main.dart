@@ -502,28 +502,109 @@ class _SamanvaySplashReveal extends StatelessWidget {
       );
       return Scaffold(
         backgroundColor: const Color(0xFF030D1C),
-        body: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0, -.12),
-              radius: .9,
-              colors: [Color(0xFF173B67), Color(0xFF07182D), Color(0xFF020916)],
-              stops: [0, .58, 1],
-            ),
-          ),
-          child: Center(
-            child: Opacity(
-              opacity: progress,
-              child: Transform.scale(
-                scale: .94 + .06 * progress,
-                child: _SamanvayBrandLogo(size: size, radius: size * .14),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -.12),
+                  radius: .9,
+                  colors: [Color(0xFF173B67), Color(0xFF07182D), Color(0xFF020916)],
+                  stops: [0, .58, 1],
+                ),
               ),
             ),
-          ),
+            Center(
+              child: CustomPaint(
+                size: Size.square(size + 30),
+                painter: _AnimatedLogoColourLinePainter(
+                  progress: (controller.value / .70).clamp(0.0, 1.0).toDouble(),
+                ),
+              ),
+            ),
+            Center(
+              child: Opacity(
+                opacity: progress,
+                child: Transform.scale(
+                  scale: .94 + .06 * progress,
+                  child: _SamanvayBrandLogo(size: size, radius: size * .14),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     },
   );
+}
+
+class _AnimatedLogoColourLinePainter extends CustomPainter {
+  const _AnimatedLogoColourLinePainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          (Offset.zero & size).deflate(9),
+          const Radius.circular(38),
+        ),
+      );
+    final metric = path.computeMetrics().first;
+    final total = metric.length;
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF4B9EDB).withValues(alpha: .20)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    const colors = [
+      Color(0xFFFF9933),
+      Color(0xFFFFFFFF),
+      Color(0xFF138808),
+    ];
+
+    for (var i = 0; i < colors.length; i++) {
+      final start = (progress * total * 3 + total * i / 3) % total;
+      final end = start + total * .095;
+      final pieces = end <= total
+          ? [metric.extractPath(start, end)]
+          : [
+              metric.extractPath(start, total),
+              metric.extractPath(0, end - total),
+            ];
+
+      for (final piece in pieces) {
+        canvas.drawPath(
+          piece,
+          Paint()
+            ..color = colors[i].withValues(alpha: .85)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 8
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        );
+        canvas.drawPath(
+          piece,
+          Paint()
+            ..color = colors[i]
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnimatedLogoColourLinePainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 // ==========================================
@@ -670,8 +751,8 @@ class _SamanvayOpeningScreen extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
           final markSize = math.min(
-            compact ? 216.0 : 258.0,
-            constraints.maxWidth * 0.70,
+            compact ? 244.0 : 286.0,
+            constraints.maxWidth * 0.76,
           ).toDouble();
 
           return AnimatedBuilder(
@@ -3684,6 +3765,7 @@ class _AuthPageState extends State<AuthPage> {
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
+  bool usePasswordLogin = true;
   bool usePhoneLogin = false;
   bool otpSent = false;
   int otpResendSeconds = 0;
@@ -3716,19 +3798,32 @@ class _AuthPageState extends State<AuthPage> {
 
   String? _validateLoginIdentifier(String? value) {
     final input = (value ?? '').trim();
-    if (input.isEmpty) return 'Enter your email address or mobile number';
+    if (input.isEmpty) {
+      return 'Enter your email address, mobile number or staff ID';
+    }
 
     if (usePhoneLogin) {
       final phone = _normalisePhoneForAuth(input);
-      return RegExp(r'^\\+[1-9]\\d{7,14}$').hasMatch(phone)
+      return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
           ? null
           : 'Enter a valid mobile number. Indian 10-digit numbers are supported.';
     }
 
     final resolved = _existingTestAccountAliases[input.toLowerCase()] ?? input;
-    return RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$').hasMatch(resolved)
-        ? null
-        : 'Enter a valid email address or an existing staff demo ID';
+    if (resolved.contains('@')) {
+      return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(resolved.trim())
+          ? null
+          : 'Enter a valid email address';
+    }
+
+    if (usePasswordLogin) {
+      final phone = _normalisePhoneForAuth(input);
+      return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)
+          ? null
+          : 'Enter a valid email address, mobile number or supported staff ID';
+    }
+
+    return 'Enter a valid registered email address or staff ID';
   }
 
   void _startOtpResendCountdown() {
@@ -3746,6 +3841,107 @@ class _AuthPageState extends State<AuthPage> {
         setState(() => otpResendSeconds--);
       }
     });
+  }
+
+  Future<void> signInWithPassword() async {
+    if (loading) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      loading = true;
+      message = '';
+      messageIsSuccess = false;
+    });
+
+    try {
+      final rawIdentifier = _emailController.text.trim();
+      final identifier =
+          _existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
+          rawIdentifier;
+
+      if (identifier.contains('@')) {
+        await supabase.auth.signInWithPassword(
+          email: identifier.trim().toLowerCase(),
+          password: _passwordController.text,
+        );
+      } else {
+        final phone = _normalisePhoneForAuth(identifier);
+        if (!RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(phone)) {
+          throw const AuthException(
+            'Enter a valid registered email address or mobile number.',
+          );
+        }
+        await supabase.auth.signInWithPassword(
+          phone: phone,
+          password: _passwordController.text,
+        );
+      }
+
+      if (!mounted) return;
+      showMessage(
+        'Login successful. Opening your authorised SAMANVAY workspace…',
+        success: true,
+      );
+    } on AuthException catch (authError) {
+      final detail = authError.message.toLowerCase();
+      if (detail.contains('invalid login credentials') ||
+          detail.contains('invalid_credentials')) {
+        showMessage(
+          'The email/mobile number or password is incorrect. Check the details for this existing account, or use Forgot password? to recover access.',
+        );
+      } else if (detail.contains('email not confirmed')) {
+        showMessage(
+          'This account email has not been confirmed. Check the confirmation email, then sign in again.',
+        );
+      } else if (detail.contains('rate limit') || detail.contains('too many')) {
+        showMessage('Too many sign-in attempts. Wait briefly and try again.');
+      } else {
+        showMessage(authError.message);
+      }
+    } catch (_) {
+      showMessage('Unable to sign in. Check your internet connection and try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> requestLoginPasswordReset() async {
+    if (loading) return;
+    final rawIdentifier = _emailController.text.trim();
+    final email =
+        (_existingTestAccountAliases[rawIdentifier.toLowerCase()] ??
+                rawIdentifier)
+            .trim()
+            .toLowerCase();
+
+    if (!email.contains('@') || !email.contains('.')) {
+      showMessage(
+        'Enter the registered email address or a supported staff ID to request a password reset.',
+      );
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      message = '';
+      messageIsSuccess = false;
+    });
+    try {
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: redirectUrl,
+      );
+      showMessage(
+        'Password recovery instructions have been requested. Check the registered inbox and spam folder.',
+        success: true,
+      );
+    } on AuthException catch (authError) {
+      showMessage(authError.message);
+    } catch (_) {
+      showMessage('Unable to request a password reset. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   Future<void> sendLoginOtp() async {
@@ -3814,7 +4010,7 @@ class _AuthPageState extends State<AuthPage> {
   Future<void> verifyLoginOtp() async {
     if (loading) return;
     final token = _otpController.text.trim();
-    if (!RegExp(r'^\\d{6}$').hasMatch(token)) {
+    if (!RegExp(r'^\d{6}$').hasMatch(token)) {
       showMessage('Enter the six-digit verification code.');
       return;
     }
@@ -3871,7 +4067,11 @@ class _AuthPageState extends State<AuthPage> {
 
   Future<void> submit() async {
     if (isLogin) {
-      await sendLoginOtp();
+      if (usePasswordLogin) {
+        await signInWithPassword();
+      } else {
+        await sendLoginOtp();
+      }
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -4018,8 +4218,8 @@ class _AuthPageState extends State<AuthPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    width: 142,
-                    height: 142,
+                    width: 184,
+                    height: 184,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: const Color(0xFF0A1B36),
@@ -4036,7 +4236,7 @@ class _AuthPageState extends State<AuthPage> {
                         ),
                       ],
                     ),
-                    child: const _SamanvayBrandLogo(size: 140, radius: 30),
+                    child: const _SamanvayBrandLogo(size: 180, radius: 30),
                   ),
 
                   const SizedBox(height: 14),
@@ -4071,7 +4271,9 @@ class _AuthPageState extends State<AuthPage> {
 
                   Text(
                     isLogin
-                        ? 'Sign in with OTP'
+                        ? (usePasswordLogin
+                            ? 'Sign in to Your Account'
+                            : 'Sign in with OTP')
                         : 'Create Your Account',
                     style: TextStyle(
                       fontSize: 24,
@@ -4270,31 +4472,56 @@ class _AuthPageState extends State<AuthPage> {
                   if (isLogin) ...[
                     Text(
                       'CHOOSE YOUR SIGN-IN METHOD',
-                      style: TextStyle(color: cyanAccent, fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: cyanAccent,
+                        fontSize: 10,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 9),
                     Wrap(
                       spacing: 8,
+                      runSpacing: 8,
                       children: [
+                        ChoiceChip(
+                          avatar: const Icon(Icons.lock_outline, size: 17),
+                          label: const Text('Password'),
+                          selected: usePasswordLogin,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePasswordLogin = true;
+                                    usePhoneLogin = false;
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
+                        ),
                         ChoiceChip(
                           avatar: const Icon(Icons.email_outlined, size: 17),
                           label: const Text('Email OTP'),
-                          selected: !usePhoneLogin,
-                          onSelected: loading || otpSent ? null : (_) => setState(() {
-                            usePhoneLogin = false;
-                            message = '';
-                            messageIsSuccess = false;
-                          }),
+                          selected: !usePasswordLogin && !usePhoneLogin,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePasswordLogin = false;
+                                    usePhoneLogin = false;
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
                         ),
                         ChoiceChip(
                           avatar: const Icon(Icons.sms_outlined, size: 17),
                           label: const Text('Mobile OTP'),
-                          selected: usePhoneLogin,
-                          onSelected: loading || otpSent ? null : (_) => setState(() {
-                            usePhoneLogin = true;
-                            message = '';
-                            messageIsSuccess = false;
-                          }),
+                          selected: !usePasswordLogin && usePhoneLogin,
+                          onSelected: loading || otpSent
+                              ? null
+                              : (_) => setState(() {
+                                    usePasswordLogin = false;
+                                    usePhoneLogin = true;
+                                    message = '';
+                                    messageIsSuccess = false;
+                                  }),
                         ),
                       ],
                     ),
@@ -4302,18 +4529,30 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   TextFormField(
                     controller: _emailController,
-                    enabled: !isLogin || !otpSent,
+                    enabled: !isLogin || !otpSent || usePasswordLogin,
                     keyboardType: !isLogin
                         ? TextInputType.emailAddress
-                        : (usePhoneLogin ? TextInputType.phone : TextInputType.emailAddress),
+                        : (usePasswordLogin
+                            ? TextInputType.text
+                            : (usePhoneLogin
+                                ? TextInputType.phone
+                                : TextInputType.emailAddress)),
                     textInputAction: TextInputAction.next,
                     autocorrect: false,
                     decoration: InputDecoration(
                       labelText: isLogin
-                          ? (usePhoneLogin ? 'Registered mobile number' : 'Registered email address')
+                          ? (usePhoneLogin
+                              ? 'Registered mobile number'
+                              : (usePasswordLogin
+                                  ? 'Registered email, mobile number or staff ID'
+                                  : 'Registered email address'))
                           : 'Email address',
                       hintText: isLogin
-                          ? (usePhoneLogin ? '+91 9876543210 or 9876543210' : 'name@example.com or staff ID 9013')
+                          ? (usePhoneLogin
+                              ? '+91 9876543210 or 9876543210'
+                              : (usePasswordLogin
+                                  ? 'name@example.com, mobile number or staff ID'
+                                  : 'name@example.com or staff ID 9013'))
                           : 'name@example.com',
                       prefixIcon: Icon(
                         isLogin
@@ -4322,14 +4561,18 @@ class _AuthPageState extends State<AuthPage> {
                       ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
-                          ? (usePhoneLogin
-                              ? 'Indian 10-digit numbers are automatically prefixed with +91. International numbers can use +country code.'
-                              : 'A six-digit code will be sent to your registered inbox. Existing staff IDs such as 9013 resolve to their saved email.')
+                          ? (usePasswordLogin
+                              ? 'Use the password already linked to this account. Existing staff IDs resolve to their saved email.'
+                              : (usePhoneLogin
+                                  ? 'Indian 10-digit numbers are automatically prefixed with +91. International numbers can use +country code.'
+                                  : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
                           : null,
                       helperMaxLines: 3,
                     ),
                     onFieldSubmitted: (_) {
-                      if (isLogin && !otpSent && !loading) sendLoginOtp();
+                      if (isLogin && !usePasswordLogin && !otpSent && !loading) {
+                        sendLoginOtp();
+                      }
                     },
                     validator: (value) {
                       if (!isLogin) {
@@ -4364,7 +4607,7 @@ class _AuthPageState extends State<AuthPage> {
                       },
                       validator: (value) {
                         final code = (value ?? '').trim();
-                        return RegExp(r'^\\d{6}$').hasMatch(code)
+                        return RegExp(r'^\d{6}$').hasMatch(code)
                             ? null
                             : 'Enter the six-digit code';
                       },
@@ -4396,7 +4639,7 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ],
 
-                  if (!isLogin) ...[
+                  if (!isLogin || usePasswordLogin) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
@@ -4406,7 +4649,7 @@ class _AuthPageState extends State<AuthPage> {
                         if (!loading) submit();
                       },
                       decoration: InputDecoration(
-                        labelText: 'Create password',
+                        labelText: isLogin ? 'Password' : 'Create password',
                         prefixIcon: const Icon(Icons.lock_outline),
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
@@ -4420,13 +4663,23 @@ class _AuthPageState extends State<AuthPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Create a password';
+                          return isLogin ? 'Enter your password' : 'Create a password';
                         }
-                        if (value.length < 8) {
+                        if (!isLogin && value.length < 8) {
                           return 'Password must contain at least 8 characters';
                         }
                         return null;
                       },
+                    ),
+                  ],
+
+                  if (isLogin && usePasswordLogin) ...[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: loading ? null : requestLoginPasswordReset,
+                        child: const Text('Forgot password?'),
+                      ),
                     ),
                   ],
 
@@ -4478,7 +4731,9 @@ class _AuthPageState extends State<AuthPage> {
                     onPressed: loading
                         ? null
                         : (isLogin
-                            ? (otpSent ? verifyLoginOtp : sendLoginOtp)
+                            ? (usePasswordLogin
+                                ? submit
+                                : (otpSent ? verifyLoginOtp : sendLoginOtp))
                             : submit),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
@@ -4499,7 +4754,9 @@ class _AuthPageState extends State<AuthPage> {
                           )
                         : Text(
                             isLogin
-                                ? (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP')
+                                ? (usePasswordLogin
+                                    ? 'SIGN IN'
+                                    : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
                                 : 'CREATE ACCOUNT',
                           ),
                   ),
@@ -4512,6 +4769,7 @@ class _AuthPageState extends State<AuthPage> {
                         : () {
                             setState(() {
                               isLogin = !isLogin;
+                              usePasswordLogin = true;
                               usePhoneLogin = false;
                               otpSent = false;
                               otpResendSeconds = 0;
@@ -5433,7 +5691,10 @@ class _DashboardPageState extends State<DashboardPage>
                 ),
                 Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
               const SizedBox(height: 3),
-              const _SamanvayBrandLogo(size: 194, radius: 34),
+              _SamanvayBrandLogo(
+                size: math.min(280.0, MediaQuery.sizeOf(context).width * .78),
+                radius: 38,
+              ),
               const SizedBox(height: 9),
               const _AnimatedDevelopmentTagline(fontSize: 14),
               const SizedBox(height: 6),
