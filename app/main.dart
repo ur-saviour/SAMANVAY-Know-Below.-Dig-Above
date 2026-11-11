@@ -30,6 +30,12 @@ const String supabaseUrl =
 const String supabasePublishableKey =
     String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 
+// Official LPU Press & Media campus photographs. Presentation use only; not GIS geometry.
+const String _lpuCampusHeroImage =
+    'https://www.lpu.in/lpu-assets/images/media-kit/LPU-campus-1.jpg';
+const String _lpuCampusWideImage =
+    'https://www.lpu.in/lpu-assets/images/media-kit/LPU-campus.jpg';
+
 // Render the branded opening immediately. Backend startup runs in parallel,
 // so slow storage/network initialization cannot hide the opening animation.
 Future<void> _samanvayBootFuture = Future<void>.value();
@@ -456,6 +462,12 @@ class _SamanvayBrandLogo extends StatelessWidget {
       cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round().clamp(256, 1536),
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
+      errorBuilder: (_, __, ___) => SvgPicture.asset(
+        'assets/brand/samanvay_logo.svg',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+      ),
     ),
   );
 }
@@ -782,11 +794,20 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  CustomPaint(
-                    painter: _SamanvayOpeningCityPainter(
-                      progress: progress,
-                      ambient: ambient,
-                      lightMode: _usesLegacyLightPalette,
+                  Positioned.fill(
+                    child: Image.network(
+                      _lpuCampusHeroImage,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                      errorBuilder: (_, __, ___) => const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF173B55), Color(0xFF061426)],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                   DecoratedBox(
@@ -941,7 +962,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                                   Opacity(
                                     opacity: _reveal(progress, 0.90, 1.0),
                                     child: Text(
-                                      'SMART LIVING  •  URBAN INTELLIGENCE',
+                                      'LOVELY PROFESSIONAL UNIVERSITY · PHAGWARA',
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         color: const Color(0xFF7893AA),
@@ -4443,10 +4464,11 @@ class _AuthPageState extends State<AuthPage> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            SvgPicture.asset(
-              'assets/brand/samanvay_city_background.svg',
+            Image.network(
+              _lpuCampusWideImage,
               fit: BoxFit.cover,
               alignment: Alignment.center,
+              errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF0A1B30)),
             ),
             const Positioned.fill(
               child: DecoratedBox(
@@ -5952,9 +5974,11 @@ class _DashboardPageState extends State<DashboardPage>
               fit: StackFit.passthrough,
               children: [
                 Positioned.fill(
-                  child: SvgPicture.asset(
-                    'assets/brand/samanvay_home_banner.svg',
+                  child: Image.network(
+                    _lpuCampusWideImage,
                     fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF123B55)),
                   ),
                 ),
                 Positioned.fill(
@@ -5980,6 +6004,12 @@ class _DashboardPageState extends State<DashboardPage>
               ),
               const SizedBox(height: 9),
               const _AnimatedDevelopmentTagline(fontSize: 14),
+              const SizedBox(height: 4),
+              const Text(
+                'CAMPUS PHOTOGRAPHY · LPU OFFICIAL PRESS & MEDIA KIT',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFFE3EDF7), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .35),
+              ),
               const SizedBox(height: 6),
               const Text(
                 'SMART COORDINATION  •  TRANSPARENT GOVERNANCE  •  A DEVELOPED INDIA',
@@ -6015,9 +6045,9 @@ class _DashboardPageState extends State<DashboardPage>
               const SizedBox(height: 16),
               SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const MapPage())),
+                  MaterialPageRoute(builder: (_) => const LpuCampusModelPage())),
                 icon: const Icon(Icons.layers_rounded),
-                label: const Text('LIVE UNDERGROUND VIEW  ↗'),
+                label: const Text('LPU CAMPUS · 3D + UNDERGROUND  ↗'),
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
@@ -17233,6 +17263,26 @@ class _ProfilePageState extends State<ProfilePage> {
         _ => const RequestsPage(),
       };
       return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [
+        Container(
+          height: 132,
+          margin: const EdgeInsets.only(bottom: 14),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: cyanAccent.withValues(alpha: .30))),
+          child: Stack(fit: StackFit.expand, children: [
+            Image.network(_lpuCampusHeroImage, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF123B55))),
+            const DecoratedBox(decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                colors: [Color(0xD908182B), Color(0x1808182B)]))),
+            const Positioned(left: 14, bottom: 12, child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text('LOVELY PROFESSIONAL UNIVERSITY', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .6)),
+                SizedBox(height: 3),
+                Text('Official campus photography · LPU Press & Media', style: TextStyle(color: Color(0xFFE2EDF5), fontSize: 8, fontWeight: FontWeight.w600)),
+              ],
+            )),
+          ]),
+        ),
         Container(
           padding: const EdgeInsets.all(21),
           decoration: BoxDecoration(
