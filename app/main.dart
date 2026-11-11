@@ -231,8 +231,12 @@ String _normalisePhoneForAuth(String input) {
 // profile roles and RLS are unchanged.
 const Map<String, String> _existingTestAccountAliases = {
   '9013': '9013.cis25@gmail.com',
+  'adheera': '9013.cis25@gmail.com',
   '10011': '10011.cis25@gmail.com',
+  'suryavardhan': '10011.cis25@gmail.com',
   '10021': '10021.cis25@gmail.com',
+  'paul raj': '10021.cis25@gmail.com',
+  'paulraj': '10021.cis25@gmail.com',
 };
 
 // These IDs open local, read-only previews only. They do not authenticate
@@ -757,8 +761,8 @@ class _SamanvayOpeningScreen extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 700;
           final markSize = math.min(
-            compact ? 244.0 : 286.0,
-            constraints.maxWidth * 0.76,
+            compact ? 300.0 : 340.0,
+            constraints.maxWidth * 0.88,
           ).toDouble();
 
           return AnimatedBuilder(
@@ -1576,17 +1580,33 @@ class _RoleGateState extends State<RoleGate> {
       throw StateError('Session expired. Please log in again.');
     }
 
-    final row = await supabase
-        .from('profiles')
-        .select('role, department_id, display_name')
-        .eq('id', user.id)
-        .maybeSingle();
+    // A freshly issued mobile session can arrive just before the profile
+    // request is ready on a slow connection. Retry transient request failures
+    // without signing the user out or changing their authorised role.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final row = await supabase
+            .from('profiles')
+            .select('role, department_id, display_name')
+            .eq('id', user.id)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 15));
 
-    if (row == null) {
-      throw StateError('Profile not found for this authenticated user. Contact an administrator.');
+        if (row == null) {
+          throw StateError(
+            'Your sign-in succeeded, but the profile could not be read. '
+            'Use RETRY PROFILE CHECK or contact the platform administrator.',
+          );
+        }
+
+        return Map<String, dynamic>.from(row);
+      } catch (error) {
+        if (attempt == 2) rethrow;
+        await Future.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+      }
     }
 
-    return Map<String, dynamic>.from(row);
+    throw StateError('Unable to load the account profile. Please retry.');
   }
 
   void _retryProfileLoad() {
@@ -3883,6 +3903,14 @@ class _AuthPageState extends State<AuthPage> {
         );
       }
 
+      // Never show a success state unless Supabase actually issued a session.
+      if (supabase.auth.currentSession == null ||
+          supabase.auth.currentUser == null) {
+        throw const AuthException(
+          'Supabase did not return a signed-in session. Please try again.',
+        );
+      }
+
       if (!mounted) return;
       showMessage(
         'Login successful. Opening your authorised SAMANVAY workspace…',
@@ -3942,7 +3970,18 @@ class _AuthPageState extends State<AuthPage> {
         success: true,
       );
     } on AuthException catch (authError) {
-      showMessage(authError.message);
+      final detail = authError.message.toLowerCase();
+      if (detail.contains('rate limit') ||
+          detail.contains('too many') ||
+          detail.contains('over_email_send_rate_limit')) {
+        showMessage(
+          'Password recovery emails are temporarily rate-limited by the email service. '
+          'Do not keep tapping Forgot password. Wait for the mail limit to reset, '
+          'then request one new recovery email and use the newest message.',
+        );
+      } else {
+        showMessage(authError.message);
+      }
     } catch (_) {
       showMessage('Unable to request a password reset. Check your connection and try again.');
     } finally {
@@ -4223,26 +4262,39 @@ class _AuthPageState extends State<AuthPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 184,
-                    height: 184,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0A1B36),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: cyanAccent.withValues(alpha: .55),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: cyanAccent.withValues(alpha: .18),
-                          blurRadius: 26,
-                          spreadRadius: 2,
-                        ),
-                      ],
+                  Center(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final logoSize = math.min(
+                          272.0,
+                          constraints.maxWidth,
+                        ).toDouble();
+                        return Container(
+                          width: logoSize,
+                          height: logoSize,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A1B36),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: cyanAccent.withValues(alpha: .55),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: cyanAccent.withValues(alpha: .18),
+                                blurRadius: 26,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: _SamanvayBrandLogo(
+                            size: logoSize - 6,
+                            radius: 26,
+                          ),
+                        );
+                      },
                     ),
-                    child: const _SamanvayBrandLogo(size: 180, radius: 30),
                   ),
 
                   const SizedBox(height: 14),
