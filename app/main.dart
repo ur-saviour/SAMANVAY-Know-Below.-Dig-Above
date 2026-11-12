@@ -6404,7 +6404,7 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
     if (user == null) return;
     final code = TextEditingController();
     final title = TextEditingController();
-    final city = TextEditingController(text: 'Coimbatore');
+    final city = TextEditingController();
     final area = TextEditingController();
     final starts = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 10));
     final source = TextEditingController();
@@ -6434,7 +6434,7 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
                 validator: (v) => v == null || v.trim().length < 3 ? 'Enter the source notice code' : null),
               TextFormField(controller: title, decoration: const InputDecoration(labelText: 'Notice title'),
                 validator: (v) => v == null || v.trim().length < 5 ? 'Enter a descriptive title' : null),
-              TextFormField(controller: city, decoration: const InputDecoration(labelText: 'City / town'),
+              TextFormField(controller: city, decoration: const InputDecoration(labelText: 'City / town', hintText: 'e.g. Bhopal, Indore, Delhi, or Coimbatore'),
                 validator: (v) => v == null || v.trim().length < 2 ? 'Enter a city / town' : null),
               TextFormField(controller: area, decoration: const InputDecoration(labelText: 'Area / road / landmark')),
               TextFormField(controller: starts, decoration: const InputDecoration(labelText: 'Start date (YYYY-MM-DD)'),
