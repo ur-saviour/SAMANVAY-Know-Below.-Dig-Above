@@ -42,78 +42,44 @@ The most recent repository commits after the passing build add only SQL source-c
 
 ## Phase 2 — GIS, administrative reference and utility conflict screening
 
-### Live database snapshot
+The detailed, superseding data/import record is [SAMANVAY Phase 2 National GIS Data Import and Verification Report — 12 November 2026](SAMANVAY_PHASE_2_NATIONAL_REFERENCE_IMPORT_2026-11-12.md).
 
-| Dataset | Live result | Meaning |
-|---|---:|---|
-| Groundwater station observations | 446,068 | Historical source observations in the raw station table |
-| Groundwater observations with coordinates | 445,553 | 515 source rows are not geocoded |
-| State/UT labels represented in station data | 31 | Not uniform 36/36 station coverage |
-| Latest observation date | 31 Dec 2025 | Historical observations, not a live telemetry feed |
-| Latest-per-station map view | 576 | One latest record per station (view rows) |
-| Latest-per-station rows with coordinates | 574 | Two latest-station records lack coordinates |
-| State/UT master directory | 36 | All States/UTs represented |
-| India coverage metadata | 396 | 36 jurisdictions × 11 domains |
-| India administrative-unit hierarchy | 0 | No imported district/ULB/ward LGD rows |
-| LGD district batches awaiting authorised export | 36 | Export pending |
-| LGD ULB batches awaiting authorised export | 36 | Export pending |
-| GIS underground assets | 0 | No verified underground asset geometries |
-| GIS asset survey evidence | 0 | No survey evidence records |
+### Updated live administrative data
 
-The raw observation table and latest-station map view are different datasets: 446,068 is not the number of map markers. Groundwater monitoring observations are not water-pipeline geometry.
+A pinned community mirror of Ministry of Panchayati Raj LGD data (snapshot date 21 October 2026; mirror commit `0f79118dc9cf574bed90025163a3d0653386d6e2`) was imported into Supabase:
 
-### Utility-source discovery snapshot
+| Entity | Received | Inserted | Rejected |
+|---|---:|---:|---:|
+| Districts | 784 | 784 | 0 |
+| Sub-districts | 7,092 | 7,092 | 0 |
+| Blocks | 7,342 | 7,312 | 30 |
+| **Total** | **15,218** | **15,188** | **30** |
 
-- Restricted utility source registry: 11 records.
-- Aggregate feature counts stated by those source records: 658,896.
-- Operationally approved source records: 0.
-- Source records marked not imported: 11.
-- Utility layer catalogue: 125 records.
-- Operationally approved layer-catalogue records: 0.
+All inserted rows retain LGD codes, parent links, source date and provenance, and remain `imported_unverified`. Thirty block records representing 15 duplicated codes were rejected. The snapshot is from a community mirror, not a live Ministry connection; it was 22 days old on the audit date and outside its documented 14-day freshness target. It contains no ULB, ward, village or gram-panchayat hierarchy.
+
+### Other persisted reference data
+
+- The pre-existing DataMeet national district directory contains 734 district-name records without LGD codes.
+- `public.india_district_boundary_reference` contains 733 generalized WGS84 district polygons, all valid and linked to 733 administrative-unit rows. Source feature vintages vary from 2011_c to 2019/update2014; this is not survey-grade or statutory boundary data.
+- A parallel state-wise DataMeet source was imported as 733 separate district-name rows for cross-checking; 728 match the national DataMeet names, 5 are state-wise-only and 6 are national-file-only.
+- The public geoBoundaries Edge Function continues to fetch ADM1/ADM2 reference data on demand; the Flutter app does not directly query the persisted DataMeet polygon table.
+- Groundwater observations remain 446,068 historical source rows (445,553 geocoded), with 576 latest-per-station map rows (574 geocoded). These are groundwater monitoring observations, not utility alignments.
+
+### Utility and operational status
+
 - `gis.underground_assets`: 0 rows.
 - `gis.asset_survey_evidence`: 0 rows.
+- Restricted utility-source registry: 11 entries; 0 operational approvals.
+- Utility conflict-advisory software exists, but the empty verified-asset registry means **data unavailable** and cannot support a “no conflict” or excavation-clearance conclusion.
+- Field survey, owner verification, current ULB/ward hierarchy, physical-device map acceptance and independent conflict-test cases remain open.
 
-The 658,896 value is the sum of source-catalogue feature-count metadata, not a count of features imported into SAMANVAY. The source registry explicitly records authority review as required and `operational_use_allowed=false`. Publicly queryable service metadata does not establish data-sharing rights, survey accuracy, source freshness or permission to copy and operate on detailed utility geometry.
-
-### GIS tests
-
-- `get_underground_asset_overview` returned a valid, empty FeatureCollection under Citizen, Department Officer, Coordinator and Administrator contexts. This is consistent with zero verified assets and must display as data unavailable, not as evidence that no utilities exist.
-- `get_map_utility_conflict_advisories` authorised Administrator and Coordinator calls. The test requests lacked work-site coordinates and the function stated that verified assets were unavailable. Citizen access was rejected. Department access was rejected for those particular unassigned requests.
-- `get_my_department_verified_assets_geojson` returned an empty, department-scoped FeatureCollection. No exact asset geometry was disclosed.
-- The national reference-boundary Edge Function is deployed and active with JWT verification. It proxies geoBoundaries India ADM1/ADM2 reference data; this is a public map reference, not an LGD-code-verified statutory directory.
-
-### Additional source-catalogue work completed
-
-Three government reference entries have been added to `public.official_data_sources` and recorded in repository migrations:
-
-1. **GSI / NWIC India District Boundary:** NWIC describes a 733-district reference layer, identifies the Geological Survey of India as producer, and reports a dataset update of 5 May 2025. The resource page lists GeoJSON, KML and Shapefile downloads: https://nwdp.nwic.gov.in/dataset/district-boundary
-2. **OGD LGD Districts:** the Government of India OGD catalogue lists the LGD district resource, with monthly refresh metadata updated 27 October 2026: https://data.gov.in/resource/local-government-directory-lgd-districts
-3. **OGD LGD Local Bodies:** the OGD catalogue lists the LGD local-body resource, with monthly refresh metadata updated 28 October 2026: https://data.gov.in/resource/local-government-directory-lgd-local-bodies
-
-These entries are intentionally marked `metadata_registered`, not `imported`. The NWIC ZIP download was not successfully retrieved in this execution environment. The OGD resource API payloads were not downloaded or validated. No CAPTCHA or access control was bypassed, and no district/ULB records were fabricated.
-
-Repository migrations:
-- `supabase/migrations/20261112082821_register_nwic_india_district_boundary_reference.sql`
-- `supabase/migrations/20261112100000_register_lgd_ogd_resource_metadata.sql`
-
-Both migrations were applied to the connected Supabase project and verified in the migration ledger.
-
-### Still required for 100%
-
-- Retrieve the NWIC district boundary package and perform file checksum, schema, CRS, geometry-validity, feature-count and source-date checks before considering it for public reference display.
-- Retrieve the current LGD district and local-body records through an authorised OGD/LGD download or API route; reconcile by LGD code and import with provenance and batch audit.
-- Obtain authority-approved underground utility data for water, sewer, stormwater, electricity, gas and telecom. Each dataset needs documented custodian permission, source date, CRS, accuracy, vertical datum/depth metadata, licence/data-sharing basis and secure delivery.
-- Receive survey evidence and owner verification before enabling operational conflict screening. Do not infer utility routes from surface maps, groundwater wells, building footprints or catalogue counts.
-- Complete on-device map regression tests and validate the map boundary Edge Function response from a real authenticated app session.
-- Implement true subsurface 3D only after validated geometry, depth, vertical datum and accuracy evidence are supplied. Current 3D map styling is not a field-verified volumetric utility model.
-
-**Assessment:** The national GIS reference and role-protected software foundations exist. Operational utility GIS and the nationwide LGD hierarchy remain unpopulated. Phase 2 is not 100% complete.
+**Assessment:** National district/sub-district/block reference data is now populated from a dated community mirror and public district-boundary references are persisted. Phase 2 is still not 100% operationally complete because ULB/ward/village coverage, fresh authority verification, owner-authorised underground geometry, field evidence and device/pilot acceptance remain outstanding.
 
 ## Overall closure assessment
 
 | Phase | Engineering status | Operational status |
 |---|---|---|
 | 1. Core platform and authentication | Source fix committed; Android and browser CI passed; role/RLS behaviour tested in database contexts | Physical-device and credentialed account tests remain |
-| 2. GIS and conflict detection | National map, source registry, PostGIS/RPC and role restrictions present; three additional national reference-source entries registered | 0 verified utility geometries, 0 survey evidence, 0 LGD administrative units; authority data imports and field validation remain |
+| 2. GIS and conflict detection | 784 districts, 7,092 sub-districts, 7,312 blocks, 733 generalized district polygons, groundwater reference and role-restricted GIS code | 0 verified utility geometries, 0 survey evidence; ULB/ward/village hierarchy, authoritative refresh, field and device validation remain |
 
 **Important:** 100% completion cannot be claimed until the external data owners provide permitted utility datasets and the remaining device/field acceptance tests are performed. A successful build and a populated source catalogue are not substitutes for those dependencies.
