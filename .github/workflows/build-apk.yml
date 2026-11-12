@@ -242,6 +242,8 @@ jobs:
           flutter pub add flutter_svg
           flutter pub add url_launcher
           flutter pub add file_picker
+          flutter pub add geolocator
+          flutter pub add image_picker
           flutter pub add csv
           # Pin the permission plugin to the Android-36-compatible release line.
           flutter pub add permission_handler:12.0.3
