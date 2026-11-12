@@ -20467,7 +20467,7 @@ class _ProfilePageState extends State<ProfilePage> {
     var evidenceCount = 0, unreadCount = 0;
     var evidenceAvailable = true, notificationsAvailable = true;
     try {
-      // Requesters see their own submissions. Staff counts are based on the
+      // Citizens see their own submissions. Staff counts are based on the
       // cases already visible under their database-enforced RLS policies.
       final rawRequests = role == 'requester'
           ? await supabase.from('excavation_requests')
