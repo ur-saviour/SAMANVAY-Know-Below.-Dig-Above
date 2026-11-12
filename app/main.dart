@@ -3998,6 +3998,7 @@ class _AuthPageState extends State<AuthPage> {
   bool usePhoneLogin = false;
   bool otpSent = false;
   bool isPhoneSignupOtp = false;
+  String requestedSignupRole = 'requester';
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
   String? _pendingOtpEmail;
@@ -4656,6 +4657,28 @@ class _AuthPageState extends State<AuthPage> {
                       },
                     ),
 
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: requestedSignupRole,
+                      decoration: const InputDecoration(
+                        labelText: 'Account type / access requested',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'requester', child: Text('Citizen')),
+                        DropdownMenuItem(value: 'department', child: Text('Department Officer')),
+                        DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                        DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                      ],
+                      onChanged: loading ? null : (value) {
+                        if (value != null) setState(() => requestedSignupRole = value);
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Official access requests require administrator approval. Registration never grants officer, coordinator or administrator permissions automatically.',
+                      style: TextStyle(fontSize: 10, height: 1.35),
+                    ),
                     const SizedBox(height: 16),
                   ],
                   OutlinedButton.icon(
