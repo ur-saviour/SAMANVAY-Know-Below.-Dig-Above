@@ -6959,10 +6959,51 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     children: [
       _panel(
         'India-wide jurisdiction explorer',
-        'Browse all 36 States and Union Territories, then drill into district, sub-district, block, urban local-body and ward reference directories. Community mirrors remain marked unverified until reconciled with official records.',
+        'Browse all 36 States and Union Territories and the currently imported district, sub-district, block and urban local-body reference records. Ward-level LGD records are not yet imported; the bundled Coimbatore 2024 ward polygons are a separate navigation reference. Community-mirror records remain unverified until reconciled with official records.',
         Icons.public_outlined,
         status: 'NATIONAL REFERENCE DIRECTORY',
       ),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AUDITED INDIA DIRECTORY FOOTPRINT',
+                style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .55),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Verified database snapshot · 13 November 2026. These are reference/readiness records, not proof of authority-certified boundaries or operational utility coverage.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _metricCard('36', 'States / UTs'),
+                  _metricCard('396', 'Coverage rows · 11 domains'),
+                  _metricCard('784', 'Distinct LGD district codes'),
+                  _metricCard('7,092', 'Sub-district rows'),
+                  _metricCard('7,312', 'Block rows'),
+                  _metricCard('5,050', 'ULB mirror rows'),
+                  _metricCard('0', 'Imported ward rows'),
+                  _metricCard('0', 'Operational utility layers'),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Text(
+                'All 20,238 imported district / sub-district / block / ULB directory records remain marked imported_unverified. The ULB snapshot is a third-party mirror dated 23 September 2026; district, sub-district and block mirrors are dated 21 October 2026. The 2024 Coimbatore ward polygons are separate reference geometry.',
+                style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
       _demoUndergroundModel(),
       _panel(
         'Infrastructure source coverage',
