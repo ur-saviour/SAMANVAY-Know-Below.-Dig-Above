@@ -6309,18 +6309,65 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   label: const Text('VIEW PUBLISHED PUBLIC WORKS'),
                 ),
               ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PublicTransparencyDashboardPage(
+                        client: supabase,
+                        onOpenMap: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(builder: (_) => const MapPage()),
+                        ),
+                        onOpenNotices: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(builder: (_) => const PublicExcavationTrackerPage()),
+                        ),
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.query_stats_outlined),
+                  label: const Text('OPEN PUBLIC TRANSPARENCY DASHBOARD'),
+                ),
+              ),
               const SizedBox(height: 9),
               Text('Public directory access is read-only. Unverified boundary or directory data is for navigation only, never for permits, excavation clearance or utility-owner verification.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
             ],
           ),
         ),
       ),
-      Wrap(
-        spacing: 7,
-        runSpacing: 7,
-        children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
-            .map((region) => Chip(label: Text(region, style: const TextStyle(fontSize: 10)), backgroundColor: Color(0xFFE5F4F1), side: BorderSide(color: Color(0xFFB8DCD5))))
-            .toList(),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('JUMP TO AN INDIA REGION',
+                style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Choose a region to open the coverage directory with that filter already applied.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              const SizedBox(height: 9),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
+                    .map((region) => ActionChip(
+                      label: Text(region, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                      backgroundColor: const Color(0xFFE5F4F1),
+                      side: const BorderSide(color: Color(0xFFB8DCD5)),
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => IndiaCoverageExplorerPage(initialRegion: region),
+                        ),
+                      ),
+                    ))
+                    .toList(),
+              ),
+            ],
+          ),
+        ),
       ),
     ],
   );
@@ -8731,7 +8778,13 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
       .where((r) => (r['case_category'] ?? '').toString() == 'building_planning').toList();
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    selectedRegion = regionOrder.contains(widget.initialRegion)
+        ? widget.initialRegion
+        : 'All India';
+    _load();
+  }
 
   Future<void> _load() async {
     if (!mounted) return;
@@ -9561,7 +9614,11 @@ class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
 }
 
 class IndiaCoverageExplorerPage extends StatefulWidget {
-  const IndiaCoverageExplorerPage({super.key});
+  const IndiaCoverageExplorerPage({
+    super.key,
+    this.initialRegion = 'All India',
+  });
+  final String initialRegion;
   @override
   State<IndiaCoverageExplorerPage> createState() => _IndiaCoverageExplorerPageState();
 }
