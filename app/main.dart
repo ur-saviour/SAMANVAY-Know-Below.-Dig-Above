@@ -4439,6 +4439,12 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> chooseDemoWorkspace() async {
+    final role = await _showProfileSwitcher(context, currentRole: 'requester');
+    if (!mounted || role == null) return;
+    openStaffDemoPreview(selectedRole: role);
+  }
+
   void openStaffDemoPreview({String? selectedRole}) {
     final enteredStaffId = _emailController.text.trim();
     final role = selectedRole ?? _readOnlyStaffPreviewRoles[enteredStaffId];
@@ -4532,7 +4538,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final logoSize = math.min(
-                          360.0,
+                          176.0,
                           constraints.maxWidth,
                         ).toDouble();
                         return Container(
@@ -4631,171 +4637,12 @@ class _AuthPageState extends State<AuthPage> {
 
                     const SizedBox(height: 16),
                   ],
-                  Text(
-                    'PORTAL ACCESS',
-                    style: TextStyle(color: cyanAccent, fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900),
+                  OutlinedButton.icon(
+                    onPressed: loading ? null : chooseDemoWorkspace,
+                    icon: const Icon(Icons.dashboard_customize_outlined),
+                    label: const Text('Explore demo workspaces'),
                   ),
-                  const SizedBox(height: 8),
-                  LayoutBuilder(builder: (context, constraints) {
-                    final twoColumns = constraints.maxWidth >= 600;
-                    final cardWidth = twoColumns ? (constraints.maxWidth - 9) / 2 : constraints.maxWidth;
-                    Widget roleCard(
-                      String title,
-                      String detail,
-                      IconData icon,
-                      bool standard, {
-                      String? demoRole,
-                    }) {
-                      final canOpenDemo = demoRole != null;
-                      return SizedBox(
-                        width: cardWidth,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: canOpenDemo
-                                ? () => openStaffDemoPreview(selectedRole: demoRole)
-                                : null,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(13),
-                              decoration: BoxDecoration(
-                                color: _usesLegacyLightPalette
-                                    ? (standard ? const Color(0xFFE5F4F1) : Colors.white)
-                                    : null,
-                                gradient: _usesLegacyLightPalette
-                                    ? null
-                                    : LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: standard
-                                            ? const [Color(0xFF1353A5), Color(0xFF4236A6)]
-                                            : canOpenDemo
-                                                ? const [Color(0xFF174A60), Color(0xFF233A61)]
-                                                : const [Color(0xFF152944), Color(0xFF1B2946)],
-                                      ),
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(
-                                  color: canOpenDemo
-                                      ? cyanAccent.withValues(alpha: .72)
-                                      : (standard
-                                          ? cyanAccent.withValues(alpha: .65)
-                                          : borderColor),
-                                ),
-                                boxShadow: _usesLegacyLightPalette
-                                    ? const []
-                                    : [
-                                        BoxShadow(
-                                          color: (standard ? const Color(0xFF2869F5) : cyanAccent)
-                                              .withValues(alpha: standard ? .20 : .08),
-                                          blurRadius: 16,
-                                          offset: const Offset(0, 5),
-                                        ),
-                                      ],
-                              ),
-                              child: Row(children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: (standard || canOpenDemo
-                                            ? cyanAccent
-                                            : const Color(0xFF9FB2C9))
-                                        .withValues(alpha: .15),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    icon,
-                                    color: standard || canOpenDemo
-                                        ? cyanAccent
-                                        : const Color(0xFFB5C8D8),
-                                    size: 21,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                const SizedBox(width: 9),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        title,
-                                        style: TextStyle(
-                                          color: ink,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        canOpenDemo
-                                            ? (demoRole == 'requester'
-                                                ? 'Open Citizen guest demonstration'
-                                                : 'Open official demonstration portal')
-                                            : detail,
-                                        style: TextStyle(
-                                          color: mutedInk,
-                                          fontSize: 9,
-                                          height: 1.25,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  canOpenDemo
-                                      ? Icons.open_in_new_rounded
-                                      : (standard
-                                          ? Icons.check_circle
-                                          : Icons.chevron_right_rounded),
-                                  color: canOpenDemo || standard
-                                      ? cyanAccent
-                                      : const Color(0xFF849BB0),
-                                  size: 16,
-                                ),
-                              ]),
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return Wrap(spacing: 9, runSpacing: 9, children: [
-                      roleCard(
-                        'Citizen',
-                        'Public services and request tracking',
-                        Icons.person_outline,
-                        true,
-                        demoRole: 'requester',
-                      ),
-                      roleCard(
-                        'Department officer',
-                        'Department workspace',
-                        Icons.account_balance_outlined,
-                        false,
-                        demoRole: 'department',
-                      ),
-                      roleCard(
-                        'Coordinator',
-                        'Coordination workspace',
-                        Icons.hub_outlined,
-                        false,
-                        demoRole: 'coordinator',
-                      ),
-                      roleCard(
-                        'Administrator',
-                        'Administration workspace',
-                        Icons.admin_panel_settings_outlined,
-                        false,
-                        demoRole: 'admin',
-                      ),
-                    ]);
-                  }),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tap any portal to open its interactive demonstration workspace. Citizen guest requests and official sample updates run locally in this session; live records and protected actions still require an authorised account.',
-                    style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
-                  ),
-                  const SizedBox(height: 16),
-                                    const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   if (isLogin) ...[
                     Text(
                       'CHOOSE YOUR SIGN-IN METHOD',
