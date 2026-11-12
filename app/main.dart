@@ -5126,11 +5126,14 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     'Electricity Distribution',
     'Telecommunications',
     'Town Planning',
+    'Gas Distribution',
+    'Groundwater / CGWB',
   ];
 
   late String _activeRole;
   late String _activeStaffId;
   String _section = 'Overview';
+  String _selectedDepartment = 'Water Supply / PHED';
   int _citizenRequestCounter = 1;
   final List<Map<String, dynamic>> _cases = [];
   final List<String> _activity = ['Demo workspace opened'];
@@ -5223,9 +5226,24 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       ['2', 'Service categories'],
       ['36', 'State / UT directory'],
     ],
-    'admin' => [['36', 'States / UTs'], ['11', 'Service domains'], ['5', 'Sample cases'], ['7', 'Regions']],
-    'coordinator' => [['5', 'Sample cases'], ['2', 'Joint-work links'], ['7', 'Departments'], ['36', 'Jurisdictions']],
-    'department' => [['3', 'Assigned samples'], ['2', 'Review actions'], ['1', 'Field inspection'], ['1', 'Pending report']],
+    'admin' => [
+      ['36', 'States / UTs'],
+      ['11', 'Service domains'],
+      [_cases.length.toString(), 'Session cases'],
+      [_activity.length.toString(), 'Audit events'],
+    ],
+    'coordinator' => [
+      [_cases.length.toString(), 'Session cases'],
+      [_cases.where((item) => (item['assigned'] as List).length > 1).length.toString(), 'Multi-department'],
+      [_cases.where((item) => item['jointWorkStatus'] != null && item['jointWorkStatus'] != 'Not proposed').length.toString(), 'Joint-work cases'],
+      [_departments.length.toString(), 'Departments'],
+    ],
+    'department' => [
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment)).length.toString(), 'Routed cases'],
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment) && item['status'] == 'Under review').length.toString(), 'In review'],
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment) && item['status'] == 'Clarification required').length.toString(), 'Clarifications'],
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment) && item['status'] == 'Completed').length.toString(), 'Completed'],
+    ],
     _ => const [],
   };
 
@@ -5314,6 +5332,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   );
 
   Future<void> _showCase(Map<String, dynamic> item) async {
+    final timeline = List<String>.from((item['timeline'] as List?) ?? const []);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -5329,8 +5348,14 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               Text('Location: ' + item['location'].toString()),
               Text('Priority: ' + item['priority'].toString()),
               Text('Status: ' + item['status'].toString()),
+              Text('Joint work: ' + (item['jointWorkStatus'] ?? 'Not proposed').toString()),
               const SizedBox(height: 10),
               Text(item['description'].toString()),
+              const SizedBox(height: 10),
+              Text(
+                'Session history: ' + (timeline.isEmpty ? 'No additional actions recorded.' : timeline.join(' → ')),
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+              ),
               const SizedBox(height: 10),
               Text(
                 'Synthetic demonstration record. No live citizen or department record is opened.',
@@ -5346,10 +5371,19 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     );
   }
 
+  void _appendCaseEvent(Map<String, dynamic> item, String message) {
+    final events = List<String>.from((item['timeline'] as List?) ?? const []);
+    events.insert(0, message + ' · simulated');
+    if (events.length > 10) events.removeRange(10, events.length);
+    item['timeline'] = events;
+  }
+
   Future<void> _updateCase(Map<String, dynamic> item) async {
     final choices = _activeRole == 'department'
-        ? const ['Under review', 'Approved', 'Clarification required']
-        : const ['Under review', 'Approved', 'Conflict detected', 'Completed', 'Rejected'];
+        ? const ['Under review', 'Site inspection scheduled', 'Technical recommendation submitted', 'Clarification required', 'Completed']
+        : _activeRole == 'coordinator'
+            ? const ['Under coordination', 'Escalated for authority review', 'Conflict resolved (demo)', 'Joint-work completed (demo)']
+            : const ['Under review', 'Under coordination', 'Escalated for authority review', 'Completed'];
     var selected = choices.first;
     final result = await showDialog<String>(
       context: context,
@@ -5382,7 +5416,11 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       ),
     );
     if (!mounted || result == null) return;
-    setState(() => item['status'] = result);
+    setState(() {
+      item['status'] = result;
+      final actor = _activeRole == 'department' ? 'Department officer' : 'Coordinator';
+      _appendCaseEvent(item, actor + ' set status to ' + result);
+    });
     _record(item['id'].toString() + ' status changed to ' + result);
   }
 
@@ -5415,12 +5453,120 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       final assigned = List<String>.from(item['assigned'] as List);
       if (!assigned.contains(result)) assigned.add(result);
       item['assigned'] = assigned;
+      _appendCaseEvent(item, 'Coordinator routed case to ' + result);
     });
     _record(item['id'].toString() + ' assigned to ' + result);
   }
 
+  Future<void> _proposeJointWork(Map<String, dynamic> item) async {
+    final options = _departments.where((name) => name != item['department']).toList();
+    if (options.isEmpty) return;
+    var selected = options.first;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Propose a joint-work package'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Primary department: ' + item['department'].toString()),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Partner department'),
+                items: options.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => selected = value);
+                },
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'The proposal is tentative. This demo does not book a real work window or authorise excavation.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Create proposal')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      final assigned = List<String>.from(item['assigned'] as List);
+      if (!assigned.contains(result)) assigned.add(result);
+      item['assigned'] = assigned;
+      item['jointDepartments'] = [item['department'], result];
+      item['jointWorkStatus'] = 'Proposed';
+      item['coordinationWindow'] = 'Not scheduled · awaiting department agreement';
+      item['status'] = 'Under coordination';
+      _appendCaseEvent(item, 'Coordinator proposed joint work with ' + result);
+    });
+    _record(item['id'].toString() + ' joint-work proposal created with ' + result);
+  }
+
+  Future<void> _recordCoordinationDecision(Map<String, dynamic> item) async {
+    const choices = [
+      'Schedule agreed (demo)',
+      'Conflict resolved (demo)',
+      'Escalated for authority review',
+    ];
+    var selected = choices.first;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Record coordination outcome'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Partner departments: ' + ((item['jointDepartments'] as List?)?.join(' + ') ?? (item['assigned'] as List).join(' + '))),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Outcome'),
+                items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => selected = value);
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'A recorded demo outcome is not a statutory approval or a confirmed public-works schedule.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save demo outcome')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      item['jointWorkStatus'] = result;
+      item['coordinationWindow'] = result == 'Schedule agreed (demo)'
+          ? 'Illustrative window recorded · not a live booking'
+          : 'No confirmed window';
+      item['status'] = result == 'Escalated for authority review'
+          ? 'Escalated for authority review'
+          : 'Under coordination';
+      _appendCaseEvent(item, 'Coordinator recorded outcome: ' + result);
+    });
+    _record(item['id'].toString() + ' coordination outcome: ' + result);
+  }
+
   Widget _caseCard(Map<String, dynamic> item) {
     final isOfficer = _activeRole == 'department';
+    final isCoordinator = _activeRole == 'coordinator';
     final isCitizen = _activeRole == 'requester';
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
@@ -5455,18 +5601,27 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   icon: Icon(isCitizen ? Icons.track_changes_outlined : Icons.visibility_outlined, size: 15),
                   label: Text(isCitizen ? 'Track request' : 'Details'),
                 ),
-                if (!isCitizen) ...[
+                if (isOfficer || isCoordinator)
                   FilledButton.tonalIcon(
                     onPressed: () => _updateCase(item),
-                    icon: Icon(isOfficer ? Icons.rate_review_outlined : Icons.sync_alt, size: 15),
-                    label: Text(isOfficer ? 'Review' : 'Update status'),
+                    icon: Icon(isOfficer ? Icons.rate_review_outlined : Icons.fact_check_outlined, size: 15),
+                    label: Text(isOfficer ? 'Review' : 'Coordination update'),
                   ),
-                  if (!isOfficer)
-                    OutlinedButton.icon(
-                      onPressed: () => _assignDepartment(item),
-                      icon: const Icon(Icons.account_tree_outlined, size: 15),
-                      label: const Text('Assign'),
-                    ),
+                if (isCoordinator) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => _assignDepartment(item),
+                    icon: const Icon(Icons.account_tree_outlined, size: 15),
+                    label: const Text('Route department'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => (item['jointWorkStatus'] == null || item['jointWorkStatus'] == 'Not proposed')
+                        ? _proposeJointWork(item)
+                        : _recordCoordinationDecision(item),
+                    icon: const Icon(Icons.hub_outlined, size: 15),
+                    label: Text((item['jointWorkStatus'] == null || item['jointWorkStatus'] == 'Not proposed')
+                        ? 'Propose joint work'
+                        : 'Record outcome'),
+                  ),
                 ],
               ],
             ),
@@ -5588,7 +5743,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       'road_reconstruction' => 'Roads and Highways',
       'electricity' => 'Electricity Distribution',
       'telecom' => 'Telecommunications',
-      'gas' => 'Gas network',
+      'gas' => 'Gas Distribution',
       'building_planning' => 'Town Planning',
       _ => 'Urban Local Bodies',
     };
@@ -5604,6 +5759,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       'priority': 'Normal',
       'location': result['location'],
       'assigned': [department],
+      'jointWorkStatus': 'Not proposed',
+      'timeline': <String>['Submitted by Citizen · simulated session'],
       'description': result['description'],
     };
     setState(() {
@@ -5712,41 +5869,86 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
-  Widget _caseQueue() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        _activeRole == 'requester'
-            ? 'Sample requests created in this guest session. New requests are stored locally for this demonstration only.'
-            : _activeRole == 'department'
-                ? 'Sample cases routed to the Water Supply / PHED workspace.'
-                : 'Sample infrastructure cases across connected service departments.',
-        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
-      ),
-      const SizedBox(height: 10),
-      ...(_activeRole == 'requester'
-          ? _cases.where((item) => item['owner'] == 'citizen')
-          : _activeRole == 'department'
-              ? _cases.where((item) => (item['assigned'] as List).contains('Water Supply / PHED'))
-              : _cases).map(_caseCard),
-      if (_activeRole == 'requester') ...[
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _submitCitizenRequest,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Submit another demo request'),
+  Widget _caseQueue() {
+    final isCitizen = _activeRole == 'requester';
+    final isOfficer = _activeRole == 'department';
+    final visibleCases = isCitizen
+        ? _cases.where((item) => item['owner'] == 'citizen').toList()
+        : isOfficer
+            ? _cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment)).toList()
+            : _cases;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isCitizen
+              ? 'Your requests in this guest session. Updates made by the demonstration officer and coordinator appear here when you switch back to Citizen.'
+              : isOfficer
+                  ? 'Select a department workspace. Only cases routed to that department appear in this queue.'
+                  : 'Shared simulated case register. Administrator access is read-only; coordination actions are available in the Coordinator profile.',
+          style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
         ),
+        if (isOfficer) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedDepartment,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Active department workspace',
+              prefixIcon: Icon(Icons.account_balance_outlined),
+            ),
+            items: _departments.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedDepartment = value);
+            },
+          ),
+        ],
+        const SizedBox(height: 10),
+        if (visibleCases.isEmpty)
+          _panel(
+            'No cases routed here yet',
+            isOfficer
+                ? 'Submit a Citizen demo request for this department or use Coordinator profile to route an existing sample case.'
+                : 'No demonstration cases are available in this view yet.',
+            Icons.inbox_outlined,
+          ),
+        ...visibleCases.map(_caseCard),
+        if (isCitizen) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _submitCitizenRequest,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Submit another demo request'),
+          ),
+        ],
       ],
-    ],
-  );
+    );
+  }
 
   Widget _coordination() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _panel('Potential repeated-work conflict', 'Road resurfacing overlaps with telecom duct maintenance. A coordinator can identify the overlap and recommend one joint execution window.', Icons.alt_route_rounded, status: '1 SAMPLE COORDINATION ALERT'),
-      _panel('Joint-work proposal', 'Bundle water-pipeline replacement and road restoration into one work package, subject to each authority approval.', Icons.hub_outlined, status: '2 DEPARTMENTS LINKED'),
-      _panel('Department workload', 'Sample workload split across water supply, roads, drainage, power, telecom and town planning.', Icons.query_stats_outlined),
-      ..._departments.map((name) => _panel(name, 'Department directory entry for cross-agency routing and coordination.', Icons.account_balance_outlined)),
+      _panel(
+        'Cross-department coordination desk',
+        'Review shared cases, propose a partner department, record a tentative scheduling outcome and maintain a visible session history.',
+        Icons.hub_outlined,
+        status: 'SIMULATED COORDINATOR WORKSPACE',
+      ),
+      _panel(
+        'Repeated-work conflict screening',
+        'Compare overlapping road, drainage, water and telecom works. Conflict flags are illustrative and require real schedule data and authority review.',
+        Icons.alt_route_rounded,
+        status: 'HUMAN REVIEW REQUIRED',
+      ),
+      _panel(
+        'Joint-work decision controls',
+        'A proposal can be recorded, followed by a demo outcome. No real work order, permit, excavation clearance or calendar booking is created.',
+        Icons.calendar_month_outlined,
+        status: 'NOT A LIVE APPROVAL',
+      ),
+      Text('SHARED CASE REGISTER', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 9),
+      ..._cases.map(_caseCard),
     ],
   );
 
@@ -5807,6 +6009,37 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
+  Widget _adminOverview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _metrics.map((metric) => _metricCard(metric[0], metric[1])).toList(),
+      ),
+      const SizedBox(height: 14),
+      _panel(
+        'Platform oversight',
+        'Review the shared session register, department routing, coordination outcomes and audit events across the demonstration profiles.',
+        Icons.admin_panel_settings_outlined,
+        status: 'READ-ONLY ADMIN DEMONSTRATION',
+      ),
+      _panel(
+        'Permission boundary',
+        'Profile switching is a demonstration convenience only. It does not grant production Administrator privileges or change Supabase access controls.',
+        Icons.lock_outline_rounded,
+        status: 'LIVE AUTHORIZATION UNCHANGED',
+      ),
+      Text('RECENT SESSION AUDIT', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      ..._activity.take(8).map((entry) => _panel(entry, 'Recorded in this local demonstration session.', Icons.history_rounded)),
+      const SizedBox(height: 8),
+      Text('CASE OVERSIGHT', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      ..._cases.map(_caseCard),
+    ],
+  );
+
   Widget _governance() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -5837,7 +6070,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       case 'Buildings': return _buildings();
       case 'AI insights': return _aiInsights();
       case 'Governance': return _governance();
-      default: return _overview();
+      case 'Admin oversight': return _adminOverview();
+      default: return _activeRole == 'admin' ? _adminOverview() : _overview();
     }
   }
 
@@ -5853,7 +6087,11 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_activeRole == 'requester' ? 'SAMANVAY CITIZEN WORKSPACE' : 'SAMANVAY OFFICIAL WORKSPACE'),
-            Text('DEMO ID ' + _activeStaffId + ' · ' + _roleTitle.toUpperCase(), style: TextStyle(color: cyanAccent, fontSize: 9)),
+            Text(
+              'DEMO ID ' + _activeStaffId + ' · ' + _roleTitle.toUpperCase() +
+                  (_activeRole == 'department' ? ' · ' + _selectedDepartment : ''),
+              style: TextStyle(color: cyanAccent, fontSize: 9),
+            ),
           ],
         ),
         actions: [
@@ -5904,10 +6142,14 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               child: Row(
                 children: (_activeRole == 'requester'
                     ? <String>['Overview', 'My requests', 'Service guide', 'Public works', 'GIS & coverage']
-                    : <String>[
-                        'Overview', 'Case queue', 'Coordination', 'Roadworks',
-                        'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
-                      ]).map(_sectionChip).toList(),
+                    : _activeRole == 'admin'
+                        ? <String>[
+                            'Overview', 'Case queue', 'Admin oversight', 'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                          ]
+                        : <String>[
+                            'Overview', 'Case queue', 'Coordination', 'Roadworks',
+                            'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                          ]).map(_sectionChip).toList(),
               ),
             ),
             const SizedBox(height: 14),
