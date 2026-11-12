@@ -6263,9 +6263,84 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   Widget _gisCoverage() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _panel('India-wide jurisdiction explorer', 'Browse the national State/UT, district, local-body and ward reference directory. Imported community snapshots remain marked unverified until an authority refresh.', Icons.public_outlined, status: '36 STATES / UNION TERRITORIES'),
-      _panel('Infrastructure source coverage', 'Coverage records show responsible agencies, source links, granularity and readiness. A listed source does not prove a complete asset inventory.', Icons.layers_outlined, status: 'REFERENCE METADATA'),
-      _panel('Underground asset verification', 'Exact utility geometry is owner-restricted. The public map never substitutes estimated routes or an empty layer for a safe-to-dig decision.', Icons.verified_user_outlined, status: 'NO PUBLIC EXACT ROUTES'),
+      _panel(
+        'India-wide jurisdiction explorer',
+        'Browse State/UT, district, sub-district, block, local-body and ward reference records. Community directory mirrors remain unverified until reconciled with the responsible authority.',
+        Icons.public_outlined,
+        status: '36 STATES / UNION TERRITORIES',
+      ),
+      _panel(
+        'Infrastructure source coverage',
+        'View responsible agencies, source portals, expected data granularity and import readiness. A registered source is not proof that a complete local asset inventory has been received.',
+        Icons.layers_outlined,
+        status: 'REFERENCE METADATA',
+      ),
+      _panel(
+        'Underground asset verification',
+        'Exact utility geometry remains controlled by the asset owner. The current GIS inventory contains no verified underground assets or registered survey evidence; an empty layer is not proof that no utility exists.',
+        Icons.verified_user_outlined,
+        status: 'NO VERIFIED UNDERGROUND ASSETS',
+      ),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PUBLIC GIS · DATA READINESS', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 5),
+              Text('A transparent view of the data available in this prototype as checked on 12 November 2026.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+              const SizedBox(height: 12),
+              _gisReadinessRow(
+                'Coimbatore ward reference',
+                '100 polygons · 2024 reference dataset',
+                'OpenCity / Esri-derived public reference. Not a CCMC-certified statutory boundary.',
+                Icons.location_city_outlined,
+                const Color(0xFF2878B8),
+                'REFERENCE ONLY',
+              ),
+              const Divider(height: 18),
+              _gisReadinessRow(
+                'Groundwater observation archive',
+                '446,068 historical observations',
+                'Latest source observation: 31 December 2025. Historical archive, not a live telemetry feed or borewell permission register.',
+                Icons.water_drop_outlined,
+                const Color(0xFF168A83),
+                'HISTORICAL DATA',
+              ),
+              const Divider(height: 18),
+              _gisReadinessRow(
+                'Underground utility geometry',
+                '0 verified assets · 0 registered survey-evidence records',
+                'No verified route, depth or position is available to show as an operational asset. Do not use this prototype for excavation decisions.',
+                Icons.route_outlined,
+                const Color(0xFFB66B18),
+                'NOT AVAILABLE',
+              ),
+              const Divider(height: 18),
+              _gisReadinessRow(
+                'India administrative references',
+                '36 State / UT jurisdictions',
+                'National directory and authority-source metadata are available. Imported community mirrors still require official reconciliation.',
+                Icons.account_tree_outlined,
+                const Color(0xFF536DB5),
+                'AUTHORITY CHECK PENDING',
+              ),
+              const Divider(height: 18),
+              _gisReadinessRow(
+                'Underground demonstration schematic',
+                'Illustrative service-layer cross-section',
+                'SIMULATED DEMO SCHEMATIC · NOT GEO-REFERENCED · NOT A REAL UTILITY ALIGNMENT.',
+                Icons.view_in_ar_outlined,
+                const Color(0xFF7557A8),
+                'SIMULATED',
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
       Card(
         margin: EdgeInsets.zero,
         child: Padding(
@@ -6275,7 +6350,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
             children: [
               Text('OPEN THE PUBLIC GIS', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
               const SizedBox(height: 5),
-              Text('Explore the national basemap, satellite/vector views, 2D/3D surface context and available public reference boundaries. Staff-only operational layers remain protected.', style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+              Text('Explore the national basemap, switch between satellite and vector views, inspect available public reference boundaries and use the 2D/3D surface controls. Restricted operational layers remain protected.', style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -6309,65 +6384,59 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   label: const Text('VIEW PUBLISHED PUBLIC WORKS'),
                 ),
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => PublicTransparencyDashboardPage(
-                        client: supabase,
-                        onOpenMap: () => Navigator.of(context).push<void>(
-                          MaterialPageRoute<void>(builder: (_) => const MapPage()),
-                        ),
-                        onOpenNotices: () => Navigator.of(context).push<void>(
-                          MaterialPageRoute<void>(builder: (_) => const PublicExcavationTrackerPage()),
-                        ),
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(Icons.query_stats_outlined),
-                  label: const Text('OPEN PUBLIC TRANSPARENCY DASHBOARD'),
-                ),
-              ),
               const SizedBox(height: 9),
-              Text('Public directory access is read-only. Unverified boundary or directory data is for navigation only, never for permits, excavation clearance or utility-owner verification.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              Text('Public GIS is read-only for reference data. Boundary and directory references are for navigation, not legal demarcation. Only authority-published notices appear in the public works tracker. No map layer constitutes a permit, utility-owner confirmation or safe-to-dig clearance.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
             ],
           ),
         ),
       ),
-      Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(13),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('JUMP TO AN INDIA REGION',
-                style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 4),
-              Text('Choose a region to open the coverage directory with that filter already applied.',
-                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
-                    .map((region) => ActionChip(
-                      label: Text(region, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-                      backgroundColor: const Color(0xFFE5F4F1),
-                      side: const BorderSide(color: Color(0xFFB8DCD5)),
-                      onPressed: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute<void>(
-                          builder: (_) => IndiaCoverageExplorerPage(initialRegion: region),
-                        ),
-                      ),
-                    ))
-                    .toList(),
-              ),
-            ],
-          ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 7,
+        runSpacing: 7,
+        children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
+            .map((region) => Chip(label: Text(region, style: const TextStyle(fontSize: 10)), backgroundColor: Color(0xFFE5F4F1), side: BorderSide(color: Color(0xFFB8DCD5))))
+            .toList(),
+      ),
+    ],
+  );
+
+  Widget _gisReadinessRow(
+    String title,
+    String value,
+    String note,
+    IconData icon,
+    Color accent,
+    String status,
+  ) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(10),
         ),
+        child: Icon(icon, color: accent, size: 18),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 2),
+            Text(value, style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(note, style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+          ],
+        ),
+      ),
+      const SizedBox(width: 6),
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 104),
+        child: Text(status, textAlign: TextAlign.end, style: TextStyle(color: accent, fontSize: 8, fontWeight: FontWeight.w900)),
       ),
     ],
   );
@@ -7032,7 +7101,7 @@ class _DashboardPageState extends State<DashboardPage>
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const MapPage())),
                 icon: const Icon(Icons.layers_rounded),
-                label: const Text('LIVE UNDERGROUND VIEW  ↗'),
+                label: const Text('OPEN PUBLIC GIS MAP  ↗'),
                 style: FilledButton.styleFrom(backgroundColor: teal,
                   foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
               )),
@@ -9736,7 +9805,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       if (!mounted) return;
       setState(() {
         loading = false;
-        errorMessage = 'Coverage records could not be loaded for this account. Refresh or check the account permissions.';
+        errorMessage = 'Public coverage records could not be reached. Check the network or public read access, then retry.';
       });
     }
   }
