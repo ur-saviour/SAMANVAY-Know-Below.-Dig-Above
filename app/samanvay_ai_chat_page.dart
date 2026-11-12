@@ -164,6 +164,15 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
     if (q.contains('what can') || q.contains('about samanvay') || q.contains('explore the app')) {
       return 'SAMANVAY is a civic infrastructure coordination prototype. Citizens can submit and track infrastructure requests; authorised department officers review assigned work; coordinators monitor cross-department dependencies; administrators manage access and routing. The GIS combines public reference layers with clearly labelled simulated underground visuals. It is a prototype, not an official utility-clearance system.';
     }
+    if (q.contains('sign up') || q.contains('signup') || q.contains('register') || q.contains('create account') || q.contains('official access')) {
+      return 'To register: choose Create Account, enter your name, enter an email address or mobile number, create a password, and select the requested account type: Citizen, Department Officer, Coordinator or Administrator. Verify the contact using the code sent by the configured provider. Official access remains pending until an administrator verifies the request and assigns the department. The account role opens the matching workspace only after approval.';
+    }
+    if (q.contains('otp') || q.contains('verification code') || q.contains('sms code') || q.contains('verify mobile')) {
+      return 'For mobile verification, enter the number with its country code, request the six-digit code, enter it on the verification screen, and use Resend after the countdown. SMS delivery requires the project's Supabase phone-auth SMS hook and provider configuration. The app cannot create a real SMS delivery without that external configuration. Never share your OTP in chat.';
+    }
+    if (q.contains('change password') || q.contains('reset password') || q.contains('forgot password') || q.contains('password recovery')) {
+      return 'To change a password while signed in, open Profile and select Change password. To recover access from the login screen, select Forgot password? and follow the reset email. Email delivery depends on the project's Supabase email provider and redirect setup. Do not share your password or reset link in chat.';
+    }
     if (q.contains('submit') || q.contains('raise a request') || q.contains('complaint')) {
       return 'To submit a request: open the Citizen workspace, choose New Request, select the infrastructure category, describe the issue, add the location and supporting evidence if available, then submit. Keep personal information out of public descriptions. The request should appear under My Requests after successful submission.';
     }
@@ -174,7 +183,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       return 'SAMANVAY routes requests to relevant infrastructure departments and helps identify work that may overlap in time or location. Department officers should act only on assigned cases. Coordinators review cross-department dependencies. Administrator access is for account governance. Privileged roles must be approved; choosing a role during registration does not grant it.';
     }
     if (q.contains('underground') || q.contains('utility') || q.contains('pipe') || q.contains('cable')) {
-      return 'Open GIS and enable the Underground View and utility-domain layers. Simulated demo features are illustrative only and are not surveyed utility routes, depths or clearance data. Never use this prototype to plan excavation or determine whether a site is safe to dig. Confirm conditions with the responsible utility owners and authorised surveys.';
+      return 'Open GIS and select Underground. The cutaway now provides separate Water, Sewer, Drainage, Electricity, Telecom, Gas and Borewell switches. The 2D / 3D map control changes the cutaway presentation. Moving line markers make the schematic easier to read, but the paths are synthetic, are not attached to road coordinates or measured depths, and are not excavation clearance. Confirm actual infrastructure with the relevant utility owners and authorised surveys.';
     }
     if (q.contains('gis') || q.contains('map') || q.contains('satellite') || q.contains('ward') || q.contains('district')) {
       return 'Open GIS from the main navigation. Switch between vector and satellite basemaps, use search to navigate administrative areas, and enable available public reference layers. Groundwater observations show their source dates. Any simulated underground layer must remain visibly labelled DEMO / NOT SURVEYED.';
@@ -448,7 +457,11 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
                   children: [
                     _suggestion('Explore the app', Icons.explore_outlined, 'What can I do with SAMANVAY?'),
                     _suggestion('Raise a request', Icons.add_task_outlined, 'How do I submit an infrastructure request?'),
-                    _suggestion('Request statuses', Icons.track_changes_outlined, 'Explain the different request statuses.'),
+                    _suggestion('Track a request', Icons.track_changes_outlined, 'How do I track a submitted request?'),
+                    _suggestion('Request official access', Icons.badge_outlined, 'How do I request a Department Officer, Coordinator or Administrator account?'),
+                    _suggestion('Mobile OTP', Icons.sms_outlined, 'How do I sign up with my mobile number and verify the OTP?'),
+                    _suggestion('Underground GIS', Icons.layers_outlined, 'How do I use the underground map service layers?'),
+                    _suggestion('Password recovery', Icons.lock_reset_rounded, 'How do I change or reset my password?'),
                     _suggestion('Department coordination', Icons.account_tree_outlined, 'How does SAMANVAY coordinate work across departments?'),
                   ],
                 ),
