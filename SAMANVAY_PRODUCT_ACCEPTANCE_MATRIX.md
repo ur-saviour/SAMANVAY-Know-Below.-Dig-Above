@@ -402,7 +402,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Await final browser compile, GIS smoke checks and artifact upload.
 - [ ] Physical-device and authenticated multi-role runtime acceptance remains outstanding.
 
-**Progress checkpoint:** 89% engineering completion estimate, with the release jobs still in progress. This does not imply physical-device acceptance or production readiness.
+**Progress checkpoint:** 90% engineering completion estimate. The browser production bundle is now CI-verified and packaged; the Android release job remains in progress. This does not imply physical-device acceptance or production readiness.
 
 ## Browser artifact verification update — 13 November 2026
 
@@ -410,3 +410,8 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Artifact `SAMANVAY-Browser-Portal`, ID `13979583828`, SHA-256 `7a47db017849e39c5e1e2381876fa54cd96b1e888cbab0d1e8c6360988333383`.
 - [ ] Android workflow `43298615743` still compiling release APK; package contract and Dart analysis passed, no failures reported.
 - [ ] APK integrity/signature verification, Android artifact publication and physical-device acceptance remain outstanding.
+
+
+## Progress checkpoint — browser artifact accepted
+
+The browser release pipeline has completed end-to-end, including compiled bundle smoke tests for both Coimbatore GIS reference assets and required brand assets. The packaged artifact digest is recorded in the readiness audit. Overall engineering estimate advances from 89% to **90%**; Android release compilation, runtime role tests and physical-device acceptance remain open.
