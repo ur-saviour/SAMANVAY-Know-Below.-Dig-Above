@@ -2,11 +2,6 @@ name: SAMANVAY Groundwater Observation Table Archive
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - '.github/workflows/archive-groundwater-observations.yml'
 
 permissions:
   contents: write
