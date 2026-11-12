@@ -5140,6 +5140,10 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   final List<Map<String, dynamic>> _cases = [];
   final List<String> _activity = ['Demo workspace opened'];
   final List<Map<String, dynamic>> _demoPermits = [];
+  String _demoGisViewMode = '3D cutaway';
+  Set<String> _demoGisVisibleLayers = {
+    'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas',
+  };
 
   @override
   void initState() {
@@ -6349,6 +6353,108 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
+  Widget _demoUndergroundModel() {
+    const layers = <Map<String, Object>>[
+      {'name': 'Water', 'colour': Color(0xFF258AD6), 'icon': Icons.water_drop_outlined},
+      {'name': 'Sewer', 'colour': Color(0xFF8B5BC7), 'icon': Icons.water_outlined},
+      {'name': 'Stormwater', 'colour': Color(0xFF18A6A0), 'icon': Icons.grain_rounded},
+      {'name': 'Electricity', 'colour': Color(0xFFE1A928), 'icon': Icons.bolt_outlined},
+      {'name': 'Telecom', 'colour': Color(0xFFD65A9E), 'icon': Icons.cable_rounded},
+      {'name': 'Gas', 'colour': Color(0xFFE47C32), 'icon': Icons.local_fire_department_outlined},
+    ];
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return Card(
+      margin: const EdgeInsets.only(top: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.layers_outlined, color: teal, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('SUBSURFACE VISUALISATION SANDBOX',
+                    style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .45)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text('Toggle infrastructure layers and switch between plan and cutaway views. This is a synthetic, non-georeferenced teaching visual—not a utility survey or a representation of the ground at the selected map location.',
+              style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+            const SizedBox(height: 11),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: ['2D plan', '3D cutaway'].map((mode) => ChoiceChip(
+                label: Text(mode, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                selected: _demoGisViewMode == mode,
+                onSelected: (_) => setState(() => _demoGisViewMode = mode),
+              )).toList(),
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 218,
+                width: double.infinity,
+                color: isLight ? const Color(0xFFE9F1F4) : const Color(0xFF0B2032),
+                child: CustomPaint(
+                  painter: _DemoSubsurfacePainter(
+                    viewMode: _demoGisViewMode,
+                    visibleLayers: _demoGisVisibleLayers,
+                    isLight: isLight,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text('VISIBLE NETWORK LAYERS', style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .45)),
+            const SizedBox(height: 5),
+            Wrap(
+              spacing: 6,
+              runSpacing: 3,
+              children: layers.map((layer) {
+                final name = layer['name']! as String;
+                final colour = layer['colour']! as Color;
+                final selected = _demoGisVisibleLayers.contains(name);
+                return FilterChip(
+                  label: Text(name, style: TextStyle(fontSize: 9, color: ink, fontWeight: FontWeight.w700)),
+                  avatar: Icon(layer['icon']! as IconData, size: 14, color: colour),
+                  selected: selected,
+                  selectedColor: colour.withValues(alpha: .16),
+                  onSelected: (enabled) => setState(() {
+                    final next = Set<String>.from(_demoGisVisibleLayers);
+                    if (enabled) {
+                      next.add(name);
+                    } else {
+                      next.remove(name);
+                    }
+                    _demoGisVisibleLayers = next;
+                  }),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: isLight ? navy : const Color(0xFFFFD27A)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Illustrative network paths only. No coordinates, real depths, asset ownership, positional accuracy or excavation clearance are implied. Live exact geometry remains restricted to authorised owner-verified workflows.',
+                    style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _gisCoverage() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -6358,6 +6464,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         Icons.public_outlined,
         status: 'NATIONAL REFERENCE DIRECTORY',
       ),
+      _demoUndergroundModel(),
       _panel(
         'Infrastructure source coverage',
         'See the responsible agency, source portal, expected granularity and data-readiness state for roads, water, sewerage, drainage, electricity, telecom, gas, groundwater and buildings.',
@@ -6859,6 +6966,156 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       ),
     );
   }
+}
+
+// Synthetic, non-georeferenced visual for the prototype demonstration.
+// Never feed this schematic into GIS, excavation screening or clearance logic.
+class _DemoSubsurfacePainter extends CustomPainter {
+  final String viewMode;
+  final Set<String> visibleLayers;
+  final bool isLight;
+
+  const _DemoSubsurfacePainter({
+    required this.viewMode,
+    required this.visibleLayers,
+    required this.isLight,
+  });
+
+  static const Map<String, Color> _colours = {
+    'Water': Color(0xFF258AD6),
+    'Sewer': Color(0xFF8B5BC7),
+    'Stormwater': Color(0xFF18A6A0),
+    'Electricity': Color(0xFFE1A928),
+    'Telecom': Color(0xFFD65A9E),
+    'Gas': Color(0xFFE47C32),
+  };
+
+  void _drawPath(Canvas canvas, Size size, String layer, double y, double bend,
+      {double width = 5, bool tube = false}) {
+    if (!visibleLayers.contains(layer)) return;
+    final path = Path()
+      ..moveTo(size.width * .06, y)
+      ..cubicTo(size.width * .28, y - bend, size.width * .62, y + bend,
+          size.width * .94, y - bend * .25);
+    final colour = _colours[layer]!;
+    canvas.drawPath(path, Paint()
+      ..color = colour.withValues(alpha: .24)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width + 5
+      ..strokeCap = StrokeCap.round);
+    canvas.drawPath(path, Paint()
+      ..color = colour
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round);
+    if (tube) {
+      canvas.drawPath(path, Paint()
+        ..color = Colors.white.withValues(alpha: .55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round);
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ground = isLight ? const Color(0xFFD5E2D0) : const Color(0xFF263E3B);
+    final soil = isLight ? const Color(0xFFD9B98E) : const Color(0xFF574735);
+    final deepSoil = isLight ? const Color(0xFFB99A76) : const Color(0xFF3E392F);
+    final road = isLight ? const Color(0xFF52616C) : const Color(0xFF263747);
+    final block = isLight ? const Color(0xFFB9C9D2) : const Color(0xFF506579);
+    final paint = Paint()..isAntiAlias = true;
+
+    if (viewMode == '2D plan') {
+      paint.color = ground;
+      canvas.drawRect(Offset.zero & size, paint);
+      paint.color = road;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, size.height * .30, size.width, size.height * .42),
+          const Radius.circular(3),
+        ),
+        paint,
+      );
+      paint
+        ..color = Colors.white.withValues(alpha: .72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      for (var x = 8.0; x < size.width; x += 31) {
+        canvas.drawLine(Offset(x, size.height * .51),
+            Offset(x + 15, size.height * .51), paint);
+      }
+      paint
+        ..style = PaintingStyle.fill
+        ..color = block;
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(8, 10, size.width * .20, size.height * .17),
+        const Radius.circular(5)), paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * .73, 10, size.width * .22, size.height * .17),
+        const Radius.circular(5)), paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(8, size.height * .79, size.width * .25, size.height * .15),
+        const Radius.circular(5)), paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * .70, size.height * .79, size.width * .25, size.height * .15),
+        const Radius.circular(5)), paint);
+      _drawPath(canvas, size, 'Water', size.height * .39, 13, width: 5);
+      _drawPath(canvas, size, 'Sewer', size.height * .61, 15, width: 5);
+      _drawPath(canvas, size, 'Stormwater', size.height * .68, 8, width: 4);
+      _drawPath(canvas, size, 'Electricity', size.height * .45, 4, width: 3);
+      _drawPath(canvas, size, 'Telecom', size.height * .56, 6, width: 3);
+      _drawPath(canvas, size, 'Gas', size.height * .64, 10, width: 3);
+    } else {
+      paint.color = isLight ? const Color(0xFFB9D7E7) : const Color(0xFF16364C);
+      canvas.drawRect(Offset.zero & size, paint);
+      final skyline = Path()
+        ..moveTo(0, size.height * .36)
+        ..lineTo(size.width, size.height * .36)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close();
+      paint.color = soil;
+      canvas.drawPath(skyline, paint);
+      paint.color = deepSoil.withValues(alpha: .72);
+      canvas.drawRect(Rect.fromLTWH(0, size.height * .72, size.width, size.height * .28), paint);
+
+      // Surface context is schematic, not a measured building or road model.
+      paint.color = block;
+      canvas.drawRect(Rect.fromLTWH(size.width * .04, size.height * .11,
+          size.width * .18, size.height * .24), paint);
+      paint.color = isLight ? const Color(0xFFE8EFF3) : const Color(0xFF8197A9);
+      canvas.drawRect(Rect.fromLTWH(size.width * .78, size.height * .15,
+          size.width * .17, size.height * .20), paint);
+      paint.color = road;
+      final roadTop = Path()
+        ..moveTo(size.width * .25, size.height * .27)
+        ..lineTo(size.width * .77, size.height * .27)
+        ..lineTo(size.width * .84, size.height * .39)
+        ..lineTo(size.width * .18, size.height * .39)
+        ..close();
+      canvas.drawPath(roadTop, paint);
+      paint
+        ..color = Colors.white.withValues(alpha: .72)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(size.width * .34, size.height * .33),
+          Offset(size.width * .67, size.height * .33), paint);
+      paint.style = PaintingStyle.fill;
+      _drawPath(canvas, size, 'Water', size.height * .51, 12, width: 9, tube: true);
+      _drawPath(canvas, size, 'Sewer', size.height * .82, 8, width: 11, tube: true);
+      _drawPath(canvas, size, 'Stormwater', size.height * .68, 12, width: 8, tube: true);
+      _drawPath(canvas, size, 'Electricity', size.height * .57, 4, width: 4);
+      _drawPath(canvas, size, 'Telecom', size.height * .62, 5, width: 4);
+      _drawPath(canvas, size, 'Gas', size.height * .74, 6, width: 5);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DemoSubsurfacePainter oldDelegate) =>
+      oldDelegate.viewMode != viewMode ||
+      oldDelegate.isLight != isLight ||
+      oldDelegate.visibleLayers != visibleLayers;
 }
 
 // ==========================================
