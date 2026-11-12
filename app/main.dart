@@ -760,6 +760,58 @@ class _OpeningExperienceState extends State<OpeningExperience>
   }
 }
 
+class _IndianFlagWavePainter extends CustomPainter {
+  const _IndianFlagWavePainter({required this.phase});
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawLine(
+      const Offset(3, 2),
+      Offset(3, size.height - 1),
+      Paint()..color = const Color(0xFFB8C4D0)..strokeWidth = 2.2..strokeCap = StrokeCap.round,
+    );
+    const colours = [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)];
+    final amplitude = size.height * .045;
+    for (var band = 0; band < 3; band++) {
+      final top = size.height * band / 3;
+      final bottom = size.height * (band + 1) / 3;
+      final path = Path()..moveTo(5, top);
+      for (var step = 1; step <= 28; step++) {
+        final x = 5 + (size.width - 8) * step / 28;
+        final wave = math.sin(step / 28 * math.pi * 2 + phase * math.pi * 2) * amplitude * (step / 28);
+        path.lineTo(x, top + wave);
+      }
+      for (var step = 28; step >= 0; step--) {
+        final x = 5 + (size.width - 8) * step / 28;
+        final wave = math.sin(step / 28 * math.pi * 2 + phase * math.pi * 2) * amplitude * (step / 28);
+        path.lineTo(x, bottom + wave);
+      }
+      path.close();
+      canvas.drawPath(path, Paint()..color = colours[band]);
+    }
+    final centre = Offset(size.width * .47, size.height * .50);
+    final radius = size.height * .105;
+    final chakra = Paint()
+      ..color = const Color(0xFF000080)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    canvas.drawCircle(centre, radius, chakra);
+    canvas.drawCircle(centre, radius * .14, Paint()..color = const Color(0xFF000080));
+    for (var spoke = 0; spoke < 24; spoke++) {
+      final angle = spoke * math.pi / 12;
+      canvas.drawLine(
+        centre,
+        Offset(centre.dx + math.cos(angle) * radius, centre.dy + math.sin(angle) * radius),
+        chakra,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _IndianFlagWavePainter oldDelegate) => oldDelegate.phase != phase;
+}
+
 class _SamanvayFlagTransition extends StatelessWidget {
   const _SamanvayFlagTransition({
     super.key,
