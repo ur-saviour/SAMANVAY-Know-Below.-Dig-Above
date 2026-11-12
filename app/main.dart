@@ -4006,6 +4006,8 @@ class _AuthPageState extends State<AuthPage> {
   bool messageIsSuccess = false;
   String? demoPreviewRole;
   String? demoPreviewStaffId;
+  // Staff registrations are requests only; privileged roles remain admin-approved.
+  String requestedSignupRole = 'requester';
 
   @override
   void dispose() {
@@ -4394,7 +4396,7 @@ class _AuthPageState extends State<AuthPage> {
         final response = await supabase.auth.signUp(
           phone: phone,
           password: _passwordController.text,
-          data: {'display_name': _nameController.text.trim(), 'requested_role': 'requester'},
+          data: {'display_name': _nameController.text.trim(), 'requested_role': requestedSignupRole},
         );
         _pendingOtpPhone = phone;
         _pendingOtpEmail = null;
@@ -4403,9 +4405,9 @@ class _AuthPageState extends State<AuthPage> {
           _otpController.clear();
           setState(() => otpSent = true);
           _startOtpResendCountdown();
-          showMessage('A six-digit SMS verification code has been requested. Enter it to activate your Citizen account.', success: true);
+          showMessage('A six-digit SMS verification code has been requested. Enter it to activate your account. Official-role requests remain pending administrator approval.', success: true);
         } else {
-          showMessage('Your Citizen account has been created and verified.', success: true);
+          showMessage('Your account has been created and verified. Any requested official role remains pending administrator approval.', success: true);
         }
       } else {
         final email = identifier.trim().toLowerCase();
@@ -4414,13 +4416,13 @@ class _AuthPageState extends State<AuthPage> {
           email: email,
           password: _passwordController.text,
           emailRedirectTo: redirectUrl,
-          data: {'display_name': _nameController.text.trim(), 'requested_role': 'requester'},
+          data: {'display_name': _nameController.text.trim(), 'requested_role': requestedSignupRole},
         );
         isPhoneSignupOtp = false;
         if (response.session == null) {
           showMessage('Registration request submitted. Check your inbox for the confirmation email, then sign in.', success: true);
         } else {
-          showMessage('Your Citizen account has been created successfully.', success: true);
+          showMessage('Your account has been created successfully. Any requested official role remains pending administrator approval.', success: true);
         }
       }
     } on AuthException catch (authError) {
@@ -4615,6 +4617,25 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 22),
 
                   if (!isLogin) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: requestedSignupRole,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Account type',
+                        helperText: 'Official roles require administrator approval.',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'requester', child: Text('Citizen')),
+                        DropdownMenuItem(value: 'department', child: Text('Department officer')),
+                        DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                        DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                      ],
+                      onChanged: loading ? null : (value) {
+                        if (value != null) setState(() => requestedSignupRole = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameController,
                       textCapitalization:
@@ -4670,12 +4691,6 @@ class _AuthPageState extends State<AuthPage> {
                                     message = '';
                                     messageIsSuccess = false;
                                   }),
-                        ),
-                        ChoiceChip(
-                          avatar: const Icon(Icons.email_outlined, size: 17),
-                          label: const Text('Email OTP (disabled)'),
-                          selected: false,
-                          onSelected: null,
                         ),
                         ChoiceChip(
                           avatar: const Icon(Icons.sms_outlined, size: 17),
