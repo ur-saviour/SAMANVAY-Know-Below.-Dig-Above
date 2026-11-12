@@ -209,3 +209,15 @@ Both CI workflows now trigger when `scripts/**` changes. Latest browser workflow
 Companion Android workflow [43297740813](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43297740813) has passed the 25-check contract gate, dependency installation and Dart analysis. At the time of this checkpoint its release APK build step is still in progress; package/signature/alignment verification and publication are not yet confirmed.
 
 **Overall prototype engineering completion estimate: 82%.** This checkpoint credits the expanded automated regression coverage, successful browser artifact and verified Android static-analysis gate. It does not claim Android release publication, physical-device acceptance, real-world utility data validation or production readiness. Remaining work includes Android release completion, device/browser runtime acceptance, authenticated multi-role end-to-end tests and authority/data dependencies.
+
+## Android package-contract hardening — 13 November 2026
+
+Added `scripts/validate_android_package.py`, executed immediately after the CI workflow generates the Android project. It parses the generated manifest as XML and checks the SAMANVAY application label, INTERNET and location permissions, Supabase login callback deep link, Android namespace/application ID, all five density launcher icons, and adaptive launcher resources.
+
+The Android workflow now fails fast if the Supabase URL or publishable key is absent, and rejects non-HTTPS Supabase URLs before attempting a release build.
+
+Verification on the current branch:
+- Android workflow [43298615743](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298615743): 25 source-contract checks passed; generated Android project passed the new package-contract validator; Flutter dependencies installed; Dart analysis passed. Release APK compilation and APK integrity checks were still running at the time this report was updated.
+- Browser workflow [43298587461](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298587461): 25 source-contract checks passed; browser project generation, Flutter dependencies and Dart analysis passed. Browser compilation/package upload still running at the time this report was updated.
+
+The Android package validator is a CI integration test, not a substitute for installing the APK on a physical device. Until the two in-progress release jobs finish, their artifacts are not counted as delivered.
