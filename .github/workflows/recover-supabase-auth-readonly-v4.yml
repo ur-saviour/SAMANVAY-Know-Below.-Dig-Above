@@ -1,11 +1,13 @@
-name: SAMANVAY emergency groundwater compaction and auth recovery
+name: DESTRUCTIVE - Manual 2025-only groundwater replacement (legacy)
 
 on:
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - .github/workflows/recover-supabase-auth-readonly-v4.yml
+  workflow_dispatch:
+    inputs:
+      confirm_restore_2025_only:
+        description: "Type RESTORE_2025_ONLY to replace the production observation table with 2025-only records"
+        required: true
+        type: string
+
 
 permissions:
   contents: read
@@ -16,9 +18,24 @@ concurrency:
 
 jobs:
   recover:
+    if: github.ref == 'refs/heads/feature/alpha-03-integrated-platform' && inputs.confirm_restore_2025_only == 'RESTORE_2025_ONLY'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Confirm destructive 2025-only replacement
+        env:
+          CONFIRM_RESTORE_2025_ONLY: ${{ inputs.confirm_restore_2025_only }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/feature/alpha-03-integrated-platform" || {
+            echo "::error::This legacy replacement workflow is restricted to the feature branch."
+            exit 1
+          }
+          test "$CONFIRM_RESTORE_2025_ONLY" = "RESTORE_2025_ONLY" || {
+            echo "::error::Explicit RESTORE_2025_ONLY acknowledgement is required."
+            exit 1
+          }
+
       - name: Download and verify the previously published encrypted archive
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
