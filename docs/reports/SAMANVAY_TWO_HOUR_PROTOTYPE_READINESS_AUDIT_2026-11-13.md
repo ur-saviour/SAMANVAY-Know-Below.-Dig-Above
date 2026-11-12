@@ -190,3 +190,7 @@ The corrected suite passed in both the latest Android and browser workflow runs.
 - Matching workflow source commit: `927b1fc974f104cfa3aad5e19abf30a83ae5105d`.
 
 The Android workflow on the companion commit is still running; its final APK build and package checks have not yet been confirmed. The new contract gate is a static regression layer and does not replace authenticated end-to-end tests or device acceptance.
+
+### Updated progress estimate after regression gate
+
+The regression contract suite and successful browser build are counted as a 2-point engineering-quality milestone. The overall prototype estimate is now **77%**, not 82%. The Android companion run [43296945224](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43296945224) has passed the new contract gate, dependency installation and Dart analysis, but its release APK build has not yet returned a final result. No additional points are credited for that unfinished build.
