@@ -17411,9 +17411,9 @@ class _MapPageState extends State<MapPage> {
       if (mounted) {
         setState(() {
           _groundwaterStationCount = 0;
-          _groundwaterFreshnessLabel = 'Sign in to view historical station readings';
+          _groundwaterFreshnessLabel = 'Sign in to view retained 2025 station readings';
           _groundwaterArchiveLatestObservation = 'Guest access not enabled';
-          _groundwaterLatestAgency = 'NWIC historical archive';
+          _groundwaterLatestAgency = 'NWIC 2025 retained subset';
           _groundwaterStationDetails.clear();
         });
       }
@@ -18609,7 +18609,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'GROUNDWATER',
                             color: const Color(0xFFA78BFA),
                             detail: supabase.auth.currentUser == null
-                                ? 'Historical station readings are available to signed-in Citizens and staff only. This archive is not live telemetry; public coverage metadata remains visible.'
+                                ? 'The retained 2025 station readings are available to signed-in Citizens and staff only. Earlier archive history has not yet been restored; these records are not live telemetry. Public coverage metadata remains visible.'
                                 : _groundwaterReadinessLoaded
                                     ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · viewport timestamp: $_groundwaterFreshnessLabel · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical archive, not live telemetry · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
                                     : 'Coverage summary unavailable; station layer remains independently controlled.',
@@ -19048,7 +19048,7 @@ class _MapPageState extends State<MapPage> {
           detail: 'Visible cases permitted for this account', value: _showRequests,
           onChanged: (value) => _toggleRequests(value)),
         _desktopGisLayerToggle(title: 'Groundwater monitoring archive',
-          detail: supabase.auth.currentUser == null ? 'Sign in to view 2021–2025 historical station readings · not live telemetry' : '2021–2025 source archive · latest observation: $_groundwaterArchiveLatestObservation · not live telemetry', value: _showGroundwaterTelemetry,
+          detail: supabase.auth.currentUser == null ? 'Sign in to view retained 2025 station readings · earlier archive history not yet restored · not live telemetry' : '2025-only retained subset · latest observation: $_groundwaterArchiveLatestObservation · earlier history not yet restored · not live telemetry', value: _showGroundwaterTelemetry,
           onChanged: (value) => _toggleGroundwaterTelemetry(value)),
         _desktopGisLayerToggle(title: 'India State / UT boundaries',
           detail: 'Vintage $_indiaStateBoundaryVintage · source update $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · non-statutory reference', value: _showIndiaStateBoundaries,
