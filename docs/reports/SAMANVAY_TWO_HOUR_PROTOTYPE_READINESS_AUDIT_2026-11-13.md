@@ -221,3 +221,16 @@ Verification on the current branch:
 - Browser workflow [43298587461](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298587461): 25 source-contract checks passed; browser project generation, Flutter dependencies and Dart analysis passed. Browser compilation/package upload still running at the time this report was updated.
 
 The Android package validator is a CI integration test, not a substitute for installing the APK on a physical device. Until the two in-progress release jobs finish, their artifacts are not counted as delivered.
+
+## Browser release verification update — 13 November 2026
+
+The browser portal workflow `43298587461` completed successfully. Its source-contract gate (25 checks), Dart analysis, Flutter Web release compilation, compiled GIS asset smoke tests, ZIP packaging and artifact upload all passed.
+
+- Artifact: `SAMANVAY-Browser-Portal`
+- Artifact ID: `13979583828`
+- Size: 15,017,757 bytes
+- SHA-256: `7a47db017849e39c5e1e2381876fa54cd96b1e888cbab0d1e8c6360988333383`
+- Download: https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13979583828/zip
+- Workflow: https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298587461
+
+The Android workflow `43298615743` remains in progress at the release APK compilation step. The 25-check contract gate, Android package validator, dependency installation and Dart analysis have passed; no failed step is reported. APK publication, signature/alignment verification and physical-device testing remain unconfirmed.
