@@ -450,18 +450,12 @@ class _SamanvayBrandLogo extends StatelessWidget {
   final double radius;
 
   @override
-  Widget build(BuildContext context) => Image.asset(
-        'assets/brand/samanvay_logo.jpg',
+  Widget build(BuildContext context) => SvgPicture.asset(
+        'assets/brand/samanvay_logo.svg',
         width: size,
         height: size,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => SizedBox(
-          width: size,
-          height: size,
-          child: const Center(
-            child: Icon(Icons.broken_image_outlined, color: Colors.redAccent),
-          ),
-        ),
+        semanticsLabel: 'Original SAMANVAY logo',
       );
 }
 
