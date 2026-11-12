@@ -6575,7 +6575,7 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
           } else {
             final citizens = (result['citizen_notifications'] as num?)?.toInt() ?? 0;
             final municipal = (result['municipal_notifications'] as num?)?.toInt() ?? 0;
-            toast('Highway notice published. In-app alerts sent to $citizens Citizen account(s) and $municipal Municipal Corporation officer account(s).');
+            toast('Highway notice published. In-app alerts sent to $citizens Citizen account(s) and $municipal municipal service department officer account(s).');
           }
         } else {
           final updated = await supabase.from('public_excavation_notices').update({
@@ -6700,7 +6700,7 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
        Text('Create department-owned drafts, publish source-backed notices, update work timelines and review reports using existing RLS rules.',
         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
       const SizedBox(height: 5),
-      Text('Highway Department first publication sends in-app alerts to Citizen accounts and Municipal Corporation officers. The published notice is also visible in the Citizen-facing Public works tab.',
+      Text('Highway Department first publication sends in-app alerts to Citizen accounts and municipal service department officers. The published notice is also visible in the Citizen-facing Public works tab.',
         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35, fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
       SizedBox(width: double.infinity, child: FilledButton.icon(
@@ -6729,6 +6729,25 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
           Text((notice['city'] ?? '').toString() + ' · ' + (notice['responsible_department_name'] ?? 'Department not listed').toString(),
             style:  TextStyle(color: mutedInk, fontSize: 10)),
+          if (['highway department', 'roads & highways'].contains(
+            (notice['responsible_department_name'] ?? '').toString().trim().toLowerCase()))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(spacing: 5, runSpacing: 5, children: [
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.campaign_outlined, size: 14),
+                  label: const Text('CITIZEN ALERTS'),
+                  labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.account_balance_outlined, size: 14),
+                  label: const Text('MUNICIPAL ALERTS'),
+                  labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+              ]),
+            ),
           Text('Source: ' + (notice['source_reference'] ?? 'Not yet recorded').toString(),
             style:  TextStyle(color: mutedInk, fontSize: 9)),
           Align(alignment: Alignment.centerRight, child: TextButton.icon(

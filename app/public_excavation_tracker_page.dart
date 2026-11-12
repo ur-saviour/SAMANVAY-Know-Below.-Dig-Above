@@ -264,6 +264,24 @@ class _PublicExcavationTrackerPageState extends State<PublicExcavationTrackerPag
                 fontWeight: FontWeight.w900, fontSize: 9),
               visualDensity: VisualDensity.compact),
           ]),
+          if ((notice['responsible_department_name'] ?? '').toString().trim().toLowerCase() == 'highway department')
+            Padding(
+              padding: const EdgeInsets.only(top: 2, bottom: 7),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _trackerCyan.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: _trackerCyan.withValues(alpha: .35)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.add_road_rounded, size: 14, color: _trackerBlue),
+                  const SizedBox(width: 6),
+                  Text('HIGHWAY DEPARTMENT PUBLIC NOTICE',
+                    style: TextStyle(color: _trackerBlue, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .35)),
+                ]),
+              ),
+            ),
           Text((notice['title'] ?? 'Infrastructure work notice').toString(),
             style: GoogleFonts.spaceGrotesk(color: _trackerInk, fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
