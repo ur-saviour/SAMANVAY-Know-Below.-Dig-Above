@@ -2,11 +2,6 @@ name: SAMANVAY Durable Encrypted Database Archive (Fresh snapshot)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - '.github/workflows/durable-encrypted-backup.yml'
 
 permissions:
   contents: write
