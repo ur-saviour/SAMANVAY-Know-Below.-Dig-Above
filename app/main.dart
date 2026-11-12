@@ -13390,7 +13390,7 @@ class _MapPageState extends State<MapPage> {
                 directoryMessage = '';
               });
               try {
-                final rows = await supabase
+                var rows = await supabase
                     .from('india_administrative_units')
                     .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                     .eq('state_ut_id', stateId!)
@@ -13401,13 +13401,33 @@ class _MapPageState extends State<MapPage> {
                     .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(1000);
+                // The independent 23-Sep-2026 LGD-derived community snapshot
+                // carries ULB codes and State/UT names, but no district parent.
+                // Keep it as a state-level navigation fallback only.
+                if (rows.isEmpty) {
+                  rows = await supabase
+                      .from('india_administrative_units')
+                      .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                      .eq('state_ut_id', stateId!)
+                      .eq('parent_unit_id', null)
+                      .eq('unit_type', 'urban_local_body')
+                      .eq('source_system', 'India Cities & Administrative Data API mirror 23Sep2026 — Urban Local Bodies')
+                      .eq('is_active', true)
+                      .eq('verification_status', 'imported_unverified')
+                      .order('name')
+                      .limit(1000);
+                }
                 if (!sheetContext.mounted) return;
                 setSheetState(() {
                   localBodies = List<Map<String, dynamic>>.from(rows);
                   loadingLocalBodies = false;
                   if (localBodies.isEmpty) {
                     directoryMessage =
-                        'No urban local bodies are linked to this district in the imported LGD directory.';
+                        'No urban-local-body reference records are available for this State/UT.';
+                  } else if (localBodies.any((row) =>
+                      (row['source_system'] ?? '').toString().startsWith('India Cities & Administrative Data API mirror'))) {
+                    directoryMessage =
+                        'Showing a State/UT-level ULB reference snapshot dated 23 Sep 2026. The source does not provide district parent links or wards. These entries are unverified and are for navigation only, not statutory or permit evidence.';
                   }
                 });
               } catch (_) {
