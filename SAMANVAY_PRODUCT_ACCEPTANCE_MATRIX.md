@@ -319,3 +319,15 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Import authority-validated national and local boundaries after archive retrieval, checksum, CRS/topology QA and LGD-code reconciliation.
 
 **Implementation commit:** current source contains the no-default ward toggle, conditional layer loading and national default camera. Android and browser CI were triggered for the updated source; their final build and artifact verification must pass before this section is release-accepted.
+
+## 22. Dynamic boundary provenance and freshness — 12 November 2026
+
+- [x] Verify the live map Edge Function uses geoBoundaries gbOpen India ADM1/ADM2 metadata and downloads only the simplified geometry URL from an allow-listed GitHub HTTPS host.
+- [x] Verify the returned map metadata includes boundary ID, boundary year, source, licence, source URL and unit count.
+- [x] Confirm the map labels show feature count, boundary vintage, source/licence and reference-only status.
+- [x] Record that geoBoundaries ADM1 represents 2011 and ADM2 represents 2021; the provider build/source data dates are 2023.
+- [ ] Add `sourceDataUpdateDate` and `buildDate` to the Edge Function payload and visible map layer labels.
+- [ ] Reconcile the 736 ADM2 polygon references with the active 784 district LGD-code-bearing directory rows using stable identifiers and administrative effective dates; no fuzzy-name joins.
+- [ ] Replace or supplement stale references only after an authoritative, licensed boundary source has been downloaded and validated.
+
+**Important:** geoBoundaries `current` is an API release pointer, not a guarantee that the boundary year is current. These visual layers remain non-statutory reference data.
