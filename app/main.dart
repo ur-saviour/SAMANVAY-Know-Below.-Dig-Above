@@ -537,7 +537,7 @@ class _SamanvaySplashReveal extends StatelessWidget {
               child: CustomPaint(
                 size: Size.square(size + 30),
                 painter: _AnimatedLogoColourLinePainter(
-                  progress: ambientController.value,
+                  progress: controller.value,
                 ),
               ),
             ),
@@ -545,7 +545,10 @@ class _SamanvaySplashReveal extends StatelessWidget {
               child: Opacity(
                 opacity: progress,
                 child: Transform.scale(
-                  scale: .94 + .06 * progress,
+                  scale: .94 + .06 * progress +
+                      1.45 * Curves.easeInCubic.transform(
+                        ((controller.value - .82) / .18).clamp(0.0, 1.0).toDouble(),
+                      ),
                   child: _SamanvayBrandLogo(size: size, radius: size * .14),
                 ),
               ),
@@ -589,8 +592,8 @@ class _AnimatedLogoColourLinePainter extends CustomPainter {
     ];
 
     for (var i = 0; i < colors.length; i++) {
-      final start = (progress * total * 3 + total * i / 3) % total;
-      final end = start + total * .095;
+      final start = (progress * total * 3 + total * i * .035) % total;
+      final end = start + total * .035;
       final pieces = end <= total
           ? [metric.extractPath(start, end)]
           : [
@@ -646,6 +649,8 @@ class _OpeningExperienceState extends State<OpeningExperience>
   late final AnimationController _introController;
   late final AnimationController _ambientController;
   late final AnimationController _splashController;
+  late final AnimationController _flagController;
+  bool _showOpeningScreen = false;
   bool _splashFinished = false;
   bool _showApplication = false;
   bool _startingApplication = false;
@@ -662,13 +667,22 @@ class _OpeningExperienceState extends State<OpeningExperience>
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     )..repeat();
+    _flagController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() => _showOpeningScreen = true);
+        _introController.forward();
+      }
+    });
     _splashController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 7000),
     )..addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         setState(() => _splashFinished = true);
-        _introController.forward();
+        _flagController.forward();
       }
     });
     _splashController.forward();
@@ -679,6 +693,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
     _introController.dispose();
     _ambientController.dispose();
     _splashController.dispose();
+    _flagController.dispose();
     super.dispose();
   }
 
@@ -727,7 +742,13 @@ class _OpeningExperienceState extends State<OpeningExperience>
                   controller: _splashController,
                   ambientController: _ambientController,
                 )
-              : _SamanvayOpeningScreen(
+              : !_showOpeningScreen
+                  ? _SamanvayFlagTransition(
+                      key: const ValueKey<String>('samanvay-flag-transition'),
+                      controller: _flagController,
+                      ambientController: _ambientController,
+                    )
+                  : _SamanvayOpeningScreen(
               key: const ValueKey<String>('samanvay-opening-screen'),
               introController: _introController,
               ambientController: _ambientController,
@@ -737,6 +758,53 @@ class _OpeningExperienceState extends State<OpeningExperience>
             ),
     );
   }
+}
+
+class _SamanvayFlagTransition extends StatelessWidget {
+  const _SamanvayFlagTransition({
+    super.key,
+    required this.controller,
+    required this.ambientController,
+  });
+  final AnimationController controller;
+  final AnimationController ambientController;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: Listenable.merge([controller, ambientController]),
+    builder: (context, _) => Scaffold(
+      backgroundColor: const Color(0xFF020916),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: .95,
+                colors: [Color(0xFF15385D), Color(0xFF06172A), Color(0xFF020916)],
+              ),
+            ),
+          ),
+          Center(
+            child: Opacity(
+              opacity: Curves.easeOutCubic.transform(controller.value),
+              child: Transform.scale(
+                scale: .90 + .10 * controller.value,
+                child: SizedBox(
+                  width: math.min(MediaQuery.sizeOf(context).width * .82, 520),
+                  height: math.min(MediaQuery.sizeOf(context).width * .55, 350),
+                  child: CustomPaint(
+                    painter: _IndianFlagWavePainter(phase: ambientController.value),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _SamanvayOpeningScreen extends StatelessWidget {
