@@ -1,11 +1,7 @@
 name: SAMANVAY Safe WAL Checkpoint Recovery
 
 on:
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - '.github/workflows/safe-wal-checkpoint-recovery.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
