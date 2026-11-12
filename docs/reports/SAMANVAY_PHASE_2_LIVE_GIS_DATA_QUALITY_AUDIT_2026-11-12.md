@@ -240,3 +240,26 @@ Official metadata endpoints:
 The word `current` identifies the provider's latest API pointer; it does not mean that the layer's represented year or underlying source data is current. The district feature count of 736 is not the same as the active SAMANVAY LGD-code-bearing directory count of 784. They remain independent reference systems until stable source codes, administrative changes, effective dates and coverage are reconciled. Likewise, the 2011 State/UT vintage must not be treated as a current statutory boundary certification.
 
 The current map UI exposes the layer's boundary vintage, feature count, source and licence and labels it as reference-only. It does not yet expose `sourceDataUpdateDate` or `buildDate` in the layer label; adding these explicit freshness dates is a follow-up display improvement. Do not hide the vintage/source distinction or imply official validation.
+
+## 22. Post-hardening Android and browser build — 12 November 2026
+
+**Source commit:** `21a0ee5d2570e1e337ad34c54d8824f86e26e748` (app source blob `fd3072d92fabff69d9c8e54445af77b26cf43ac0`).
+
+### Android
+- Workflow: `43205312185` — conclusion: success.
+- Dart analysis, release APK build, ABI split, APK package/signature/alignment checks, upload and Alpha 0.3 publication all passed.
+- Artifact: `SAMANVAY-Alpha-0.3-APK`, ID `13936214438`.
+- Artifact SHA-256: `75c8721a72ec175216c5501d8718ca565b7328f51c6bc5f80a1f28407e54bfc7`; downloaded ZIP hash matches exactly.
+- APK variants extracted and ZIP integrity verified:
+  - ARM64: 33,460,414 bytes; SHA-256 `0e65e7e70e83af2891d265183168d58c318deaf68c498fb08300f3ac579ae6f0`.
+  - ARMv7: 28,565,800 bytes; SHA-256 `e6509fafdf6ef973e007f9121b27cd729f8f87d9de9fc67f4f6faf9b678a4d45`.
+  - x86_64: 35,246,623 bytes; SHA-256 `f384635830a910d76dc8b1fa380a239fc8c3ba3678e6fcb48edbd325f1c0dfc3`.
+
+### Browser
+- Workflow: `43205311668` — conclusion: success.
+- Dart analysis, browser release build, smoke-test of required map/branding assets, archive packaging and upload all passed.
+- Artifact: `SAMANVAY-Browser-Portal`, ID `13937037259`.
+- Artifact SHA-256: `6c58eac6908677d436da615d975c7d1cf5d4ab30c21a0afce54e55620196d6cc`; downloaded ZIP hash matches exactly.
+- Inner deployment archive passed ZIP integrity checks and contains `web/index.html`, `web/flutter_bootstrap.js` and `web/main.dart.js`.
+
+**Acceptance boundary:** These CI results confirm compilation, packaging and the stated automated checks. They do not establish sign-in, GPS, WebGL, satellite tile availability, role workflow, touch accessibility or GIS interaction on a physical Android device / production browser. Those remain release-acceptance tasks.
