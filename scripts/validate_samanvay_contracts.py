@@ -72,6 +72,44 @@ check("Generalised 250 m density cells can be extruded" in main
 check("an empty layer is not excavation clearance" in main.lower(),
       "UI warns that an empty utility layer is not proof of site clearance.")
 
+
+# India-first navigation and reference-layer scope.
+check("'All India': const CameraPosition(target: LatLng(22.5, 79.0)" in main,
+      "Default national GIS navigation is centred on India.")
+for region in ("North", "Northeast", "East", "Central", "West", "South"):
+    check(f"'{region}': const CameraPosition" in main,
+          f"GIS has a dedicated {region} regional navigation extent.")
+check("'Coimbatore-only ward reference (2024)'" in main
+      and "local reference only; not national or statutory coverage" in main,
+      "Coimbatore ward layer is clearly scoped as local, non-statutory reference data.")
+check("value: _showCoimbatoreWardBoundaries" in main,
+      "Coimbatore ward overlay is controlled by an explicit opt-in switch.")
+
+# Source-level presence checks for important workflow foundations.
+all_dart = "\\n".join(path.read_text(encoding="utf-8")
+                      for path in APP.glob("*.dart"))
+for rpc in ("create_case_joint_work_proposal",
+            "respond_case_joint_work_proposal",
+            "finalise_case_joint_work_proposal"):
+    check(rpc in all_dart,
+          f"Joint-work coordination client calls {rpc}.")
+check("ImageSource.camera" in main,
+      "Inspection workflow exposes camera capture.")
+check(".from('samanvay-case-evidence')" in main,
+      "Case evidence uses the private evidence storage bucket.")
+check("get_my_department_verified_assets_geojson" in main,
+      "Department GIS uses the owner-scoped verified-asset endpoint.")
+
+# Scan every top-level Dart module for a visible deprecated role label.
+visible_role_hits = []
+for dart_file in APP.glob("*.dart"):
+    text = dart_file.read_text(encoding="utf-8")
+    if visible_role_pattern.search(text):
+        visible_role_hits.append(dart_file.name)
+check(not visible_role_hits,
+      "No top-level Dart UI module visibly labels a user as Requester."
+      + (f" Found in: {', '.join(visible_role_hits)}" if visible_role_hits else ""))
+
 # The public ward reference layer must be valid GeoJSON before either build.
 ward_file = APP / "assets" / "reference" / "coimbatore" / "coimbatore_wards_2024_public_domain.geojson"
 if ward_file.is_file():
