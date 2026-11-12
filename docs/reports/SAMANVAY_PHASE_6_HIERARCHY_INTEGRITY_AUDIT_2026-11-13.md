@@ -63,7 +63,7 @@ A dedicated queue is now deployed at `public.india_ulb_district_reconciliation` 
 
 Migrations:
 - `20261112191153_create_audited_ulb_district_reconciliation_queue.sql`
-- `20261112191820_require_https_record_reference_for_verified_ulb_district_links.sql`
+- `20261112191742_require_https_record_reference_for_verified_ulb_district_links.sql`
 
 ## Recommended next Phase 6 implementation
 
