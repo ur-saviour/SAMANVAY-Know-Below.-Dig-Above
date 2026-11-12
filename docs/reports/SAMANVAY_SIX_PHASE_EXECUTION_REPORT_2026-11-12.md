@@ -160,6 +160,34 @@ A real pilot remains unexecuted. This screen is intended to make the Phase 5 wor
 **National administrative-reference scaffolding:** materially advanced, with source dates, code provenance and import-batch audits.  
 **Operational national coverage and integrations:** incomplete; must be delivered incrementally with current authority data, data-owner agreements, validated feeds, source attribution, update SLAs and access controls.
 
+## Live Phase 6 directory and readiness re-audit — 13 November 2026
+
+The connected production-development database was queried directly after the previous phase report. The current counts are:
+
+| Inventory | Live count | Status / interpretation |
+|---|---:|---|
+| State / UT parent records | 36 | Jurisdiction directory |
+| National coverage matrix | 396 | 36 jurisdictions × 11 domains; 0 operationally enabled |
+| District source records | 2,251 | Includes multiple historical/reference source vintages |
+| Distinct imported LGD district codes | 784 | 21 October 2026 community mirror; imported_unverified |
+| Sub-district records | 7,092 | 21 October 2026 community mirror; imported_unverified |
+| Block records | 7,312 | 21 October 2026 community mirror; imported_unverified |
+| Urban local body records | 5,050 | Third-party mirror dated 23 September 2026; imported_unverified |
+| Imported district / sub-district / block / ULB records | 20,238 | All imported_unverified |
+| Imported LGD ward records | 0 | Coimbatore's bundled 2024 ward polygons are a separate reference layer |
+| National authority directory references | 9 | Reference directory |
+| Official data source entries | 67 | Source register; not all feeds are integrated |
+| Utility layer contracts | 125 | 0 operationally allowed |
+| Restricted utility source-layer entries | 11 | 0 operationally allowed |
+| Verified underground asset records | 0 | No owner-authorised operational geometry |
+| Registered survey evidence records | 0 | No verified field survey corpus |
+
+The district table contains 2,251 rows because different historical boundary-source records are retained alongside the 784 unique LGD district codes. Those counts must not be added and described as 2,251 current districts. The 5,050 ULB records are a separate third-party mirror and have not been authority-reconciled. The 20,238 figure is the sum of the imported district, sub-district, block and ULB reference records; it is not a count of unique municipalities or a certified national hierarchy.
+
+### Phase 6 UI update
+
+The staff demonstration's India GIS/coverage panel now displays an audited footprint card with these counts, explicitly labels the data as reference/readiness records, calls out zero imported LGD wards and zero operational utility layers, and explains the separate source vintages and unverified status. The public layer register now states that the live groundwater table contains only 446,068 calendar-2025 rows and that the 1,911,126-row pre-change archive remains unrestored.
+
 ## Security and release controls
 
 Current Supabase security-advisor findings after the latest security migrations are 16 authenticated-callable SECURITY DEFINER function warnings and one Auth warning for disabled leaked-password protection. The 16 remaining routines were inspected for caller identity, live role/assignment guards and pinned search paths; the warning is generic to their authenticated execute grants, not a finding that their guards are absent. The 18 includes three intentional joint-work RPC endpoints with explicit role checks; the joint-work RLS read guard is in the non-API `private` schema. Each SECURITY DEFINER routine still requires individual review; do not “fix” warnings by indiscriminately granting access or removing RLS. Leaked-password protection remains an outstanding Auth setting.
@@ -198,6 +226,6 @@ The Phase 3/4 Flutter code and workflow dependency changes were built from app c
 
 ## Prototype completion estimate — 13 November 2026
 
-For the requested **prototype-only** scope (working screens, navigable role demonstrations, local synthetic records and backend foundations), the current engineering estimate is **about 71% complete**. This is an equal-weight, phase-based planning estimate, not an automated test-coverage statistic. The six phase estimates are approximately: Phase 1 85%, Phase 2 65%, Phase 3 85%, Phase 4 75%, Phase 5 55%, and Phase 6 60%. Their mean is 70.8%, rounded to 71%.
+For the requested **prototype-only** scope (working screens, navigable role demonstrations, local synthetic records and backend foundations), the current engineering estimate is **about 73% complete**. This is an equal-weight, phase-based planning estimate, not an automated test-coverage statistic. The six phase estimates are approximately: Phase 1 85%, Phase 2 65%, Phase 3 85%, Phase 4 75%, Phase 5 65%, and Phase 6 65%. Their equal-weight mean is 73.3%, rounded to **73%**. Phase 5 increased for the new interactive, local-only pilot scenario; Phase 6 increased for the audited India readiness dashboard and live database re-audit.
 
 This estimate does not represent production readiness. Real authority integrations, owner-authorised utility geometry, physical-device acceptance, field evidence, production-safe recovery of the groundwater history, and a measured municipal pilot remain open. The currently live groundwater telemetry table contains 446,068 2025 rows after the confirmed 9 November data-reduction incident; the pre-change encrypted archive is available, but the historical delta has not been restored.
