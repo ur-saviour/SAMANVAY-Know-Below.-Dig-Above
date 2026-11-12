@@ -4832,9 +4832,14 @@ class _AuthPageState extends State<AuthPage> {
                         ),
                         ChoiceChip(
                           avatar: const Icon(Icons.sms_outlined, size: 17),
-                          label: const Text('Mobile OTP (not configured)'),
-                          selected: false,
-                          onSelected: null,
+                          label: const Text('Mobile OTP'),
+                          selected: !usePasswordLogin && usePhoneLogin,
+                          onSelected: loading || otpSent ? null : (_) => setState(() {
+                            usePasswordLogin = false;
+                            usePhoneLogin = true;
+                            message = '';
+                            messageIsSuccess = false;
+                          }),
                         ),
                       ],
                     ),
