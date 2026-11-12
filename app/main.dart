@@ -12698,6 +12698,100 @@ class _ClashVisualizerPageState extends State<ClashVisualizerPage>
   );
 }
 
+class _DemoUndergroundCrossSectionPainter extends CustomPainter {
+  const _DemoUndergroundCrossSectionPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final ground = h * .34;
+    final soil = Paint()..color = const Color(0xFF25384A);
+    canvas.drawRect(Rect.fromLTWH(0, ground, w, h - ground), soil);
+    canvas.drawRect(
+      Rect.fromLTWH(0, ground - 12, w, 12),
+      Paint()..color = const Color(0xFF64748B),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, ground - 3, w, 3),
+      Paint()..color = const Color(0xFFCBD5E1),
+    );
+
+    final lane = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    for (var x = 10.0; x < w; x += 25) {
+      canvas.drawLine(Offset(x, ground - 7), Offset(x + 12, ground - 7), lane);
+    }
+
+    final strata = Paint()
+      ..color = const Color(0xFF78909C).withValues(alpha: .35)
+      ..strokeWidth = 1;
+    for (var y = ground + 22; y < h; y += 20) {
+      canvas.drawLine(Offset(0, y), Offset(w, y), strata);
+    }
+
+    void conduit(double y, Color color, double thickness, {double phase = 0}) {
+      final path = Path()
+        ..moveTo(-4, y)
+        ..cubicTo(w * .22, y - 8 + phase, w * .38, y + 8, w * .53, y)
+        ..cubicTo(w * .70, y - 7, w * .82, y + 6 - phase, w + 4, y - 1);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF07111D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = thickness + 4
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = thickness
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    conduit(ground + 23, const Color(0xFF38BDF8), 5, phase: 2);
+    conduit(ground + 43, const Color(0xFF22C55E), 4, phase: -2);
+    conduit(ground + 62, const Color(0xFFFBBF24), 3);
+    conduit(ground + 80, const Color(0xFFFB7185), 4, phase: 1);
+
+    final marker = Paint()..color = const Color(0xFFCBD5E1);
+    for (final x in [w * .18, w * .48, w * .78]) {
+      canvas.drawCircle(Offset(x, ground + 23), 2.3, marker);
+    }
+
+    final labels = [
+      ('WATER', const Color(0xFF38BDF8)),
+      ('DRAIN', const Color(0xFF22C55E)),
+      ('POWER / FIBRE', const Color(0xFFFBBF24)),
+      ('GAS', const Color(0xFFFB7185)),
+    ];
+    for (var i = 0; i < labels.length; i++) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: labels[i].$1,
+          style: TextStyle(
+            color: labels[i].$2,
+            fontSize: 6.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .35,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: w * .35);
+      painter.paint(canvas, Offset(w - painter.width - 6, ground + 13 + i * 17));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DemoUndergroundCrossSectionPainter oldDelegate) => false;
+}
+
 class _Clash3DScenePainter extends CustomPainter {
   const _Clash3DScenePainter({
     required this.phase,
@@ -15979,6 +16073,37 @@ class _MapPageState extends State<MapPage> {
           const SizedBox(height: 5),
           Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
             style: TextStyle(color: mutedInk, fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Container(
+            height: 112,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A1725),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0x5545D9CE)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: const CustomPaint(
+              painter: _DemoUndergroundCrossSectionPainter(),
+              child: Center(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Text(
+                      'SIMULATED DEMO SCHEMATIC · NOT GEO-REFERENCED',
+                      style: TextStyle(
+                        color: Color(0xFFFFD98B),
+                        fontSize: 6.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .35,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           ...layers.map((layer) => Padding(
             padding: const EdgeInsets.only(bottom: 6),
