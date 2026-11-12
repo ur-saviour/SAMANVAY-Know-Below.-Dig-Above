@@ -14,6 +14,10 @@
 4. Do not sign into a real account and describe a demo preview as a privileged live account. The switcher opens a local sample workspace; it does not change the signed-in database role.
 5. Do not describe a blank underground layer as a clear-to-dig result.
 
+## Demo entry without account sign-in
+
+The login screen exposes four portal cards: Citizen, Department Officer, Coordinator and Administrator. Tapping a card opens that role's local sample workspace immediately; no account sign-in is required for the demonstration. These are session-local previews, not real account impersonation. They do not create a Supabase session, read protected data or write to operational tables. Use the normal registered email/password route only when demonstrating live authenticated records.
+
 ## Five-minute sequence
 
 ### 0:00–0:35 — The citizen problem
