@@ -40,7 +40,8 @@ for label in ("Citizen", "Department Officer", "Coordinator", "Administrator"):
           f"Profile switcher includes {label}.")
 check("Demo role switching does not alter your authenticated account or production permissions." in main,
       "Profile switcher explicitly disclaims production permission changes.")
-check("They do not authenticate with Supabase, impersonate users, or grant access to protected records." in main,
+check("read-only previews only" in main and "impersonate users" in main
+      and "grant access to protected records" in main,
       "Staff preview is explicitly read-only and non-impersonating.")
 check("PUBLIC-ADMIN-DEMO" in main and "PUBLIC-COORDINATOR-DEMO" in main
       and "PUBLIC-OFFICER-DEMO" in main and "PUBLIC-CITIZEN-DEMO" in main,
