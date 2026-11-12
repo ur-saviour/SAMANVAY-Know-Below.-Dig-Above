@@ -12932,7 +12932,7 @@ class _MapPageState extends State<MapPage> {
   String _lastConflictAlertSignature = '';
   bool _canViewDepartmentAssets = false;
   bool _showVerifiedAssets = true;
-  bool _showCoimbatoreWardBoundaries = true;
+  bool _showCoimbatoreWardBoundaries = false;
   int _coimbatoreWardCount = 0;
   bool _showIndiaStateBoundaries = true;
   bool _showIndiaDistrictBoundaries = false;
@@ -14680,7 +14680,7 @@ class _MapPageState extends State<MapPage> {
       // Public administrative reference data is independent of account role.
       // This 2024 ward reference layer is not a current statutory jurisdiction source.
       await Future.wait<void>([
-        _loadCoimbatoreWardBoundaries(),
+        if (_showCoimbatoreWardBoundaries) _loadCoimbatoreWardBoundaries(),
         _loadGroundwaterTelemetryStations(),
         _loadMapReadiness(),
       ]);
@@ -15768,11 +15768,11 @@ class _MapPageState extends State<MapPage> {
                       value: _showCoimbatoreWardBoundaries,
                       activeThumbColor: const Color(0xFF20D6C2),
                       title: const Text(
-                        'Coimbatore ward boundaries (2024 reference)',
+                        'Coimbatore-only ward reference (2024)',
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '$_coimbatoreWardCount polygons · OpenCity Public Domain dataset · reference only; confirm legal boundaries with CCMC',
+                        '[0m${_coimbatoreWardCount == 0 ? 'Not loaded' : '$_coimbatoreWardCount polygons'} · OpenCity Public Domain · local reference only; not national or statutory coverage',
                         style:  TextStyle(
                           color: mutedInk,
                           fontSize: 11,
@@ -16133,7 +16133,7 @@ class _MapPageState extends State<MapPage> {
           detail: 'Optional detail · vintage $_indiaDistrictBoundaryVintage', value: _showIndiaDistrictBoundaries,
           onChanged: (value) => _toggleIndiaDistrictBoundaries(value)),
         _desktopGisLayerToggle(title: 'Coimbatore ward reference',
-          detail: '2024 public-domain reference; not legal certification', value: _showCoimbatoreWardBoundaries,
+          detail: 'Optional Coimbatore-only 2024 reference; not national coverage or legal certification', value: _showCoimbatoreWardBoundaries,
           onChanged: (value) => _toggleCoimbatoreWardBoundaries(value)),
         if (_canViewDepartmentAssets)
           _desktopGisLayerToggle(title: 'Verified department-owned assets',
