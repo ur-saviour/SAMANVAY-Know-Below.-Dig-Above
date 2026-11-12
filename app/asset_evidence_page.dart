@@ -190,7 +190,7 @@ class _UtilityAssetEvidenceSubmissionPageState
     setState(() => _busy = true);
     String? uploadedPath;
     try {
-      final picked = await FilePicker.platform.pickFiles(
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
         withData: true,
