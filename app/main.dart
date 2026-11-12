@@ -107,6 +107,7 @@ String _displayRoleName(String role) => switch (role) {
 };
 
 const Map<String, String> _publicDemoStaffIds = {
+  'requester': 'PUBLIC-CITIZEN-DEMO',
   'department': 'PUBLIC-OFFICER-DEMO',
   'coordinator': 'PUBLIC-COORDINATOR-DEMO',
   'admin': 'PUBLIC-ADMIN-DEMO',
@@ -4694,7 +4695,9 @@ class _AuthPageState extends State<AuthPage> {
                                       const SizedBox(height: 3),
                                       Text(
                                         canOpenDemo
-                                            ? 'Open official demonstration portal'
+                                            ? (demoRole == 'requester'
+                                                ? 'Open Citizen guest demonstration'
+                                                : 'Open official demonstration portal')
                                             : detail,
                                         style: TextStyle(
                                           color: mutedInk,
@@ -4728,6 +4731,7 @@ class _AuthPageState extends State<AuthPage> {
                         'Public services and request tracking',
                         Icons.person_outline,
                         true,
+                        demoRole: 'requester',
                       ),
                       roleCard(
                         'Department officer',
@@ -4754,7 +4758,7 @@ class _AuthPageState extends State<AuthPage> {
                   }),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap an official role to open its interactive demonstration portal. Sample case updates and assignments are simulated locally; live records and protected actions still require an authorised account.',
+                    'Tap any portal to open its interactive demonstration workspace. Citizen guest requests and official sample updates run locally in this session; live records and protected actions still require an authorised account.',
                     style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
                   ),
                   const SizedBox(height: 16),
@@ -5126,6 +5130,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   late String _activeRole;
   late String _activeStaffId;
   String _section = 'Overview';
+  int _citizenRequestCounter = 1;
   final List<Map<String, dynamic>> _cases = [];
   final List<String> _activity = ['Demo workspace opened'];
 
@@ -5159,6 +5164,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       },
       {
         'id': 'DEMO-2026-003',
+        'owner': 'citizen',
         'title': 'Stormwater drain obstruction',
         'domain': 'Drainage',
         'department': 'Urban Local Bodies',
@@ -5181,6 +5187,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       },
       {
         'id': 'DEMO-2026-005',
+        'owner': 'citizen',
         'title': 'Groundwater and borewell observation',
         'domain': 'Groundwater',
         'department': 'Water Supply / PHED',
@@ -5194,6 +5201,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   }
 
   String get _roleTitle => switch (_activeRole) {
+    'requester' => 'Citizen Portal',
     'admin' => 'Administrator Portal',
     'coordinator' => 'Coordinator Portal',
     'department' => 'Department Officer Portal',
@@ -5201,6 +5209,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   };
 
   String get _roleDescription => switch (_activeRole) {
+    'requester' => 'Public infrastructure services, request submission and transparent status tracking',
     'admin' => 'National overview, platform governance and department administration',
     'coordinator' => 'Cross-department coordination, escalations and work-conflict review',
     'department' => 'Assigned department cases, technical reviews and field-work coordination',
@@ -5208,6 +5217,11 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   };
 
   List<List<String>> get _metrics => switch (_activeRole) {
+    'requester' => [
+      ['${_cases.where((item) => item['owner'] == 'citizen').length}', 'My demo requests'],
+      ['2', 'Service categories'],
+      ['36', 'State / UT directory'],
+    ],
     'admin' => [['36', 'States / UTs'], ['11', 'Service domains'], ['5', 'Sample cases'], ['7', 'Regions']],
     'coordinator' => [['5', 'Sample cases'], ['2', 'Joint-work links'], ['7', 'Departments'], ['36', 'Jurisdictions']],
     'department' => [['3', 'Assigned samples'], ['2', 'Review actions'], ['1', 'Field inspection'], ['1', 'Pending report']],
@@ -5217,10 +5231,6 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   Future<void> _switchProfiles() async {
     final selected = await _showProfileSwitcher(context, currentRole: _activeRole);
     if (!mounted || selected == null) return;
-    if (selected == 'requester') {
-      widget.onExit();
-      return;
-    }
     setState(() {
       _activeRole = selected;
       _activeStaffId = _publicDemoStaffIds[selected]!;
@@ -5410,6 +5420,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
 
   Widget _caseCard(Map<String, dynamic> item) {
     final isOfficer = _activeRole == 'department';
+    final isCitizen = _activeRole == 'requester';
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
       child: Padding(
@@ -5438,10 +5449,24 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               spacing: 7,
               runSpacing: 7,
               children: [
-                OutlinedButton.icon(onPressed: () => _showCase(item), icon: const Icon(Icons.visibility_outlined, size: 15), label: const Text('Details')),
-                FilledButton.tonalIcon(onPressed: () => _updateCase(item), icon: Icon(isOfficer ? Icons.rate_review_outlined : Icons.sync_alt, size: 15), label: Text(isOfficer ? 'Review' : 'Update status')),
-                if (!isOfficer)
-                  OutlinedButton.icon(onPressed: () => _assignDepartment(item), icon: const Icon(Icons.account_tree_outlined, size: 15), label: const Text('Assign')),
+                OutlinedButton.icon(
+                  onPressed: () => _showCase(item),
+                  icon: Icon(isCitizen ? Icons.track_changes_outlined : Icons.visibility_outlined, size: 15),
+                  label: Text(isCitizen ? 'Track request' : 'Details'),
+                ),
+                if (!isCitizen) ...[
+                  FilledButton.tonalIcon(
+                    onPressed: () => _updateCase(item),
+                    icon: Icon(isOfficer ? Icons.rate_review_outlined : Icons.sync_alt, size: 15),
+                    label: Text(isOfficer ? 'Review' : 'Update status'),
+                  ),
+                  if (!isOfficer)
+                    OutlinedButton.icon(
+                      onPressed: () => _assignDepartment(item),
+                      icon: const Icon(Icons.account_tree_outlined, size: 15),
+                      label: const Text('Assign'),
+                    ),
+                ],
               ],
             ),
           ],
@@ -5449,6 +5474,222 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       ),
     );
   }
+
+  Future<void> _submitCitizenRequest() async {
+    final titleController = TextEditingController();
+    final locationController = TextEditingController();
+    final descriptionController = TextEditingController();
+    const categories = <String, String>{
+      'water_supply': 'Water supply',
+      'sewerage': 'Sewerage',
+      'stormwater_drainage': 'Stormwater / drainage',
+      'road_reconstruction': 'Roads / road damage',
+      'electricity': 'Electricity',
+      'telecom': 'Telecommunications',
+      'gas': 'Gas network',
+      'borewell_groundwater': 'Borewell / groundwater',
+      'building_planning': 'Building / planning concern',
+      'other': 'Other public infrastructure issue',
+    };
+    String category = 'water_supply';
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Submit a demo civic request'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Service category'),
+                  items: categories.entries.map((entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: titleController,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: 'Short request title',
+                    hintText: 'Example: Drain blockage near my street',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: locationController,
+                  maxLength: 140,
+                  decoration: const InputDecoration(
+                    labelText: 'Area / locality',
+                    hintText: 'Example: RS Puram, Coimbatore',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  maxLength: 700,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(labelText: 'Describe the issue'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'DEMO ONLY: this sample request stays in this screen session. It is not sent to a government department.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty ||
+                    locationController.text.trim().isEmpty ||
+                    descriptionController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Complete the title, locality and description.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'category': category,
+                  'title': titleController.text.trim(),
+                  'location': locationController.text.trim(),
+                  'description': descriptionController.text.trim(),
+                });
+              },
+              child: const Text('Create demo request'),
+            ),
+          ],
+        ),
+      ),
+    );
+    titleController.dispose();
+    locationController.dispose();
+    descriptionController.dispose();
+    if (!mounted || result == null) return;
+
+    final categoryName = categories[result['category']] ?? 'Other infrastructure issue';
+    final department = switch (result['category']) {
+      'water_supply' || 'borewell_groundwater' => 'Water Supply / PHED',
+      'sewerage' || 'stormwater_drainage' => 'Sewerage and Drainage',
+      'road_reconstruction' => 'Roads and Highways',
+      'electricity' => 'Electricity Distribution',
+      'telecom' => 'Telecommunications',
+      'gas' => 'Gas network',
+      'building_planning' => 'Town Planning',
+      _ => 'Urban Local Bodies',
+    };
+    final requestId = 'DEMO-CIT-${_citizenRequestCounter.toString().padLeft(3, '0')}';
+    _citizenRequestCounter++;
+    final item = <String, dynamic>{
+      'id': requestId,
+      'owner': 'citizen',
+      'title': result['title'],
+      'domain': categoryName,
+      'department': department,
+      'status': 'Submitted',
+      'priority': 'Normal',
+      'location': result['location'],
+      'assigned': [department],
+      'description': result['description'],
+    };
+    setState(() {
+      _cases.insert(0, item);
+      _section = 'My requests';
+    });
+    _record('$requestId created in the Citizen demo workspace');
+  }
+
+  Widget _citizenOverview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _metrics.map((metric) => _metricCard(metric[0], metric[1])).toList(),
+      ),
+      const SizedBox(height: 14),
+      _panel(
+        'One public access point',
+        'Raise and follow requests related to roads, water, sewerage, drainage, electricity, telecom, gas, groundwater and building concerns.',
+        Icons.public_outlined,
+        status: 'CITIZEN DEMONSTRATION',
+      ),
+      _panel(
+        'Transparent request tracking',
+        'Open a sample request to view its reference number, assigned service department and current demonstration status.',
+        Icons.track_changes_outlined,
+        status: 'LOCAL SAMPLE RECORDS',
+      ),
+      _panel(
+        'Public GIS and infrastructure context',
+        'Explore available public reference boundaries, groundwater observations and published work information. Reference coverage is not an underground utility clearance.',
+        Icons.map_outlined,
+        status: 'SOURCE AND DATA LIMITATIONS SHOWN',
+      ),
+      const SizedBox(height: 6),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _submitCitizenRequest,
+          icon: const Icon(Icons.add_location_alt_outlined),
+          label: const Text('SUBMIT A DEMO REQUEST'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => setState(() => _section = 'My requests'),
+          icon: const Icon(Icons.assignment_outlined),
+          label: const Text('TRACK MY REQUESTS'),
+        ),
+      ),
+    ],
+  );
+
+  Widget _citizenServices() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Roads and excavation', 'Report road damage, obstruction or public-work concerns. Published notices and permits remain subject to the responsible authority.', Icons.construction_outlined),
+      _panel('Water, sewerage and drainage', 'Submit a service issue and follow its sample routing to the relevant water or drainage service department.', Icons.water_drop_outlined),
+      _panel('Electricity, telecom and gas', 'Raise a public infrastructure concern. The demo does not establish network ownership or exact underground routes.', Icons.cable_outlined),
+      _panel('Groundwater and borewells', 'Record an observation for authority review. This does not grant a borewell permission or certify groundwater conditions.', Icons.sensors_outlined),
+      _panel('Buildings and planning', 'Submit a building or planning concern for illustrative routing to the relevant planning authority.', Icons.apartment_outlined),
+    ],
+  );
+
+  Widget _citizenPublicWorks() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Public works information', 'Browse public notices and reported work updates separately from private case records.', Icons.campaign_outlined, status: 'PUBLIC INFORMATION'),
+      _panel('Evidence and accountability', 'A genuine signed-in account is required to attach private evidence to a live case. This guest demo does not upload files.', Icons.verified_user_outlined),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.tonalIcon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const PublicExcavationTrackerPage(),
+            ),
+          ),
+          icon: const Icon(Icons.open_in_new_rounded),
+          label: const Text('OPEN PUBLIC WORKS TRACKER'),
+        ),
+      ),
+    ],
+  );
 
   Widget _overview() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -5474,15 +5715,27 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        _activeRole == 'department'
-            ? 'Sample cases routed to the Water Supply / PHED workspace.'
-            : 'Sample infrastructure cases across connected service departments.',
+        _activeRole == 'requester'
+            ? 'Sample requests created in this guest session. New requests are stored locally for this demonstration only.'
+            : _activeRole == 'department'
+                ? 'Sample cases routed to the Water Supply / PHED workspace.'
+                : 'Sample infrastructure cases across connected service departments.',
         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
       ),
       const SizedBox(height: 10),
-      ...(_activeRole == 'department'
-          ? _cases.where((item) => (item['assigned'] as List).contains('Water Supply / PHED'))
-          : _cases).map(_caseCard),
+      ...(_activeRole == 'requester'
+          ? _cases.where((item) => item['owner'] == 'citizen')
+          : _activeRole == 'department'
+              ? _cases.where((item) => (item['assigned'] as List).contains('Water Supply / PHED'))
+              : _cases).map(_caseCard),
+      if (_activeRole == 'requester') ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _submitCitizenRequest,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Submit another demo request'),
+        ),
+      ],
     ],
   );
 
@@ -5565,6 +5818,15 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   );
 
   Widget _selectedContent() {
+    if (_activeRole == 'requester') {
+      switch (_section) {
+        case 'My requests': return _caseQueue();
+        case 'Service guide': return _citizenServices();
+        case 'Public works': return _citizenPublicWorks();
+        case 'GIS & coverage': return _gisCoverage();
+        default: return _citizenOverview();
+      }
+    }
     switch (_section) {
       case 'Case queue': return _caseQueue();
       case 'Coordination': return _coordination();
@@ -5589,7 +5851,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('SAMANVAY OFFICIAL WORKSPACE'),
+            Text(_activeRole == 'requester' ? 'SAMANVAY CITIZEN WORKSPACE' : 'SAMANVAY OFFICIAL WORKSPACE'),
             Text('DEMO ID ' + _activeStaffId + ' · ' + _roleTitle.toUpperCase(), style: TextStyle(color: cyanAccent, fontSize: 9)),
           ],
         ),
@@ -5622,7 +5884,9 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'DEMO PROFILE ACTIVE. This workspace uses synthetic sample records. Status updates and assignments work in this session only; no Supabase user is impersonated and no live citizen or department data is changed.',
+                      _activeRole == 'requester'
+                          ? 'CITIZEN GUEST DEMO ACTIVE. You can submit and track sample requests in this session. Nothing is sent to a government department or saved to a live account.'
+                          : 'DEMO PROFILE ACTIVE. This workspace uses synthetic sample records. Status updates and assignments work in this session only; no Supabase user is impersonated and no live citizen or department data is changed.',
                       style: TextStyle(color: isLight ? navy : const Color(0xFFFFE5AE), fontSize: 10, height: 1.4),
                     ),
                   ),
@@ -5637,17 +5901,21 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: [
-                  'Overview', 'Case queue', 'Coordination', 'Roadworks',
-                  'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
-                ].map(_sectionChip).toList(),
+                children: (_activeRole == 'requester'
+                    ? <String>['Overview', 'My requests', 'Service guide', 'Public works', 'GIS & coverage']
+                    : <String>[
+                        'Overview', 'Case queue', 'Coordination', 'Roadworks',
+                        'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                      ]).map(_sectionChip).toList(),
               ),
             ),
             const SizedBox(height: 14),
             _selectedContent(),
             const SizedBox(height: 8),
             Text(
-              'Live officer functions and protected records require an authorised Supabase staff account. This interactive demonstration is designed for the five-minute presentation.',
+              _activeRole == 'requester'
+                  ? 'Guest demonstration only. Sign in to send a real service request, upload private evidence and receive account-linked updates. Demo entries disappear when this screen session ends.'
+                  : 'Live officer functions and protected records require an authorised Supabase staff account. This interactive demonstration is designed for the five-minute presentation.',
               style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
             ),
           ],
