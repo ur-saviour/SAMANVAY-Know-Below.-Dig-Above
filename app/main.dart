@@ -9236,13 +9236,16 @@ class _IndiaAdministrativeHierarchyPageState
   List<Map<String, dynamic>> districts = [];
   List<Map<String, dynamic>> subDistricts = [];
   List<Map<String, dynamic>> blocks = [];
+  List<Map<String, dynamic>> localBodies = [];
 
   String? selectedStateId;
   String? selectedDistrictId;
   String districtSearch = '';
+  String localBodySearch = '';
   bool loadingStates = true;
   bool loadingDistricts = false;
   bool loadingChildren = false;
+  bool loadingLocalBodies = false;
   int _districtRequestVersion = 0;
   int _childrenRequestVersion = 0;
   String errorMessage = '';
@@ -9331,23 +9334,34 @@ class _IndiaAdministrativeHierarchyPageState
       districts = [];
       subDistricts = [];
       blocks = [];
+      localBodies = [];
       districtSearch = '';
+      localBodySearch = '';
       loadingDistricts = true;
+      loadingLocalBodies = true;
       loadingChildren = false;
       errorMessage = '';
     });
     try {
-      final rows = await _fetchUnits(unitType: 'district', stateId: stateId);
+      // The ULB source provides State/UT linkage but no validated district
+      // parent. Load these rows at State/UT level instead of guessing parents.
+      final results = await Future.wait([
+        _fetchUnits(unitType: 'district', stateId: stateId),
+        _fetchUnits(unitType: 'urban_local_body', stateId: stateId),
+      ]);
       if (!mounted || requestVersion != _districtRequestVersion) return;
       setState(() {
-        districts = rows;
+        districts = results[0];
+        localBodies = results[1];
         loadingDistricts = false;
+        loadingLocalBodies = false;
       });
     } catch (_) {
       if (!mounted || requestVersion != _districtRequestVersion) return;
       setState(() {
         loadingDistricts = false;
-        errorMessage = 'District records could not be loaded for this jurisdiction.';
+        loadingLocalBodies = false;
+        errorMessage = 'District and State/UT-level local-body records could not be loaded.';
       });
     }
   }
@@ -9434,6 +9448,12 @@ class _IndiaAdministrativeHierarchyPageState
       final query = districtSearch.trim().toLowerCase();
       return query.isEmpty || name.contains(query) || code.contains(query);
     }).toList();
+    final filteredLocalBodies = localBodies.where((row) {
+      final name = (row['name'] ?? '').toString().toLowerCase();
+      final code = (row['lgd_code'] ?? '').toString().toLowerCase();
+      final query = localBodySearch.trim().toLowerCase();
+      return query.isEmpty || name.contains(query) || code.contains(query);
+    }).toList();
 
     final selectedState = states.where((row) => row['id'].toString() == selectedStateId);
     final selectedStateName = selectedState.isEmpty
@@ -9449,7 +9469,7 @@ class _IndiaAdministrativeHierarchyPageState
         title: const Text('India administrative directory'),
         actions: [
           IconButton(
-            onPressed: loadingStates || loadingDistricts || loadingChildren ? null : _loadStates,
+            onPressed: loadingStates || loadingDistricts || loadingLocalBodies || loadingChildren ? null : _loadStates,
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh directory',
           ),
@@ -9504,7 +9524,7 @@ class _IndiaAdministrativeHierarchyPageState
                       value: row['id'].toString(),
                       child: Text(row['name'].toString(), overflow: TextOverflow.ellipsis),
                     )).toList(),
-                    onChanged: loadingDistricts ? null : _selectState,
+                    onChanged: loadingDistricts || loadingLocalBodies ? null : _selectState,
                   ),
                   if (selectedStateId != null) ...[
                     const SizedBox(height: 10),
@@ -9569,6 +9589,76 @@ class _IndiaAdministrativeHierarchyPageState
                         _unitSection('Blocks', blocks),
                       ],
                     ],
+                    const SizedBox(height: 8),
+                    Card(
+                      child: ExpansionTile(
+                        initiallyExpanded: false,
+                        title: Text(
+                          'Urban local bodies — ${selectedStateName}',
+                          style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
+                        subtitle: Text(
+                          loadingLocalBodies
+                              ? 'Loading State/UT-linked records…'
+                              : '${localBodies.length} imported ULB reference record(s) · district association unavailable',
+                          style: TextStyle(color: mutedInk, fontSize: 10),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Source: 23 September 2026 community mirror. These records are linked to this State/UT only; the imported source does not establish district parents or ward boundaries. All entries remain unverified.',
+                                  style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  onChanged: (value) => setState(() => localBodySearch = value),
+                                  decoration: const InputDecoration(
+                                    prefixIcon: Icon(Icons.search),
+                                    hintText: 'Search ULB name or LGD code',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                if (loadingLocalBodies)
+                                  const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(child: CircularProgressIndicator()),
+                                  )
+                                else if (filteredLocalBodies.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Text(
+                                      'No ULB reference rows match this State/UT and search.',
+                                      style: TextStyle(color: mutedInk, fontSize: 10),
+                                    ),
+                                  )
+                                else
+                                  SizedBox(
+                                    height: 320,
+                                    child: ListView.builder(
+                                      itemCount: filteredLocalBodies.length,
+                                      itemBuilder: (context, index) =>
+                                          _recordTile(filteredLocalBodies[index]),
+                                    ),
+                                  ),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Showing ${filteredLocalBodies.length} matching row(s)',
+                                    style: TextStyle(color: mutedInk, fontSize: 9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 8),
                   Card(
@@ -9577,11 +9667,11 @@ class _IndiaAdministrativeHierarchyPageState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('ULBs, gram panchayats and wards',
+                          Text('Administrative coverage and source limitations',
                               style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
                           const SizedBox(height: 5),
                           Text(
-                            'These unit types are not present in the currently imported national directory records. Their counts remain zero until a dated, authority-generated source file is supplied and validated.',
+                            'The database contains 5,050 active State/UT-linked ULB code records from a 23 Sep 2026 community mirror. The source does not include validated district parent links or ward polygons. Gram-panchayat and ward records are not present in the current import. All mirrored rows remain unverified; no local-body boundary geometry or statutory status is inferred.',
                             style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
                           ),
                         ],
