@@ -1,12 +1,8 @@
 name: SAMANVAY Full Database Restore Drill (Isolated)
 
 on:
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - .github/workflows/restore-drill.yml
   workflow_dispatch:
+
 
 permissions:
   contents: read
