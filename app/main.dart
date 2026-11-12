@@ -19686,6 +19686,31 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
   Future<void> _upload() async {
     final user = supabase.auth.currentUser;
     if (user == null || _uploading) return;
+
+    // Require an explicit document class rather than inferring it from the
+    // file extension. The database still enforces the allowed type values.
+    final attachmentType = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Choose evidence document type'),
+        children: [
+          ('site_photo', 'Site photograph'),
+          ('survey_evidence', 'Survey evidence'),
+          ('permit', 'Permit or approval'),
+          ('drawing', 'Plan or technical drawing'),
+          ('inspection_report', 'Inspection report'),
+          ('other', 'Other case document'),
+        ].map((item) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(dialogContext, item.$1),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(item.$2),
+          ),
+        )).toList(),
+      ),
+    );
+    if (attachmentType == null || !mounted) return;
+
     try {
       final file = await FilePicker.pickFile(
         type: FileType.custom,
@@ -19702,6 +19727,12 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         return;
       }
       final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || bytes.length != fileSize) {
+        throw StateError('The selected evidence file could not be read completely.');
+      }
+      // This local checksum fingerprints the uploaded bytes. It does not
+      // independently verify document authorship, source or legal validity.
+      final checksum = sha256.convert(bytes).toString();
       final ext = (file.extension ?? '').toLowerCase();
       final mime = switch (ext) {
         'jpg' || 'jpeg' => 'image/jpeg',
@@ -19721,17 +19752,22 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false));
       try {
         await supabase.from('case_attachments').insert({
-          'request_id': widget.requestId, 'storage_path': path,
-          'file_name': file.name, 'content_type': mime,
-          'file_size_bytes': fileSize, 
-          'attachment_type': mime == 'application/pdf' ? 'survey_evidence' : 'site_photo',
+          'request_id': widget.requestId,
+          'storage_path': path,
+          'file_name': file.name,
+          'content_type': mime,
+          'file_size_bytes': fileSize,
+          'attachment_type': attachmentType,
           'uploaded_by': user.id,
+          'sha256': checksum,
         });
       } catch (_) {
         try { await supabase.storage.from(_bucket).remove([path]); } catch (_) {}
         rethrow;
       }
-      _toast('Evidence uploaded to the private case record.');
+      _toast('Evidence uploaded privately. Document type and local SHA-256 fingerprint were recorded.');
+    } on StateError catch (e) {
+      _toast(e.message.toString());
     } on PostgrestException catch (e) {
       _toast('Evidence was not recorded: ${e.message}');
     } catch (_) {
@@ -19744,7 +19780,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
   Future<void> _viewEvidence() async {
     try {
       final rows = await supabase.from('case_attachments')
-        .select('storage_path,file_name,content_type,file_size_bytes,inspection_id,captured_at,captured_latitude,captured_longitude,location_accuracy_m,sha256')
+        .select('storage_path,file_name,content_type,file_size_bytes,attachment_type,inspection_id,captured_at,captured_latitude,captured_longitude,location_accuracy_m,sha256')
         .eq('request_id', widget.requestId).order('created_at', ascending: false);
       if (!mounted) return;
       final files = List<Map<String,dynamic>>.from(rows);
@@ -19776,17 +19812,23 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                                   '${accuracy is num ? ' · ±${accuracy.toStringAsFixed(1)} m' : ''}'
                               : 'No GPS metadata captured';
                           final inspectionId = item['inspection_id']?.toString();
+                          final checksum = (item['sha256'] ?? '').toString();
+                          final attachmentType = (item['attachment_type'] ?? 'other')
+                              .toString().replaceAll('_', ' ');
                           final subtitle = <String>[
                             '${kb.toStringAsFixed(1)} KB · Private file',
+                            'Document type: $attachmentType',
                             if (captureTime != null && captureTime.isNotEmpty) 'Captured: $captureTime',
                             locationText,
                             if (inspectionId != null) 'Inspection: ${inspectionId.substring(0, inspectionId.length > 8 ? 8 : inspectionId.length)}',
-                          ].join('\n');
+                            if (checksum.isNotEmpty) 'Local SHA-256: $checksum',
+                            if (checksum.isEmpty) 'SHA-256: Not recorded for this older file',
+                          ].join('\\n');
                           return ListTile(
                             leading: Icon(item['content_type'] == 'application/pdf'
                               ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
                             title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(subtitle, maxLines: 4, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(subtitle, maxLines: 7, overflow: TextOverflow.ellipsis),
                             trailing: IconButton(
                               icon: const Icon(Icons.open_in_new),
                               onPressed: () async {
