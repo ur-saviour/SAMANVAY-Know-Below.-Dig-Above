@@ -375,3 +375,18 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Browser workflow `43210698178` passed on the same app commit; artifact `13941171647`; SHA-256 `29c040ce34c6c27cba906eb58451279b5e912534a0542150490424681a5bfa09`.
 - [x] Downloaded Android and browser artifact archives matched the published digests and passed ZIP integrity checks.
 - [ ] Physical Android and HTTPS browser GPS/camera validation remains outstanding.
+
+## 25. Prototype regression gate and browser build — 13 November 2026
+
+- [x] Add a 25-check source-level regression validator at `scripts/validate_samanvay_contracts.py`.
+- [x] Cover Citizen/Officer/Coordinator/Admin demo previews and explicitly test that demo previews do not grant authenticated permissions.
+- [x] Cover India-first and regional GIS navigation, Coimbatore-only opt-in reference scope, generalised public GIS, department-owned verified geometry endpoint and empty-layer safety wording.
+- [x] Cover joint-work proposal RPC wiring, camera capture, private case-evidence bucket wiring, visible role terminology, GeoJSON structure and brand SVG.
+- [x] Make Android and browser workflows trigger when the regression script changes.
+- [x] Pass the expanded validator, Dart analysis and complete browser build/smoke/package workflow on commit `58087291ca15c44f58e7921d9c67df1ac539643c`; browser run `43297752976`.
+- [x] Publish browser artifact `13981230339`; SHA-256 `e9d4ad1eb4440d97ce8b100406e1a7b18c5de55df0b1e0a0bca4ecf045904672`.
+- [x] Pass the expanded validator and Dart analysis in Android workflow `43297740813`.
+- [ ] Complete Android release APK compilation and package/signature/alignment checks for the expanded-gate commit.
+- [ ] Complete physical-device and authenticated browser runtime acceptance; static checks do not replace interaction tests.
+
+**Status boundary:** The prototype engineering completion estimate is 82%. This is not production readiness. Android release packaging is pending in the linked workflow, and physical-device/browser role, GPS, camera, map and upload acceptance remains outstanding.
