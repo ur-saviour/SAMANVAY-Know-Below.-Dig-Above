@@ -6265,21 +6265,21 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     children: [
       _panel(
         'India-wide jurisdiction explorer',
-        'Browse State/UT, district, sub-district, block, local-body and ward reference records. Community directory mirrors remain unverified until reconciled with the responsible authority.',
+        'Browse all 36 States and Union Territories, then drill into district, sub-district, block, urban local-body and ward reference directories. Community mirrors remain marked unverified until reconciled with official records.',
         Icons.public_outlined,
-        status: '36 STATES / UNION TERRITORIES',
+        status: 'NATIONAL REFERENCE DIRECTORY',
       ),
       _panel(
         'Infrastructure source coverage',
-        'View responsible agencies, source portals, expected data granularity and import readiness. A registered source is not proof that a complete local asset inventory has been received.',
+        'See the responsible agency, source portal, expected granularity and data-readiness state for roads, water, sewerage, drainage, electricity, telecom, gas, groundwater and buildings.',
         Icons.layers_outlined,
-        status: 'REFERENCE METADATA',
+        status: 'SOURCE REGISTER · NOT ASSET COMPLETENESS',
       ),
       _panel(
         'Underground asset verification',
-        'Exact utility geometry remains controlled by the asset owner. The current GIS inventory contains no verified underground assets or registered survey evidence; an empty layer is not proof that no utility exists.',
+        'Exact utility geometry remains owner-controlled. The public map does not estimate pipe, cable, gas or sewer routes, and an empty layer never means a site is clear to dig.',
         Icons.verified_user_outlined,
-        status: 'NO VERIFIED UNDERGROUND ASSETS',
+        status: 'NO PUBLIC EXACT ROUTES',
       ),
       Card(
         margin: EdgeInsets.zero,
@@ -6288,78 +6288,10 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('PUBLIC GIS · DATA READINESS', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              Text('PUBLIC GIS WORKSPACE', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
               const SizedBox(height: 5),
-              Text('A transparent view of the data available in this prototype as checked on 12 November 2026.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
-              const SizedBox(height: 12),
-              _gisReadinessRow(
-                'Coimbatore ward reference',
-                '100 polygons · 2024 reference dataset',
-                'OpenCity / Esri-derived public reference. Not a CCMC-certified statutory boundary.',
-                Icons.location_city_outlined,
-                const Color(0xFF2878B8),
-                'REFERENCE ONLY',
-              ),
-              const Divider(height: 18),
-              _gisReadinessRow(
-                'Groundwater observation archive',
-                '446,068 historical observations',
-                'The 2021–2025 station layer is available to signed-in Citizens and staff. Latest source observation: 31 December 2025. Historical archive, not live telemetry or a borewell permission register.',
-                Icons.water_drop_outlined,
-                const Color(0xFF168A83),
-                'HISTORICAL DATA',
-              ),
-              const Divider(height: 18),
-              _gisReadinessRow(
-                'Underground utility geometry',
-                '0 verified assets · 0 registered survey-evidence records',
-                'No verified route, depth or position is available to show as an operational asset. Do not use this prototype for excavation decisions.',
-                Icons.route_outlined,
-                const Color(0xFFB66B18),
-                'NOT AVAILABLE',
-              ),
-              const Divider(height: 18),
-              _gisReadinessRow(
-                'India administrative references',
-                '36 State / UT · 21,705 active reference records',
-                '396 infrastructure-coverage metadata rows are registered. Community directory references still require official authority reconciliation.',
-                Icons.account_tree_outlined,
-                const Color(0xFF536DB5),
-                'AUTHORITY CHECK PENDING',
-              ),
-              const Divider(height: 18),
-              _gisReadinessRow(
-                'Public works notices',
-                '0 published · 1 private draft (checked 12 Nov 2026)',
-                'The public tracker shows only non-draft notices with a publication timestamp. The current draft remains private and is not shown to Citizens.',
-                Icons.campaign_outlined,
-                const Color(0xFFB66B18),
-                'NO PUBLIC NOTICE YET',
-              ),
-              const Divider(height: 18),
-              _gisReadinessRow(
-                'Underground demonstration schematic',
-                'Illustrative service-layer cross-section',
-                'SIMULATED DEMO SCHEMATIC · NOT GEO-REFERENCED · NOT A REAL UTILITY ALIGNMENT.',
-                Icons.view_in_ar_outlined,
-                const Color(0xFF7557A8),
-                'SIMULATED',
-              ),
-            ],
-          ),
-        ),
-      ),
-      const SizedBox(height: 10),
-      Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('OPEN THE PUBLIC GIS', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
-              const SizedBox(height: 5),
-              Text('Explore the national basemap, switch between satellite and vector views, inspect available public reference boundaries and use the 2D/3D surface controls. Restricted operational layers remain protected.', style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+              Text('Explore the India basemap, satellite/vector views, 2D/3D surface context and available public boundary references. Case markers, verified assets and staff tools remain subject to account permissions.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -6368,7 +6300,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                     MaterialPageRoute<void>(builder: (_) => const MapPage()),
                   ),
                   icon: const Icon(Icons.map_outlined),
-                  label: const Text('OPEN PUBLIC GIS MAP'),
+                  label: const Text('OPEN INDIA GIS MAP'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -6379,7 +6311,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                     MaterialPageRoute<void>(builder: (_) => const IndiaCoverageExplorerPage()),
                   ),
                   icon: const Icon(Icons.account_tree_outlined),
-                  label: const Text('OPEN INDIA-WIDE COVERAGE DIRECTORY'),
+                  label: const Text('OPEN INDIA COVERAGE DIRECTORY'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -6393,59 +6325,145 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   label: const Text('VIEW PUBLISHED PUBLIC WORKS'),
                 ),
               ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const MapPage(
+                        initialCenter: LatLng(11.0168, 76.9558),
+                        initialZoom: 10.5,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.location_city_outlined),
+                  label: const Text('OPEN COIMBATORE PILOT MAP'),
+                ),
+              ),
               const SizedBox(height: 9),
-              Text('Public GIS is read-only for reference data. Boundary and directory references are for navigation, not legal demarcation. Only authority-published notices appear in the public works tracker. No map layer constitutes a permit, utility-owner confirmation or safe-to-dig clearance.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+              Text('Public directory access is read-only. Unverified boundary or directory data is for navigation only, never for statutory decisions, permits, excavation clearance or utility-owner verification.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
             ],
           ),
         ),
       ),
-      const SizedBox(height: 8),
-      Text(
-        'Use the regional filters inside the India-wide coverage directory to browse North, Northeast, East, Central, West, South and Islands. These are navigation groupings, not separate authority boundaries.',
-        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+      const SizedBox(height: 10),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PUBLIC LAYER REGISTER', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 10),
+              _publicGisLayerStatus(
+                'India State / UT outlines',
+                'Available on demand',
+                'geoBoundaries reference geometry. The map displays source, licence and represented year; not LGD-certified statutory boundaries.',
+                Icons.public_outlined,
+              ),
+              _publicGisLayerStatus(
+                'India district outlines',
+                'Reference layer · vintage varies',
+                'Boundary snapshots are navigation references. Older DataMeet shapes are separate from the imported LGD-code directory and must not be silently joined.',
+                Icons.map_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Coimbatore ward polygons',
+                '100 wards · 2024 reference',
+                'Bundled OpenCity / Living Atlas-derived polygons. Not a CCMC-issued statutory GIS boundary or an underground utility layer.',
+                Icons.location_city_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Groundwater observations',
+                'Historical archive · through 31 Dec 2025',
+                '446,068 source observations from seven agencies. Not live telemetry, not a complete borewell register and not an excavation-clearance source.',
+                Icons.water_drop_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Underground utility assets',
+                'No verified geometry registered',
+                'The current audit found zero verified underground-asset rows and zero survey-evidence rows. This does not prove that utilities are absent.',
+                Icons.route_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Public excavation notices',
+                'Published notices only',
+                'The public tracker excludes drafts and private case records; it shows notices only when they have been published.',
+                Icons.campaign_outlined,
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('JUMP TO AN INDIA REGION', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 4),
+              Text('These shortcuts open the same coverage directory with the region pre-filtered.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              const SizedBox(height: 9),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: ['All India', 'North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
+                    .map((region) => ActionChip(
+                      avatar: const Icon(Icons.explore_outlined, size: 14),
+                      label: Text(region, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => IndiaCoverageExplorerPage(initialRegion: region),
+                        ),
+                      ),
+                    )).toList(),
+              ),
+            ],
+          ),
+        ),
       ),
     ],
   );
 
-  Widget _gisReadinessRow(
-    String title,
-    String value,
-    String note,
-    IconData icon,
-    Color accent,
-    String status,
-  ) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: .12),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: accent, size: 18),
+  Widget _publicGisLayerStatus(String title, String status, String detail, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0x1420BFA8),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, color: teal, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text(status.toUpperCase(), style: const TextStyle(color: Color(0xFF168575), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .35)),
+                const SizedBox(height: 3),
+                Text(detail, style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+              ],
+            ),
+          ),
+        ],
       ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 2),
-            Text(value, style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 3),
-            Text(note, style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
-          ],
-        ),
-      ),
-      const SizedBox(width: 6),
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 104),
-        child: Text(status, textAlign: TextAlign.end, style: TextStyle(color: accent, fontSize: 8, fontWeight: FontWeight.w900)),
-      ),
-    ],
-  );
+    );
+  }
 
   Widget _groundwater() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
