@@ -129,8 +129,15 @@ No controlled municipal pilot can be declared complete from the current evidence
 
 Required KPIs: repeat cuts per road segment; request-review median and p90; alert precision/recall on independently labelled cases; owner response time; asset provenance and positional confidence; permit completeness; restoration rework; complaint age; and evidence-complete closures.
 
+### Prototype demonstration status
+
+The interactive staff demo now includes a **Pilot & impact** workspace available to administrator, coordinator and department demo profiles. It runs and resets a local synthetic corridor scenario and compares three assumed independent work-access windows with one modelled shared window for three illustrative work packages. The UI records the scenario in the local demo activity stream only. Every result is labelled synthetic / not measured; it does not claim observed savings, prevention rates or real municipal outcomes.
+
+A real pilot remains unexecuted. This screen is intended to make the Phase 5 workflow demonstrable for a prototype presentation while retaining the distinction between a simulation and evidence from an authorised municipal cohort.
+
 ### Phase status
 **Pilot design:** specified.  
+**Prototype demo scenario:** implemented as a local, resettable role-based simulation with explicitly synthetic before/after assumptions.  
 **Pilot execution and measured impact:** not complete. No savings, prevention rate or conflict-detection accuracy is claimed.
 
 ## Phase 6 — Integration and expansion
@@ -183,7 +190,14 @@ The Phase 3/4 Flutter code and workflow dependency changes were built from app c
 | 2. GIS and conflict detection | 784 districts, 7,092 sub-districts, 7,312 blocks, 733 generalized district polygons, groundwater reference and role-restricted GIS code | Blocked by 0 owner-authorised underground assets, 0 survey evidence, incomplete ULB/ward/village hierarchy, stale mirror snapshot and pending device/field validation |
 | 3. Permits and coordination | Workflow/RPC foundations present; joint-work proposal backend deployed and rollback-tested; idempotent assignment RPC fixed | Blocked by 0 live joint-work proposals, permits, restoration records and authority validation |
 | 4. Field verification | Device-GPS inspection metadata, private photo linkage and hash capture implemented; rollback-only RLS test passed | Blocked by 0 live inspections/asset survey evidence, physical-device testing and owner-authorised field data |
-| 5. Controlled pilot | Pilot protocol and KPIs specified | Not run; no authorised cohort or measured baseline |
+| 5. Controlled pilot | Pilot protocol, KPIs and local role-based demonstration scenario present; simulated values are labelled as synthetic | Not run; no authorised cohort or measured baseline |
 | 6. Integration and expansion | 36 State/UTs; LGD mirror hierarchy and district reference polygons imported | Blocked by missing ULB/ward/village records, current authority refresh, agreements and tested integrations |
 
 **Conclusion:** Phase 1 source fixes are committed and both CI pipelines passed; the Phase 3 duplicate-assignment RPC fix is deployed and transaction-tested. Phases 2–6 cannot truthfully be marked 100% operationally complete until official asset owners, municipal authorities, field teams, integration credentials and a measured pilot are available. No synthetic utility geometry, fake approval, false field evidence or unmeasured savings has been introduced by this execution.
+
+
+## Prototype completion estimate — 13 November 2026
+
+For the requested **prototype-only** scope (working screens, navigable role demonstrations, local synthetic records and backend foundations), the current engineering estimate is **about 71% complete**. This is an equal-weight, phase-based planning estimate, not an automated test-coverage statistic. The six phase estimates are approximately: Phase 1 85%, Phase 2 65%, Phase 3 85%, Phase 4 75%, Phase 5 55%, and Phase 6 60%. Their mean is 70.8%, rounded to 71%.
+
+This estimate does not represent production readiness. Real authority integrations, owner-authorised utility geometry, physical-device acceptance, field evidence, production-safe recovery of the groundwater history, and a measured municipal pilot remain open. The currently live groundwater telemetry table contains 446,068 2025 rows after the confirmed 9 November data-reduction incident; the pre-change encrypted archive is available, but the historical delta has not been restored.
