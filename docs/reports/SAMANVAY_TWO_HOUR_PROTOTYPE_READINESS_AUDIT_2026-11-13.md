@@ -110,6 +110,13 @@ All four destructive legacy recovery workflows have been removed from the active
 - Replaced the last user-visible English comment occurrence of “Requester” with “Citizen”; the underlying database role remains `requester` for schema compatibility, while the interface uses Citizen terminology.
 - These app changes are being rebuilt by Android run [43294840781](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840781) and browser run [43294840751](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840751), on commit `f7e06f5b64371e0533c6a11f705298d5739f30ef`. Dart analysis passed on the earlier preceding source commit; the final build results for this commit are pending.
 
+
+### Latest browser artifact verified
+
+The 2D-default and groundwater-label source commit `f7e06f5b64371e0533c6a11f705298d5739f30ef` passed the browser portal pipeline [43294840751](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840751). The browser build, GIS asset smoke tests, packaging and upload all passed. Artifact: [13978163256](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13978163256/zip), 15,017,759 bytes, SHA-256 `e877c0ddcab8bf37e7d41b7adeb938e2fc755bb31d0a45b044671f5333dc29c8`.
+
+The matching Android run [43294840781](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840781) has passed dependency installation and Dart analysis; the release APK build step is still running. Do not treat the previous APK as containing the latest GIS corrections until this run publishes its replacement.
+
 ## Completion estimate
 
 The engineering planning estimate remains **74% prototype completion**. The two successful release pipelines, ULB reconciliation interface and demo runbook improve demonstrability, but the percentage is not raised for actions that still require external authorisation, manual GitHub dispatch or physical-device acceptance.
