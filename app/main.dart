@@ -4243,7 +4243,7 @@ class _AuthPageState extends State<AuthPage> {
       setState(() {
         otpSent = true;
         message = usePhoneLogin
-            ? 'If this number is registered, the same six-digit code is being sent by SMS and WhatsApp once dual-channel delivery is enabled.'
+            ? 'A six-digit SMS sign-in code has been requested. Delivery depends on the Supabase SMS provider configured for this project.'
             : 'If this email is registered, a six-digit code has been requested. Check your inbox and spam folder.';
         messageIsSuccess = true;
       });
@@ -4589,25 +4589,6 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 22),
 
                   if (!isLogin) ...[
-                    DropdownButtonFormField<String>(
-                      initialValue: requestedSignupRole,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Account type',
-                        helperText: 'Official roles require administrator approval.',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'requester', child: Text('Citizen')),
-                        DropdownMenuItem(value: 'department', child: Text('Department officer')),
-                        DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
-                        DropdownMenuItem(value: 'admin', child: Text('Administrator')),
-                      ],
-                      onChanged: loading ? null : (value) {
-                        if (value != null) setState(() => requestedSignupRole = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameController,
                       textCapitalization:
