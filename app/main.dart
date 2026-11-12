@@ -6141,14 +6141,17 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     final referenceController = TextEditingController();
     final descriptionController = TextEditingController();
     const kinds = <String>[
-      'Site photograph reference',
-      'Inspection video reference',
+      'Site photograph',
+      'Inspection video',
       'Work log entry',
       'Restoration checklist',
-      'Site sketch reference',
+      'Site sketch',
+      'Supporting document',
     ];
     var kind = kinds.first;
-    final result = await showDialog<Map<String, String>>(
+    String? selectedFileName;
+    int? selectedFileSize;
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
@@ -6170,6 +6173,42 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   },
                 ),
                 const SizedBox(height: 9),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final picked = await FilePicker.platform.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: [
+                          'jpg', 'jpeg', 'png', 'webp',
+                          'mp4', 'mov', 'pdf',
+                        ],
+                        allowMultiple: false,
+                        withData: false,
+                      );
+                      if (picked == null || picked.files.isEmpty) return;
+                      final selected = picked.files.single;
+                      setDialogState(() {
+                        selectedFileName = selected.name;
+                        selectedFileSize = selected.size;
+                      });
+                    } catch (_) {
+                      if (mounted) {
+                        _showMessage('Unable to select a local file on this device.');
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.attach_file_rounded, size: 16),
+                  label: Text(selectedFileName == null ? 'Choose local file (demo only)' : 'Change selected file'),
+                ),
+                if (selectedFileName != null) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    'Selected: ' + selectedFileName! + ' · ' +
+                        ((selectedFileSize ?? 0) / 1024).toStringAsFixed(1) + ' KB',
+                    style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800),
+                  ),
+                ],
+                const SizedBox(height: 9),
                 TextField(
                   controller: referenceController,
                   maxLength: 100,
@@ -6190,7 +6229,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   ),
                 ),
                 const SizedBox(height: 7),
-                Text('DEMO METADATA ONLY. This saves a sample evidence-register entry in this screen session. It does not upload, store or verify a photograph, video or document.',
+                Text('DEMO METADATA ONLY. The selected filename and size are recorded in this screen session. The file is not uploaded, retained by SAMANVAY or verified.',
                   style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
               ],
             ),
@@ -6209,6 +6248,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   'kind': kind,
                   'reference': referenceController.text.trim(),
                   'description': descriptionController.text.trim(),
+                  'file_name': selectedFileName,
+                  'file_size_bytes': selectedFileSize,
                 });
               },
               child: const Text('Save demo evidence entry'),
@@ -6229,18 +6270,20 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     final generatedReference = 'DEMO-EVD-' +
         item['id'].toString().replaceAll(RegExp(r'[^A-Za-z0-9]'), '') +
         '-' + (records.length + 1).toString().padLeft(2, '0');
-    final reference = (result['reference'] ?? '').trim();
+    final reference = (result['reference'] ?? '').toString().trim();
     records.insert(0, <String, dynamic>{
       'kind': result['kind'],
       'reference': reference.isEmpty ? generatedReference : reference,
       'description': result['description'],
+      'file_name': result['file_name'],
+      'file_size_bytes': result['file_size_bytes'],
       'recorded_at': recordedAt,
       'recorded_by': _roleTitle,
       'record_type': 'SIMULATED · METADATA ONLY',
     });
     setState(() {
       item['demoEvidence'] = records;
-      _appendCaseEvent(item, 'Evidence-register entry added: ' + (result['kind'] ?? 'Evidence'));
+      _appendCaseEvent(item, 'Evidence-register entry added: ' + (result['kind'] ?? 'Evidence').toString());
     });
     _record(item['id'].toString() + ' demo evidence-register entry added');
   }
