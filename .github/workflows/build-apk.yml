@@ -31,6 +31,7 @@ jobs:
   build:
     name: Build, Diagnose and Publish APK
     runs-on: ubuntu-latest
+    timeout-minutes: 35
 
     steps:
       # 1. Download repository source
@@ -316,6 +317,7 @@ jobs:
 
       # 7. Build APK
       - name: Build release APK
+        timeout-minutes: 25
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
