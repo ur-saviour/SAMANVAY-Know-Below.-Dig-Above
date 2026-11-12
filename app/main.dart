@@ -5142,7 +5142,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   final List<Map<String, dynamic>> _demoPermits = [];
   String _demoGisViewMode = '3D cutaway';
   Set<String> _demoGisVisibleLayers = {
-    'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas',
+    'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell',
   };
 
   @override
@@ -6662,6 +6662,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       {'name': 'Electricity', 'colour': Color(0xFFE1A928), 'icon': Icons.bolt_outlined},
       {'name': 'Telecom', 'colour': Color(0xFFD65A9E), 'icon': Icons.cable_rounded},
       {'name': 'Gas', 'colour': Color(0xFFE47C32), 'icon': Icons.local_fire_department_outlined},
+      {'name': 'Borewell', 'colour': Color(0xFF26B7A8), 'icon': Icons.sensors_outlined},
     ];
     final isLight = Theme.of(context).brightness == Brightness.light;
     return Card(
@@ -6684,6 +6685,9 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
             const SizedBox(height: 5),
             Text('Toggle infrastructure layers and switch between plan and cutaway views. This is a synthetic, non-georeferenced teaching visual—not a utility survey or a representation of the ground at the selected map location.',
               style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+            const SizedBox(height: 5),
+            Text('DEMO ONLY · NOT TO SCALE · NOT FOR EXCAVATION',
+              style: TextStyle(color: isLight ? const Color(0xFF9B4C18) : const Color(0xFFFFC078), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .35)),
             const SizedBox(height: 11),
             Wrap(
               spacing: 7,
@@ -7289,6 +7293,7 @@ class _DemoSubsurfacePainter extends CustomPainter {
     'Electricity': Color(0xFFE1A928),
     'Telecom': Color(0xFFD65A9E),
     'Gas': Color(0xFFE47C32),
+    'Borewell': Color(0xFF26B7A8),
   };
 
   void _drawPath(Canvas canvas, Size size, String layer, double y, double bend,
@@ -7315,6 +7320,48 @@ class _DemoSubsurfacePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
         ..strokeCap = StrokeCap.round);
+    }
+  }
+
+  void _drawBorewellMarkers(Canvas canvas, Size size, {required bool plan}) {
+    if (!visibleLayers.contains('Borewell')) return;
+    final colour = _colours['Borewell']!;
+    final positions = plan
+        ? <Offset>[
+            Offset(size.width * .36, size.height * .49),
+            Offset(size.width * .68, size.height * .49),
+          ]
+        : <Offset>[
+            Offset(size.width * .37, size.height * .40),
+            Offset(size.width * .68, size.height * .40),
+          ];
+
+    for (final point in positions) {
+      if (plan) {
+        canvas.drawCircle(point, 8, Paint()..color = colour.withValues(alpha: .22));
+        canvas.drawCircle(point, 5, Paint()..color = colour);
+        canvas.drawCircle(point, 2, Paint()..color = Colors.white);
+      } else {
+        final bottom = Offset(point.dx, size.height * .88);
+        canvas.drawLine(
+          point,
+          bottom,
+          Paint()
+            ..color = colour.withValues(alpha: .28)
+            ..strokeWidth = 12
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawLine(
+          point,
+          bottom,
+          Paint()
+            ..color = colour
+            ..strokeWidth = 5
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawCircle(point, 6, Paint()..color = colour);
+        canvas.drawCircle(bottom, 4, Paint()..color = Colors.white);
+      }
     }
   }
 
@@ -7367,6 +7414,7 @@ class _DemoSubsurfacePainter extends CustomPainter {
       _drawPath(canvas, size, 'Electricity', size.height * .45, 4, width: 3);
       _drawPath(canvas, size, 'Telecom', size.height * .56, 6, width: 3);
       _drawPath(canvas, size, 'Gas', size.height * .64, 10, width: 3);
+      _drawBorewellMarkers(canvas, size, plan: true);
     } else {
       paint.color = isLight ? const Color(0xFFB9D7E7) : const Color(0xFF16364C);
       canvas.drawRect(Offset.zero & size, paint);
@@ -7409,6 +7457,7 @@ class _DemoSubsurfacePainter extends CustomPainter {
       _drawPath(canvas, size, 'Electricity', size.height * .57, 4, width: 4);
       _drawPath(canvas, size, 'Telecom', size.height * .62, 5, width: 4);
       _drawPath(canvas, size, 'Gas', size.height * .74, 6, width: 5);
+      _drawBorewellMarkers(canvas, size, plan: false);
     }
   }
 
