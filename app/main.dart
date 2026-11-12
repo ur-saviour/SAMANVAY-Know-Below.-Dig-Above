@@ -11605,9 +11605,10 @@ class _IndiaUlbDistrictReconciliationPageState
         final uri = Uri.tryParse(urlController.text.trim());
         if (sourceController.text.trim().isEmpty ||
             uri == null ||
-            uri.scheme != 'https') {
+            uri.scheme != 'https' ||
+            referenceController.text.trim().isEmpty) {
           ScaffoldMessenger.of(dialogContext).showSnackBar(
-            const SnackBar(content: Text('A source name and HTTPS evidence URL are required for verification.')),
+            const SnackBar(content: Text('A source name, HTTPS evidence URL and specific source-record reference are required for verification.')),
           );
           return;
         }
