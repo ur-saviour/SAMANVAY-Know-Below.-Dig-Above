@@ -164,13 +164,19 @@ class _JointWorkCoordinationPageState extends State<JointWorkCoordinationPage> {
     );
   }
 
-  Future<DateTime?> _pickDate(DateTime? current) {
-    final now = DateUtils.dateOnly(DateTime.now());
+  Future<DateTime?> _pickDate(
+    DateTime? current, {
+    DateTime? minimum,
+  }) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final firstDate = DateUtils.dateOnly(minimum ?? today);
+    final requested = DateUtils.dateOnly(current ?? firstDate);
+    final initial = requested.isBefore(firstDate) ? firstDate : requested;
     return showDatePicker(
       context: context,
-      initialDate: current ?? now,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: DateTime(today.year + 5),
     );
   }
 
@@ -254,14 +260,24 @@ class _JointWorkCoordinationPageState extends State<JointWorkCoordinationPage> {
                     tooltip: 'Choose proposed start date',
                     onPressed: () async {
                       final picked = await _pickDate(proposedStart);
-                      if (picked != null) setDialogState(() => proposedStart = picked);
+                      if (picked != null) {
+                        setDialogState(() {
+                          proposedStart = picked;
+                          if (proposedEnd != null && proposedEnd!.isBefore(picked)) {
+                            proposedEnd = null;
+                          }
+                        });
+                      }
                     },
                     icon: const Icon(Icons.calendar_month_outlined),
                   ),
                   IconButton(
                     tooltip: 'Choose proposed end date',
                     onPressed: () async {
-                      final picked = await _pickDate(proposedEnd ?? proposedStart);
+                      final picked = await _pickDate(
+                        proposedEnd ?? proposedStart,
+                        minimum: proposedStart,
+                      );
                       if (picked != null) setDialogState(() => proposedEnd = picked);
                     },
                     icon: const Icon(Icons.event_outlined),
@@ -397,7 +413,12 @@ class _JointWorkCoordinationPageState extends State<JointWorkCoordinationPage> {
                       icon: const Icon(Icons.calendar_month_outlined),
                       onPressed: () async {
                         final picked = await _pickDate(start);
-                        if (picked != null) setDialogState(() => start = picked);
+                        if (picked != null) {
+                          setDialogState(() {
+                            start = picked;
+                            if (end != null && end!.isBefore(picked)) end = null;
+                          });
+                        }
                       },
                     ),
                   ),
@@ -408,7 +429,10 @@ class _JointWorkCoordinationPageState extends State<JointWorkCoordinationPage> {
                     trailing: IconButton(
                       icon: const Icon(Icons.event_outlined),
                       onPressed: () async {
-                        final picked = await _pickDate(end ?? start);
+                        final picked = await _pickDate(
+                          end ?? start,
+                          minimum: start,
+                        );
                         if (picked != null) setDialogState(() => end = picked);
                       },
                     ),
