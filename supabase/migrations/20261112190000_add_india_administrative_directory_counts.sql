@@ -1,6 +1,4 @@
--- Return complete national directory totals without transferring every row
--- through PostgREST (whose configured row limit may truncate large directories).
--- SECURITY INVOKER preserves the caller's existing RLS visibility.
+-- Count distinct LGD codes rather than duplicate historical/reference rows.
 create or replace function public.get_india_administrative_unit_counts()
 returns table (
   unit_type text,
@@ -14,12 +12,13 @@ set search_path = public
 as $$
   select
     u.unit_type::text,
-    count(*)::bigint as total_count,
-    count(*) filter (
+    count(distinct u.lgd_code)::bigint as total_count,
+    count(distinct u.lgd_code) filter (
       where u.verification_status = 'authority_verified'
     )::bigint as verified_count
   from public.india_administrative_units u
   where coalesce(u.is_active, true)
+    and u.lgd_code is not null
   group by u.unit_type
   order by u.unit_type;
 $$;
@@ -28,4 +27,4 @@ revoke all on function public.get_india_administrative_unit_counts() from public
 grant execute on function public.get_india_administrative_unit_counts() to authenticated;
 
 comment on function public.get_india_administrative_unit_counts() is
-  'National administrative directory totals by unit type, computed under caller RLS. Counts do not certify source accuracy or statutory status.';
+  'Counts distinct active LGD-coded administrative units by type under caller RLS. Counts do not certify statutory boundary geometry.';
