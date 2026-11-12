@@ -33,6 +33,19 @@ The separate `public.india_district_boundary_reference` table contains 733 distr
 
 These are code-less DataMeet-derived reference geometries. Valid geometry does not make the boundaries current or authoritative. They must not be joined to LGD records solely by approximate name matching or used to imply the current district shape where post-2019 changes occurred.
 
+### Survey of India administrative boundary source candidate
+
+Survey of India lists its Administrative Boundary Database as SHAPEFILE products at scale 1:1M. Product `OVSF/1M/6` covers the entire country up to taluk/sub-district level with headquarters; `OVSF/1M/7` covers the entire country up to district level with headquarters. Both are listed at ₹0 on the product catalogue. The Survey of India portal describes these products as state, district and sub-district administrative boundaries.
+
+**Download verification (12 November 2026):** the public product page was opened and the download action was tested without signing in. Selecting Download for `OVSF/1M/6` opened a password/login prompt. No unauthenticated shapefile URL was exposed. The product is therefore a high-priority official candidate, but it is **not yet downloadable/imported** through the current public session. No credentials were entered and no access control was bypassed.
+
+Sources:
+- Survey of India product catalogue: https://onlinemaps.surveyofindia.gov.in/Digital_Product_Show.aspx
+- Survey of India product description: https://onlinemaps.surveyofindia.gov.in/AboutPortal.aspx
+- Survey of India FAQ: https://onlinemaps.surveyofindia.gov.in/FAQs.aspx
+
+Next action: obtain the free shapefile through an authorised Survey of India portal account or an approved public data-access route, then capture the actual archive, metadata, source date, code fields, geometry validity, SRID and licence/use terms before importing. Do not relabel the existing 733 DataMeet polygons as current official geometry in the meantime.
+
 ## Groundwater observations
 
 The raw `public.groundwater_station_observations` table contains 446,068 records across 35 source resource IDs.
@@ -82,7 +95,7 @@ Therefore no utility-owner geometry or field-survey evidence has been imported i
 
 1. **Authoritative administration:** Obtain the official LGD bulk export through the authorised access process, validate it, and reconcile community-mirror records. Do not bypass CAPTCHA or access controls.
 2. **ULB and ward boundaries:** Source current government/local-body polygons with licence and effective date. The 5,050 ULB registry rows are names/codes, not 5,050 operational ward boundary layers.
-3. **Current district geometries:** Acquire current code-linked district boundaries and retain the older DataMeet reference only as a visibly dated fallback.
+3. **Current district geometries:** Obtain the Survey of India `OVSF/1M/6` or `OVSF/1M/7` shapefile through an authorised download route; the free product currently prompts for login. Validate the file's source date, code fields, geometry and use terms before importing, and retain the older DataMeet reference only as a visibly dated fallback.
 4. **Building geometry:** Obtain and licence an India-wide building-footprint source; import features with per-source lineage, geometry validity checks and known height provenance before enabling evidence-backed 3D extrusion.
 5. **Utility-owner data:** Request authorised water, sewer, drainage, power, telecom and gas as-built/field-survey geometry. Preserve owner restrictions and require survey evidence before marking geometry verified.
 6. **Groundwater freshness:** Refresh the official source feeds and keep the 2025 observation dataset labelled with its date range and 8-state assessment coverage.
