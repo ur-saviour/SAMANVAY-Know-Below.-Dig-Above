@@ -73,6 +73,8 @@ The database privilege checks, RLS/queue checks, advisor rerun, repository sourc
 
 ## Confirmed groundwater data-reduction incident — 9 November 2026
 
+See the [full incident timeline and workflow run analysis](security/SAMANVAY_GROUNDWATER_DATA_RECOVERY_INCIDENT_2026-11-09.md).
+
 This is a production data incident, not merely a workflow warning.
 
 ### Evidence from GitHub Actions
