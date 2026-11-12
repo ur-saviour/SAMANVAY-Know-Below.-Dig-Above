@@ -25,6 +25,8 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - [Secure GIS Asset Ingestion and Verification](docs/data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
 - [Supabase Security and Performance Review](docs/security/SUPABASE_SECURITY_AND_PERFORMANCE_REVIEW_2026-11-06.md)
 - [Phase 3 Security and Phase 4 Evidence Update — 12 November 2026](docs/security/SAMANVAY_PHASE_3_SECURITY_AND_EVIDENCE_UPDATE_2026-11-12.md)
+- [Groundwater Data Recovery Incident — 9 November 2026](docs/security/SAMANVAY_GROUNDWATER_DATA_RECOVERY_INCIDENT_2026-11-09.md)
+- [Security Hardening and Containment Record](docs/SECURITY_HARDENING_2026-11-12.md)
 - [Utility Proximity Conflict Screening](docs/features/UTILITY_PROXIMITY_CONFLICT_SCREENING.md)
 - [Road-Cut Permit Compliance & Restoration Deadlines](docs/features/ROAD_CUT_PERMIT_COMPLIANCE_AND_DEADLINES.md)
 - [Coordinated Road-Work Scheduling](docs/features/COORDINATED_ROAD_WORK_SCHEDULING.md)
