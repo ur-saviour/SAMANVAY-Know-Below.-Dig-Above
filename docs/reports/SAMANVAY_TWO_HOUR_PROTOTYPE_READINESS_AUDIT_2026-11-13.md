@@ -177,3 +177,16 @@ The Android workflow previously reported as running has now completed successful
 The release is CI-verified, not yet device-accepted. Installation, sign-in, role navigation, map tile loading, GPS, uploads and notifications still need a physical Android smoke test. The documentation-only audit commits after the app source commit do not change the APK contents.
 
 The completion estimate is now **75%**: the latest Android release has passed its full automated build and package verification. The remaining 25% is not treated as complete until device acceptance, archive validation, authorised GIS data and end-to-end lifecycle checks are evidenced.
+
+## Regression contract gate — implementation and browser verification
+
+Added `scripts/validate_samanvay_contracts.py` and made both platform workflows execute it before dependency installation/build. It checks profile-role presentation, demo-preview isolation disclosures, deprecated visible role wording, public GIS aggregation disclosures, empty-layer safety messaging, the Coimbatore ward GeoJSON structure, and the SVG brand asset.
+
+The corrected suite passed in both the latest Android and browser workflow runs. The browser pipeline then completed successfully end-to-end:
+
+- Browser run [43296953395](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43296953395): success.
+- Contract gate, Flutter dependency installation, Dart analysis, browser build, bundled GIS asset smoke tests, packaging and artifact upload: all passed.
+- Browser artifact [SAMANVAY-Browser-Portal](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13980086454/zip), 15,017,752 bytes; SHA-256 `4b66191719e2cde59ba9a1512d153d708f3a4b77724ee3086d7df6210a92a5d8`.
+- Matching workflow source commit: `927b1fc974f104cfa3aad5e19abf30a83ae5105d`.
+
+The Android workflow on the companion commit is still running; its final APK build and package checks have not yet been confirmed. The new contract gate is a static regression layer and does not replace authenticated end-to-end tests or device acceptance.
