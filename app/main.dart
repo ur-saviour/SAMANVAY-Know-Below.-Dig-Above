@@ -4417,6 +4417,7 @@ class _AuthPageState extends State<AuthPage> {
     final staffId = selectedRole == null
         ? enteredStaffId
         : switch (role) {
+            'requester' => 'PUBLIC-CITIZEN-DEMO',
             'admin' => 'PUBLIC-ADMIN-DEMO',
             'coordinator' => 'PUBLIC-COORDINATOR-DEMO',
             'department' => 'PUBLIC-OFFICER-DEMO',
@@ -5665,7 +5666,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     children: [
       _panel('Roads and excavation', 'Report road damage, obstruction or public-work concerns. Published notices and permits remain subject to the responsible authority.', Icons.construction_outlined),
       _panel('Water, sewerage and drainage', 'Submit a service issue and follow its sample routing to the relevant water or drainage service department.', Icons.water_drop_outlined),
-      _panel('Electricity, telecom and gas', 'Raise a public infrastructure concern. The demo does not establish network ownership or exact underground routes.', Icons.cable_outlined),
+      _panel('Electricity, telecom and gas', 'Raise a public infrastructure concern. The demo does not establish network ownership or exact underground routes.', Icons.bolt_outlined),
       _panel('Groundwater and borewells', 'Record an observation for authority review. This does not grant a borewell permission or certify groundwater conditions.', Icons.sensors_outlined),
       _panel('Buildings and planning', 'Submit a building or planning concern for illustrative routing to the relevant planning authority.', Icons.apartment_outlined),
     ],
