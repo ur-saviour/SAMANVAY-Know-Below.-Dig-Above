@@ -6016,11 +6016,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     final endDate = result['end'] as DateTime?;
     final startLabel = dateLabel(startDate);
     final endLabel = dateLabel(endDate);
+    final scheduleAgreed = outcome == 'Schedule agreed (demo)';
     setState(() {
       item['jointWorkStatus'] = outcome;
-      item['scheduledStartOn'] = startDate == null ? null : startLabel;
-      item['scheduledEndOn'] = endDate == null ? null : endLabel;
-      item['coordinationWindow'] = outcome == 'Schedule agreed (demo)'
+      item['scheduledStartOn'] = scheduleAgreed ? startLabel : null;
+      item['scheduledEndOn'] = scheduleAgreed ? endLabel : null;
+      item['coordinationWindow'] = scheduleAgreed
           ? startLabel + ' to ' + endLabel + ' · illustrative window only'
           : 'No confirmed window';
       item['status'] = outcome == 'Escalated for authority review'
