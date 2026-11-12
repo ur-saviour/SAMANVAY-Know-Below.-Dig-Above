@@ -18499,15 +18499,15 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                           final lon = item['captured_longitude'];
                           final accuracy = item['location_accuracy_m'];
                           final locationText = lat is num && lon is num
-                              ? 'Device GPS: \${lat.toStringAsFixed(6)}, \${lon.toStringAsFixed(6)}'
-                                  '\${accuracy is num ? ' · ±\${accuracy.toStringAsFixed(1)} m' : ''}'
+                              ? 'Device GPS: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}'
+                                  '${accuracy is num ? ' · ±${accuracy.toStringAsFixed(1)} m' : ''}'
                               : 'No GPS metadata captured';
                           final inspectionId = item['inspection_id']?.toString();
                           final subtitle = <String>[
-                            '\${kb.toStringAsFixed(1)} KB · Private file',
+                            '${kb.toStringAsFixed(1)} KB · Private file',
                             if (captureTime != null && captureTime.isNotEmpty) 'Captured: $captureTime',
                             locationText,
-                            if (inspectionId != null) 'Inspection: \${inspectionId.substring(0, inspectionId.length > 8 ? 8 : inspectionId.length)}',
+                            if (inspectionId != null) 'Inspection: ${inspectionId.substring(0, inspectionId.length > 8 ? 8 : inspectionId.length)}',
                           ].join('\n');
                           return ListTile(
                             leading: Icon(item['content_type'] == 'application/pdf'
@@ -18584,6 +18584,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                 ),
                 const SizedBox(height: 10),
                 TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
+                  onChanged: (_) => setDialog(() {}),
                   decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -18596,7 +18597,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                           throw StateError('Turn on device location services and try again.');
                         }
                         var permission = await Geolocator.checkPermission();
-                        if (permission == LocationPermission.denied) {
+                        if (permission == LocationPermission.denied || permission == LocationPermission.unableToDetermine) {
                           permission = await Geolocator.requestPermission();
                         }
                         if (permission == LocationPermission.deniedForever) {
@@ -18616,7 +18617,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                       } catch (error) {
                         if (dialogContext.mounted) {
                           _toast(error is StateError
-                            ? error.message
+                            ? error.message.toString()
                             : 'GPS capture failed. You can still save the inspection without location.');
                         }
                       } finally {
@@ -18635,9 +18636,9 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'GPS: \${capturedPosition!.latitude.toStringAsFixed(6)}, '
-                      '\${capturedPosition!.longitude.toStringAsFixed(6)} · '
-                      '±\${capturedPosition!.accuracy.toStringAsFixed(1)} m',
+                      'GPS: ${capturedPosition!.latitude.toStringAsFixed(6)}, '
+                      '${capturedPosition!.longitude.toStringAsFixed(6)} · '
+                      '±${capturedPosition!.accuracy.toStringAsFixed(1)} m',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -18683,7 +18684,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                 if (capturedPhoto != null)
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Photo ready: \${capturedPhoto!.name}',
+                    child: Text('Photo ready: ${capturedPhoto!.name}',
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                   ),
@@ -18740,8 +18741,8 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       final inspectionId = inspection['id'].toString();
 
       if (capturedPhoto != null && photoBytes != null && photoHash != null) {
-        final filename = 'inspection_\${DateTime.now().microsecondsSinceEpoch}_\${photoHash.substring(0, 12)}.jpg';
-        uploadedPath = '\${widget.requestId}/\${user.id}/$filename';
+        final filename = 'inspection_${DateTime.now().microsecondsSinceEpoch}_${photoHash.substring(0, 12)}.jpg';
+        uploadedPath = '${widget.requestId}/${user.id}/$filename';
         try {
           await supabase.storage.from(_bucket).uploadBinary(
             uploadedPath!,
@@ -18774,11 +18775,11 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
       }
       _toast(position == null
         ? 'Inspection saved. No device GPS was attached.'
-        : 'Inspection saved with device-reported GPS\${capturedPhoto == null ? '' : ' and private photo evidence'}.');
+        : 'Inspection saved with device-reported GPS${capturedPhoto == null ? '' : ' and private photo evidence'}.');
     } on PostgrestException catch (error) {
-      _toast('Inspection was not saved: \${error.message}');
+      _toast('Inspection was not saved: ${error.message}');
     } catch (error) {
-      _toast(error is StateError ? error.message : 'Unable to save the inspection. Check case access and connectivity.');
+      _toast(error is StateError ? error.message.toString() : 'Unable to save the inspection. Check case access and connectivity.');
     } finally {
       notes.dispose();
     }
