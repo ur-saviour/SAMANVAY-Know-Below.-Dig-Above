@@ -359,10 +359,11 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 ### Phase 4 — geotagged field inspection and private photo evidence
 - [x] Deploy `20261112112804_add_geotagged_field_inspection_evidence.sql` to extend case-inspection GPS metadata and link attachments to inspections.
 - [x] Add coordinate-range, accuracy, timestamp, capture-mode and SHA-256 format constraints.
+- [x] Tighten GPS constraints with explicit non-null checks in `20261112114823_require_complete_gps_capture_metadata.sql`; a device-GPS row must contain every required coordinate/accuracy/timestamp value.
 - [x] Extend the case-attachment insert policy to require the authenticated uploader, request-scoped storage path and a matching staff-created inspection when `inspection_id` is supplied.
 - [x] Add optional device GPS capture and camera photo capture to the Case Workspace inspection form.
 - [x] Store private photo uploads in the existing `samanvay-case-evidence` bucket, linked to the inspection with capture timestamp, optional GPS accuracy and SHA-256.
-- [x] Run a rollback-only authenticated database test: assigned department officer inserted a GPS inspection and linked attachment; both rows rolled back.
+- [x] Run a rollback-only authenticated database test: assigned department officer inserted one GPS inspection, one no-GPS inspection and one linked private attachment; all passed and were rolled back.
 - [ ] Test GPS accuracy, permission-denied flows, camera capture and upload recovery on a physical Android device.
 - [ ] Test browser camera/GPS permission and evidence workflow over HTTPS.
 - [ ] Complete real field inspections with owner-authorised evidence; there are currently 0 case-inspection rows and 0 GIS asset survey-evidence rows.
