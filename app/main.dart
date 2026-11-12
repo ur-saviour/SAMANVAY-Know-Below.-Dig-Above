@@ -18674,143 +18674,78 @@ class _MapPageState extends State<MapPage> {
   }
 
   Widget _undergroundModelPanel() {
-    final layers = <({Color color, IconData icon, String title})>[
-      (color: const Color(0xFF38BDF8), icon: Icons.water_drop_outlined, title: 'Water & wastewater'),
-      (color: const Color(0xFF22C55E), icon: Icons.waves_outlined, title: 'Stormwater & drainage'),
-      (color: const Color(0xFFFBBF24), icon: Icons.bolt_outlined, title: 'Power & telecom'),
-      (color: const Color(0xFFFB7185), icon: Icons.hub_outlined, title: 'Gas & other networks'),
+    final layers = <({Color color, String label})>[
+      (color: const Color(0xFF38BDF8), label: 'WATER'),
+      (color: const Color(0xFF22C55E), label: 'DRAINAGE'),
+      (color: const Color(0xFFFBBF24), label: 'POWER / TELECOM'),
+      (color: const Color(0xFFFB7185), label: 'GAS'),
     ];
-
     return Container(
       width: 304,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-        color: const Color(0xF2182638),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x6645D9CE)),
+        color: const Color(0xF20B1B2D),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0x8855D9CE)),
         boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 5)),
+          BoxShadow(color: Color(0x44000000), blurRadius: 16, offset: Offset(0, 5)),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 17),
-              const SizedBox(width: 7),
-              const Expanded(
-                child: Text('BELOW-GROUND MODEL',
-                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0x3320D6C2), borderRadius: BorderRadius.circular(6)),
-                child: const Text('3D VIEW', style: TextStyle(color: Color(0xFF7DE9DE), fontSize: 8, fontWeight: FontWeight.w800)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text('GENERALIZED 250 M COVERAGE · NOT TO SCALE',
-            style: TextStyle(color: mutedInk, fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Container(
-            height: 184,
+          Row(children: [
+            const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 17),
+            const SizedBox(width: 7),
+            const Expanded(child: Text(
+              'UNDERGROUND NETWORK CUTAWAY',
+              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .65),
+            )),
+            Text(_is3D ? '3D' : '2D', style: const TextStyle(color: Color(0xFF7DE9DE), fontSize: 9, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 105,
             width: double.infinity,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0A1725),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0x5545D9CE)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: CustomPaint(
-              painter: _DemoSubsurfacePainter(
-                viewMode: '3D cutaway',
-                visibleLayers: const {'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell'},
-                isLight: _usesLegacyLightPalette,
-              ),
-              child: const Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Text(
-                    'SIMULATED DEMO NETWORK · NOT GEO-REFERENCED',
-                    style: TextStyle(
-                      color: Color(0xFFFFD98B),
-                      fontSize: 7,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .35,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: CustomPaint(
+                painter: _DemoSubsurfacePainter(
+                  viewMode: _is3D ? '3D cutaway' : '2D cutaway',
+                  visibleLayers: const {'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell'},
+                  isLight: false,
+                ),
+                child: const Align(
+                  alignment: Alignment.topLeft,
+                  child: Padding(
+                    padding: EdgeInsets.all(5),
+                    child: Text(
+                      'SIMULATED · NOT GEO-REFERENCED',
+                      style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: .35),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          ...layers.map((layer) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 9,
+            runSpacing: 4,
+            children: layers.map((layer) => Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 24, height: 20,
-                  decoration: BoxDecoration(color: layer.color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                  child: Icon(layer.icon, color: layer.color, size: 14),
-                ),
-                const SizedBox(width: 8),
-                Expanded(child: Text(layer.title,
-                  style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 9, fontWeight: FontWeight.w700))),
-                Text('REFERENCE', style: TextStyle(color: layer.color, fontSize: 7, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+                Container(width: 13, height: 3, decoration: BoxDecoration(color: layer.color, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 4),
+                Text(layer.label, style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 7, fontWeight: FontWeight.w800)),
               ],
-            ),
-          )),
-          const Divider(height: 9, color: Color(0x334B647C)),
-          const Text('DATA TRUST CLASSES',
-            style: TextStyle(color: Color(0xFF55D9CE), fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 5),
-          _trustClassRow(
-            color: const Color(0xFF55D9CE),
-            label: 'VERIFIED OWNER GEOMETRY',
-            value: _canViewDepartmentAssets ? 'OWNER-DEPT VIEW · $_verifiedAssetCount' : 'OWNER-DEPT ACCESS ONLY',
-          ),
-          _trustClassRow(
-            color: const Color(0xFF38BDF8),
-            label: 'GENERALISED COVERAGE',
-            value: 'AGGREGATE · NOT CLEARANCE',
-          ),
-          _trustClassRow(
-            color: const Color(0xFFF6C66B),
-            label: 'CONTEXT / ESTIMATED',
-            value: 'REFERENCE ONLY · EXCLUDED FROM CLEARANCE',
-          ),
-          const Divider(height: 9, color: Color(0x334B647C)),
-          const Text('GROUNDWATER SOURCE FRESHNESS',
-            style: TextStyle(color: Color(0xFF55D9CE), fontSize: 8, letterSpacing: .8, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text('Latest timestamp among loaded records (up to 1,000 in this map extent): $_groundwaterFreshnessLabel',
-            style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 8, height: 1.35)),
-          Text('Latest observation in the full source archive: $_groundwaterArchiveLatestObservation. Historical monitoring data only; this is not live telemetry.',
-            style: const TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35)),
-          Text('Publisher: $_groundwaterLatestAgency · source-reported values; coordinate accuracy is not independently validated here.',
-            style: TextStyle(color: mutedInk, fontSize: 7.5, height: 1.35)),
-          const Divider(height: 9, color: Color(0x334B647C)),
-          Row(
-            children: [
-              Expanded(child: _undergroundStat('UTILITY CATALOGUE', '$_utilityLayerCatalogueCount')),
-              Expanded(child: _undergroundStat('LIVE MAP CELLS', '$_utilityCellCount')),
-            ],
+            )).toList(),
           ),
           const SizedBox(height: 5),
-          Row(
-            children: [
-              Expanded(child: _undergroundStat('GROUNDWATER POINTS', '$_groundwaterStationCount')),
-              Expanded(child: _undergroundStat('APPROVALS MAPPED', '$_approvalMappedCount / $_approvalRecordCount')),
-            ],
-          ),
-          const SizedBox(height: 8),
           const Text(
-            '3D blocks show relative aggregate density inside generalized coverage cells. They are not pipes, surveyed alignments, asset depths or excavation-clearance data. Owner-authorised geometry is a separate restricted layer.',
-            style: TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35),
+            'Illustrative demo geometry only. Not a survey, utility-owner record, physical depth or excavation clearance.',
+            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, height: 1.25),
           ),
         ],
       ),
@@ -19378,7 +19313,7 @@ class _MapPageState extends State<MapPage> {
                             ? 'Own-department verified geometry plus generalised coverage. Other owners’ exact routes are withheld.'
                             : _canViewUtilityOverview
                                 ? 'Generalised coverage only. Exact utility routes and depths are withheld.'
-                                : 'Operational underground geometry is restricted for this account.')
+                                : 'Illustrative simulated underground layers are visible in demo mode; verified utility geometry remains restricted.')
                         : _satellite
                             ? 'Imagery date and resolution vary by location.'
                             : 'Real OpenStreetMap building footprints are extruded in 3D. Mapped height or floor tags are used where available; otherwise a clearly labelled 6 m visual estimate is used. This is not a statutory building-approval record.',
@@ -19648,7 +19583,7 @@ class _MapPageState extends State<MapPage> {
           if (_undergroundMode)
             Positioned(
               left: desktopLayout ? 320 : 12,
-              bottom: 118,
+              bottom: 270,
               child: _undergroundModelPanel(),
             ),
 
