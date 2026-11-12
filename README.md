@@ -16,6 +16,7 @@ The Tamil Nadu-first and national data acquisition plans are maintained here:
 - [Coimbatore Public Data Evidence — Final Draft (6 November 2026)](docs/data-governance/COIMBATORE_DATA_EVIDENCE_FINAL_DRAFT_2026-11-06.md)
 - [India National Data Acquisition Register](docs/data-governance/INDIA_NATIONAL_DATA_ACQUISITION_REGISTER.md)
 - [India-wide Data Readiness Audit — 7 November 2026](docs/data-governance/INDIA_DATA_READINESS_AUDIT_2026-11-07.md)
+- [Phase 2 National District Reference Import — 12 November 2026](docs/reports/SAMANVAY_PHASE_2_NATIONAL_REFERENCE_IMPORT_2026-11-12.md)
 
 These are acquisition plans. They do not imply that government datasets, survey records, permissions or approvals have already been received.
 
