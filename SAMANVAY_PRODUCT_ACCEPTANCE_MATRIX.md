@@ -319,7 +319,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Validate map navigation and overlay toggles on a physical Android device and browser at national, State/UT, district and local zoom levels.
 - [ ] Import authority-validated national and local boundaries after archive retrieval, checksum, CRS/topology QA and LGD-code reconciliation.
 
-**Implementation commit:** current source contains the no-default ward toggle, conditional layer loading and national default camera. Android and browser CI were triggered for the updated source; their final build and artifact verification must pass before this section is release-accepted.
+**Implementation commit:** `21a0ee5d2570e1e337ad34c54d8824f86e26e748` contains the no-default ward toggle, conditional layer loading and national default camera. Android workflow `43205312185` and browser workflow `43205311668` both completed successfully; Android package/signature/alignment and browser asset smoke checks passed. Physical-device/browser interaction acceptance remains outstanding.
 
 ## 22. Dynamic boundary provenance and freshness — 12 November 2026
 
@@ -332,3 +332,14 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Replace or supplement stale references only after an authoritative, licensed boundary source has been downloaded and validated.
 
 **Important:** geoBoundaries `current` is an API release pointer, not a guarantee that the boundary year is current. These visual layers remain non-statutory reference data.
+
+
+## 23. Verified Phase 2 build artifacts — 12 November 2026
+
+- [x] Android release build passed on source commit `21a0ee5d2570e1e337ad34c54d8824f86e26e748` (workflow `43205312185`).
+- [x] Android Dart analysis, release APK build, ABI packaging, package/signature/alignment checks, upload and Alpha 0.3 publication passed.
+- [x] Downloaded Android artifact digest verified against GitHub: `75c8721a72ec175216c5501d8718ca565b7328f51c6bc5f80a1f28407e54bfc7`.
+- [x] Extracted ARM64, ARMv7 and x86_64 APK variants; archive integrity and individual SHA-256 hashes recorded in the Phase 2 GIS data-quality audit report.
+- [x] Browser build passed on the same source commit (workflow `43205311668`), including Dart analysis, production build, required map/branding asset smoke tests, packaging and upload.
+- [x] Downloaded browser artifact digest verified against GitHub: `6c58eac6908677d436da615d975c7d1cf5d4ab30c21a0afce54e55620196d6cc`.
+- [ ] Complete physical-device Android login/GPS/map/layer testing and production-browser WebGL/role workflow testing. Successful CI is not a substitute for these tests.
