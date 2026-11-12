@@ -12860,9 +12860,11 @@ class _MapPageState extends State<MapPage> {
               final sourceDate = (row['source_updated_at'] ?? '').toString().trim();
               final datedSuffix = sourceDate.isEmpty ? '' : ' · report ' + sourceDate;
               final sourceSystem = (row['source_system'] ?? '').toString();
-              final sourceSuffix = sourceSystem.startsWith('DataMeet')
-                  ? ' · reference only'
-                  : '';
+              final sourceSuffix = sourceSystem.startsWith('India LGD Community Mirror')
+                  ? ' · community LGD snapshot'
+                  : sourceSystem.startsWith('DataMeet')
+                      ? ' · reference only'
+                      : '';
               return name + (code.isEmpty ? '' : ' · LGD ' + code) +
                   suffix + datedSuffix + sourceSuffix;
             }
@@ -12891,9 +12893,22 @@ class _MapPageState extends State<MapPage> {
                     .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(1000);
-                // Use the pinned national DataMeet reference names only as a map-navigation
-                // fallback when no LGD district rows exist for this State/UT.
-                // This source is never substituted into permit or conflict checks.
+                // Prefer the newer community-mirrored LGD snapshot for map navigation
+                // when the direct LGD source has no rows. Its codes remain imported_unverified.
+                if (rows.isEmpty) {
+                  rows = await supabase
+                      .from('india_administrative_units')
+                      .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                      .eq('state_ut_id', selectedId)
+                      .eq('unit_type', 'district')
+                      .eq('source_system', 'India LGD Community Mirror 21Oct2026 — Districts')
+                      .eq('is_active', true)
+                      .eq('verification_status', 'imported_unverified')
+                      .order('name')
+                      .limit(1000);
+                }
+                // Fall back to the older DataMeet national name reference only if
+                // neither direct LGD nor the newer LGD mirror has rows.
                 if (rows.isEmpty) {
                   rows = await supabase
                       .from('india_administrative_units')
@@ -12913,6 +12928,10 @@ class _MapPageState extends State<MapPage> {
                   if (districts.isEmpty) {
                     directoryMessage =
                         'No district reference rows are available for this State/UT yet. State-level map search is still available.';
+                  } else if (districts.any((row) =>
+                      (row['source_system'] ?? '').toString().startsWith('India LGD Community Mirror'))) {
+                    directoryMessage =
+                        'Showing a community-mirrored LGD snapshot dated 21 Oct 2026 for map navigation. It is not a live government feed; all imported rows remain unverified pending an authoritative refresh. Do not use it as permit, statutory or utility-clearance evidence.';
                   } else if (districts.any((row) =>
                       (row['source_system'] ?? '').toString().startsWith('DataMeet'))) {
                     directoryMessage =
