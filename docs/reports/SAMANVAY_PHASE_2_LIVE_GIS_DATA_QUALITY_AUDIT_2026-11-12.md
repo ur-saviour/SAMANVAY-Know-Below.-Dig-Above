@@ -192,3 +192,16 @@ The six Citizen negative checks passed; the positive calls returned the expected
 ### Survey of India Quick Access route re-check
 
 The official Survey of India FAQ says that the Administrative Boundary Database can be downloaded from the homepage's Quick Access section without registration or login. It instructs users to choose the dataset category, select the required map and click Download. This supersedes the earlier assumption that the product itself necessarily requires login: only the separate product-catalogue route was observed to prompt for sign-in. The Quick Access route remains untested in this session, and no shapefile archive has been obtained or imported.
+
+### Positive/negative row-level access test using rollback-only fixture
+
+A synthetic import-run row, verified-asset row and evidence row were inserted inside a single SQL transaction, then queried under four authenticated JWT identities. The transaction was explicitly rolled back after returning the results.
+
+| Role | Underground asset | Survey evidence | Import run | Verification queue |
+|---|---:|---:|---:|---:|
+| Admin | 1 | 1 | 1 | 1 |
+| Coordinator | 1 | 1 | 1 | 1 |
+| Department Officer | 0 | 0 | 0 | 0 |
+| Citizen | 0 | 0 | 0 | 0 |
+
+**Result:** all four role expectations passed. The Department Officer was intentionally excluded from the admin/coordinator review queue even though the synthetic row was owned by that officer's department; the owner-only exact-geometry workflow remains separately handled by the dedicated RPC. The synthetic asset/evidence/import rows were rolled back and are not present in production data. This test validates actual row-level filtering and view execution without retaining synthetic data; it does not replace tests with real owner-authorised records.
