@@ -45,7 +45,7 @@ This report records completed engineering work, evidence-backed readiness, and t
 | LGD block rows rejected for duplicate codes | 30 |
 | State/UT parent records | 36 |
 | Historical/generalized district reference polygons | 733 |
-| Groundwater station observations | 446,068 |
+| Groundwater station observations (current; post-2025-only compaction) | 446,068 |
 | Groundwater observations with coordinates | 445,553 |
 | State/UT labels in groundwater observations | 31 |
 | `gis.underground_assets` | 0 |
@@ -55,6 +55,8 @@ The community mirror's pinned source date is **21 October 2026**; it is 22 days 
 
 Groundwater observation dates range from **1 January 2025 through 31 December 2025**. The 515 non-geocoded observations must not be plotted as precise locations. The latest-per-station map view has 576 rows, of which 574 are geocoded. The groundwater register is not an underground water-pipeline map.
 
+
+**Data-integrity correction added after this report was first written:** 446,068 is not the full pre-change groundwater dataset. The live table had 1,911,126 rows immediately before an automatically triggered recovery workflow on 9 November 2026 committed a truncate and reloaded only the 446,068 calendar-2025 rows. The 9 November workflow logs prove the production truncate and 2025-only reload. A verified encrypted pre-change archive exists; restoration has not yet been run. See [the groundwater data recovery incident record](../security/SAMANVAY_GROUNDWATER_DATA_RECOVERY_INCIDENT_2026-11-09.md).
 For the row-level audit, source hashes, import batch IDs, polygon validity checks and remaining blockers, see [the updated Phase 2 National GIS Data Import and Verification Report](SAMANVAY_PHASE_2_NATIONAL_REFERENCE_IMPORT_2026-11-12.md).
 
 ### Phase status
@@ -153,7 +155,7 @@ Required KPIs: repeat cuts per road segment; request-review median and p90; aler
 
 ## Security and release controls
 
-Current Supabase security-advisor findings after the Phase 3/4 migrations are 18 authenticated-callable SECURITY DEFINER function warnings and one Auth warning for disabled leaked-password protection. The 18 includes three intentional joint-work RPC endpoints with explicit role checks; the joint-work RLS read guard is in the non-API `private` schema. Each SECURITY DEFINER routine still requires individual review; do not “fix” warnings by indiscriminately granting access or removing RLS. Leaked-password protection remains an outstanding Auth setting.
+Current Supabase security-advisor findings after the latest security migrations are 16 authenticated-callable SECURITY DEFINER function warnings and one Auth warning for disabled leaked-password protection. The 16 remaining routines were inspected for caller identity, live role/assignment guards and pinned search paths; the warning is generic to their authenticated execute grants, not a finding that their guards are absent. The 18 includes three intentional joint-work RPC endpoints with explicit role checks; the joint-work RLS read guard is in the non-API `private` schema. Each SECURITY DEFINER routine still requires individual review; do not “fix” warnings by indiscriminately granting access or removing RLS. Leaked-password protection remains an outstanding Auth setting.
 
 The application must be revalidated after this patch on a physical Android device. A successful CI build is necessary but not sufficient for release acceptance.
 
