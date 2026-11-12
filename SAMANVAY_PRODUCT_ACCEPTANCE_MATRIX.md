@@ -403,3 +403,10 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Physical-device and authenticated multi-role runtime acceptance remains outstanding.
 
 **Progress checkpoint:** 89% engineering completion estimate, with the release jobs still in progress. This does not imply physical-device acceptance or production readiness.
+
+## Browser artifact verification update — 13 November 2026
+
+- [x] Browser workflow `43298587461` completed successfully: contract checks, Dart analysis, release compilation, GIS asset smoke tests, ZIP packaging and upload.
+- [x] Artifact `SAMANVAY-Browser-Portal`, ID `13979583828`, SHA-256 `7a47db017849e39c5e1e2381876fa54cd96b1e888cbab0d1e8c6360988333383`.
+- [ ] Android workflow `43298615743` still compiling release APK; package contract and Dart analysis passed, no failures reported.
+- [ ] APK integrity/signature verification, Android artifact publication and physical-device acceptance remain outstanding.
