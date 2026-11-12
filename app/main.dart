@@ -4515,9 +4515,9 @@ class _AuthPageState extends State<AuthPage> {
           _otpController.clear();
           setState(() => otpSent = true);
           _startOtpResendCountdown();
-          showMessage('A six-digit SMS verification code has been requested. Enter it to activate your account. Official-role requests remain pending administrator approval.', success: true);
+          showMessage('A six-digit SMS verification code has been requested. Enter it to activate your account. An administrator must verify official-role access before it is granted.', success: true);
         } else {
-          showMessage('Your account has been created and verified. Any requested official role remains pending administrator approval.', success: true);
+          showMessage('Your account has been created and verified. Your requested official role is recorded as account metadata; an administrator must verify your identity and department before access is granted.', success: true);
         }
       } else {
         final email = identifier.trim().toLowerCase();
@@ -4532,7 +4532,7 @@ class _AuthPageState extends State<AuthPage> {
         if (response.session == null) {
           showMessage('Registration request submitted. Check your inbox for the confirmation email, then sign in.', success: true);
         } else {
-          showMessage('Your account has been created successfully. Any requested official role remains pending administrator approval.', success: true);
+          showMessage('Your account has been created successfully. Your requested official role is recorded as account metadata; an administrator must verify your identity and department before access is granted.', success: true);
         }
       }
     } on AuthException catch (authError) {
