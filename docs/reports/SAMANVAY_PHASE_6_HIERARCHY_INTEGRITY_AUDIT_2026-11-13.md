@@ -51,6 +51,20 @@ Operational readiness remains zero: no coverage row, utility contract or restric
 - LGD sub-district import batch: 7,092 received, 7,092 inserted, 0 rejected.
 - LGD block import batch: 7,342 received, 7,312 inserted, 30 rejected. The 30 rejected entries were the records associated with 15 duplicated source LGD block codes; no arbitrary duplicate winner was selected.
 
+## ULB-to-district reconciliation queue added — 13 November 2026
+
+A dedicated queue is now deployed at `public.india_ulb_district_reconciliation` and all 5,050 ULB mirror rows have been seeded with `resolution_status='unmapped'`. No district parent was inferred.
+
+- Access: authenticated admin/coordinator only; department role returned 0 rows in the RLS test; anonymous SELECT privilege is false; client DELETE privilege is false.
+- Same-State/UT validation: the trigger accepts only an `urban_local_body` target and a `district` candidate sharing the same `state_ut_id`.
+- Verification evidence: the row must include a district candidate, source name, HTTPS evidence URL, source-record/document reference and rationale. The database trigger stamps the authenticated reviewer and verification time.
+- Tested: administrator can see all 5,050 queue rows; cross-State/UT mapping is rejected; the queue remains entirely unmapped after rollback-only security tests.
+- App: the India directory's administrator/coordinator workspace now links to an interactive, paginated reconciliation page. It supports same-State/UT district selection and separate candidate / verified / rejected actions. It does not auto-assign any ULB to a district.
+
+Migrations:
+- `20261112191153_create_audited_ulb_district_reconciliation_queue.sql`
+- `20261112191820_require_https_record_reference_for_verified_ulb_district_links.sql`
+
 ## Recommended next Phase 6 implementation
 
 1. Obtain state-wise official LGD exports through the normal authorised portal process; do not automate or bypass CAPTCHA.
