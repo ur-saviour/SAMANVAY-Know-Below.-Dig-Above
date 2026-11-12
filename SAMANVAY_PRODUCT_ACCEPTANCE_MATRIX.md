@@ -343,3 +343,27 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Browser build passed on the same source commit (workflow `43205311668`), including Dart analysis, production build, required map/branding asset smoke tests, packaging and upload.
 - [x] Downloaded browser artifact digest verified against GitHub: `6c58eac6908677d436da615d975c7d1cf5d4ab30c21a0afce54e55620196d6cc`.
 - [ ] Complete physical-device Android login/GPS/map/layer testing and production-browser WebGL/role workflow testing. Successful CI is not a substitute for these tests.
+
+
+## 24. Phase 3 and Phase 4 implementation — 12 November 2026
+
+### Phase 3 — joint-work proposal backend
+- [x] Deploy `case_joint_work_proposals`, `case_joint_work_responses` and `case_joint_work_events` with participant-scoped RLS.
+- [x] Deploy role-gated `create_case_joint_work_proposal`, `respond_case_joint_work_proposal` and `finalise_case_joint_work_proposal` RPCs.
+- [x] Align the repository migration filename with the live Supabase ledger: `20261112112501_add_joint_work_proposal_workflow.sql`.
+- [x] Run a rollback-only role regression: coordinator creates, two department responses accept, coordinator schedules; observed 2 accepted responses and 4 events. Transaction rolled back.
+- [ ] Complete a real multi-account/browser role workflow with authorised participating departments.
+- [ ] Record genuine authority-approved joint-work proposals; the live proposal, response and event tables remain empty after testing.
+
+### Phase 4 — geotagged field inspection and private photo evidence
+- [x] Deploy `20261112112804_add_geotagged_field_inspection_evidence.sql` to extend case-inspection GPS metadata and link attachments to inspections.
+- [x] Add coordinate-range, accuracy, timestamp, capture-mode and SHA-256 format constraints.
+- [x] Extend the case-attachment insert policy to require the authenticated uploader, request-scoped storage path and a matching staff-created inspection when `inspection_id` is supplied.
+- [x] Add optional device GPS capture and camera photo capture to the Case Workspace inspection form.
+- [x] Store private photo uploads in the existing `samanvay-case-evidence` bucket, linked to the inspection with capture timestamp, optional GPS accuracy and SHA-256.
+- [x] Run a rollback-only authenticated database test: assigned department officer inserted a GPS inspection and linked attachment; both rows rolled back.
+- [ ] Test GPS accuracy, permission-denied flows, camera capture and upload recovery on a physical Android device.
+- [ ] Test browser camera/GPS permission and evidence workflow over HTTPS.
+- [ ] Complete real field inspections with owner-authorised evidence; there are currently 0 case-inspection rows and 0 GIS asset survey-evidence rows.
+
+**Acceptance boundary:** The database/RPC tests used existing account roles and existing request/review records inside transactions that were rolled back. They did not create real approvals, real field evidence, utility geometry, or live work schedules. Automated build success does not prove camera or location behaviour on a physical device.
