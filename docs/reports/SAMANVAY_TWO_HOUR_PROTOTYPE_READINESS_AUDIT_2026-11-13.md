@@ -115,3 +115,14 @@ All four destructive legacy recovery workflows have been removed from the active
 The engineering planning estimate remains **74% prototype completion**. The two successful release pipelines, ULB reconciliation interface and demo runbook improve demonstrability, but the percentage is not raised for actions that still require external authorisation, manual GitHub dispatch or physical-device acceptance.
 
 This sprint check makes no claim of 95% completion, production readiness or completed groundwater restoration.
+
+
+## Follow-up verification — latest branch state
+
+- Latest browser portal pipeline for source commit `f7e06f5b64371e0533c6a11f705298d5739f30ef` passed: [run 43294840751](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840751).
+- A subsequent Android build for source commit `565c3a9196f17b5367ae7aae8011fc57a504dbdc` is still in progress at Flutter setup: [run 43295216070](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43295216070). Earlier cancelled runs are not counted as failures of the source analysis; the last completed Android release remains the previously verified Alpha 0.3 artifact.
+- Current source UI-string audit found zero occurrences of the capitalised word `Requester`; internal database role value `requester` remains mapped to the public-facing label `Citizen`.
+- Rechecked live Supabase counts: 6 profiles (1 admin, 1 coordinator, 1 department officer, 3 Citizen/requester), 5,050 ULB rows all unmapped, 446,068 groundwater rows all in calendar year 2025, 4 excavation requests, and 0 underground asset / survey-evidence rows.
+- Current Supabase security advisor still reports 16 authenticated `SECURITY DEFINER` warnings and 1 Auth leaked-password-protection warning. These warnings are recorded for review; no broad permission changes were made during this sprint.
+
+The completion estimate remains **74%**. A passing browser build and string / authorization checks improve confidence, but they do not replace live Android device acceptance, archive verification, verified utility geometry or real permit lifecycle records.
