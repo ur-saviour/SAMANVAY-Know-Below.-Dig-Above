@@ -4007,9 +4007,6 @@ class _AuthPageState extends State<AuthPage> {
   bool messageIsSuccess = false;
   String? demoPreviewRole;
   String? demoPreviewStaffId;
-  // Staff registrations are requests only; privileged roles remain admin-approved.
-  String requestedSignupRole = 'requester';
-
   @override
   void dispose() {
     _nameController.dispose();
