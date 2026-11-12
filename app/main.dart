@@ -661,7 +661,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
     super.initState();
     _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4600),
+      duration: const Duration(milliseconds: 7000),
     );
     _ambientController = AnimationController(
       vsync: this,
