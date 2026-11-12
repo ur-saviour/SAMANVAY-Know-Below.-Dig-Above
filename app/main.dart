@@ -4131,7 +4131,7 @@ class _AuthPageState extends State<AuthPage> {
       } else if (detail.contains('invalid login credentials') ||
           detail.contains('invalid_credentials')) {
         showMessage(
-          'The registered email or password did not match. Check the details, use Email OTP, or select Forgot password? to recover the existing account.',
+          'The registered email or password did not match. Check the details or select Forgot password? to recover the existing account. Email OTP is disabled for this project.',
         );
       } else if (detail.contains('email not confirmed')) {
         showMessage(
