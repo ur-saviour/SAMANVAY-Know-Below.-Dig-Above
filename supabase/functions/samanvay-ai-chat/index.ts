@@ -267,8 +267,21 @@ function buildZeroCostReply(prompt: string, references: SafeReference[], liveSna
   if (includesAny(q, ["safe to dig", "safe to excavate", "no dig clearance", "is excavation safe", "utility absent", "clear to dig"])) {
     return "SAMANVAY's stored data or an empty map layer cannot establish that a site is safe to excavate. This assistant cannot issue a no-dig clearance. Obtain current written clearance and site verification from every relevant utility-owning authority before work is considered.";
   }
-  if (includesAny(q, ["api key", "secret key", "system prompt", "reveal instructions", "password", "otp"])) {
-    return "Do not share API keys, passwords, one-time codes, identity numbers, or confidential infrastructure drawings in this chat. I cannot retrieve or reveal secrets.";
+  if (includesAny(q, [
+    "api key", "secret key", "system prompt", "reveal instructions",
+    "show me my otp", "what is my otp", "tell me my code", "read my verification code",
+    "reveal password", "what is my password", "show password", "share my password",
+  ])) {
+    return "Do not share API keys, passwords, one-time codes, identity numbers, or confidential infrastructure drawings in this chat. I cannot retrieve or reveal private credentials. For account recovery, use the app's own password-reset flow.";
+  }
+  if (includesAny(q, ["sign up", "signup", "register", "create account", "department officer account", "coordinator account", "administrator account"])) {
+    return "Account registration walkthrough: 1) Open Create Account. 2) Enter your full name. 3) Enter an email address or mobile number and create a password. 4) Select the access type you are requesting: Citizen, Department Officer, Coordinator or Administrator. 5) Complete the verification step sent to that contact. Selecting an official role is only an access request; it does not grant authority. An administrator must verify the request and assign the appropriate department before the official workspace is available. The sign-in screen checks the approved profile and opens the matching workspace automatically.";
+  }
+  if (includesAny(q, ["otp", "verification code", "sms code", "verify phone", "verify mobile", "phone verification"])) {
+    return "Mobile OTP walkthrough: enter the mobile number with its country code, request the six-digit code, enter the code in the verification field, and use Resend only after the countdown finishes. If the code does not arrive, check the number and retry later. SMS delivery requires the Supabase phone-auth provider, the project's SMS hook and provider credentials to be configured; the app cannot generate a real carrier-delivered OTP by itself. Never tell anyone your OTP.";
+  }
+  if (includesAny(q, ["change password", "reset password", "forgot password", "password recovery"])) {
+    return "Password help: while signed in, open Profile and choose Change password, then enter and confirm the new password. When you cannot sign in, choose Forgot password? on the login screen and follow the recovery email. The recovery email depends on the project's Supabase email provider and redirect configuration. Do not send passwords or reset links in this chat.";
   }
   if (includesAny(q, ["what is samanvay", "about samanvay", "what can i do", "what does this app", "features"])) {
     return "SAMANVAY is an infrastructure coordination platform. Its intended workflows bring citizens and authorised departments together around road works, excavation requests, water supply, sewerage, stormwater drainage, electricity, telecom, gas, groundwater and borewell regulation, building planning, public-health engineering, and cross-department coordination. Available functions depend on the modules and verified data enabled in the current deployment.";
@@ -286,7 +299,7 @@ function buildZeroCostReply(prompt: string, references: SafeReference[], liveSna
     return "For cross-department work, identify the work owner, affected service categories, proposed dates and public impact; request coordination from the responsible departments; record each department's response in the case; and ensure the authorised coordinator resolves conflicts before work begins. This assistant cannot approve a schedule or permit.";
   }
   if (includesAny(q, ["map", "gis", "satellite", "3d", "underground map"])) {
-    return "The GIS module is intended to provide geographic context, administrative navigation and approved infrastructure layers. Public views should show only generalised, non-sensitive information; precise utility geometry must remain restricted to authorised roles. A layer appearing on the map does not itself certify positional accuracy, completeness, or excavation safety.";
+    return "GIS walkthrough: open GIS from the main navigation. Use the place search to move between India, a state, district, city or road; switch Vector / Satellite to change the basemap; switch 2D / 3D to change the surface view; then select Underground to open the subsurface cutaway. The demonstration cutaway has separate Water, Sewer, Drainage, Electricity, Telecom, Gas and Borewell layers that can be toggled individually. Its moving lines are synthetic visual guides, not surveyed coordinates or actual utility locations. Public reference layers and verified owner-authorised data are shown as separate data classes.";
   }
   if (includesAny(q, ["groundwater", "borewell", "water level", "water table"])) {
     return "SAMANVAY has groundwater-related records and assessment tables, but the presence of stored observations does not guarantee complete district coverage or a live reading at a particular location. Check the observation date, station, district and source metadata shown in the app. Use the relevant groundwater authority for an official assessment.";
@@ -294,7 +307,7 @@ function buildZeroCostReply(prompt: string, references: SafeReference[], liveSna
   if (includesAny(q, ["dataset", "coverage", "india wide", "india-wide", "north india", "state", "district", "official source", "data source", "records"])) {
     return "I can report what is stored in SAMANVAY and show catalogue references, but I must distinguish stored records from verified national coverage. Coverage metadata is not the same as an imported, quality-checked, operational dataset. Check the source, geography, last-checked date, coverage status and permitted-use field before relying on a dataset." + refsText + dataText;
   }
-  if (includesAny(q, ["login", "sign in", "cannot login", "forgot password", "profile"])) {
+  if (includesAny(q, ["login", "sign in", "cannot login", "profile", "role access", "wrong portal", "officer portal", "coordinator portal", "admin portal"])) {
     return "Use the account registered for your SAMANVAY role and sign in through the app's login screen. The role and department access are checked against the authenticated profile. If the correct portal is missing, ask the administrator to verify the profile role and department assignment; do not share your password or OTP in chat.";
   }
   return "I am SAMANVAY's built-in zero-cost assistant. I use predefined guidance and SAMANVAY's existing public database metadata; I do not use a paid external language-model API. I can help with app navigation, Citizen requests, request tracking, department routing, GIS concepts, groundwater data and source-coverage interpretation. Ask one specific question and I will give the most relevant guidance.\n\nNote: this is a rule-based assistant, not an unrestricted generative chatbot. It does not see your private cases, issue approvals, or certify underground utility locations.";
