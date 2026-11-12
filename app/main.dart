@@ -812,6 +812,22 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  Positioned(
+                    top: 34,
+                    right: 8,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: .76,
+                        child: SizedBox(
+                          width: 150,
+                          height: 100,
+                          child: CustomPaint(
+                            painter: _IndianFlagWavePainter(progress: ambient),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   SafeArea(
                     child: Center(
                       child: ConstrainedBox(
@@ -1728,6 +1744,77 @@ class _SamanvayOpeningCityPainter extends CustomPainter {
       oldDelegate.progress != progress ||
       oldDelegate.ambient != ambient ||
       oldDelegate.lightMode != lightMode;
+}
+
+class _IndianFlagWavePainter extends CustomPainter {
+  const _IndianFlagWavePainter({required this.progress});
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final poleX = size.width * .10;
+    final flagLeft = poleX + 5;
+    final flagWidth = size.width * .82;
+    final flagHeight = size.height * .66;
+    final top = size.height * .12;
+    final phase = progress * math.pi * 2;
+
+    canvas.drawLine(
+      Offset(poleX, top - 5),
+      Offset(poleX, top + flagHeight + 12),
+      Paint()..color = const Color(0xFFB8C6D2)..strokeWidth = 2.2..strokeCap = StrokeCap.round,
+    );
+    canvas.drawCircle(
+      Offset(poleX, top - 5),
+      2.4,
+      Paint()..color = const Color(0xFFD7E2EA),
+    );
+
+    double wave(double x) =>
+        math.sin((x / flagWidth) * math.pi * 2.15 + phase) * (2.8 + 2.2 * x / flagWidth);
+
+    final stripeColors = [
+      const Color(0xFFFF9933),
+      const Color(0xFFF7F7F2),
+      const Color(0xFF138808),
+    ];
+    for (var band = 0; band < 3; band++) {
+      final y0 = top + flagHeight * band / 3;
+      final y1 = top + flagHeight * (band + 1) / 3;
+      final path = Path()..moveTo(flagLeft, y0 + wave(0));
+      for (var step = 1; step <= 24; step++) {
+        final x = flagWidth * step / 24;
+        path.lineTo(flagLeft + x, y0 + wave(x));
+      }
+      for (var step = 24; step >= 0; step--) {
+        final x = flagWidth * step / 24;
+        path.lineTo(flagLeft + x, y1 + wave(x));
+      }
+      path.close();
+      canvas.drawPath(path, Paint()..color = stripeColors[band].withValues(alpha: .92));
+    }
+
+    final chakraCenter = Offset(flagLeft + flagWidth * .52, top + flagHeight * .50 + wave(flagWidth * .52));
+    final radius = flagHeight * .115;
+    final chakraPaint = Paint()
+      ..color = const Color(0xFF173B72)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.05;
+    canvas.drawCircle(chakraCenter, radius, chakraPaint);
+    canvas.drawCircle(chakraCenter, 1.15, Paint()..color = const Color(0xFF173B72));
+    for (var spoke = 0; spoke < 24; spoke++) {
+      final angle = spoke * math.pi / 12;
+      canvas.drawLine(
+        chakraCenter,
+        chakraCenter + Offset(math.cos(angle) * radius, math.sin(angle) * radius),
+        Paint()..color = const Color(0xFF173B72)..strokeWidth = .55,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _IndianFlagWavePainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 // ==========================================
