@@ -32,25 +32,34 @@ This report records completed engineering work, evidence-backed readiness, and t
 - PostGIS schema for underground assets and survey evidence exists.
 - A generalised public map-access path and staff-restricted exact-geometry path exist.
 - A proximity-advisory function and ownership/verification controls exist. The advisory is horizontal and source-aware; it is not a vertical-clearance guarantee.
+- The Phase 2 administrative hierarchy now contains 784 district rows, 7,092 sub-district rows and 7,312 unambiguous block rows from a 21 October 2026 community mirror snapshot of Ministry of Panchayati Raj LGD data. All remain `imported_unverified`.
+- The database also contains 733 valid WGS84 generalized district reference polygons from a separate historical DataMeet-derived source; these are not current statutory polygons.
+- The public geoBoundaries ADM1/ADM2 Edge Function remains a separate on-demand reference display path.
 
 ### Live data snapshot
 | Dataset | Current rows / coverage |
 |---|---:|
-| `gis.underground_assets` | 0 |
-| `gis.asset_survey_evidence` | 0 |
+| 2026 community-mirrored LGD districts | 784 |
+| 2026 community-mirrored LGD sub-districts | 7,092 |
+| 2026 community-mirrored LGD blocks inserted | 7,312 |
+| LGD block rows rejected for duplicate codes | 30 |
+| State/UT parent records | 36 |
+| Historical/generalized district reference polygons | 733 |
 | Groundwater station observations | 446,068 |
 | Groundwater observations with coordinates | 445,553 |
 | State/UT labels in groundwater observations | 31 |
-| State/UT directory rows | 36 |
-| India administrative boundary-unit rows | 0 |
+| `gis.underground_assets` | 0 |
+| `gis.asset_survey_evidence` | 0 |
 
-Groundwater observation dates range from **1 January 2025 through 31 December 2025**. The latest import timestamp is **9 November 2026**; an import timestamp does not make the underlying 2025 observations real-time. The 515 non-geocoded observations must not be plotted as precise locations.
+The community mirror's pinned source date is **21 October 2026**; it is 22 days old on the audit date and outside its documented 14-day freshness target. It is not a live Ministry connection. All imported hierarchy rows remain unverified. ULBs, wards, villages and panchayats are not part of this imported snapshot. The 30 rejected block records correspond to 15 duplicated LGD codes repeated under different district parents; both records for each duplicate code were withheld.
 
-The groundwater register is not an underground water-pipeline map. State/UT directory metadata is not district, city, ward or street boundary geometry. Utility-layer catalogue entries and source-registry entries are metadata, not accepted utility assets.
+Groundwater observation dates range from **1 January 2025 through 31 December 2025**. The 515 non-geocoded observations must not be plotted as precise locations. The latest-per-station map view has 576 rows, of which 574 are geocoded. The groundwater register is not an underground water-pipeline map.
+
+For the row-level audit, source hashes, import batch IDs, polygon validity checks and remaining blockers, see [the updated Phase 2 National GIS Data Import and Verification Report](SAMANVAY_PHASE_2_NATIONAL_REFERENCE_IMPORT_2026-11-12.md).
 
 ### Phase status
-**Software foundation:** present.  
-**Operational status:** not complete until the competent water, sewer, drainage, power, telecom, gas and road owners supply authorised maps; each import is validated, provenance-tagged and verified by survey. Until then, an empty registry must produce “data unavailable”, never “no conflict”.
+**Administrative-reference foundation:** substantially populated with a pinned LGD mirror snapshot and generalized public district geometry.  
+**Operational status:** not complete until the LGD hierarchy is refreshed and authority-verified, missing local-body/ward data is acquired, competent utility owners supply authorised geometry, field evidence is accepted, and conflict screening is validated on independently reviewed cases. Until then, an empty utility registry must produce “data unavailable”, never “no conflict”.
 
 ## Phase 3 — Permits and interdepartmental coordination
 
@@ -113,19 +122,22 @@ Required KPIs: repeat cuts per road segment; request-review median and p90; aler
 ## Phase 6 — Integration and expansion
 
 ### Implemented foundations
-- India state/UT directory has 36 rows.
+- India State/UT directory has 36 rows.
+- The community LGD mirror provides 784 district, 7,092 sub-district and 7,312 imported block rows with source LGD codes; all remain unverified pending an authoritative refresh.
+- A separate generalized district polygon reference contains 733 valid WGS84 geometries.
 - National authority, source and data-coverage registries exist.
 - Data-acquisition and jurisdiction metadata structures are present.
 
 ### Live readiness gaps
-- India administrative-unit table currently has 0 rows.
-- No complete authoritative state → district → city → ward geometry hierarchy is present in the live administrative-unit table.
-- There is no evidence here of signed data-sharing agreements, owner-specific import authorisations, completed integration credentials, or production interoperability tests with municipal/utility systems.
-- National groundwater observations do not substitute for national underground utility GIS.
+- National ULB, ward, village, gram-panchayat and traditional-local-body hierarchy is not complete.
+- The community mirror snapshot is dated 21 October 2026 and is outside its documented 14-day freshness target on the audit date.
+- No complete authoritative state → district → sub-district → ULB → ward → village geometry hierarchy is present.
+- There is no evidence here of signed data-sharing agreements, owner-specific underground-asset import authorisations, completed integration credentials, or production interoperability tests with municipal/utility systems.
+- National groundwater observations and historical district reference polygons do not substitute for national underground utility GIS.
 
 ### Phase status
-**National metadata scaffolding:** present.  
-**Operational national coverage and integrations:** incomplete; must be delivered incrementally with data-owner agreements, validated feeds, source attribution, update SLAs and access controls.
+**National administrative-reference scaffolding:** materially advanced, with source dates, code provenance and import-batch audits.  
+**Operational national coverage and integrations:** incomplete; must be delivered incrementally with current authority data, data-owner agreements, validated feeds, source attribution, update SLAs and access controls.
 
 ## Security and release controls
 
@@ -138,10 +150,10 @@ The application must be revalidated after this patch on a physical Android devic
 | Phase | Software foundation | Operational completion |
 |---|---|---|
 | 1. Evidence and code audit | Vector branding, OTP UI correction, image decode checks; Android + browser CI passed | Physical-device login, role, map, GPS and media validation remains |
-| 2. GIS and conflict detection | PostGIS schema and advisory logic present | Blocked by 0 authorised underground assets/evidence |
+| 2. GIS and conflict detection | 784 districts, 7,092 sub-districts, 7,312 blocks, 733 generalized district polygons, groundwater reference and role-restricted GIS code | Blocked by 0 owner-authorised underground assets, 0 survey evidence, incomplete ULB/ward/village hierarchy, stale mirror snapshot and pending device/field validation |
 | 3. Permits and coordination | Workflow/RPC foundations present; idempotent assignment RPC fixed and verified | Blocked by 0 live permits/restoration/inspection records and authority validation |
 | 4. Field verification | Upload and inspection foundations present | Blocked by field capture, authorised evidence and device verification |
 | 5. Controlled pilot | Pilot protocol and KPIs specified | Not run; no authorised cohort or measured baseline |
-| 6. Integration and expansion | National directory/catalogue metadata present | Blocked by 0 admin-unit rows, data agreements and tested integrations |
+| 6. Integration and expansion | 36 State/UTs; LGD mirror hierarchy and district reference polygons imported | Blocked by missing ULB/ward/village records, current authority refresh, agreements and tested integrations |
 
 **Conclusion:** Phase 1 source fixes are committed and both CI pipelines passed; the Phase 3 duplicate-assignment RPC fix is deployed and transaction-tested. Phases 2–6 cannot truthfully be marked 100% operationally complete until official asset owners, municipal authorities, field teams, integration credentials and a measured pilot are available. No synthetic utility geometry, fake approval, false field evidence or unmeasured savings has been introduced by this execution.
