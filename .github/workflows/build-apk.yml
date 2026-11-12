@@ -35,6 +35,9 @@ jobs:
       # 1. Download repository source
       - name: Checkout source code
         uses: actions/checkout@v4
+ 
+      - name: Validate SAMANVAY prototype contracts
+        run: python3 scripts/validate_samanvay_contracts.py
 
       # 2. Install Java
       - name: Install Java
