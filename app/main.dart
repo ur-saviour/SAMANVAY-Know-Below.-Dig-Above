@@ -8886,7 +8886,7 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
           Row(children: [
              Icon(Icons.account_balance_outlined, color: teal),
             const SizedBox(width: 8),
-             Expanded(child: Text('District and local-government directory',
+             Expanded(child: Text('India administrative reference directory',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -8894,12 +8894,12 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                 color: const Color(0xFFFFF0D7),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text('IMPORT PENDING',
+              child: const Text('AUTHORITY CHECK PENDING',
                 style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF8A5A00))),
             ),
           ]),
           const SizedBox(height: 7),
-          Text(totalDirectoryRecords.toString() + ' directory records across India · ' +
+          Text(totalDirectoryRecords.toString() + ' reference codes across India · ' +
             verified.toString() + ' authority-verified · ' +
             administrativeUnits.length.toString() + ' rows sampled for diagnostics',
             style:  TextStyle(fontSize: 10, color: mutedInk)),
@@ -8936,7 +8936,12 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
             ),
           ),
            Text(
-            'Required source: Ministry of Panchayati Raj Local Government Directory (LGD). Its bulk report generator requires a CAPTCHA. Upload an authority-generated report with its LGD codes and report date; do not treat manually typed names as verified records.',
+            'Current reference counts combine the 21 Oct 2026 LGD community mirror (districts, sub-districts and blocks) and the 23 Sep 2026 ULB API mirror. These are code-bearing directory references, not authority-certified records or boundary polygons. The 733 older district geometries are maintained separately as dated, code-less reference shapes.',
+            style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Required authoritative source: Ministry of Panchayati Raj Local Government Directory (LGD). Obtain the official report through its normal authorised workflow, including its CAPTCHA check, and import the source file with its generation date. Do not treat community mirrors, approximate name matches or manually typed names as verified records.',
             style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
           ),
           const SizedBox(height: 7),
