@@ -47,6 +47,19 @@ check("PUBLIC-ADMIN-DEMO" in main and "PUBLIC-COORDINATOR-DEMO" in main
       and "PUBLIC-OFFICER-DEMO" in main and "PUBLIC-CITIZEN-DEMO" in main,
       "All four demo workspaces use separate public demo identifiers.")
 
+
+# Phone OTP verification must distinguish new-account signup from existing-account login.
+check("isPhoneSignupOtp ? OtpType.signup : OtpType.sms" in main,
+      "Phone registration verifies with Supabase signup OTP type; phone login uses SMS OTP type.")
+check("response.session == null || response.user == null" in main,
+      "OTP verification requires Supabase to return an authenticated session and user.")
+otp_hook = source(ROOT / "supabase" / "functions" / "samanvay-dual-channel-otp" / "index.ts")
+check("new Webhook(signingSecret).verify" in otp_hook,
+      "Dual-channel OTP hook verifies the signed Supabase Auth event.")
+check("Promise.all([" in otp_hook and "twilioPost(accountSid, authToken, smsFields)" in otp_hook
+      and "twilioPost(accountSid, authToken, whatsappFields)" in otp_hook,
+      "Dual-channel OTP hook submits the same Supabase OTP to SMS and WhatsApp.")
+
 # Guard visible copy against the deprecated role label.
 visible_role_pattern = re.compile(
     r"""(?:Text|title|label|tooltip|semanticsLabel)\s*\(?\s*['"]Requester['"]""",
