@@ -12944,6 +12944,10 @@ class _MapPageState extends State<MapPage> {
   String _indiaDistrictBoundaryVintage = 'Not loaded';
   String _indiaStateBoundaryAttribution = 'geoBoundaries / DataMeet / Election Commission of India';
   String _indiaDistrictBoundaryAttribution = 'geoBoundaries / Pathways Data / LG Directory';
+  String _indiaStateBoundarySourceUpdateDate = 'Not reported';
+  String _indiaDistrictBoundarySourceUpdateDate = 'Not reported';
+  String _indiaStateBoundaryBuildDate = 'Not reported';
+  String _indiaDistrictBoundaryBuildDate = 'Not reported';
   String _indiaBoundaryStatus = 'India reference boundaries are loading on demand.';
   bool _showGroundwaterTelemetry = true;
   int _groundwaterStationCount = 0;
@@ -14420,16 +14424,22 @@ class _MapPageState extends State<MapPage> {
     final year = (metadata['boundaryYearRepresented'] ?? 'Vintage not reported').toString();
     final source = (metadata['boundarySource'] ?? 'Source not reported').toString();
     final license = (metadata['boundaryLicense'] ?? 'Licence not reported').toString();
+    final sourceDataUpdateDate = (metadata['sourceDataUpdateDate'] ?? 'Not reported').toString();
+    final buildDate = (metadata['buildDate'] ?? 'Not reported').toString();
     if (mounted) {
       setState(() {
         if (isState) {
           _indiaStateBoundaryCount = features.length;
           _indiaStateBoundaryVintage = year;
           _indiaStateBoundaryAttribution = '$source · $license';
+          _indiaStateBoundarySourceUpdateDate = sourceDataUpdateDate;
+          _indiaStateBoundaryBuildDate = buildDate;
         } else {
           _indiaDistrictBoundaryCount = features.length;
           _indiaDistrictBoundaryVintage = year;
           _indiaDistrictBoundaryAttribution = '$source · $license';
+          _indiaDistrictBoundarySourceUpdateDate = sourceDataUpdateDate;
+          _indiaDistrictBoundaryBuildDate = buildDate;
         }
       });
     }
@@ -15788,7 +15798,7 @@ class _MapPageState extends State<MapPage> {
                       activeThumbColor: const Color(0xFF20D6C2),
                       title: const Text('India State / UT boundaries', style: TextStyle(color: Colors.white)),
                       subtitle: Text(
-                        '$_indiaStateBoundaryCount areas · vintage $_indiaStateBoundaryVintage · $_indiaStateBoundaryAttribution · reference only',
+                        '$_indiaStateBoundaryCount areas · vintage $_indiaStateBoundaryVintage · source data updated $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · $_indiaStateBoundaryAttribution · reference only',
                         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
                       ),
                       onChanged: (value) {
@@ -15801,7 +15811,7 @@ class _MapPageState extends State<MapPage> {
                       activeThumbColor: const Color(0xFF20D6C2),
                       title: const Text('India district boundaries', style: TextStyle(color: Colors.white)),
                       subtitle: Text(
-                        '$_indiaDistrictBoundaryCount districts · vintage $_indiaDistrictBoundaryVintage · $_indiaDistrictBoundaryAttribution · optional detail layer',
+                        '$_indiaDistrictBoundaryCount districts · vintage $_indiaDistrictBoundaryVintage · source data updated $_indiaDistrictBoundarySourceUpdateDate · provider build $_indiaDistrictBoundaryBuildDate · $_indiaDistrictBoundaryAttribution · optional detail layer',
                         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
                       ),
                       onChanged: (value) {
@@ -16127,10 +16137,10 @@ class _MapPageState extends State<MapPage> {
           detail: '2021–2025 source archive · latest observation: $_groundwaterArchiveLatestObservation · not live telemetry', value: _showGroundwaterTelemetry,
           onChanged: (value) => _toggleGroundwaterTelemetry(value)),
         _desktopGisLayerToggle(title: 'India State / UT boundaries',
-          detail: 'Vintage $_indiaStateBoundaryVintage · non-statutory reference', value: _showIndiaStateBoundaries,
+          detail: 'Vintage $_indiaStateBoundaryVintage · source update $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · non-statutory reference', value: _showIndiaStateBoundaries,
           onChanged: (value) => _toggleIndiaStateBoundaries(value)),
         _desktopGisLayerToggle(title: 'India district boundaries',
-          detail: 'Optional detail · vintage $_indiaDistrictBoundaryVintage', value: _showIndiaDistrictBoundaries,
+          detail: 'Optional detail · vintage $_indiaDistrictBoundaryVintage · source update $_indiaDistrictBoundarySourceUpdateDate · provider build $_indiaDistrictBoundaryBuildDate', value: _showIndiaDistrictBoundaries,
           onChanged: (value) => _toggleIndiaDistrictBoundaries(value)),
         _desktopGisLayerToggle(title: 'Coimbatore ward reference',
           detail: 'Optional Coimbatore-only 2024 reference; not national coverage or legal certification', value: _showCoimbatoreWardBoundaries,
