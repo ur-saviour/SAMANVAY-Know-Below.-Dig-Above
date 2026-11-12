@@ -133,3 +133,28 @@ Therefore no utility-owner geometry or field-survey evidence has been imported i
 ## Completion state
 
 Phase 2 is **not complete**. The administrative count correction, national reference imports, dated district reference QA and groundwater source register are in place. Official directory verification, current ULB/ward/district polygons, imported building footprints, owner-authorised utility geometry, fresh groundwater observations and on-device GIS acceptance testing remain outstanding.
+
+## Database security hardening and verification-queue access — 12 November 2026
+
+Two migrations were applied to the connected Supabase project and aligned to their applied version identifiers in the repository:
+
+- `20261112105020_harden_utility_verification_access`
+- `20261112105144_harden_highway_notice_rpc_search_path`
+
+The verification queue view, `public.utility_asset_verification_queue`, now has both `security_barrier=true` and `security_invoker=true`. The view's base tables remain protected by RLS. Authenticated SELECT is granted only where needed for the view, and the GIS assets, survey evidence and utility import-run rows are filtered to profiles whose role is `admin` or `coordinator`. There are no client INSERT/UPDATE/DELETE grants on the two GIS source tables.
+
+The internal `ai_chat_usage_events`, `groundwater_data_import_runs` and `utility_asset_review_events` tables now have explicit deny-all RLS policies for `anon` and `authenticated`; privileged server ingestion remains separate.
+
+The authenticated security-definer RPC audit confirmed that the 15 app-facing functions are not executable by `anon`. They remain executable by `authenticated` because the Flutter workflows call them and the functions contain role/ownership checks. The one app-facing function found with a non-empty search path, `publish_highway_work_notice`, now has an empty search path; its application tables and `auth.uid()` are already schema-qualified. The 15 remaining security-definer function lint notices are therefore tracked as intentional privileged RPC endpoints, not treated as proof that the app is secure.
+
+### Live verification after migration
+
+- Verification queue view options: `security_barrier=true`, `security_invoker=true`.
+- Previously policy-less tables: 6/6 now have explicit RLS policies.
+- Security-definer view linter finding: cleared.
+- RLS-enabled/no-policy linter findings: cleared.
+- Anonymous execution for the 15 app-facing security-definer functions: false.
+- Remaining Auth configuration warning: leaked-password protection disabled; it requires the Supabase Auth project setting and was not changed through SQL.
+- Test limitation: the underground-asset and survey-evidence tables currently contain zero records. Admin and Citizen SQL sessions both returned zero verification-queue rows, which verifies query execution but is not a meaningful non-empty positive/negative data-access test. Full role regression must be repeated after owner-authorised test records exist.
+
+This hardening reduces the view-owner privilege boundary and makes internal logs explicitly server-managed. It does not replace external security review, field/device QA or utility-owner data validation.
