@@ -7073,8 +7073,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               ),
               _publicGisLayerStatus(
                 'Groundwater observations',
-                'Historical archive · through 31 Dec 2025',
-                '446,068 source observations from seven agencies. Not live telemetry, not a complete borewell register and not an excavation-clearance source.',
+                '2025-only live subset · 446,068 rows',
+                'The live table currently contains only calendar-year 2025 records from seven agencies (445,553 geocoded). A verified pre-change archive contains 1,911,126 rows, but the earlier history has not yet been restored. This is groundwater telemetry, not underground water-pipe geometry or excavation clearance.',
                 Icons.water_drop_outlined,
               ),
               _publicGisLayerStatus(
