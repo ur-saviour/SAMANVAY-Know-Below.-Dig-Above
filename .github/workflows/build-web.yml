@@ -9,6 +9,7 @@ on:
       - feature/alpha-03-integrated-platform
     paths:
       - 'app/**'
+      - 'scripts/**'
       - '!app/assets/brand/*.part*'
       - '.github/workflows/build-web.yml'
 
