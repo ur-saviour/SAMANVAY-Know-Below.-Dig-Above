@@ -5608,6 +5608,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
             children: [
               Text((row['kind'] ?? 'Evidence').toString(), style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 11)),
               Text('Reference: ' + (row['reference'] ?? 'Not assigned').toString(), style: TextStyle(color: mutedInk, fontSize: 9)),
+              if ((row['file_name'] ?? '').toString().isNotEmpty)
+                Text(
+                  'Local file reference: ' + row['file_name'].toString() + ' · ' +
+                      ((((row['file_size_bytes'] as num?) ?? 0).toDouble() / 1024).toStringAsFixed(1)) + ' KB',
+                  style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w700),
+                ),
               Text((row['description'] ?? '').toString(), style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
               Text('Recorded by ' + (row['recorded_by'] ?? 'Demo user').toString() + ' · ' + (row['recorded_at'] ?? '').toString(),
                 style: TextStyle(color: mutedInk, fontSize: 8)),
