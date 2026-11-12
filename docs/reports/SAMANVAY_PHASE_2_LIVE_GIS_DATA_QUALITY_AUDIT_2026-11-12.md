@@ -66,14 +66,15 @@ The NWIC sub-district feature count (6,312) differs from the 7,092 LGD-code-bear
 
 Survey of India lists its Administrative Boundary Database as SHAPEFILE products at scale 1:1M. Product `OVSF/1M/6` covers the entire country up to taluk/sub-district level with headquarters; `OVSF/1M/7` covers the entire country up to district level with headquarters. Both are listed at ₹0 on the product catalogue. The Survey of India portal describes these products as state, district and sub-district administrative boundaries.
 
-**Download verification (12 November 2026):** the public product page was opened and the download action was tested without signing in. Selecting Download for `OVSF/1M/6` opened a password/login prompt. No unauthenticated shapefile URL was exposed. The product is therefore a high-priority official candidate, but it is **not yet downloadable/imported** through the current public session. No credentials were entered and no access control was bypassed.
+**Access-route clarification (12 November 2026):** the product-catalogue route previously tested opened a sign-in prompt. However, the Survey of India FAQ separately states that the Administrative Boundary Database is available through the homepage's **Quick Access** route without registration or login. The portal catalogue lists the all-India `OVSF/1M/6` (up to taluk/sub-district) and `OVSF/1M/7` (up to district) shapefiles at ₹0. The Quick Access download workflow has not yet been exercised in this session and no archive has been retrieved, so no download, hash, CRS, topology or import is claimed.
 
 Sources:
-- Survey of India product catalogue: https://onlinemaps.surveyofindia.gov.in/Digital_Product_Show.aspx
+- Survey of India FAQ (Q7, Quick Access no-login workflow): https://onlinemaps.surveyofindia.gov.in/FAQs.aspx
+- Survey of India home page (Quick Access section): https://onlinemaps.surveyofindia.gov.in/Home.aspx
+- Survey of India product catalogue: https://onlinemaps.surveyofindia.gov.in/Digital_Products.aspx
 - Survey of India product description: https://onlinemaps.surveyofindia.gov.in/AboutPortal.aspx
-- Survey of India FAQ: https://onlinemaps.surveyofindia.gov.in/FAQs.aspx
 
-Next action: obtain the free shapefile through an authorised Survey of India portal account or an approved public data-access route, then capture the actual archive, metadata, source date, code fields, geometry validity, SRID and licence/use terms before importing. Do not relabel the existing 733 DataMeet polygons as current official geometry in the meantime.
+Next action: use the published Quick Access route for the free administrative-boundary archive, then retain its exact filename and SHA-256, inspect source date and attribute fields, validate CRS/geometry/topology and reconcile source codes to LGD before importing. If the Quick Access button does not deliver the file, report the observed error to Survey of India support; do not infer that the FAQ's published no-login route is unavailable from the separate catalogue sign-in prompt. Do not relabel the existing 733 DataMeet polygons as current official geometry in the meantime.
 
 ## Groundwater observations
 
@@ -187,3 +188,7 @@ The six Citizen negative checks passed; the positive calls returned the expected
 - [ ] Validate camera navigation, map layers and the ward toggle on Android and browser after CI completes.
 
 **Implementation:** `app/main.dart` commit `21a0ee5d2570e1e337ad34c54d8824f86e26e748`. The Android and browser workflow runs for this commit are in progress; Dart analysis passed in both workflows before release compilation.
+
+### Survey of India Quick Access route re-check
+
+The official Survey of India FAQ says that the Administrative Boundary Database can be downloaded from the homepage's Quick Access section without registration or login. It instructs users to choose the dataset category, select the required map and click Download. This supersedes the earlier assumption that the product itself necessarily requires login: only the separate product-catalogue route was observed to prompt for sign-in. The Quick Access route remains untested in this session, and no shapefile archive has been obtained or imported.
