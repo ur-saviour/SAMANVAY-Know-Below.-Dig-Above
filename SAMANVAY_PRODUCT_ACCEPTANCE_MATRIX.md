@@ -290,3 +290,19 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Confirm complete State/UT coverage, especially State-wise village resource availability.
 
 **Live validation:** Three GSI/NWIC source rows are present in `public.official_data_sources` with `integration_status = 'metadata_registered'`. No NWIC boundary geometry has been imported. The persisted 733 district polygons remain DataMeet-derived historical references. The active directory contains 784 district, 7,092 sub-district, 7,312 block and 5,050 ULB LGD-code-bearing community-mirror rows; every one remains unverified. ULB district-parent links: 0; ward rows: 0; village rows: 0. The Phase 2 software must preserve these distinctions.
+
+## 20. Phase 2 database security hardening — 12 November 2026
+
+- [x] Convert `public.utility_asset_verification_queue` to PostgreSQL invoker security while preserving its security-barrier option.
+- [x] Grant authenticated read access only to the queue's base relations that are needed by the view.
+- [x] Add admin/coordinator-only SELECT RLS to `gis.underground_assets`, `gis.asset_survey_evidence` and `public.utility_geometry_import_runs`.
+- [x] Add explicit deny policies for anon/authenticated access to internal AI-usage, groundwater-import and utility-review event logs; service-role ingestion remains server-managed.
+- [x] Set `public.publish_highway_work_notice(uuid,text,text,smallint)` to an empty search path. Its existing authentication, department ownership and role checks are retained.
+- [x] Verify the view now has `security_invoker=true`; verify all 6 formerly policy-less tables now have policies.
+- [x] Verify `anon` cannot execute the 15 application-facing security-definer RPCs; authenticated RPC calls remain because the app uses these role-checked operations.
+- [x] Align repository migration filenames with the exact two versions recorded by the connected Supabase migration ledger.
+- [ ] Run real-session negative/positive role tests with non-empty owner-authorised utility records and survey evidence; current GIS asset/evidence tables are empty, so zero-row SQL smoke results do not establish full runtime acceptance.
+- [ ] Enable Supabase Auth leaked-password protection in the project Auth settings; this setting is not exposed by the connected database migration interface.
+- [ ] Re-run Android/browser CI and complete real-device/browser role regression after the current migration commits.
+
+**Live security advisor result:** The `security_definer_view` finding is cleared and the six `rls_enabled_no_policy` findings are cleared. Remaining notices: 15 authenticated-executable security-definer RPC warnings (these are intentional app endpoints and remain subject to their internal role checks), plus one Auth warning because leaked-password protection is disabled. One RPC search-path exception identified in the audit has been corrected. This does not constitute a full penetration test or production-security certification.
