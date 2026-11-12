@@ -171,6 +171,7 @@ begin
     jsonb_build_object(
       'kind', 'highway_public_work',
       'audience', 'municipal_department',
+      'recipient_department', d.name,
       'notice_id', v_notice.id,
       'notice_code', v_notice.notice_code,
       'city', v_notice.city,
@@ -181,7 +182,14 @@ begin
   from public.profiles p
   join public.departments d on d.id = p.department_id
   where p.role = 'department'
-    and lower(btrim(d.name)) = 'municipal corporation';
+    and lower(btrim(d.name)) in (
+      'municipal corporation',
+      'water supply',
+      'sewage and drainage',
+      'stormwater management',
+      'public health engineering',
+      'town planning & building regulation'
+    );
 
   get diagnostics v_municipal_count = row_count;
 
@@ -192,7 +200,7 @@ begin
     'published',
     'Highway Department notice published',
     format(
-      'Published with source reference %s. In-app notifications sent to %s Citizen account(s) and %s Municipal Corporation officer account(s).',
+      'Published with source reference %s. In-app notifications sent to %s Citizen account(s) and %s municipal service department officer account(s).',
       btrim(p_source_reference),
       v_citizen_count,
       v_municipal_count
@@ -217,4 +225,4 @@ grant execute on function public.publish_highway_work_notice(uuid, text, text, s
   to authenticated;
 
 comment on function public.publish_highway_work_notice(uuid, text, text, smallint)
-  is 'Atomically publishes a sourced Highway Department notice and notifies Citizen profiles and Municipal Corporation officers.';
+  is 'Atomically publishes a sourced Highway Department notice and notifies Citizen profiles and municipal service department officers.';
