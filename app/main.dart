@@ -5139,6 +5139,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   int _citizenRequestCounter = 1;
   final List<Map<String, dynamic>> _cases = [];
   final List<String> _activity = ['Demo workspace opened'];
+  final List<Map<String, dynamic>> _demoPermits = [];
 
   @override
   void initState() {
@@ -5202,6 +5203,30 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         'location': 'Saravanampatti, Coimbatore',
         'assigned': ['Water Supply / PHED'],
         'description': 'Illustrative groundwater observation; not a regulatory determination.',
+      },
+    ]);
+    _demoPermits.addAll([
+      {
+        'id': 'PRM-DEMO-001',
+        'caseId': 'DEMO-2026-001',
+        'title': 'Water pipeline replacement',
+        'location': 'Avinashi Road, Coimbatore',
+        'department': 'Water Supply / PHED',
+        'stage': 'Approved',
+        'window': '18–20 November 2026',
+        'restoration': 'Pending',
+        'history': <String>['Demo permit approved · illustrative record'],
+      },
+      {
+        'id': 'PRM-DEMO-002',
+        'caseId': 'DEMO-2026-002',
+        'title': 'Fibre duct maintenance',
+        'location': 'Gandhipuram, Coimbatore',
+        'department': 'Telecommunications',
+        'stage': 'Work started',
+        'window': '16–19 November 2026',
+        'restoration': 'Pending',
+        'history': <String>['Demo permit approved · illustrative record', 'Work start recorded · demo'],
       },
     ]);
   }
@@ -6249,14 +6274,78 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
+  void _advanceDemoPermit(int index) {
+    if (index < 0 || index >= _demoPermits.length) return;
+    final permit = _demoPermits[index];
+    final current = permit['stage'].toString();
+    final next = switch (current) {
+      'Approved' => 'Work started',
+      'Work started' => 'Work completed',
+      'Work completed' => 'Restoration verified',
+      _ => 'Restoration verified',
+    };
+    if (current == 'Restoration verified') return;
+    final event = switch (next) {
+      'Work started' => 'Work commencement recorded · demo',
+      'Work completed' => 'Work completion recorded · demo',
+      _ => 'Road restoration inspection passed · demo',
+    };
+    setState(() {
+      permit['stage'] = next;
+      if (next == 'Restoration verified') permit['restoration'] = 'Verified · demo';
+      (permit['history'] as List<String>).insert(0, event);
+    });
+    _record(permit['id'].toString() + ': ' + event);
+  }
+
+  Widget _demoPermitCard(int index) {
+    final permit = _demoPermits[index];
+    final stage = permit['stage'].toString();
+    final nextAction = switch (stage) {
+      'Approved' => 'Record work start',
+      'Work started' => 'Record work completion',
+      'Work completed' => 'Verify road restoration',
+      _ => 'Restoration verified',
+    };
+    final history = (permit['history'] as List<String>).take(3).toList();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(permit['title'].toString(), style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 13))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: teal.withValues(alpha: .13), borderRadius: BorderRadius.circular(18)), child: Text(stage.toUpperCase(), style: TextStyle(color: teal, fontWeight: FontWeight.w900, fontSize: 8))),
+          ]),
+          const SizedBox(height: 6),
+          Text(permit['id'].toString() + ' · ' + permit['caseId'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          Text(permit['location'].toString() + ' · ' + permit['department'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          Text('Approved work window: ' + permit['window'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          Text('Restoration: ' + permit['restoration'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          const SizedBox(height: 8),
+          Text('PERMIT ACTIVITY', style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .4)),
+          ...history.map((event) => Padding(padding: const EdgeInsets.only(top: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.history_rounded, size: 13, color: teal), const SizedBox(width: 6), Expanded(child: Text(event, style: TextStyle(color: mutedInk, fontSize: 9)))]))),
+          const SizedBox(height: 9),
+          if (stage != 'Restoration verified')
+            Align(alignment: Alignment.centerLeft, child: FilledButton.tonalIcon(onPressed: () => _advanceDemoPermit(index), icon: const Icon(Icons.arrow_forward_rounded, size: 15), label: Text(nextAction)))
+          else
+            Text('DEMO WORKFLOW CLOSED · not a statutory permit or engineering certification', style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+
   Widget _roadworks() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _panel('Road-cut permit compliance', 'Track permitted excavation windows, work completion, restoration deadlines and overdue notices.', Icons.construction_outlined, status: '2 SAMPLE PERMITS'),
-      _panel('Coordinated road-work calendar', 'Compare schedules across departments to reduce repeated road cuts and overlapping works.', Icons.calendar_month_outlined, status: '1 PROPOSED JOINT WINDOW'),
-      _panel('Road restoration quality assurance', 'Record reinstatement checks, material observations, photographs and inspection outcomes.', Icons.verified_outlined, status: '1 SAMPLE INSPECTION'),
-      _panel('Stormwater drainage and frontage', 'Track drain obstructions, frontage access and inspection follow-up for municipal teams.', Icons.water_outlined, status: '1 SAMPLE OBSERVATION'),
+      _panel('Road-cut permit compliance', 'Advance a sample permit through work commencement, completion and restoration review.', Icons.construction_outlined, status: 'INTERACTIVE · SESSION-ONLY DEMO'),
+      _panel('Coordinated road-work calendar', 'Compare schedules across departments to reduce repeated road cuts and overlapping works.', Icons.calendar_month_outlined, status: 'ILLUSTRATIVE JOINT WINDOW'),
+      _panel('Road restoration quality assurance', 'Record a sample restoration inspection after work completion.', Icons.verified_outlined, status: 'DEMO INSPECTION TRAIL'),
+      const SizedBox(height: 4),
+      ...List.generate(_demoPermits.length, _demoPermitCard),
+      _panel('Stormwater drainage and frontage', 'Track drain obstructions, frontage access and inspection follow-up for municipal teams.', Icons.water_outlined, status: 'ILLUSTRATIVE OBSERVATION'),
       _panel('Public excavation tracker', 'Show published notices and planned works without exposing restricted utility geometry.', Icons.campaign_outlined, status: 'PUBLIC VIEW'),
+      Text('All permit records and status changes above are synthetic and exist only in this demonstration session. They do not grant excavation permission, utility clearance or legal approval.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
     ],
   );
 
