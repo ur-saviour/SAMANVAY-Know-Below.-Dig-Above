@@ -15772,7 +15772,7 @@ class _MapPageState extends State<MapPage> {
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '[0m${_coimbatoreWardCount == 0 ? 'Not loaded' : '$_coimbatoreWardCount polygons'} · OpenCity Public Domain · local reference only; not national or statutory coverage',
+                        '${_coimbatoreWardCount == 0 ? 'Not loaded' : '$_coimbatoreWardCount polygons'} · OpenCity Public Domain · local reference only; not national or statutory coverage',
                         style:  TextStyle(
                           color: mutedInk,
                           fontSize: 11,
