@@ -128,3 +128,33 @@ The matching post-workflow count and date range establish that the production ta
 ### Audit limitation
 
 The 9 November GitHub Actions logs provide direct evidence of the workflow and SQL statements. Current database counts confirm the resulting state. They do not establish whether other independent maintenance operations affected other tables; this incident record is scoped to `public.groundwater_station_observations`.
+
+
+## Final Phase 6 access-control and workflow audit — 13 November 2026
+
+### ULB-to-district reconciliation
+
+The new `public.india_ulb_district_reconciliation` table and its review screen are included as a protected data-governance workflow, not a public map feature.
+
+- Seeded ULB rows: 5,050; status remains `unmapped`.
+- Admin and coordinator test sessions each read 5,050 rows.
+- Department test session reads 0 rows; anonymous SELECT privilege is false.
+- Authenticated DELETE privilege is false.
+- Trigger permits only ULB records and district candidates from the same State/UT.
+- A verified mapping requires source name, HTTPS evidence URL, specific source-record reference and rationale; the database stamps reviewer and timestamp.
+- Rollback-only tests confirmed same-State/UT candidate acceptance and rejection of cross-State/UT and evidence-incomplete verification attempts. All tests were rolled back; all 5,050 production queue rows remain unmapped.
+
+### Active-branch Actions workflow audit
+
+All 10 YAML workflows on the active feature branch were scanned after containment:
+
+- No workflow contains a `TRUNCATE TABLE` statement.
+- No workflow contains a `DELETE FROM` statement.
+- The four legacy `recover-supabase-auth-readonly*` workflows are absent.
+- Production-data import, backup, archive, restore-drill and WAL workflows require manual dispatch.
+- `.github/workflows/verify-groundwater-archive.yml` is manual-only, requires no Supabase database host/password, contains no production write command, and restores the archive only into a disposable local PostgreSQL container.
+
+The default `main` branch was also checked: it does not contain the four legacy recovery workflow variants. Its backup workflow performs database export/backup rather than a table replacement, and the NWDP groundwater import is manual-only.
+
+**Archive verification status:** the safe workflow is committed and its encryption/header/count assumptions match the original v4 archive-validation script. It has not yet been manually dispatched in this pass. Do not infer that the archived historical rows have been restored to production. The current production table remains 446,068 2025 rows until a separately approved additive recovery is completed.
+
