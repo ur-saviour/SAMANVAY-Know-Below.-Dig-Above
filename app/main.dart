@@ -6304,7 +6304,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               _gisReadinessRow(
                 'Groundwater observation archive',
                 '446,068 historical observations',
-                'Latest source observation: 31 December 2025. Historical archive, not a live telemetry feed or borewell permission register.',
+                'The 2021–2025 station layer is available to signed-in Citizens and staff. Latest source observation: 31 December 2025. Historical archive, not live telemetry or a borewell permission register.',
                 Icons.water_drop_outlined,
                 const Color(0xFF168A83),
                 'HISTORICAL DATA',
@@ -6321,11 +6321,20 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               const Divider(height: 18),
               _gisReadinessRow(
                 'India administrative references',
-                '36 State / UT jurisdictions',
-                'National directory and authority-source metadata are available. Imported community mirrors still require official reconciliation.',
+                '36 State / UT · 21,705 active reference records',
+                '396 infrastructure-coverage metadata rows are registered. Community directory references still require official authority reconciliation.',
                 Icons.account_tree_outlined,
                 const Color(0xFF536DB5),
                 'AUTHORITY CHECK PENDING',
+              ),
+              const Divider(height: 18),
+              _gisReadinessRow(
+                'Public works notices',
+                '0 published · 1 private draft (checked 12 Nov 2026)',
+                'The public tracker shows only non-draft notices with a publication timestamp. The current draft remains private and is not shown to Citizens.',
+                Icons.campaign_outlined,
+                const Color(0xFFB66B18),
+                'NO PUBLIC NOTICE YET',
               ),
               const Divider(height: 18),
               _gisReadinessRow(
@@ -6391,12 +6400,9 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         ),
       ),
       const SizedBox(height: 8),
-      Wrap(
-        spacing: 7,
-        runSpacing: 7,
-        children: const ['North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
-            .map((region) => Chip(label: Text(region, style: const TextStyle(fontSize: 10)), backgroundColor: Color(0xFFE5F4F1), side: BorderSide(color: Color(0xFFB8DCD5))))
-            .toList(),
+      Text(
+        'Use the regional filters inside the India-wide coverage directory to browse North, Northeast, East, Central, West, South and Islands. These are navigation groupings, not separate authority boundaries.',
+        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
       ),
     ],
   );
@@ -7188,7 +7194,7 @@ class _DashboardPageState extends State<DashboardPage>
                   Text('PUBLIC TRANSPARENCY DASHBOARD',
                     style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 11)),
                   const SizedBox(height: 4),
-                  Text('Published projects, department activity and verified public impact across India.',
+                  Text('This is the SAMANVAY public works register: authority-published notices and source-linked updates currently visible here, not a complete national works inventory.',
                     style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
                 ])),
                 IconButton(

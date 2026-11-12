@@ -95,7 +95,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
     final light = Theme.of(context).brightness == Brightness.light;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('Public transparency'),
+      appBar: AppBar(title: const Text('Public works register'),
         actions: [IconButton(tooltip: 'Refresh', onPressed: loading ? null : load, icon: const Icon(Icons.refresh_rounded))]),
       body: RefreshIndicator(
         onRefresh: load,
@@ -111,7 +111,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
                 ClipRRect(borderRadius: BorderRadius.circular(11),
                   child: Image.asset('assets/brand/samanvay_logo.jpg', width: 48, height: 48, fit: BoxFit.cover)),
                 const SizedBox(width: 10),
-                const Expanded(child: Text('NATIONAL PUBLIC WORKS DASHBOARD',
+                const Expanded(child: Text('SAMANVAY PUBLIC WORKS REGISTER',
                   style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5))),
                 const Icon(Icons.public_rounded, color: Color(0xFF54D9F2)),
               ]),
@@ -119,7 +119,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
               const Text('TOWARDS OUR DEVELOPMENT 📈',
                 style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
               const SizedBox(height: 7),
-              const Text('Published project notices, responsible-department names and source-linked progress — across services and regions, not roads alone.',
+              const Text('Authority-published notices and source-linked progress updates currently shared through SAMANVAY. This is not a complete government works inventory.',
                 style: TextStyle(color: Color(0xFFD6E7F2), fontSize: 11, height: 1.45)),
               const SizedBox(height: 12),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -133,7 +133,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
             ]),
           ),
           const SizedBox(height: 20),
-          heading('Public impact indicators', 'Live values are derived from published records only.'),
+          heading('Public impact indicators', 'Counts use only notices currently published to SAMANVAY; they are not national totals.'),
           if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
           else ...[
             LayoutBuilder(builder: (context, c) {
@@ -141,7 +141,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
               const gap = 9.0;
               final w = (c.maxWidth - gap * (cols - 1)) / cols;
               return Wrap(spacing: gap, runSpacing: gap, children: [
-                SizedBox(width:w, child: metric(active.toString(), 'ACTIVE PROJECTS', 'Published and active notices', Icons.construction_rounded, const Color(0xFF20BFA8))),
+                SizedBox(width:w, child: metric(active.toString(), 'ACTIVE NOTICES', 'Published and active notices', Icons.construction_rounded, const Color(0xFF20BFA8))),
                 SizedBox(width:w, child: metric('—', 'AVOIDED EXCAVATIONS', 'Awaiting verified joint-work closure outcomes', Icons.layers_clear_rounded, const Color(0xFF60A5FA))),
                 SizedBox(width:w, child: metric('—', 'PUBLIC FUNDS SAVED', 'Awaiting approved cost baselines and evidence', Icons.account_balance_wallet_outlined, const Color(0xFF34D399))),
                 SizedBox(width:w, child: metric('—', 'COORDINATION RATE', 'No completed public assessments yet', Icons.hub_outlined, const Color(0xFFF59E0B))),
@@ -151,7 +151,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
             heading('Department coordination & activity', 'Published public notices grouped by department as named in each notice.'),
             panelCard(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Expanded(child: Text('Departments connected', style: TextStyle(color: ink, fontWeight: FontWeight.w900))),
+                Expanded(child: Text('Departments named in published notices', style: TextStyle(color: ink, fontWeight: FontWeight.w900))),
                 Text(publicDepartmentCount.toString(), style: GoogleFonts.robotoMono(color: ink, fontSize: 19, fontWeight: FontWeight.w900)),
               ]),
               const SizedBox(height: 10),
@@ -177,9 +177,9 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
                 style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w600)),
             ])),
             const SizedBox(height: 20),
-            heading('Published government projects', 'Only notices made public by the responsible authority appear here.'),
+            heading('Published public works notices', 'Only records with a public status and publication timestamp are shown.'),
             if (notices.isEmpty)
-              panelCard(Text('No public project notices have been published to SAMANVAY yet. The database currently contains a draft notice, intentionally excluded from public activity counts.',
+              panelCard(Text('No authority-published project notices are available in SAMANVAY at present. The current draft remains private and is excluded from the public register.',
                 style: TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w600, height: 1.45)))
             else ...notices.map((row) {
               final progress = (row['progress_percent'] as num?)?.toDouble();
