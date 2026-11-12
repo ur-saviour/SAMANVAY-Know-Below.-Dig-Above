@@ -351,6 +351,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Deploy `case_joint_work_proposals`, `case_joint_work_responses` and `case_joint_work_events` with participant-scoped RLS.
 - [x] Deploy role-gated `create_case_joint_work_proposal`, `respond_case_joint_work_proposal` and `finalise_case_joint_work_proposal` RPCs.
 - [x] Align the repository migration filename with the live Supabase ledger: `20261112112501_add_joint_work_proposal_workflow.sql`.
+- [x] Move the RLS boolean read guard to the non-API `private` schema in migration `20261112114405_move_joint_work_read_guard_to_private_schema.sql`; verify all three participant RLS policies reference it.
 - [x] Run a rollback-only role regression: coordinator creates, two department responses accept, coordinator schedules; observed 2 accepted responses and 4 events. Transaction rolled back.
 - [ ] Complete a real multi-account/browser role workflow with authorised participating departments.
 - [ ] Record genuine authority-approved joint-work proposals; the live proposal, response and event tables remain empty after testing.
@@ -367,3 +368,9 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Complete real field inspections with owner-authorised evidence; there are currently 0 case-inspection rows and 0 GIS asset survey-evidence rows.
 
 **Acceptance boundary:** The database/RPC tests used existing account roles and existing request/review records inside transactions that were rolled back. They did not create real approvals, real field evidence, utility geometry, or live work schedules. Automated build success does not prove camera or location behaviour on a physical device.
+
+### Phase 3/4 CI artifacts — 12 November 2026
+- [x] Android workflow `43210697754` passed on app commit `174e05ce6b4082b00faf2061d308307f804c7c73`; artifact `13941566669`; SHA-256 `1106cc8031077c2c37c535cd2e5e950ee9c49eebf0b0ef60c8ce5b673eb50f79`.
+- [x] Browser workflow `43210698178` passed on the same app commit; artifact `13941171647`; SHA-256 `29c040ce34c6c27cba906eb58451279b5e912534a0542150490424681a5bfa09`.
+- [x] Downloaded Android and browser artifact archives matched the published digests and passed ZIP integrity checks.
+- [ ] Physical Android and HTTPS browser GPS/camera validation remains outstanding.
