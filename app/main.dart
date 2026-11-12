@@ -9348,7 +9348,7 @@ class _IndiaAdministrativeHierarchyPageState
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      leading: const Icon(Icons.location_city_outlined, color: teal, size: 19),
+      leading: Icon(Icons.location_city_outlined, color: teal, size: 19),
       title: Text(name, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 12)),
       subtitle: Text(
         'LGD code: $code · $status · ${sourceDate == null ? 'source date not recorded' : 'source snapshot $sourceDate'}\n$source',
