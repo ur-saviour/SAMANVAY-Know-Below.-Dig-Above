@@ -24,7 +24,7 @@ The state-wise TopoJSON files were parsed. Only district names and their parent 
 
 | Check | Verified result |
 |---|---:|
-| State-wise input files processed | 36 directory entries were available; 35 jurisdiction files in the pinned state-wise set were processed |
+| State-wise input files processed | 36 |
 | District attributes received | 733 |
 | District records inserted | 733 |
 | Rejected rows | 0 |
