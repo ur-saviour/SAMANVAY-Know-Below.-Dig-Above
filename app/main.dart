@@ -18867,7 +18867,7 @@ class _MapPageState extends State<MapPage> {
     ];
 
     return Container(
-      width: 258,
+      width: 304,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xF2182638),
@@ -18901,7 +18901,7 @@ class _MapPageState extends State<MapPage> {
             style: TextStyle(color: mutedInk, fontSize: 7.5, letterSpacing: 0.7, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Container(
-            height: 112,
+            height: 184,
             width: double.infinity,
             decoration: BoxDecoration(
               color: const Color(0xFF0A1725),
@@ -18909,21 +18909,23 @@ class _MapPageState extends State<MapPage> {
               border: Border.all(color: const Color(0x5545D9CE)),
             ),
             clipBehavior: Clip.antiAlias,
-            child: const CustomPaint(
-              painter: _DemoUndergroundCrossSectionPainter(),
-              child: Center(
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Padding(
-                    padding: EdgeInsets.all(6),
-                    child: Text(
-                      'SIMULATED DEMO SCHEMATIC · NOT GEO-REFERENCED',
-                      style: TextStyle(
-                        color: Color(0xFFFFD98B),
-                        fontSize: 6.5,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .35,
-                      ),
+            child: CustomPaint(
+              painter: _DemoSubsurfacePainter(
+                viewMode: '3D cutaway',
+                visibleLayers: const {'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell'},
+                isLight: _usesLegacyLightPalette,
+              ),
+              child: const Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Text(
+                    'SIMULATED DEMO NETWORK · NOT GEO-REFERENCED',
+                    style: TextStyle(
+                      color: Color(0xFFFFD98B),
+                      fontSize: 7,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .35,
                     ),
                   ),
                 ),
