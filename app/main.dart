@@ -13253,7 +13253,7 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       return;
     }
 
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
       withData: true,
@@ -20235,7 +20235,7 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       _progress = 0;
     });
     try {
-      final picked = await FilePicker.platform.pickFiles(
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['geojson', 'json'],
         withData: true,
@@ -21583,7 +21583,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
     if (attachmentType == null || !mounted) return;
 
     try {
-      final picked = await FilePicker.platform.pickFiles(
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
         withData: true,
