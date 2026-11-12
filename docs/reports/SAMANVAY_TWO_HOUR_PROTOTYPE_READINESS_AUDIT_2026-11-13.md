@@ -1,3 +1,20 @@
+# CURRENT CONSOLIDATED CHECKPOINT — 13 November 2026
+
+**Branch head:** `34a326ec44416d5a52c1172bf987bed004fc2d01`  
+**Engineering completion estimate:** **90%** (engineering estimate only; not production readiness).
+
+## Latest CI state
+
+- Browser workflow [43298587461](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298587461) completed successfully. Artifact `SAMANVAY-Browser-Portal`, ID `13979583828`, size 15,017,757 bytes, SHA-256 `7a47db017849e39c5e1e2381876fa54cd96b1e888cbab0d1e8c6360988333383`.
+- Android workflow [43298615743](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298615743) is still reported `in_progress` at **Build release APK**. The 25 source-contract checks, generated Android package validator, dependency installation and Dart analysis passed. APK compilation, ABI packaging, signature/alignment verification, artifact upload and release publication are not yet verified.
+- The Android run is building commit `d86124cc74379b515a8c39f6b74afc9a23f8439c`; the branch head has since advanced with documentation-only commits. No newer Android run is exposed by the connected GitHub actions tools.
+
+## Acceptance boundary
+
+Physical Android installation, live authenticated multi-role UI flows, map/GPS/camera/upload runtime checks, authority-approved utility geometry and groundwater archive revalidation remain outstanding. Do not describe local demo profile switching as real authentication or synthetic underground visuals as verified utility data. No production Supabase data was modified in this continuation.
+
+---
+
 # SAMANVAY — Two-Hour Prototype Readiness Check
 
 **Audit date:** 13 November 2026  
