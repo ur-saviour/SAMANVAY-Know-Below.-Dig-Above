@@ -851,6 +851,75 @@ class _SamanvayFlagTransition extends StatelessWidget {
   );
 }
 
+class _SamanvayFlagWavePainter extends CustomPainter {
+  const _SamanvayFlagWavePainter({required this.phase});
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final poleX = size.width * .08;
+    final left = poleX + 4;
+    final width = size.width * .86;
+    final height = size.height * .72;
+    final top = size.height * .12;
+    final radians = phase * math.pi * 2;
+    double wave(double x) => math.sin(x / width * math.pi * 2.1 + radians) *
+        (height * (.025 + .035 * x / width));
+
+    canvas.drawLine(
+      Offset(poleX, top - 5),
+      Offset(poleX, top + height + 11),
+      Paint()..color = const Color(0xFFBBC8D2)..strokeWidth = 2.0..strokeCap = StrokeCap.round,
+    );
+    canvas.drawCircle(Offset(poleX, top - 5), 2.1,
+        Paint()..color = const Color(0xFFE0E8EE));
+
+    const bands = <Color>[
+      Color(0xFFFF9933),
+      Color(0xFFFFFEF7),
+      Color(0xFF138808),
+    ];
+    for (var band = 0; band < 3; band++) {
+      final y0 = top + height * band / 3;
+      final y1 = top + height * (band + 1) / 3;
+      final path = Path()..moveTo(left, y0 + wave(0));
+      for (var step = 1; step <= 28; step++) {
+        final x = width * step / 28;
+        path.lineTo(left + x, y0 + wave(x));
+      }
+      for (var step = 28; step >= 0; step--) {
+        final x = width * step / 28;
+        path.lineTo(left + x, y1 + wave(x));
+      }
+      path.close();
+      canvas.drawPath(path, Paint()..color = bands[band].withValues(alpha: .96));
+    }
+
+    final centre = Offset(left + width * .51, top + height * .50 + wave(width * .51));
+    final radius = height * .105;
+    canvas.save();
+    canvas.translate(centre.dx, centre.dy);
+    canvas.scale(1, .82);
+    const navy = Color(0xFF173B72);
+    canvas.drawCircle(Offset.zero, radius,
+        Paint()..color = navy..style = PaintingStyle.stroke..strokeWidth = 1.05);
+    for (var spoke = 0; spoke < 24; spoke++) {
+      final angle = spoke * math.pi / 12;
+      canvas.drawLine(
+        Offset.zero,
+        Offset(math.cos(angle) * radius, math.sin(angle) * radius),
+        Paint()..color = navy..strokeWidth = .55,
+      );
+    }
+    canvas.drawCircle(Offset.zero, 1.1, Paint()..color = navy);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SamanvayFlagWavePainter oldDelegate) =>
+      oldDelegate.phase != phase;
+}
+
 class _SamanvayOpeningScreen extends StatelessWidget {
   const _SamanvayOpeningScreen({
     super.key,
@@ -924,7 +993,23 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                                    SafeArea(
+                                    Positioned(
+                    top: 22,
+                    right: 12,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: .76,
+                        child: SizedBox(
+                          width: 138,
+                          height: 92,
+                          child: CustomPaint(
+                            painter: _SamanvayFlagWavePainter(phase: ambient),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SafeArea(
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 560),
@@ -4650,7 +4735,7 @@ class _AuthPageState extends State<AuthPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final logoSize = math.min(
-                          176.0,
+                          128.0,
                           constraints.maxWidth,
                         ).toDouble();
                         return Container(
@@ -4681,9 +4766,7 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 14),
-
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 10),
 
                   Text(
                     isLogin
@@ -4747,7 +4830,7 @@ class _AuthPageState extends State<AuthPage> {
                   ],
                   if (isLogin) ...[
                     Text(
-                      'CHOOSE YOUR SIGN-IN METHOD',
+                      'SIGN IN WITH',
                       style: TextStyle(
                         color: cyanAccent,
                         fontSize: 10,
@@ -4762,7 +4845,7 @@ class _AuthPageState extends State<AuthPage> {
                       children: [
                         ChoiceChip(
                           avatar: const Icon(Icons.lock_outline, size: 17),
-                          label: const Text('Password'),
+                          label: const Text('Email + password'),
                           selected: usePasswordLogin,
                           onSelected: loading || otpSent
                               ? null
@@ -4805,14 +4888,14 @@ class _AuthPageState extends State<AuthPage> {
                           ? (usePhoneLogin
                               ? 'Registered mobile number'
                               : (usePasswordLogin
-                                  ? 'Registered email, mobile number or staff ID'
+                                  ? 'Registered email or mobile number'
                                   : 'Registered email address'))
                           : 'Email address or mobile number',
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
-                                  ? 'name@example.com, mobile number or staff ID'
+                                  ? 'name@example.com or +91 9876543210'
                                   : 'name@example.com or staff ID 9013'))
                           : 'name@example.com or +91 9876543210',
                       prefixIcon: Icon(
@@ -7603,17 +7686,70 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   }
 }
 
+// Animated, visual-only cutaway for the GIS demonstration panel.
+class _AnimatedUndergroundCutaway extends StatefulWidget {
+  const _AnimatedUndergroundCutaway({
+    required this.viewMode,
+    required this.visibleLayers,
+    required this.isLight,
+    super.key,
+  });
+
+  final String viewMode;
+  final Set<String> visibleLayers;
+  final bool isLight;
+
+  @override
+  State<_AnimatedUndergroundCutaway> createState() => _AnimatedUndergroundCutawayState();
+}
+
+class _AnimatedUndergroundCutawayState extends State<_AnimatedUndergroundCutaway>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flowController;
+
+  @override
+  void initState() {
+    super.initState();
+    _flowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flowController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _flowController,
+    builder: (context, _) => CustomPaint(
+      painter: _DemoSubsurfacePainter(
+        viewMode: widget.viewMode,
+        visibleLayers: widget.visibleLayers,
+        isLight: widget.isLight,
+        phase: _flowController.value,
+      ),
+      child: const SizedBox.expand(),
+    ),
+  );
+}
+
 // Synthetic, non-georeferenced visual for the prototype demonstration.
 // Never feed this schematic into GIS, excavation screening or clearance logic.
 class _DemoSubsurfacePainter extends CustomPainter {
   final String viewMode;
   final Set<String> visibleLayers;
   final bool isLight;
+  final double phase;
 
   const _DemoSubsurfacePainter({
     required this.viewMode,
     required this.visibleLayers,
     required this.isLight,
+    this.phase = 0,
   });
 
   static const Map<String, Color> _colours = {
@@ -7650,6 +7786,24 @@ class _DemoSubsurfacePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
         ..strokeCap = StrokeCap.round);
+    }
+    final metric = path.computeMetrics().first;
+    for (var pulse = 0; pulse < 3; pulse++) {
+      final distance = ((phase + pulse / 3) % 1.0) * metric.length;
+      final tangent = metric.getTangentForOffset(distance);
+      if (tangent == null) continue;
+      canvas.drawCircle(
+        tangent.position,
+        width * 1.05,
+        Paint()
+          ..color = colour.withValues(alpha: .28)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(
+        tangent.position,
+        math.max(1.5, width * .30).toDouble(),
+        Paint()..color = Colors.white.withValues(alpha: .92),
+      );
     }
   }
 
@@ -7795,7 +7949,8 @@ class _DemoSubsurfacePainter extends CustomPainter {
   bool shouldRepaint(covariant _DemoSubsurfacePainter oldDelegate) =>
       oldDelegate.viewMode != viewMode ||
       oldDelegate.isLight != isLight ||
-      oldDelegate.visibleLayers != visibleLayers;
+      oldDelegate.visibleLayers != visibleLayers ||
+      oldDelegate.phase != phase;
 }
 
 // ==========================================
@@ -15722,6 +15877,9 @@ class _MapPageState extends State<MapPage> {
   // immediately visible to Citizens and officials. Verified operational
   // geometry remains permission-gated; the public schematic is illustrative.
   bool _undergroundMode = true;
+   final Set<String> _undergroundVisibleLayers = <String>{
+     'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell',
+   };
   bool _styleReady = false;
   bool _buildingReadinessLoaded = false;
   bool _utilityReadinessLoaded = false;
@@ -18775,21 +18933,25 @@ class _MapPageState extends State<MapPage> {
   }
 
   Widget _undergroundModelPanel() {
-    final layers = <({Color color, String label})>[
-      (color: const Color(0xFF38BDF8), label: 'WATER'),
-      (color: const Color(0xFF22C55E), label: 'DRAINAGE'),
-      (color: const Color(0xFFFBBF24), label: 'POWER / TELECOM'),
-      (color: const Color(0xFFFB7185), label: 'GAS'),
+    const layers = <({String name, String label, Color color, IconData icon})>[
+      (name: 'Water', label: 'WATER', color: Color(0xFF38BDF8), icon: Icons.water_drop_outlined),
+      (name: 'Sewer', label: 'SEWER', color: Color(0xFF9B7AE8), icon: Icons.water_outlined),
+      (name: 'Stormwater', label: 'DRAINAGE', color: Color(0xFF22C5A5), icon: Icons.grain_rounded),
+      (name: 'Electricity', label: 'POWER', color: Color(0xFFFBBF24), icon: Icons.bolt_outlined),
+      (name: 'Telecom', label: 'TELECOM', color: Color(0xFFE879B8), icon: Icons.cable_rounded),
+      (name: 'Gas', label: 'GAS', color: Color(0xFFFB884F), icon: Icons.local_fire_department_outlined),
+      (name: 'Borewell', label: 'BOREWELL', color: Color(0xFF2DD4BF), icon: Icons.sensors_outlined),
     ];
+    final panelWidth = math.min(392.0, MediaQuery.sizeOf(context).width - 24).toDouble();
     return Container(
-      width: 304,
-      padding: const EdgeInsets.all(9),
+      width: panelWidth,
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xF20B1B2D),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0x8855D9CE)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x9955D9CE)),
         boxShadow: const [
-          BoxShadow(color: Color(0x44000000), blurRadius: 16, offset: Offset(0, 5)),
+          BoxShadow(color: Color(0x44000000), blurRadius: 18, offset: Offset(0, 6)),
         ],
       ),
       child: Column(
@@ -18797,55 +18959,61 @@ class _MapPageState extends State<MapPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 17),
+            const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 18),
             const SizedBox(width: 7),
             const Expanded(child: Text(
               'UNDERGROUND NETWORK CUTAWAY',
-              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .65),
+              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .7),
             )),
-            Text(_is3D ? '3D' : '2D', style: const TextStyle(color: Color(0xFF7DE9DE), fontSize: 9, fontWeight: FontWeight.w900)),
+            Text(_is3D ? '3D CUTAWAY' : '2D PLAN', style: const TextStyle(color: Color(0xFF7DE9DE), fontSize: 8, fontWeight: FontWeight.w900)),
           ]),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
+          const Text(
+            'SIMULATED SUBSURFACE SCHEMATIC · NOT GEO-REFERENCED',
+            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .2),
+          ),
+          const SizedBox(height: 7),
           SizedBox(
-            height: 105,
+            height: 124,
             width: double.infinity,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(9),
-              child: CustomPaint(
-                painter: _DemoSubsurfacePainter(
-                  viewMode: _is3D ? '3D cutaway' : '2D cutaway',
-                  visibleLayers: const {'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell'},
-                  isLight: false,
-                ),
-                child: const Align(
-                  alignment: Alignment.topLeft,
-                  child: Padding(
-                    padding: EdgeInsets.all(5),
-                    child: Text(
-                      'SIMULATED · NOT GEO-REFERENCED',
-                      style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: .35),
-                    ),
-                  ),
-                ),
+              child: _AnimatedUndergroundCutaway(
+                viewMode: _is3D ? '3D cutaway' : '2D plan',
+                visibleLayers: _undergroundVisibleLayers,
+                isLight: _usesLegacyLightPalette,
               ),
             ),
           ),
           const SizedBox(height: 6),
           Wrap(
-            spacing: 9,
-            runSpacing: 4,
-            children: layers.map((layer) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(width: 13, height: 3, decoration: BoxDecoration(color: layer.color, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(width: 4),
-                Text(layer.label, style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 7, fontWeight: FontWeight.w800)),
-              ],
-            )).toList(),
+            spacing: 4,
+            runSpacing: 1,
+            children: layers.map((layer) {
+              final selected = _undergroundVisibleLayers.contains(layer.name);
+              return FilterChip(
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                avatar: Icon(layer.icon, color: layer.color, size: 12),
+                label: Text(layer.label, style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800)),
+                selected: selected,
+                selectedColor: layer.color.withValues(alpha: .22),
+                backgroundColor: const Color(0xFF172B3D),
+                side: BorderSide(color: selected ? layer.color.withValues(alpha: .85) : const Color(0x554B647C)),
+                onSelected: (enabled) => setState(() {
+                  if (enabled) {
+                    _undergroundVisibleLayers.add(layer.name);
+                  } else {
+                    _undergroundVisibleLayers.remove(layer.name);
+                  }
+                }),
+              );
+            }).toList(),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           const Text(
-            'Illustrative demo geometry only. Not a survey, utility-owner record, physical depth or excavation clearance.',
+            'Illustrative paths only. Not measured routes or depths; never use this schematic as excavation clearance.',
             style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, height: 1.25),
           ),
         ],
