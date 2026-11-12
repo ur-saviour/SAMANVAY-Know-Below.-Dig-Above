@@ -58,8 +58,8 @@ The v4 workflow successfully decrypted the groundwater archive before the produc
 
 ## Containment completed
 
-- The four `recover-supabase-auth-readonly*` workflows are now `workflow_dispatch` only.
-- Each now requires typed `RESTORE_2025_ONLY` acknowledgement and an explicit feature-branch guard.
+- The four `recover-supabase-auth-readonly*` workflows have been deleted from the active branch.
+- Their replacement `verify-groundwater-archive.yml` is manual-only and has no Supabase production connection credentials or write path; it restores only into disposable local PostgreSQL.
 - Database import, archive, backup, restore-drill and WAL maintenance workflows are now manual-only.
 - The production data was not changed during the 13 November audit.
 
