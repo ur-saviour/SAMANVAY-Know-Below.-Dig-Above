@@ -739,67 +739,6 @@ class _OpeningExperienceState extends State<OpeningExperience>
   }
 }
 
-class _IndianFlagWavePainter extends CustomPainter {
-  const _IndianFlagWavePainter({required this.phase});
-  final double phase;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final polePaint = Paint()
-      ..color = const Color(0xFFB8C4D0)
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(3, 2), Offset(3, size.height - 1), polePaint);
-
-    const bands = <Color>[
-      Color(0xFFFF9933),
-      Color(0xFFFFFFFF),
-      Color(0xFF138808),
-    ];
-    final amplitude = size.height * .045;
-    for (var band = 0; band < 3; band++) {
-      final top = size.height * band / 3;
-      final bottom = size.height * (band + 1) / 3;
-      final path = Path()..moveTo(5, top);
-      for (var step = 1; step <= 24; step++) {
-        final x = 5 + (size.width - 8) * step / 24;
-        final wave = math.sin(step / 24 * math.pi * 2 + phase * math.pi * 2) *
-            amplitude * (step / 24);
-        path.lineTo(x, top + wave);
-      }
-      for (var step = 24; step >= 0; step--) {
-        final x = 5 + (size.width - 8) * step / 24;
-        final wave = math.sin(step / 24 * math.pi * 2 + phase * math.pi * 2) *
-            amplitude * (step / 24);
-        path.lineTo(x, bottom + wave);
-      }
-      path.close();
-      canvas.drawPath(path, Paint()..color = bands[band]);
-    }
-
-    final center = Offset(size.width * .47, size.height * .50);
-    final radius = size.height * .105;
-    final chakraPaint = Paint()
-      ..color = const Color(0xFF000080)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
-    canvas.drawCircle(center, radius, chakraPaint);
-    canvas.drawCircle(center, radius * .14, Paint()..color = const Color(0xFF000080));
-    for (var spoke = 0; spoke < 24; spoke++) {
-      final angle = spoke * math.pi / 12;
-      canvas.drawLine(
-        center,
-        Offset(center.dx + math.cos(angle) * radius, center.dy + math.sin(angle) * radius),
-        chakraPaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _IndianFlagWavePainter oldDelegate) =>
-      oldDelegate.phase != phase;
-}
-
 class _SamanvayOpeningScreen extends StatelessWidget {
   const _SamanvayOpeningScreen({
     super.key,
@@ -886,17 +825,6 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                             painter: _IndianFlagWavePainter(progress: ambient),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 18,
-                    right: 14,
-                    child: SizedBox(
-                      width: 112,
-                      height: 76,
-                      child: CustomPaint(
-                        painter: _IndianFlagWavePainter(phase: ambient),
                       ),
                     ),
                   ),
