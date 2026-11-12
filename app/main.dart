@@ -6263,9 +6263,58 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   Widget _gisCoverage() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _panel('India-wide jurisdiction explorer', 'All 36 States and Union Territories are represented in the master jurisdiction model.', Icons.public_outlined, status: '36 JURISDICTIONS'),
-      _panel('Infrastructure source coverage', 'Coverage rows indicate source readiness and data availability; they are not proof of verified underground assets.', Icons.layers_outlined, status: '11 SERVICE DOMAINS'),
-      _panel('Underground asset verification', 'Owner-submitted GIS requires source authorisation, evidence review and independent verification before operational use.', Icons.verified_user_outlined, status: 'NO LIVE ASSET GEOMETRY IN THIS DEMO'),
+      _panel('India-wide jurisdiction explorer', 'Browse the national State/UT, district, local-body and ward reference directory. Imported community snapshots remain marked unverified until an authority refresh.', Icons.public_outlined, status: '36 STATES / UNION TERRITORIES'),
+      _panel('Infrastructure source coverage', 'Coverage records show responsible agencies, source links, granularity and readiness. A listed source does not prove a complete asset inventory.', Icons.layers_outlined, status: 'REFERENCE METADATA'),
+      _panel('Underground asset verification', 'Exact utility geometry is owner-restricted. The public map never substitutes estimated routes or an empty layer for a safe-to-dig decision.', Icons.verified_user_outlined, status: 'NO PUBLIC EXACT ROUTES'),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('OPEN THE PUBLIC GIS', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 5),
+              Text('Explore the national basemap, satellite/vector views, 2D/3D surface context and available public reference boundaries. Staff-only operational layers remain protected.', style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const MapPage()),
+                  ),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('OPEN PUBLIC GIS MAP'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const IndiaCoverageExplorerPage()),
+                  ),
+                  icon: const Icon(Icons.account_tree_outlined),
+                  label: const Text('OPEN INDIA-WIDE COVERAGE DIRECTORY'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const PublicExcavationTrackerPage()),
+                  ),
+                  icon: const Icon(Icons.campaign_outlined),
+                  label: const Text('VIEW PUBLISHED PUBLIC WORKS'),
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text('Public directory access is read-only. Unverified boundary or directory data is for navigation only, never for permits, excavation clearance or utility-owner verification.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+            ],
+          ),
+        ),
+      ),
       Wrap(
         spacing: 7,
         runSpacing: 7,
@@ -14243,7 +14292,9 @@ class _MapPageState extends State<MapPage> {
       if (!mounted) return;
       await _refreshMapScale();
       if (!mounted) return;
-      await _loadVisibleWorkRequests();
+      if (supabase.auth.currentUser != null) {
+        await _loadVisibleWorkRequests();
+      }
       if (_showGroundwaterTelemetry) {
         await _loadGroundwaterTelemetryStations();
       }
@@ -15709,8 +15760,8 @@ class _MapPageState extends State<MapPage> {
     if (mounted) setState(() => _loadingLayers = true);
 
     try {
-      // Public administrative reference data is independent of account role.
-      // This 2024 ward reference layer is not a current statutory jurisdiction source.
+      // Public reference layers are prepared independently of account state.
+      // The bundled 2024 ward polygons are reference-only, not statutory boundaries.
       await Future.wait<void>([
         if (_showCoimbatoreWardBoundaries) _loadCoimbatoreWardBoundaries(),
         _loadGroundwaterTelemetryStations(),
@@ -15718,55 +15769,56 @@ class _MapPageState extends State<MapPage> {
       ]);
 
       final user = supabase.auth.currentUser;
-      if (user == null) {
-        throw StateError('Sign in to view operational map layers.');
+      Map<String, dynamic>? profile;
+      if (user != null) {
+        profile = await supabase
+            .from('profiles')
+            .select('role,department_id')
+            .eq('id', user.id)
+            .maybeSingle();
       }
 
-      final profile = await supabase
-          .from('profiles')
-          .select('role,department_id')
-          .eq('id', user.id)
-          .maybeSingle();
-
       final role = (profile?['role'] ?? '').toString();
-      final authorised = ['admin', 'coordinator', 'department'].contains(role);
-      final departmentAssigned = role == 'department' &&
-          profile?['department_id'] != null;
+      final authorised = user != null &&
+          ['admin', 'coordinator', 'department'].contains(role);
+      final departmentAssigned = user != null &&
+          role == 'department' && profile?['department_id'] != null;
 
-      // Public administrative reference boundaries are separate from the
-      // owner-restricted underground-utility layers.
+      // India reference boundaries are public reference data. Operational
+      // requests and utility assets are loaded only in the authenticated branch.
       unawaited(_loadIndiaAdministrativeBoundaries());
 
       if (mounted) {
         setState(() {
-          // Public map access is limited to generalised 250 m aggregate cells.
-          // The server RPC returns verified aggregates (minimum 3 assets/cell),
-          // never exact routes, depths, or owner-specific geometry.
-          // Public endpoint returns verified 250 m aggregate cells only.
-          // Every signed-in role (Citizen included) can view this overview.
-          _canViewUtilityOverview = true;
+          // The aggregate RPC itself is staff-role checked in PostgreSQL.
+          // Do not advertise it to guests or Citizen accounts.
+          _canViewUtilityOverview = authorised;
           _canViewConflictScreening = authorised;
           _canViewDepartmentAssets = departmentAssigned;
-          _layerStatus = departmentAssigned
-              ? 'Department GIS view: public aggregate coverage plus verified assets owned by your department. Other owners’ exact geometry remains withheld.'
-              : authorised
-                  ? 'Staff GIS view: public aggregate coverage; exact asset geometry remains restricted.'
-                  : 'Citizen GIS view: generalised coverage only. Exact utility routes and depths are never disclosed.';
+          _layerStatus = user == null
+              ? 'PUBLIC GIS VIEW: basemap and public reference layers. Utility aggregates, exact assets and case-linked markers require the appropriate authorised account.'
+              : departmentAssigned
+                  ? 'Department GIS view: staff aggregate coverage plus verified assets owned by your department. Other owners’ exact geometry remains withheld.'
+                  : authorised
+                      ? 'Staff GIS view: generalised coverage only; exact utility geometry remains restricted by owner.'
+                      : 'Citizen GIS view: public reference coverage and account-scoped case markers. Staff utility aggregates and all exact routes remain restricted.';
         });
       }
 
-      await _loadVisibleWorkRequests();
+      if (user != null) {
+        await _loadVisibleWorkRequests();
+      }
 
-      if (_showUtilityZones) {
+      if (_showUtilityZones && authorised) {
         await _loadUtilityOverview();
       }
       if (_showVerifiedAssets && departmentAssigned) {
         await _loadDepartmentAssets();
       }
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _layerStatus = 'Operational layers could not be loaded. Check your connection and account access.';
+          _layerStatus = 'Public reference layers remain available; one or more account-linked layers could not be loaded.';
         });
       }
     } finally {
