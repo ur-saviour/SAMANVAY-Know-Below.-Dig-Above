@@ -205,3 +205,18 @@ A synthetic import-run row, verified-asset row and evidence row were inserted in
 | Citizen | 0 | 0 | 0 | 0 |
 
 **Result:** all four role expectations passed. The Department Officer was intentionally excluded from the admin/coordinator review queue even though the synthetic row was owned by that officer's department; the owner-only exact-geometry workflow remains separately handled by the dedicated RPC. The synthetic asset/evidence/import rows were rolled back and are not present in production data. This test validates actual row-level filtering and view execution without retaining synthetic data; it does not replace tests with real owner-authorised records.
+
+### Extended owner-geometry and citizen-generalisation test
+
+A second rollback-only test created three synthetic, colocated utility assets linked to one synthetic import run, plus three matching evidence rows. Results from the same SQL transaction:
+
+| Authenticated role | Direct asset rows | Direct evidence rows | Verification queue rows | Owner-only GeoJSON RPC | Citizen generalised view |
+|---|---:|---:|---:|---:|---|
+| Admin | 3 | 3 | 3 | Not applicable | Not applicable |
+| Coordinator | 3 | 3 | 3 | Not applicable | Not applicable |
+| Department Officer (owning department) | 0 | 0 | 0 | 3 exact features | Not applicable |
+| Citizen | 0 | 0 | 0 | Denied / not called | 1 generalised 250 m cell; aggregate count 3 |
+
+This confirms the intended separation: the assigned utility owner receives exact geometry only through the owner-scoped RPC; admin/coordinator receive metadata in the verification queue; Citizens receive only generalised coverage aggregates. Direct table access for the Department Officer and Citizen remains blocked. The entire synthetic transaction was rolled back. A subsequent live count confirmed the production tables still contain 0 assets, 0 evidence rows and 0 import runs.
+
+This is a targeted database policy/RPC regression test. It is not a real-session mobile/browser workflow test, and the synthetic fixtures do not represent real utility assets or owner-authorised data.
