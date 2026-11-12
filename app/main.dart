@@ -5257,6 +5257,45 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     });
   }
 
+  String get _nextDemoRole => switch (_activeRole) {
+    'requester' => 'department',
+    'department' => 'coordinator',
+    'coordinator' => 'admin',
+    _ => 'requester',
+  };
+
+  String get _nextDemoRoleTitle => switch (_nextDemoRole) {
+    'requester' => 'Citizen',
+    'department' => 'Department Officer',
+    'coordinator' => 'Coordinator',
+    _ => 'Administrator',
+  };
+
+  void _advanceDemoWorkflow() {
+    final nextRole = _nextDemoRole;
+    final nextRoleTitle = _nextDemoRoleTitle;
+    setState(() {
+      _activeRole = nextRole;
+      _activeStaffId = _publicDemoStaffIds[nextRole]!;
+      _section = switch (nextRole) {
+        'requester' => 'Overview',
+        'department' => 'Case queue',
+        'coordinator' => 'Coordination',
+        _ => 'Admin oversight',
+      };
+      if (nextRole == 'department') {
+        final citizenCases = _cases.where((item) => item['owner'] == 'citizen').toList();
+        if (citizenCases.isNotEmpty) {
+          final assigned = List<String>.from(citizenCases.first['assigned'] as List);
+          if (assigned.isNotEmpty && _departments.contains(assigned.first)) {
+            _selectedDepartment = assigned.first;
+          }
+        }
+      }
+    });
+    _record('Guided demo switched to ' + nextRoleTitle + ' profile');
+  }
+
   Future<void> _toggleTheme() async {
     final enabled = samanvayThemeMode.value != ThemeMode.light;
     samanvayThemeMode.value = enabled ? ThemeMode.light : ThemeMode.dark;
@@ -5319,6 +5358,113 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ),
   );
 
+  Widget _workflowNavigator() => Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Padding(
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.route_outlined, color: teal, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'GUIDED END-TO-END DEMONSTRATION',
+                  style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'The same in-memory cases and audit trail are shared as you move between profiles. Next: ' + _nextDemoRoleTitle + '.',
+            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+          ),
+          const SizedBox(height: 9),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _advanceDemoWorkflow,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: Text('CONTINUE AS ' + _nextDemoRoleTitle.toUpperCase()),
+            ),
+          ),
+          Text(
+            'SIMULATED SESSION · no live account, permit, work order or government record is changed',
+            style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Map<String, Object> _caseWorkflowStage(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString();
+    final jointStatus = (item['jointWorkStatus'] ?? 'Not proposed').toString();
+    if (status == 'Completed' || status == 'Joint-work completed (demo)' ||
+        jointStatus == 'Joint-work completed (demo)') {
+      return {'label': 'Demonstration closure recorded', 'progress': 1.0};
+    }
+    if (status == 'Escalated for authority review' || jointStatus == 'Escalated for authority review') {
+      return {'label': 'Referred for authority review', 'progress': 0.88};
+    }
+    if (jointStatus == 'Conflict resolved (demo)') {
+      return {'label': 'Coordination outcome recorded', 'progress': 0.9};
+    }
+    if (jointStatus != 'Not proposed' && jointStatus != '') {
+      return {'label': 'Cross-department coordination', 'progress': 0.75};
+    }
+    if (status == 'Technical recommendation submitted') {
+      return {'label': 'Officer recommendation submitted', 'progress': 0.62};
+    }
+    if (status == 'Clarification required') {
+      return {'label': 'Officer requested clarification', 'progress': 0.48};
+    }
+    if (status == 'Under coordination') {
+      return {'label': 'Coordinator review', 'progress': 0.72};
+    }
+    if (status == 'Under review' || status == 'Site inspection scheduled' || status == 'Approved') {
+      return {'label': 'Department officer review', 'progress': 0.38};
+    }
+    return {'label': 'Citizen request submitted', 'progress': 0.15};
+  }
+
+  Widget _caseWorkflowProgress(Map<String, dynamic> item) {
+    final stage = _caseWorkflowStage(item);
+    final progress = stage['progress'] as double;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                stage['label'].toString(),
+                style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w800),
+              ),
+            ),
+            Text(
+              '${(progress * 100).round()}%',
+              style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 5,
+            backgroundColor: borderColor.withValues(alpha: .45),
+            valueColor: AlwaysStoppedAnimation<Color>(teal),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _sectionChip(String name) => Padding(
     padding: const EdgeInsets.only(right: 7),
     child: ChoiceChip(
@@ -5349,7 +5495,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               Text('Location: ' + item['location'].toString()),
               Text('Priority: ' + item['priority'].toString()),
               Text('Status: ' + item['status'].toString()),
+              Text('Assigned departments: ' + (item['assigned'] as List).join(' + ')),
               Text('Joint work: ' + (item['jointWorkStatus'] ?? 'Not proposed').toString()),
+              if (item['coordinationWindow'] != null)
+                Text('Coordination note: ' + item['coordinationWindow'].toString()),
+              const SizedBox(height: 8),
+              _caseWorkflowProgress(item),
               const SizedBox(height: 10),
               Text(item['description'].toString()),
               if (inspection != null) ...[
@@ -5717,7 +5868,9 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
             Text(item['id'].toString() + ' · ' + item['domain'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
             const SizedBox(height: 4),
             Text(item['location'].toString() + ' · ' + item['department'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
-            const SizedBox(height: 9),
+            const SizedBox(height: 10),
+            _caseWorkflowProgress(item),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 7,
               runSpacing: 7,
@@ -5916,7 +6069,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         runSpacing: 8,
         children: _metrics.map((metric) => _metricCard(metric[0], metric[1])).toList(),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 12),
+      _workflowNavigator(),
       _panel(
         'One public access point',
         'Raise and follow requests related to roads, water, sewerage, drainage, electricity, telecom, gas, groundwater and building concerns.',
@@ -5991,7 +6145,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Wrap(spacing: 8, runSpacing: 8, children: _metrics.map((m) => _metricCard(m[0], m[1])).toList()),
-      const SizedBox(height: 14),
+      const SizedBox(height: 12),
+      _workflowNavigator(),
       _panel('Role-based command dashboard', _roleDescription, Icons.dashboard_customize_outlined, status: 'DEMO WORKSPACE · SYNTHETIC RECORDS'),
       _panel('Multi-department case register', 'Road reconstruction, water supply, sewerage, drainage, electricity, telecom and building-compliance workflows.', Icons.assignment_outlined, status: '5 ILLUSTRATIVE CASES'),
       _panel('National GIS workspace', 'India-wide jurisdiction model, seven browsing regions and authority-owned evidence workflow.', Icons.map_outlined, status: '36 STATES / UNION TERRITORIES'),
@@ -6018,6 +6173,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _workflowNavigator(),
         Text(
           isCitizen
               ? 'Your requests in this guest session. Updates made by the demonstration officer and coordinator appear here when you switch back to Citizen.'
@@ -6066,6 +6222,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   Widget _coordination() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      _workflowNavigator(),
       _panel(
         'Cross-department coordination desk',
         'Review shared cases, propose a partner department, record a tentative scheduling outcome and maintain a visible session history.',
@@ -6155,7 +6312,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         runSpacing: 8,
         children: _metrics.map((metric) => _metricCard(metric[0], metric[1])).toList(),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 12),
+      _workflowNavigator(),
       _panel(
         'Platform oversight',
         'Review the shared session register, department routing, coordination outcomes and audit events across the demonstration profiles.',
