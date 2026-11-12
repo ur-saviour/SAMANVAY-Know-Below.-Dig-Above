@@ -307,3 +307,14 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Re-run Android/browser CI and complete real-device/browser role regression after the current migration commits.
 
 **Live security advisor result:** The `security_definer_view` finding is cleared and the six `rls_enabled_no_policy` findings are cleared. Remaining notices: 15 authenticated-executable security-definer RPC warnings (these are intentional app endpoints and remain subject to their internal role checks), plus one Auth warning because leaked-password protection is disabled. One RPC search-path exception identified in the audit has been corrected. This does not constitute a full penetration test or production-security certification.
+
+## 21. India-first map defaults and national coverage honesty — 12 November 2026
+
+- [x] Keep the no-explicit-location map fallback centred on India (22.5° N, 79.0° E); an explicit device GPS fix or a feature-specific selected location may still override it.
+- [x] Change the 2024 Coimbatore ward reference overlay to opt-in; do not load its local GeoJSON when the toggle is off.
+- [x] Relabel the layer as “Coimbatore-only ward reference (2024)” and show its local-reference / non-statutory / non-national status.
+- [x] Remove the prefilled Coimbatore city from the public-work notice form; require the publisher to enter the actual notice city and show examples spanning North and South India.
+- [ ] Validate map navigation and overlay toggles on a physical Android device and browser at national, State/UT, district and local zoom levels.
+- [ ] Import authority-validated national and local boundaries after archive retrieval, checksum, CRS/topology QA and LGD-code reconciliation.
+
+**Implementation commit:** current source contains the no-default ward toggle, conditional layer loading and national default camera. Android and browser CI were triggered for the updated source; their final build and artifact verification must pass before this section is release-accepted.
