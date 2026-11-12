@@ -263,3 +263,7 @@ The current map UI exposes the layer's boundary vintage, feature count, source a
 - Inner deployment archive passed ZIP integrity checks and contains `web/index.html`, `web/flutter_bootstrap.js` and `web/main.dart.js`.
 
 **Acceptance boundary:** These CI results confirm compilation, packaging and the stated automated checks. They do not establish sign-in, GPS, WebGL, satellite tile availability, role workflow, touch accessibility or GIS interaction on a physical Android device / production browser. Those remain release-acceptance tasks.
+
+### Boundary-layer freshness fields exposed by the Edge Function — 12 November 2026
+
+The `samanvay-public-boundaries` Edge Function has been deployed as version 2. The response metadata now passes through geoBoundaries `sourceDataUpdateDate` and `buildDate` in addition to the existing boundary vintage, source, licence and unit count. The Flutter map layer manager has been updated to display those two dates for State/UT and district references, including the desktop layer panel. Android and browser CI for the updated Flutter entrypoint has started; build and artifact acceptance remains pending.
