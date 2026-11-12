@@ -4531,7 +4531,9 @@ class _AuthPageState extends State<AuthPage> {
         email: _pendingOtpEmail,
         phone: _pendingOtpPhone,
         token: token,
-        type: _pendingOtpPhone != null ? OtpType.sms : OtpType.email,
+        type: _pendingOtpPhone != null
+            ? (isPhoneSignupOtp ? OtpType.signup : OtpType.sms)
+            : OtpType.email,
       );
       if (response.session == null || response.user == null) {
         throw const AuthException('The verification code did not create a sign-in session. Request a new code.');
