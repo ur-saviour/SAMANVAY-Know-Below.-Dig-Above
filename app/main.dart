@@ -8549,6 +8549,8 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   List<Map<String, dynamic>> states = [];
   List<Map<String, dynamic>> coverage = [];
   List<Map<String, dynamic>> administrativeUnits = [];
+  Map<String, int> administrativeUnitCounts = {};
+  int authorityVerifiedUnitCount = 0;
   List<Map<String, dynamic>> directoryBatches = [];
   bool canManageDirectory = false;
   bool loading = true;
@@ -8611,9 +8613,23 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
       final rawCoverage = await supabase.from('india_data_coverage')
           .select('state_ut_id,data_domain,responsible_authority,official_portal_url,national_source_url,coverage_status,data_granularity,operational_use_allowed,last_checked_at,notes,telemetry_resource_count,telemetry_records_imported,telemetry_source_records,telemetry_status')
           .limit(1000);
+      // Fetch a small row sample for diagnostics, but obtain national totals from
+      // a database aggregate so the Supabase 1,000-row REST cap cannot undercount
+      // the directory shown to citizens.
       final rawAdministrativeUnits = await supabase.from('india_administrative_units')
           .select('unit_type,verification_status,state_ut_id')
           .limit(1000);
+      final rawUnitCounts = await supabase.rpc('get_india_administrative_unit_counts');
+      final unitCounts = <String, int>{};
+      var verifiedUnitCount = 0;
+      for (final raw in (rawUnitCounts as List)) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final type = (row['unit_type'] ?? '').toString();
+        final total = (row['total_count'] as num?)?.toInt() ?? 0;
+        final verified = (row['verified_count'] as num?)?.toInt() ?? 0;
+        if (type.isNotEmpty) unitCounts[type] = total;
+        verifiedUnitCount += verified;
+      }
       final userId = supabase.auth.currentUser?.id;
       final profile = userId == null ? null : await supabase.from('profiles')
           .select('role').eq('id', userId).maybeSingle();
@@ -8629,6 +8645,8 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
         states = List<Map<String, dynamic>>.from(rawStates);
         coverage = List<Map<String, dynamic>>.from(rawCoverage);
         administrativeUnits = List<Map<String, dynamic>>.from(rawAdministrativeUnits);
+        administrativeUnitCounts = unitCounts;
+        authorityVerifiedUnitCount = verifiedUnitCount;
         directoryBatches = List<Map<String, dynamic>>.from(rawDirectoryBatches);
         canManageDirectory = manager;
         loading = false;
@@ -8797,20 +8815,16 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   }
 
   Widget _administrativeDirectoryCard() {
-    final counts = <String, int>{};
-    final verified = administrativeUnits.where(
-      (row) => row['verification_status'] == 'authority_verified',
-    ).length;
+    // National counts come from the aggregate RPC, not the capped sample.
+    final counts = administrativeUnitCounts;
+    final verified = authorityVerifiedUnitCount;
+    final totalDirectoryRecords = counts.values.fold<int>(0, (sum, value) => sum + value);
     final pendingDistrictExports = directoryBatches.where((row) =>
       row['unit_type'] == 'district' && row['import_status'] == 'awaiting_authorised_export').length;
     final pendingUlbExports = directoryBatches.where((row) =>
       row['unit_type'] == 'urban_local_body' && row['import_status'] == 'awaiting_authorised_export').length;
     final completedBatches = directoryBatches.where((row) =>
       row['import_status'] == 'imported').length;
-    for (final row in administrativeUnits) {
-      final type = (row['unit_type'] ?? 'other').toString();
-      counts[type] = (counts[type] ?? 0) + 1;
-    }
     const labels = {
       'district': 'Districts',
       'sub_district': 'Sub-districts',
@@ -8841,8 +8855,9 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
             ),
           ]),
           const SizedBox(height: 7),
-          Text(administrativeUnits.length.toString() + ' directory records currently loaded · ' +
-            verified.toString() + ' authority-verified',
+          Text(totalDirectoryRecords.toString() + ' directory records across India · ' +
+            verified.toString() + ' authority-verified · ' +
+            administrativeUnits.length.toString() + ' rows sampled for diagnostics',
             style:  TextStyle(fontSize: 10, color: mutedInk)),
           if (canManageDirectory) ...[
             const SizedBox(height: 8),
@@ -8853,16 +8868,16 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
             ]),
           ],
           const SizedBox(height: 8),
-          if (administrativeUnits.isEmpty)
+          if (totalDirectoryRecords == 0)
             Text(
               canManageDirectory
-                ? 'No district or ULB rows have been imported yet. ' + pendingDistrictExports.toString() + ' district and ' + pendingUlbExports.toString() + ' urban-local-body state export tasks are queued. Each official report must be generated through the LGD portal with its normal CAPTCHA check.'
-                : 'No district or ULB rows have been imported yet. The national LGD source is registered; the responsible authority export and validation process is pending.',
+                ? 'No district or local-government rows are currently visible. ' + pendingDistrictExports.toString() + ' district and ' + pendingUlbExports.toString() + ' urban-local-body state export tasks are queued. Each official report must be generated through the LGD portal with its normal CAPTCHA check.'
+                : 'No district or local-government rows are currently visible. The national directory source is registered; authority validation remains pending.',
               style:  TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
             )
           else
             Wrap(spacing: 7, runSpacing: 7, children: labels.entries
-              .where((entry) => counts.containsKey(entry.key))
+              .where((entry) => (counts[entry.key] ?? 0) > 0)
               .map((entry) => _metric(entry.value, counts[entry.key].toString(), Icons.location_city_outlined))
               .toList()),
           const SizedBox(height: 8),
