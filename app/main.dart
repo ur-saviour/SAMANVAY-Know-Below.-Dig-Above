@@ -5881,57 +5881,148 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         ? const ['Proposal closed after decline', 'Escalated for authority review']
         : const ['Schedule agreed (demo)', 'Conflict resolved (demo)', 'Escalated for authority review'];
     var selected = choices.first;
-    final result = await showDialog<String>(
+    DateTime? scheduledStart;
+    DateTime? scheduledEnd;
+
+    String dateLabel(DateTime? value) {
+      if (value == null) return 'Select date';
+      final date = value.toLocal();
+      return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
+    final result = await showDialog<Map<String, Object?>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Record coordinator decision'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Participating departments: ' + ((item['jointDepartments'] as List?)?.join(' + ') ?? (item['assigned'] as List).join(' + '))),
-              const SizedBox(height: 8),
-              ...responses.map((row) => Text(
-                row['department'].toString() + ': ' + row['status'].toString(),
-                style: TextStyle(color: mutedInk, fontSize: 10),
-              )),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: selected,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Coordinator outcome'),
-                items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
-                onChanged: (value) {
-                  if (value != null) setDialogState(() => selected = value);
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'A recorded demo outcome is not a statutory approval or a confirmed public-works schedule.',
-                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Participating departments: ' + ((item['jointDepartments'] as List?)?.join(' + ') ?? (item['assigned'] as List).join(' + '))),
+                const SizedBox(height: 8),
+                ...responses.map((row) => Text(
+                  row['department'].toString() + ': ' + row['status'].toString(),
+                  style: TextStyle(color: mutedInk, fontSize: 10),
+                )),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: selected,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Coordinator outcome'),
+                  items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => selected = value);
+                  },
+                ),
+                if (selected == 'Schedule agreed (demo)') ...[
+                  const SizedBox(height: 12),
+                  Text('ILLUSTRATIVE SHARED WORK WINDOW',
+                    style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .45)),
+                  const SizedBox(height: 7),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final today = DateUtils.dateOnly(DateTime.now());
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: scheduledStart ?? today,
+                          firstDate: today,
+                          lastDate: DateTime(today.year + 5),
+                          helpText: 'Select proposed work start date',
+                        );
+                        if (picked == null) return;
+                        setDialogState(() {
+                          scheduledStart = picked;
+                          if (scheduledEnd != null && scheduledEnd!.isBefore(picked)) {
+                            scheduledEnd = null;
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.calendar_today_outlined, size: 15),
+                      label: Text('START · ' + dateLabel(scheduledStart)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final today = DateUtils.dateOnly(DateTime.now());
+                        final first = scheduledStart ?? today;
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: scheduledEnd ?? first,
+                          firstDate: first,
+                          lastDate: DateTime(today.year + 5),
+                          helpText: 'Select proposed work end date',
+                        );
+                        if (picked == null) return;
+                        setDialogState(() => scheduledEnd = picked);
+                      },
+                      icon: const Icon(Icons.event_available_outlined, size: 15),
+                      label: Text('END · ' + dateLabel(scheduledEnd)),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text('Both dates are required. The selected range is a planning simulation, not a permit or confirmed public-works booking.',
+                    style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  'A recorded demo outcome is not a statutory approval or a confirmed public-works schedule.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save outcome')),
+            FilledButton(
+              onPressed: () {
+                if (selected == 'Schedule agreed (demo)' &&
+                    (scheduledStart == null ||
+                     scheduledEnd == null ||
+                     scheduledEnd!.isBefore(scheduledStart!))) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Select a valid start and end date for the shared work window.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'outcome': selected,
+                  'start': scheduledStart,
+                  'end': scheduledEnd,
+                });
+              },
+              child: const Text('Save outcome'),
+            ),
           ],
         ),
       ),
     );
     if (!mounted || result == null) return;
+
+    final outcome = (result['outcome'] ?? '').toString();
+    final startDate = result['start'] as DateTime?;
+    final endDate = result['end'] as DateTime?;
+    final startLabel = dateLabel(startDate);
+    final endLabel = dateLabel(endDate);
     setState(() {
-      item['jointWorkStatus'] = result;
-      item['coordinationWindow'] = result == 'Schedule agreed (demo)'
-          ? 'Illustrative window recorded · not a live booking'
+      item['jointWorkStatus'] = outcome;
+      item['scheduledStartOn'] = startDate == null ? null : startLabel;
+      item['scheduledEndOn'] = endDate == null ? null : endLabel;
+      item['coordinationWindow'] = outcome == 'Schedule agreed (demo)'
+          ? startLabel + ' to ' + endLabel + ' · illustrative window only'
           : 'No confirmed window';
-      item['status'] = result == 'Escalated for authority review'
+      item['status'] = outcome == 'Escalated for authority review'
           ? 'Escalated for authority review'
           : 'Under coordination';
-      _appendCaseEvent(item, 'Coordinator recorded outcome: ' + result);
+      _appendCaseEvent(item, 'Coordinator recorded outcome: ' + outcome);
     });
-    _record(item['id'].toString() + ' coordination outcome: ' + result);
+    _record(item['id'].toString() + ' coordination outcome: ' + outcome);
   }
 
   Future<void> _recordDemoInspection(Map<String, dynamic> item) async {
