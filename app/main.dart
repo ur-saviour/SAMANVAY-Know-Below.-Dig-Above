@@ -3997,6 +3997,7 @@ class _AuthPageState extends State<AuthPage> {
   bool usePasswordLogin = true;
   bool usePhoneLogin = false;
   bool otpSent = false;
+  bool isPhoneSignupOtp = false;
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
   String? _pendingOtpEmail;
@@ -4277,6 +4278,26 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> resendCurrentOtp() async {
+    if (loading || otpResendSeconds > 0) return;
+    if (isPhoneSignupOtp && _pendingOtpPhone != null) {
+      setState(() { loading = true; message = ''; });
+      try {
+        await supabase.auth.resend(type: OtpType.signup, phone: _pendingOtpPhone!);
+        _startOtpResendCountdown();
+        showMessage('A new SMS verification code has been requested.', success: true);
+      } on AuthException catch (error) {
+        showMessage(error.message);
+      } catch (_) {
+        showMessage('Unable to resend the SMS code. Check the Supabase SMS provider configuration.');
+      } finally {
+        if (mounted) setState(() => loading = false);
+      }
+      return;
+    }
+    await sendLoginOtp();
+  }
+
   Future<void> verifyLoginOtp() async {
     if (loading) return;
     final token = _otpController.text.trim();
@@ -4365,30 +4386,42 @@ class _AuthPageState extends State<AuthPage> {
             rawIdentifier.toLowerCase()] ??
           rawIdentifier;
 
-      if (!identifier.contains('@') || !identifier.contains('.')) {
-        throw const AuthException(
-          'New account registration currently requires an email address.',
+      if (!identifier.contains('@')) {
+        final phone = _normalisePhoneForAuth(identifier);
+        if (!phone.startsWith('+') || phone.length < 9 || phone.length > 16) {
+          throw const AuthException('Enter a valid email address or mobile number.');
+        }
+        final response = await supabase.auth.signUp(
+          phone: phone,
+          password: _passwordController.text,
+          data: {'display_name': _nameController.text.trim(), 'requested_role': 'requester'},
         );
-      }
-      final response = await supabase.auth.signUp(
-        email: identifier,
-        password: _passwordController.text,
-        emailRedirectTo: redirectUrl,
-        data: {
-          'display_name': _nameController.text.trim(),
-        },
-      );
-
-      if (response.session == null) {
-        showMessage(
-          'Registration request submitted. Check your inbox and spam folder for the confirmation email. After confirming, sign in here with your registered email address and password.',
-          success: true,
-        );
+        _pendingOtpPhone = phone;
+        _pendingOtpEmail = null;
+        isPhoneSignupOtp = true;
+        if (response.session == null) {
+          _otpController.clear();
+          setState(() => otpSent = true);
+          _startOtpResendCountdown();
+          showMessage('A six-digit SMS verification code has been requested. Enter it to activate your Citizen account.', success: true);
+        } else {
+          showMessage('Your Citizen account has been created and verified.', success: true);
+        }
       } else {
-        showMessage(
-          'Your account has been created successfully.',
-          success: true,
+        final email = identifier.trim().toLowerCase();
+        if (!email.contains('.') || email.contains(' ')) throw const AuthException('Enter a valid email address or mobile number.');
+        final response = await supabase.auth.signUp(
+          email: email,
+          password: _passwordController.text,
+          emailRedirectTo: redirectUrl,
+          data: {'display_name': _nameController.text.trim(), 'requested_role': 'requester'},
         );
+        isPhoneSignupOtp = false;
+        if (response.session == null) {
+          showMessage('Registration request submitted. Check your inbox for the confirmation email, then sign in.', success: true);
+        } else {
+          showMessage('Your Citizen account has been created successfully.', success: true);
+        }
       }
     } on AuthException catch (authError) {
       showMessage(authError.message);
@@ -4826,14 +4859,14 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePasswordLogin
                                   ? 'Registered email, mobile number or staff ID'
                                   : 'Registered email address'))
-                          : 'Email address',
+                          : 'Email address or mobile number',
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
                                   ? 'name@example.com, mobile number or staff ID'
                                   : 'name@example.com or staff ID 9013'))
-                          : 'name@example.com',
+                          : 'name@example.com or +91 9876543210',
                       prefixIcon: Icon(
                         isLogin
                             ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
@@ -4857,14 +4890,15 @@ class _AuthPageState extends State<AuthPage> {
                     validator: (value) {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
-                        return input.contains('@') && input.contains('.')
-                            ? null : 'Enter a valid email address';
+                        if (input.contains('@')) return input.contains('.') && !input.contains(' ') ? null : 'Enter a valid email address';
+                        final phone = _normalisePhoneForAuth(input);
+                        return phone.startsWith('+') && phone.length >= 9 && phone.length <= 16 ? null : 'Enter a valid email address or mobile number';
                       }
                       return _validateLoginIdentifier(value);
                     },
                   ),
 
-                  if (isLogin && otpSent) ...[
+                  if (otpSent) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _otpController,
@@ -4899,7 +4933,7 @@ class _AuthPageState extends State<AuthPage> {
                           child: TextButton.icon(
                             onPressed: loading || otpResendSeconds > 0
                                 ? null
-                                : sendLoginOtp,
+                                : resendCurrentOtp,
                             icon: const Icon(Icons.refresh_rounded, size: 17),
                             label: Text(
                               otpResendSeconds > 0
