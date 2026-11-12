@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart' show rootBundle, FilteringTextInputFormatter, LengthLimitingTextInputFormatter;
 import 'package:supabase_flutter/supabase_flutter.dart';
