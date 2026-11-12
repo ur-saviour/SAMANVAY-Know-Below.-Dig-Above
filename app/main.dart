@@ -5547,6 +5547,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                 const SizedBox(height: 5),
                 Text('Manual demo note only · no GPS fix or photo evidence was captured.', style: TextStyle(color: mutedInk, fontSize: 9)),
               ],
+              finalDemoEvidenceSection(item),
               const SizedBox(height: 10),
               Text(
                 'Session history: ' + (timeline.isEmpty ? 'No additional actions recorded.' : timeline.join(' → ')),
@@ -5564,6 +5565,36 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
         ],
       ),
+    );
+  }
+
+  Widget finalDemoEvidenceSection(Map<String, dynamic> item) {
+    final rows = ((item['demoEvidence'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        Text('DEMO EVIDENCE REGISTER', style: TextStyle(color: teal, fontSize: 10, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        ...rows.map((row) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text((row['kind'] ?? 'Evidence').toString(), style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 11)),
+              Text('Reference: ' + (row['reference'] ?? 'Not assigned').toString(), style: TextStyle(color: mutedInk, fontSize: 9)),
+              Text((row['description'] ?? '').toString(), style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              Text('Recorded by ' + (row['recorded_by'] ?? 'Demo user').toString() + ' · ' + (row['recorded_at'] ?? '').toString(),
+                style: TextStyle(color: mutedInk, fontSize: 8)),
+            ],
+          ),
+        )),
+        Text('Synthetic register entries only · no files were uploaded or verified.',
+          style: TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+      ],
     );
   }
 
@@ -5872,6 +5903,114 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     _record(item['id'].toString() + ' simulated field inspection saved');
   }
 
+  Future<void> _recordDemoEvidence(Map<String, dynamic> item) async {
+    final referenceController = TextEditingController();
+    final descriptionController = TextEditingController();
+    const kinds = <String>[
+      'Site photograph reference',
+      'Inspection video reference',
+      'Work log entry',
+      'Restoration checklist',
+      'Site sketch reference',
+    ];
+    var kind = kinds.first;
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Add evidence to demo case'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Case: ' + item['id'].toString()),
+                const SizedBox(height: 9),
+                DropdownButtonFormField<String>(
+                  initialValue: kind,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Evidence type'),
+                  items: kinds.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => kind = value);
+                  },
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: referenceController,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: 'Evidence reference (optional)',
+                    hintText: 'Example: PHOTO-DEMO-001',
+                  ),
+                ),
+                const SizedBox(height: 7),
+                TextField(
+                  controller: descriptionController,
+                  maxLength: 400,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Evidence description',
+                    hintText: 'Describe what this sample evidence is intended to show.',
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text('DEMO METADATA ONLY. This saves a sample evidence-register entry in this screen session. It does not upload, store or verify a photograph, video or document.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (descriptionController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter an evidence description.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'kind': kind,
+                  'reference': referenceController.text.trim(),
+                  'description': descriptionController.text.trim(),
+                });
+              },
+              child: const Text('Save demo evidence entry'),
+            ),
+          ],
+        ),
+      ),
+    );
+    referenceController.dispose();
+    descriptionController.dispose();
+    if (!mounted || result == null) return;
+
+    final recordedAt = DateTime.now().toIso8601String();
+    final existing = (item['demoEvidence'] as List?) ?? const [];
+    final records = existing
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final generatedReference = 'DEMO-EVD-' +
+        item['id'].toString().replaceAll(RegExp(r'[^A-Za-z0-9]'), '') +
+        '-' + (records.length + 1).toString().padLeft(2, '0');
+    final reference = (result['reference'] ?? '').trim();
+    records.insert(0, <String, dynamic>{
+      'kind': result['kind'],
+      'reference': reference.isEmpty ? generatedReference : reference,
+      'description': result['description'],
+      'recorded_at': recordedAt,
+      'recorded_by': _roleTitle,
+      'record_type': 'SIMULATED · METADATA ONLY',
+    });
+    setState(() {
+      item['demoEvidence'] = records;
+      _appendCaseEvent(item, 'Evidence-register entry added: ' + (result['kind'] ?? 'Evidence'));
+    });
+    _record(item['id'].toString() + ' demo evidence-register entry added');
+  }
+
   Widget _caseCard(Map<String, dynamic> item) {
     final isOfficer = _activeRole == 'department';
     final isCoordinator = _activeRole == 'coordinator';
@@ -5921,6 +6060,11 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                     onPressed: () => _recordDemoInspection(item),
                     icon: const Icon(Icons.fact_check_outlined, size: 15),
                     label: const Text('Field inspection'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _recordDemoEvidence(item),
+                    icon: const Icon(Icons.attach_file_rounded, size: 15),
+                    label: const Text('Evidence log'),
                   ),
                 ],
                 if (isCoordinator)
