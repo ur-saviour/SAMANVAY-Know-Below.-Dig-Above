@@ -12859,8 +12859,12 @@ class _MapPageState extends State<MapPage> {
                   : ' · imported, verification pending';
               final sourceDate = (row['source_updated_at'] ?? '').toString().trim();
               final datedSuffix = sourceDate.isEmpty ? '' : ' · report ' + sourceDate;
+              final sourceSystem = (row['source_system'] ?? '').toString();
+              final sourceSuffix = sourceSystem.startsWith('Datameet')
+                  ? ' · 2019 reference only'
+                  : '';
               return name + (code.isEmpty ? '' : ' · LGD ' + code) +
-                  suffix + datedSuffix;
+                  suffix + datedSuffix + sourceSuffix;
             }
 
             Future<void> loadDistricts(String selectedId) async {
@@ -12877,7 +12881,7 @@ class _MapPageState extends State<MapPage> {
                 directoryMessage = '';
               });
               try {
-                final rows = await supabase
+                var rows = await supabase
                     .from('india_administrative_units')
                     .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                     .eq('state_ut_id', selectedId)
@@ -12887,13 +12891,32 @@ class _MapPageState extends State<MapPage> {
                     .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(1000);
+                // Use the 2019 community reference names only as a map-navigation
+                // fallback when no LGD district rows exist for this State/UT.
+                // This source is never substituted into permit or conflict checks.
+                if (rows.isEmpty) {
+                  rows = await supabase
+                      .from('india_administrative_units')
+                      .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                      .eq('state_ut_id', selectedId)
+                      .eq('unit_type', 'district')
+                      .eq('source_system', 'Datameet India District Boundaries — 2019 reference (MIT-licensed repository)')
+                      .eq('is_active', true)
+                      .eq('verification_status', 'imported_unverified')
+                      .order('name')
+                      .limit(1000);
+                }
                 if (!sheetContext.mounted) return;
                 setSheetState(() {
                   districts = List<Map<String, dynamic>>.from(rows);
                   loadingDistricts = false;
                   if (districts.isEmpty) {
                     directoryMessage =
-                        'No official district rows are imported for this State/UT yet. State-level map search is still available.';
+                        'No district reference rows are available for this State/UT yet. State-level map search is still available.';
+                  } else if (districts.any((row) =>
+                      (row['source_system'] ?? '').toString().startsWith('Datameet'))) {
+                    directoryMessage =
+                        'Showing 2019 community reference district names for map navigation only. These are not current LGD records, carry no LGD codes, and must not be used as statutory or utility-clearance evidence.';
                   }
                 });
               } catch (_) {
