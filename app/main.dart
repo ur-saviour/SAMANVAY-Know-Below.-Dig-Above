@@ -6729,6 +6729,25 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
           Text((notice['city'] ?? '').toString() + ' · ' + (notice['responsible_department_name'] ?? 'Department not listed').toString(),
             style:  TextStyle(color: mutedInk, fontSize: 10)),
+          if (['highway department', 'roads & highways'].contains(
+            (notice['responsible_department_name'] ?? '').toString().trim().toLowerCase()))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(spacing: 5, runSpacing: 5, children: [
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.campaign_outlined, size: 14),
+                  label: const Text('CITIZEN ALERTS'),
+                  labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.account_balance_outlined, size: 14),
+                  label: const Text('MUNICIPAL ALERTS'),
+                  labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+              ]),
+            ),
           Text('Source: ' + (notice['source_reference'] ?? 'Not yet recorded').toString(),
             style:  TextStyle(color: mutedInk, fontSize: 9)),
           Align(alignment: Alignment.centerRight, child: TextButton.icon(
