@@ -54,7 +54,7 @@ jobs:
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.4'
+          flutter-version: '3.38.0'
           cache: true
 
       # 4. Generate Android project
@@ -260,7 +260,6 @@ jobs:
           flutter pub add http
           flutter pub add crypto:3.0.8
           flutter pub add shared_preferences
-          flutter pub add material_ui
           # Flutter 3.50 moved Material widgets into the standalone package.
           python3 - <<'PY'
           from pathlib import Path
