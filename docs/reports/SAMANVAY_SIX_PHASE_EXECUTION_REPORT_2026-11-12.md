@@ -67,6 +67,7 @@ For the row-level audit, source hashes, import batch IDs, polygon validity check
 - Multi-domain work request categories and department routing suggestions exist.
 - Department review, coordinator checks, status history and protected RPC-based status changes exist.
 - Road-cut permit, deadline/compliance, schedule advisory, drainage inspection and road-restoration quality-gate schemas/functions are present.
+- The joint-work proposal workflow is now deployed: proposal, department-response and event-history tables; participant-scoped RLS; and role-gated create/respond/finalise RPCs. The existing browser/mobile coordination page now has its expected live backend.
 
 ### Live operational data
 - Excavation requests: 4 rows.
@@ -77,6 +78,7 @@ For the row-level audit, source hashes, import batch IDs, polygon validity check
 - Road-restoration records: 0 rows.
 - Drainage inspection records: 0 rows.
 - Public excavation notices: 1 draft row; notice events: 0 rows.
+- Joint-work proposals/responses/events: 0 persistent rows after the rollback-only end-to-end regression test.
 
 The existence of a request or review row does not establish statutory authorisation or prove a live joint-work agreement. A draft notice is not a published public notice.
 
@@ -85,8 +87,14 @@ The prior `public.assign_request_department` function inserted a new review row 
 
 A live database test ran as an authenticated administrator against an already-assigned request inside a transaction. The function returned the same ID as the stored review row (`returns_existing_assignment = true`); the matching row count remained one, and the test transaction was rolled back.
 
+### Joint-work proposal migration and verification
+
+Migration `20261112112501_add_joint_work_proposal_workflow.sql` was applied to the connected Supabase project and synchronised to the repository using the applied ledger version. It creates the proposal, department-response and event-history tables; participant read policies; and three RPCs for coordinator creation, department response and coordinator finalisation. The functions enforce role and state transitions, require distinct participating departments, prevent duplicate active case pairs and require all responses before scheduling.
+
+A rollback-only authenticated regression test used two existing assigned department-review records. A coordinator created a proposal; the participating department account accepted each department response in turn; and the coordinator finalised a shared schedule. The observed result was `scheduled`, 2 response rows, 2 accepted responses and 4 event-history rows. The entire transaction was rolled back; no real proposal or operational schedule was created.
+
 ### Phase status
-**Workflow foundation:** present; duplicate-assignment failure fixed and transaction-tested.  
+**Workflow foundation:** present; duplicate-assignment failure fixed and transaction-tested; joint-work backend deployed and rollback-tested.  
 **Operational status:** incomplete until participating authorities exercise the permit, acknowledgement, rejection, escalation, joint-work and emergency-exception paths against authorised cases and statutory rules.
 
 ## Phase 4 — Field verification
@@ -95,13 +103,17 @@ A live database test ran as an authenticated administrator against an already-as
 - Private asset-evidence upload and registration paths are present.
 - Evidence access is restricted by role and ownership; survey evidence acceptance is separated from geometry verification.
 - Road restoration and drainage inspection records have structured QA fields and database checks.
+- Case inspections now support device-reported GPS coordinates, timestamp and horizontal accuracy, with coordinate-range and capture-state checks.
+- Private site-photo evidence can be linked to an inspection and stores capture time, optional GPS metadata and a SHA-256 byte-integrity hash.
+- The Case Workspace inspection form now offers optional GPS capture and camera photo capture; Android/browser workflows install the required Geolocator and Image Picker packages. GPS and camera permissions are requested at runtime where applicable.
+- Case-attachment RLS requires the authenticated uploader, request-scoped storage path and a matching inspection owned by the submitting staff member when an inspection link is supplied.
 
 ### Live operational status
-There are currently **0 registered GIS survey-evidence rows** and **0 operational restoration / drainage inspection rows**. No field survey or post-restoration acceptance is evidenced by the current database snapshot.
+There are currently **0 case inspection rows**, **0 registered GIS survey-evidence rows**, **0 road-restoration records** and **0 drainage-inspection records**. The case-attachment table has 1 pre-existing row; no new evidence was persisted by the tests. The Phase 4 GPS/photo flow passed a rollback-only database RLS test, but no physical-device camera/GPS capture has yet been performed.
 
 ### Phase status
-**Software foundation:** present.  
-**Operational status:** incomplete until a department/contractor team performs field capture, records source drawings and positional confidence, uploads evidence, reports discrepancies, and completes authorised restoration inspections. Offline behaviour and real GPS/photo capture still require device testing.
+**Software foundation:** present; geotagged inspection schema deployed, private photo-link policy and UI capture path implemented.  
+**Operational status:** incomplete until physical Android/browser GPS and camera behaviour is tested and a department/contractor team performs field capture, records source drawings and positional confidence, uploads genuine evidence, reports discrepancies, and completes authorised restoration inspections. Offline behaviour remains untested.
 
 ## Phase 5 — Controlled pilot
 
@@ -151,8 +163,8 @@ The application must be revalidated after this patch on a physical Android devic
 |---|---|---|
 | 1. Evidence and code audit | Vector branding, OTP UI correction, image decode checks; Android + browser CI passed | Physical-device login, role, map, GPS and media validation remains |
 | 2. GIS and conflict detection | 784 districts, 7,092 sub-districts, 7,312 blocks, 733 generalized district polygons, groundwater reference and role-restricted GIS code | Blocked by 0 owner-authorised underground assets, 0 survey evidence, incomplete ULB/ward/village hierarchy, stale mirror snapshot and pending device/field validation |
-| 3. Permits and coordination | Workflow/RPC foundations present; idempotent assignment RPC fixed and verified | Blocked by 0 live permits/restoration/inspection records and authority validation |
-| 4. Field verification | Upload and inspection foundations present | Blocked by field capture, authorised evidence and device verification |
+| 3. Permits and coordination | Workflow/RPC foundations present; joint-work proposal backend deployed and rollback-tested; idempotent assignment RPC fixed | Blocked by 0 live joint-work proposals, permits, restoration records and authority validation |
+| 4. Field verification | Device-GPS inspection metadata, private photo linkage and hash capture implemented; rollback-only RLS test passed | Blocked by 0 live inspections/asset survey evidence, physical-device testing and owner-authorised field data |
 | 5. Controlled pilot | Pilot protocol and KPIs specified | Not run; no authorised cohort or measured baseline |
 | 6. Integration and expansion | 36 State/UTs; LGD mirror hierarchy and district reference polygons imported | Blocked by missing ULB/ward/village records, current authority refresh, agreements and tested integrations |
 
