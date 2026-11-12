@@ -12860,7 +12860,7 @@ class _MapPageState extends State<MapPage> {
               final sourceDate = (row['source_updated_at'] ?? '').toString().trim();
               final datedSuffix = sourceDate.isEmpty ? '' : ' · report ' + sourceDate;
               final sourceSystem = (row['source_system'] ?? '').toString();
-              final sourceSuffix = sourceSystem.startsWith('Datameet')
+              final sourceSuffix = sourceSystem.startsWith('DataMeet')
                   ? ' · 2019 reference only'
                   : '';
               return name + (code.isEmpty ? '' : ' · LGD ' + code) +
@@ -12891,7 +12891,7 @@ class _MapPageState extends State<MapPage> {
                     .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
                     .order('name')
                     .limit(1000);
-                // Use the 2019 community reference names only as a map-navigation
+                // Use the pinned national DataMeet reference names only as a map-navigation
                 // fallback when no LGD district rows exist for this State/UT.
                 // This source is never substituted into permit or conflict checks.
                 if (rows.isEmpty) {
@@ -12900,7 +12900,7 @@ class _MapPageState extends State<MapPage> {
                       .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                       .eq('state_ut_id', selectedId)
                       .eq('unit_type', 'district')
-                      .eq('source_system', 'Datameet India District Boundaries — 2019 reference (MIT-licensed repository)')
+                      .eq('source_system', 'DataMeet India district boundaries via guneetnarula/indian-district-boundaries')
                       .eq('is_active', true)
                       .eq('verification_status', 'imported_unverified')
                       .order('name')
@@ -12916,7 +12916,7 @@ class _MapPageState extends State<MapPage> {
                   } else if (districts.any((row) =>
                       (row['source_system'] ?? '').toString().startsWith('Datameet'))) {
                     directoryMessage =
-                        'Showing 2019 community reference district names for map navigation only. These are not current LGD records, carry no LGD codes, and must not be used as statutory or utility-clearance evidence.';
+                        'Showing the DataMeet national district reference snapshot for map navigation only. Feature vintages vary; these are not current LGD records, carry no LGD codes, and must not be used as statutory or utility-clearance evidence.';
                   }
                 });
               } catch (_) {
