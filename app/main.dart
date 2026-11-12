@@ -15674,6 +15674,18 @@ class _MapPageState extends State<MapPage> {
   Future<void> _loadGroundwaterTelemetryStations() async {
     final controller = _controller;
     if (controller == null || !_styleReady) return;
+    if (supabase.auth.currentUser == null) {
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = 0;
+          _groundwaterFreshnessLabel = 'Sign in to view historical station readings';
+          _groundwaterArchiveLatestObservation = 'Guest access not enabled';
+          _groundwaterLatestAgency = 'NWIC historical archive';
+          _groundwaterStationDetails.clear();
+        });
+      }
+      return;
+    }
 
     try {
       final bounds = await controller.getVisibleRegion();
@@ -16863,9 +16875,11 @@ class _MapPageState extends State<MapPage> {
                             icon: Icons.water_drop_outlined,
                             title: 'GROUNDWATER',
                             color: const Color(0xFFA78BFA),
-                            detail: _groundwaterReadinessLoaded
-                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · viewport timestamp: $_groundwaterFreshnessLabel · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical archive, not live telemetry · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
-                                : 'Coverage summary unavailable; station layer remains independently controlled.',
+                            detail: supabase.auth.currentUser == null
+                                ? 'Historical station readings are available to signed-in Citizens and staff only. This archive is not live telemetry; public coverage metadata remains visible.'
+                                : _groundwaterReadinessLoaded
+                                    ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · viewport timestamp: $_groundwaterFreshnessLabel · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical archive, not live telemetry · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                    : 'Coverage summary unavailable; station layer remains independently controlled.',
                           ),
                           _readinessRow(
                             icon: Icons.account_balance_outlined,
@@ -17278,7 +17292,7 @@ class _MapPageState extends State<MapPage> {
       Row(children: [
         _desktopGisMetric('VISIBLE CASES', '$_requestMarkerCount', Icons.assignment_outlined, const Color(0xFF55D9CE)),
         const SizedBox(width: 7),
-        _desktopGisMetric('GROUNDWATER POINTS', '$_groundwaterStationCount', Icons.water_drop_outlined, const Color(0xFFA78BFA)),
+        _desktopGisMetric('GROUNDWATER POINTS', supabase.auth.currentUser == null ? 'Sign in' : '$_groundwaterStationCount', Icons.water_drop_outlined, const Color(0xFFA78BFA)),
       ]),
       const SizedBox(height: 7),
       Row(children: [
@@ -17301,7 +17315,7 @@ class _MapPageState extends State<MapPage> {
           detail: 'Visible cases permitted for this account', value: _showRequests,
           onChanged: (value) => _toggleRequests(value)),
         _desktopGisLayerToggle(title: 'Groundwater monitoring archive',
-          detail: '2021–2025 source archive · latest observation: $_groundwaterArchiveLatestObservation · not live telemetry', value: _showGroundwaterTelemetry,
+          detail: supabase.auth.currentUser == null ? 'Sign in to view 2021–2025 historical station readings · not live telemetry' : '2021–2025 source archive · latest observation: $_groundwaterArchiveLatestObservation · not live telemetry', value: _showGroundwaterTelemetry,
           onChanged: (value) => _toggleGroundwaterTelemetry(value)),
         _desktopGisLayerToggle(title: 'India State / UT boundaries',
           detail: 'Vintage $_indiaStateBoundaryVintage · source update $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · non-statutory reference', value: _showIndiaStateBoundaries,
