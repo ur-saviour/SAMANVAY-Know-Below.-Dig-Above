@@ -161,3 +161,19 @@ Three GIS-related callable routines were inspected directly:
 - `is_department_assigned_to_request` returns true only when the authenticated profile is a Department Officer and that department has a review assignment for the supplied request.
 
 These controls reduce the immediate risk indicated by the generic advisor warning, but they do not replace an end-to-end API test with separate Citizen, Officer, Coordinator and Administrator sessions. The live GIS asset table currently has no verified assets, so geometry confidentiality and rendering still require a populated, authorised test fixture before production acceptance.
+
+## Latest release verification — Android build completed
+
+The Android workflow previously reported as running has now completed successfully:
+
+- Android run [43294840781](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840781) — **success** on app source commit `f7e06f5b64371e0533c6a11f705298d5739f30ef`.
+- All build, APK preparation, package/signature/alignment verification, upload and release-publication steps passed.
+- Workflow artifact: [SAMANVAY-Alpha-0.3-APK](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13978988174/zip), 44,786,056 bytes, SHA-256 `3b05987f7f9feb2d8e52ce8332821feff0f4b95db29ede53fdab4e6609177722`.
+- Updated ARM64 APK: [download](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/releases/download/samanvay-alpha-0.3/SAMANVAY-Alpha-0.3-arm64-v8a.apk), 33,824,275 bytes, SHA-256 `9d8794cd8b9e91a0f262fe20abc2a08f4e852f8f4089420b2d8ed91f89ac6967`.
+- Updated ARMv7 APK: [download](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/releases/download/samanvay-alpha-0.3/SAMANVAY-Alpha-0.3-armeabi-v7a.apk), 28,913,277 bytes, SHA-256 `0a5c8fa9caed3c7bdb9c38c98bc2cbaabf09a3d377f1a3f8e03e12b251f6d1d1`.
+- Updated x86_64 APK: [download](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/releases/download/samanvay-alpha-0.3/SAMANVAY-Alpha-0.3-x86_64.apk), 35,610,484 bytes, SHA-256 `8f8812b50692956d34a145926946750ad4c0b467e76c6b9dad5cd44a28cdb02e`.
+- The browser portal build [43294840751](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840751) also remains successful on the same app source commit.
+
+The release is CI-verified, not yet device-accepted. Installation, sign-in, role navigation, map tile loading, GPS, uploads and notifications still need a physical Android smoke test. The documentation-only audit commits after the app source commit do not change the APK contents.
+
+The completion estimate is now **75%**: the latest Android release has passed its full automated build and package verification. The remaining 25% is not treated as complete until device acceptance, archive validation, authorised GIS data and end-to-end lifecycle checks are evidenced.
