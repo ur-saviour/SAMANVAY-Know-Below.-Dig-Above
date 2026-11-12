@@ -110,7 +110,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 ## 10. Release acceptance gates
 
 - [x] Static analysis passes with no errors on the latest map integration commit (Android and browser CI analyzers).
-- [ ] Release APK builds and passes package/signature integrity diagnostics.
+- [x] Alpha 0.3 Android release APKs build and pass package/signature/alignment diagnostics (run `43299842122`; ARM64, ARMv7 and x86_64 assets published).
 - [ ] Runtime smoke tests pass on a real Android device for sign-in, GPS permissions, map load, map search, 2D/3D, layer toggles, request submission and upload.
 - [ ] Role tests confirm requester, department, coordinator and admin boundaries.
 - [ ] Negative security tests prove requester/public users cannot retrieve exact underground geometries or survey evidence.
@@ -124,7 +124,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 ## Additional browser-portal target
 
 - [x] Dedicated GitHub Actions workflow to compile the Flutter app for the browser and package a static deployment artifact.
-- [ ] Browser build must pass analysis and production compilation.
+- [x] Browser build passes Dart analysis, production compilation, GIS asset smoke tests, packaging and artifact upload (run `43298587461`).
 - [ ] Validate role-based login, GIS interaction, responsive layout, file upload and redirect URLs in a real WebGL2 browser.
 - [ ] Deploy the static bundle to an approved HTTPS host and configure Supabase Auth redirect allow-lists for the production domain.
 - [ ] Browser portal is the desktop operations target; MapLibre Flutter does not provide native Windows/macOS/Linux desktop targets.
@@ -426,3 +426,21 @@ The browser release pipeline has completed end-to-end, including compiled bundle
 - [ ] Physical-device installation and runtime acceptance remain outstanding.
 
 No completion percentage increase is recorded for this CI retry.
+
+
+## 27. Alpha 0.3 release CI close-out — 13 November 2026
+
+- [x] Android release workflow `43299842122` completed successfully on source commit `e5dc6a24bdae20aa43bcfa8db5d4f7d4468c4a44`.
+- [x] All Android release job steps passed: 25 source-contract checks, generated Android package validation, Flutter dependency installation, Dart analysis, release compilation, ABI packaging, package/signature/alignment verification, artifact upload and prerelease publication.
+- [x] Published ARM64 APK SHA-256: `05b3a7870cad6bf99b2ee1385e3cb084f8015e69519d736a64a88c5579d1fbf5`.
+- [x] Published ARMv7 APK SHA-256: `cedf132527ce049ad175838748e1d5647a5905458482fa284d58fb42522f4ad2`.
+- [x] Published x86_64 APK SHA-256: `271d4424091a72a6beaa9388c33338c783d099d435dd81e64e206e14ea57fce2`.
+- [x] Browser portal workflow `43298587461` completed successfully: contract checks, Dart analysis, production compilation, GIS asset smoke tests, ZIP packaging and artifact upload.
+- [ ] Physical Android installation and runtime acceptance: sign-in, role navigation, GPS, map tiles/search, 2D/3D, layer toggles, request submission, camera and private evidence upload.
+- [ ] Authenticated end-to-end role-boundary tests across Citizen, Department Officer, Coordinator and Administrator sessions.
+- [ ] Browser HTTPS/WebGL runtime acceptance, including auth redirects, role-specific navigation, GIS interaction and evidence upload.
+- [ ] Verify real operational lifecycle transactions and notifications; local demo previews and rollback-only database tests do not count as live workflow acceptance.
+- [ ] Authority-approved underground utility geometry and survey evidence remain external data dependencies. The live registry previously audited contained zero asset records and zero survey-evidence records; empty coverage must not be interpreted as excavation clearance.
+- [ ] AI service runtime remains dependent on approved model configuration and a valid secret in Supabase; no AI capability is credited as live until tested.
+
+**Release status:** Alpha 0.3 Android and browser CI packaging is complete and published. The project is not 100% accepted because physical-device, authenticated end-to-end and data-owner acceptance gates remain open. This release is an integrated prototype, not a production-certified civic infrastructure platform.
