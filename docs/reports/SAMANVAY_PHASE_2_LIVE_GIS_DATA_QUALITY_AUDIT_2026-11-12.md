@@ -177,3 +177,13 @@ All tests ran as the `authenticated` database role with controlled JWT subject c
 | Citizen | generalised 250 m GIS overview | Allowed; empty FeatureCollection |
 
 The six Citizen negative checks passed; the positive calls returned the expected role-specific shape. No write operation succeeded and no test data was retained. Because `gis.underground_assets` and `gis.asset_survey_evidence` still contain zero rows, these are function/role-gate smoke tests, not a positive-data row-visibility test and not a production penetration test.
+
+## 21. National GIS default and local reference-layer isolation — 12 November 2026
+
+- [x] Default GIS camera opens over India (fallback centre 22.5° N, 79.0° E) when no local map context is supplied.
+- [x] Keep the national region presets for All India, North, Northeast, East, Central, West, South, Andaman and Nicobar, and Lakshadweep.
+- [x] Change the Coimbatore 2024 ward reference layer to opt-in, not auto-loaded. Its label explicitly says it is Coimbatore-only and is neither national nor statutory coverage.
+- [x] Preserve the ward reference data and user-controlled toggle; the change only prevents it from appearing by default.
+- [ ] Validate camera navigation, map layers and the ward toggle on Android and browser after CI completes.
+
+**Implementation:** `app/main.dart` commit `21a0ee5d2570e1e337ad34c54d8824f86e26e748`. The Android and browser workflow runs for this commit are in progress; Dart analysis passed in both workflows before release compilation.
