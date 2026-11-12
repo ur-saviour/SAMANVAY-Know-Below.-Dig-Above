@@ -238,6 +238,9 @@ jobs:
           test -s lib/public_transparency_dashboard_page.dart
           test -s lib/samanvay_ai_chat_page.dart
 
+      - name: Validate generated Android package
+        run: python3 scripts/validate_android_package.py
+
       # 5. Install dependencies
       - name: Install Flutter dependencies
         run: |
@@ -318,6 +321,14 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
         run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Required Supabase public configuration is missing."
+            exit 1
+          fi
+          case "$SUPABASE_URL" in
+            https://*) ;;
+            *) echo "SUPABASE_URL must use HTTPS."; exit 1 ;;
+          esac
           flutter build apk --release --split-per-abi \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
