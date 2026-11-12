@@ -8881,6 +8881,16 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
               .map((entry) => _metric(entry.value, counts[entry.key].toString(), Icons.location_city_outlined))
               .toList()),
           const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const IndiaAdministrativeHierarchyPage(),
+              )),
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('BROWSE DISTRICT / SUB-DISTRICT / BLOCK DIRECTORY'),
+            ),
+          ),
            Text(
             'Required source: Ministry of Panchayati Raj Local Government Directory (LGD). Its bulk report generator requires a CAPTCHA. Upload an authority-generated report with its LGD codes and report date; do not treat manually typed names as verified records.',
             style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
@@ -9165,6 +9175,380 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
 }
 
 
+
+class IndiaAdministrativeHierarchyPage extends StatefulWidget {
+  const IndiaAdministrativeHierarchyPage({super.key});
+
+  @override
+  State<IndiaAdministrativeHierarchyPage> createState() =>
+      _IndiaAdministrativeHierarchyPageState();
+}
+
+class _IndiaAdministrativeHierarchyPageState
+    extends State<IndiaAdministrativeHierarchyPage> {
+  static const int _pageSize = 500;
+
+  List<Map<String, dynamic>> states = [];
+  List<Map<String, dynamic>> districts = [];
+  List<Map<String, dynamic>> subDistricts = [];
+  List<Map<String, dynamic>> blocks = [];
+
+  String? selectedStateId;
+  String? selectedDistrictId;
+  String districtSearch = '';
+  bool loadingStates = true;
+  bool loadingDistricts = false;
+  bool loadingChildren = false;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStates();
+  }
+
+  Future<void> _loadStates() async {
+    if (!mounted) return;
+    setState(() {
+      loadingStates = true;
+      errorMessage = '';
+    });
+    try {
+      final rows = await supabase
+          .from('india_state_uts')
+          .select('id,name,jurisdiction_type')
+          .order('name')
+          .limit(100);
+      if (!mounted) return;
+      setState(() {
+        states = List<Map<String, dynamic>>.from(rows);
+        loadingStates = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingStates = false;
+        errorMessage = 'State and Union Territory records could not be loaded.';
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchUnits({
+    required String unitType,
+    String? stateId,
+    String? parentId,
+  }) async {
+    final rows = <Map<String, dynamic>>[];
+    var offset = 0;
+    while (true) {
+      final List<dynamic> page;
+      if (parentId != null) {
+        page = await supabase
+            .from('india_administrative_units')
+            .select('id,unit_type,lgd_code,name,parent_unit_id,state_ut_id,source_system,source_updated_at,source_vintage,verification_status')
+            .eq('unit_type', unitType)
+            .eq('is_active', true)
+            .not('lgd_code', 'is', null)
+            .eq('parent_unit_id', parentId)
+            .order('name')
+            .order('lgd_code')
+            .range(offset, offset + _pageSize - 1);
+      } else if (stateId != null) {
+        page = await supabase
+            .from('india_administrative_units')
+            .select('id,unit_type,lgd_code,name,parent_unit_id,state_ut_id,source_system,source_updated_at,source_vintage,verification_status')
+            .eq('unit_type', unitType)
+            .eq('is_active', true)
+            .not('lgd_code', 'is', null)
+            .eq('state_ut_id', stateId)
+            .order('name')
+            .order('lgd_code')
+            .range(offset, offset + _pageSize - 1);
+      } else {
+        throw ArgumentError('A State / UT or parent unit is required.');
+      }
+
+      rows.addAll(page.map((row) => Map<String, dynamic>.from(row as Map)));
+      if (page.length < _pageSize) break;
+      offset += _pageSize;
+    }
+    return rows;
+  }
+
+  Future<void> _selectState(String? stateId) async {
+    if (stateId == null) return;
+    setState(() {
+      selectedStateId = stateId;
+      selectedDistrictId = null;
+      districts = [];
+      subDistricts = [];
+      blocks = [];
+      districtSearch = '';
+      loadingDistricts = true;
+      loadingChildren = false;
+      errorMessage = '';
+    });
+    try {
+      final rows = await _fetchUnits(unitType: 'district', stateId: stateId);
+      if (!mounted) return;
+      setState(() {
+        districts = rows;
+        loadingDistricts = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingDistricts = false;
+        errorMessage = 'District records could not be loaded for this jurisdiction.';
+      });
+    }
+  }
+
+  Future<void> _selectDistrict(String districtId) async {
+    setState(() {
+      selectedDistrictId = districtId;
+      subDistricts = [];
+      blocks = [];
+      loadingChildren = true;
+      errorMessage = '';
+    });
+    try {
+      // The imported source links both unit types to the district. It does not
+      // provide a validated block-to-sub-district parent relationship.
+      final results = await Future.wait([
+        _fetchUnits(unitType: 'sub_district', parentId: districtId),
+        _fetchUnits(unitType: 'block', parentId: districtId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        subDistricts = results[0];
+        blocks = results[1];
+        loadingChildren = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingChildren = false;
+        errorMessage = 'Sub-district and block records could not be loaded.';
+      });
+    }
+  }
+
+  Widget _recordTile(Map<String, dynamic> row) {
+    final name = (row['name'] ?? 'Unnamed administrative unit').toString();
+    final code = (row['lgd_code'] ?? '').toString();
+    final source = (row['source_system'] ?? 'Imported source not stated').toString();
+    final status = (row['verification_status'] ?? 'unverified').toString();
+    final sourceDate = row['source_updated_at']?.toString();
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      leading: const Icon(Icons.location_city_outlined, color: teal, size: 19),
+      title: Text(name, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 12)),
+      subtitle: Text(
+        'LGD code: $code · $status · ${sourceDate == null ? 'source date not recorded' : 'source snapshot $sourceDate'}\n$source',
+        style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+      ),
+      isThreeLine: true,
+    );
+  }
+
+  Widget _unitSection(String title, List<Map<String, dynamic>> rows) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Text(title, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 13)),
+        subtitle: Text('${rows.length} imported row(s) · source verification pending',
+            style: TextStyle(color: mutedInk, fontSize: 10)),
+        children: rows.isEmpty
+            ? [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('No records are currently linked to this district.',
+                        style: TextStyle(color: mutedInk, fontSize: 11)),
+                  ),
+                ),
+              ]
+            : rows.map(_recordTile).toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredDistricts = districts.where((row) {
+      final name = (row['name'] ?? '').toString().toLowerCase();
+      final code = (row['lgd_code'] ?? '').toString().toLowerCase();
+      final query = districtSearch.trim().toLowerCase();
+      return query.isEmpty || name.contains(query) || code.contains(query);
+    }).toList();
+
+    final selectedState = states.where((row) => row['id'].toString() == selectedStateId);
+    final selectedStateName = selectedState.isEmpty
+        ? 'No State / UT selected'
+        : selectedState.first['name'].toString();
+    final selectedDistrict = districts.where((row) => row['id'].toString() == selectedDistrictId);
+    final selectedDistrictName = selectedDistrict.isEmpty
+        ? ''
+        : selectedDistrict.first['name'].toString();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('India administrative directory'),
+        actions: [
+          IconButton(
+            onPressed: loadingStates || loadingDistricts || loadingChildren ? null : _loadStates,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh directory',
+          ),
+        ],
+      ),
+      body: loadingStates
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadStates,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(14),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('REFERENCE DIRECTORY — NOT AUTHORITY VERIFIED',
+                              style: TextStyle(color: Color(0xFF8A5A00),
+                                  fontSize: 10, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 7),
+                          Text(
+                            'This browser uses active, LGD-code-bearing records from a 21 October 2026 community mirror of LGD data. Every imported row remains unverified. Confirm the latest directory and jurisdiction with the competent authority before relying on it.',
+                            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.45),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            'Select a State / UT, then a district. Sub-districts and blocks are shown as separate district-linked lists because the imported records do not establish a validated block-under-sub-district relationship.',
+                            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.45),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (errorMessage.isNotEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(errorMessage, style: const TextStyle(color: Colors.red, fontSize: 11)),
+                      ),
+                    ),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedStateId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'State / Union Territory',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: states.map((row) => DropdownMenuItem<String>(
+                      value: row['id'].toString(),
+                      child: Text(row['name'].toString(), overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: loadingDistricts ? null : _selectState,
+                  ),
+                  if (selectedStateId != null) ...[
+                    const SizedBox(height: 10),
+                    Text('$selectedStateName — ${districts.length} imported district record(s)',
+                        style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 7),
+                    TextField(
+                      onChanged: (value) => setState(() => districtSearch = value),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search district name or LGD code',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    if (loadingDistricts)
+                      const Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (filteredDistricts.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Text('No imported district record matches this State / UT and search.',
+                              style: TextStyle(color: mutedInk, fontSize: 11)),
+                        ),
+                      )
+                    else
+                      Card(
+                        child: Column(
+                          children: filteredDistricts.map((row) {
+                            final id = row['id'].toString();
+                            final selected = id == selectedDistrictId;
+                            return ListTile(
+                              dense: true,
+                              selected: selected,
+                              title: Text(row['name'].toString(),
+                                  style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 12)),
+                              subtitle: Text(
+                                'LGD code ${row['lgd_code']} · imported_unverified · source snapshot 2026-10-21',
+                                style: TextStyle(color: mutedInk, fontSize: 9),
+                              ),
+                              trailing: Icon(selected ? Icons.expand_less : Icons.chevron_right, color: teal),
+                              onTap: loadingChildren ? null : () => _selectDistrict(id),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    if (selectedDistrictId != null) ...[
+                      const SizedBox(height: 9),
+                      Text(selectedDistrictName,
+                          style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 14)),
+                      if (loadingChildren)
+                        const Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else ...[
+                        _unitSection('Sub-districts', subDistricts),
+                        _unitSection('Blocks', blocks),
+                      ],
+                    ],
+                  ],
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('ULBs, gram panchayats and wards',
+                              style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
+                          const SizedBox(height: 5),
+                          Text(
+                            'These unit types are not present in the currently imported national directory records. Their counts remain zero until a dated, authority-generated source file is supplied and validated.',
+                            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Directory names and codes are navigation references only. They do not certify statutory boundaries, asset ownership, utility routes, excavation permits or site safety.',
+                    style: TextStyle(color: mutedInk, fontSize: 9, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
 
 
 class IndiaNationalAuthorityDirectoryPage extends StatefulWidget {
