@@ -8780,9 +8780,6 @@ class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceIn
   @override
   void initState() {
     super.initState();
-    selectedRegion = regionOrder.contains(widget.initialRegion)
-        ? widget.initialRegion
-        : 'All India';
     _load();
   }
 
