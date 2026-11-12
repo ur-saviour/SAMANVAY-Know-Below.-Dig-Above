@@ -9199,6 +9199,8 @@ class _IndiaAdministrativeHierarchyPageState
   bool loadingStates = true;
   bool loadingDistricts = false;
   bool loadingChildren = false;
+  int _districtRequestVersion = 0;
+  int _childrenRequestVersion = 0;
   String errorMessage = '';
 
   @override
@@ -9277,6 +9279,8 @@ class _IndiaAdministrativeHierarchyPageState
 
   Future<void> _selectState(String? stateId) async {
     if (stateId == null) return;
+    final requestVersion = ++_districtRequestVersion;
+    ++_childrenRequestVersion;
     setState(() {
       selectedStateId = stateId;
       selectedDistrictId = null;
@@ -9290,13 +9294,13 @@ class _IndiaAdministrativeHierarchyPageState
     });
     try {
       final rows = await _fetchUnits(unitType: 'district', stateId: stateId);
-      if (!mounted) return;
+      if (!mounted || requestVersion != _districtRequestVersion) return;
       setState(() {
         districts = rows;
         loadingDistricts = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestVersion != _districtRequestVersion) return;
       setState(() {
         loadingDistricts = false;
         errorMessage = 'District records could not be loaded for this jurisdiction.';
@@ -9305,6 +9309,7 @@ class _IndiaAdministrativeHierarchyPageState
   }
 
   Future<void> _selectDistrict(String districtId) async {
+    final requestVersion = ++_childrenRequestVersion;
     setState(() {
       selectedDistrictId = districtId;
       subDistricts = [];
@@ -9319,14 +9324,14 @@ class _IndiaAdministrativeHierarchyPageState
         _fetchUnits(unitType: 'sub_district', parentId: districtId),
         _fetchUnits(unitType: 'block', parentId: districtId),
       ]);
-      if (!mounted) return;
+      if (!mounted || requestVersion != _childrenRequestVersion) return;
       setState(() {
         subDistricts = results[0];
         blocks = results[1];
         loadingChildren = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestVersion != _childrenRequestVersion) return;
       setState(() {
         loadingChildren = false;
         errorMessage = 'Sub-district and block records could not be loaded.';
@@ -9496,9 +9501,10 @@ class _IndiaAdministrativeHierarchyPageState
                               title: Text(row['name'].toString(),
                                   style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 12)),
                               subtitle: Text(
-                                'LGD code ${row['lgd_code']} · imported_unverified · source snapshot 2026-10-21',
-                                style: TextStyle(color: mutedInk, fontSize: 9),
+                                'LGD code ${row['lgd_code']} · ${row['verification_status']} · source date ${row['source_updated_at'] ?? 'not recorded'}\n${row['source_system'] ?? 'source not stated'}',
+                                style: TextStyle(color: mutedInk, fontSize: 9, height: 1.3),
                               ),
+                              isThreeLine: true,
                               trailing: Icon(selected ? Icons.expand_less : Icons.chevron_right, color: teal),
                               onTap: loadingChildren ? null : () => _selectDistrict(id),
                             );
