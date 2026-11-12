@@ -133,3 +133,21 @@ This sprint check makes no claim of 95% completion, production readiness or comp
 - Current Supabase security advisor still reports 16 authenticated `SECURITY DEFINER` warnings and 1 Auth leaked-password-protection warning. These warnings are recorded for review; no broad permission changes were made during this sprint.
 
 The completion estimate remains **74%**. A passing browser build and string / authorization checks improve confidence, but they do not replace live Android device acceptance, archive verification, verified utility geometry or real permit lifecycle records.
+
+## Database security and performance advisor recheck — 13 November 2026
+
+Read-only Supabase advisor and catalog inspection:
+
+- Security advisor: 16 authenticated-executable `SECURITY DEFINER` RPC warnings and 1 warning for disabled leaked-password protection.
+- Catalog inventory: 32 `SECURITY DEFINER` functions in `public`; all 32 have an explicit fixed `search_path`; 0 are executable by `anon`; 16 are executable by `authenticated`. All 16 authenticated-executable function bodies reference `auth.uid()`. This is a useful control signal, not a substitute for a complete per-function authorization review.
+- Previously tested role boundaries remain limited to the rollback-only cases documented above. No grants, function definitions, RLS policies or Auth settings were changed in this audit.
+- Performance advisor: 3 unindexed foreign-key findings, 81 unused-index findings, 13 multiple-permissive-policy findings and 1 duplicate-index finding. Unused-index recommendations are not acted on automatically; the current small pilot workload is not sufficient evidence that those indexes are safe to remove.
+- Leaked-password protection remains disabled and requires review in Supabase Auth settings by a project administrator.
+
+References:
+- [SECURITY DEFINER executable warning](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)
+- [Leaked-password protection guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
+- [Unindexed foreign-key guidance](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys)
+- [Multiple permissive policies guidance](https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies)
+
+The 16 RPC warnings are not automatically evidence of exploitable access: the inspected routines use fixed search paths, deny `anon` execution, and authenticated-callable function bodies reference the caller identity. However, each function still needs an individual privilege and role-path review before a production security sign-off. No production database writes were performed.
