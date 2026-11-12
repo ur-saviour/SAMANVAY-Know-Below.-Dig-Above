@@ -44,6 +44,24 @@ The separate `public.india_district_boundary_reference` table contains 733 distr
 
 These are code-less DataMeet-derived reference geometries. Valid geometry does not make the boundaries current or authoritative. They must not be joined to LGD records solely by approximate name matching or used to imply the current district shape where post-2019 changes occurred.
 
+### GSI / NWIC administrative boundary reference catalogue
+
+Three additional GSI/NWIC resources were registered in `public.official_data_sources` by migration `20261112103650_register_nwic_state_subdistrict_and_village_boundaries`:
+
+| Reference layer | Portal-reported source date | Published detail | SAMANVAY status |
+|---|---|---|---|
+| State / UT boundaries | 1 May 2025 | GeoJSON resource; open licence label, terms unspecified | Metadata registered; no geometry imported |
+| Sub-district boundaries | 5 May 2025 | 6,312 reference features; open licence label, terms unspecified | Metadata registered; no geometry imported |
+| Village boundaries | 2 May 2025 for the Tamil Nadu resource | State/UT-wise KML/GeoJSON/Shapefile catalogue | Metadata registered; coverage and completeness not yet confirmed |
+
+Official catalogue pages:
+- State boundaries: https://nwdp.nwic.gov.in/en/dataset/state-boundary/resource/f039e721-132c-4a24-9e5e-07af03064b4d
+- Sub-district boundaries: https://nwdp.nwic.gov.in/en/dataset/sub-district-boundary
+- Village boundaries: https://nwdp.nwic.gov.in/dataset/village-boundary
+- Tamil Nadu village KML metadata: https://nwdp.nwic.gov.in/dataset/village-boundary/resource/2d9c31ea-02d0-4424-b76b-5b531cb569f6
+
+The NWIC sub-district feature count (6,312) differs from the 7,092 LGD-code-bearing community-mirror rows. This is a reconciliation warning, not a reason to drop or remap either source. The layers remain separate until stable identifiers, effective dates, CRS, topology and licence terms are verified. A direct attempt to retrieve the district GeoJSON ZIP did not complete in this execution environment; no claim is made that the NWIC geometry has been downloaded, validated or imported. The existing 733 DataMeet district geometries remain the only persisted district polygon reference layer and remain historical, code-less and non-statutory.
+
 ### Survey of India administrative boundary source candidate
 
 Survey of India lists its Administrative Boundary Database as SHAPEFILE products at scale 1:1M. Product `OVSF/1M/6` covers the entire country up to taluk/sub-district level with headquarters; `OVSF/1M/7` covers the entire country up to district level with headquarters. Both are listed at ₹0 on the product catalogue. The Survey of India portal describes these products as state, district and sub-district administrative boundaries.
