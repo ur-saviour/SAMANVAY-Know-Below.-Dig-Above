@@ -116,8 +116,9 @@ The matching post-workflow count and date range establish that the production ta
 
 ### Containment and next recovery action
 
-- All four legacy recovery workflows have been changed to manual dispatch only. Each requires the exact `RESTORE_2025_ONLY` input and checks the feature branch before it can run.
-- Production imports, backups, archive publication, restore drills and WAL maintenance workflows have also been changed to manual dispatch only.
+- All four legacy destructive recovery workflows have been removed from the active branch.
+- They are replaced by `.github/workflows/verify-groundwater-archive.yml`, a manual-only job that decrypts/restores the archived table only in a disposable local PostgreSQL container, verifies the full 1,911,126-row count and the 2025 subset, and has no Supabase database credentials or production write step.
+- Production imports, backups, archive publication, restore drills and WAL maintenance workflows are manual-dispatch only.
 - No database restoration was performed during this audit.
 - The safe recovery design is to decrypt and inspect the pre-change archive in an isolated PostgreSQL instance, compare the 2025 records against production using both primary key `id` and the unique source key `(source_resource_id, source_record_id)`, and build a verified delta of missing historical rows. Only after the staged delta is validated should a separate approved, transaction-controlled additive insert be considered. Do not truncate or overwrite the current table.
 - A production write is deliberately not included in this hardening pass. The recovery requires a separate explicit go-ahead after the staging report confirms exact row counts, key conflicts, null/coordinate distributions and preserved 2025-row equivalence.
