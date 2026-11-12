@@ -2,12 +2,6 @@ name: Import official Coimbatore utility project facts
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - 'scripts/import_official_coimbatore_utility_facts.py'
-      - '.github/workflows/import-official-infrastructure-facts.yml'
 
 permissions:
   contents: read
