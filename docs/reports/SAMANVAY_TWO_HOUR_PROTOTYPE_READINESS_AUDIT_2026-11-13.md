@@ -194,3 +194,18 @@ The Android workflow on the companion commit is still running; its final APK bui
 ### Updated progress estimate after regression gate
 
 The regression contract suite and successful browser build are counted as a 2-point engineering-quality milestone. The overall prototype estimate is now **77%**, not 82%. The Android companion run [43296945224](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43296945224) has passed the new contract gate, dependency installation and Dart analysis, but its release APK build has not yet returned a final result. No additional points are credited for that unfinished build.
+
+## Expanded prototype regression gate and 82% checkpoint
+
+The source-level contract validator now contains 25 checks spanning four role previews, demo/authentication separation, visible role wording, India-first and regional GIS navigation, Coimbatore reference-layer scope, aggregated versus owner-scoped underground GIS access, safe empty-layer wording, joint-work RPC wiring, camera capture/private evidence storage, ward GeoJSON validity and the brand SVG.
+
+Both CI workflows now trigger when `scripts/**` changes. Latest browser workflow:
+
+- Run [43297752976](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43297752976): success.
+- Contract validator, Flutter installation/dependencies, Dart analysis, browser compilation, GIS asset smoke tests, packaging and artifact upload: all successful.
+- Artifact [SAMANVAY-Browser-Portal](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13981230339/zip), 15,017,758 bytes; SHA-256 `e9d4ad1eb4440d97ce8b100406e1a7b18c5de55df0b1e0a0bca4ecf045904672`.
+- Source commit: `58087291ca15c44f58e7921d9c67df1ac539643c`.
+
+Companion Android workflow [43297740813](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43297740813) has passed the 25-check contract gate, dependency installation and Dart analysis. At the time of this checkpoint its release APK build step is still in progress; package/signature/alignment verification and publication are not yet confirmed.
+
+**Overall prototype engineering completion estimate: 82%.** This checkpoint credits the expanded automated regression coverage, successful browser artifact and verified Android static-analysis gate. It does not claim Android release publication, physical-device acceptance, real-world utility data validation or production readiness. Remaining work includes Android release completion, device/browser runtime acceptance, authenticated multi-role end-to-end tests and authority/data dependencies.
