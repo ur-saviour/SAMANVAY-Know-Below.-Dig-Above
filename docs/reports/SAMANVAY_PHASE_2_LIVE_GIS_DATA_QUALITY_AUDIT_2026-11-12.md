@@ -220,3 +220,23 @@ A second rollback-only test created three synthetic, colocated utility assets li
 This confirms the intended separation: the assigned utility owner receives exact geometry only through the owner-scoped RPC; admin/coordinator receive metadata in the verification queue; Citizens receive only generalised coverage aggregates. Direct table access for the Department Officer and Citizen remains blocked. The entire synthetic transaction was rolled back. A subsequent live count confirmed the production tables still contain 0 assets, 0 evidence rows and 0 import runs.
 
 This is a targeted database policy/RPC regression test. It is not a real-session mobile/browser workflow test, and the synthetic fixtures do not represent real utility assets or owner-authorised data.
+
+## 23. geoBoundaries layers currently rendered by the mobile/browser map — 12 November 2026
+
+The active Edge Function `samanvay-public-boundaries` calls the geoBoundaries `/api/current/gbOpen/IND/ADM1/` and `ADM2/` endpoints, retrieves the simplified GeoJSON, validates the ISO/type and payload shape, restricts the download host to GitHub HTTPS, limits payload size/features, and caches each level in the function isolate for six hours.
+
+The provider metadata retrieved during this audit is:
+
+| Layer | Boundary vintage | Feature count | Primary source | Source-data update | geoBoundaries build | Upstream licence |
+|---|---:|---:|---|---|---|---|
+| ADM1 State / UT | 2011 | 36 | DataMeet India community; Election Commission of India | 19 Jan 2023 | 12 Dec 2023 | CC BY 2.5 India |
+| ADM2 District | 2021 | 736 | Pathways Data Pvt Ltd.; lgdirectory.gov.in | 19 Jan 2023 | 12 Dec 2023 | Open Data Commons Open Database License 1.0 |
+
+Official metadata endpoints:
+- https://www.geoboundaries.org/api/current/gbOpen/IND/ADM1/
+- https://www.geoboundaries.org/api/current/gbOpen/IND/ADM2/
+- geoBoundaries API guidance: https://www.geoboundaries.org/api.html
+
+The word `current` identifies the provider's latest API pointer; it does not mean that the layer's represented year or underlying source data is current. The district feature count of 736 is not the same as the active SAMANVAY LGD-code-bearing directory count of 784. They remain independent reference systems until stable source codes, administrative changes, effective dates and coverage are reconciled. Likewise, the 2011 State/UT vintage must not be treated as a current statutory boundary certification.
+
+The current map UI exposes the layer's boundary vintage, feature count, source and licence and labels it as reference-only. It does not yet expose `sourceDataUpdateDate` or `buildDate` in the layer label; adding these explicit freshness dates is a follow-up display improvement. Do not hide the vintage/source distinction or imply official validation.
