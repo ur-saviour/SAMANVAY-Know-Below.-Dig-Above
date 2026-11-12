@@ -5333,6 +5333,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
 
   Future<void> _showCase(Map<String, dynamic> item) async {
     final timeline = List<String>.from((item['timeline'] as List?) ?? const []);
+    final inspection = item['demoInspection'] as Map<String, dynamic>?;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -5351,6 +5352,19 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               Text('Joint work: ' + (item['jointWorkStatus'] ?? 'Not proposed').toString()),
               const SizedBox(height: 10),
               Text(item['description'].toString()),
+              if (inspection != null) ...[
+                const SizedBox(height: 12),
+                const Divider(),
+                Text('SIMULATED FIELD INSPECTION', style: TextStyle(color: teal, fontSize: 10, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 5),
+                Text('Outcome: ' + (inspection['outcome'] ?? 'Not recorded').toString()),
+                Text('Observations: ' + (inspection['observations'] ?? 'Not recorded').toString()),
+                Text('Recommended follow-up: ' + (inspection['recommendation'] ?? 'Not recorded').toString()),
+                Text('Location reference: ' + (inspection['location'] ?? item['location']).toString()),
+                Text('Recorded: ' + (inspection['recorded_at'] ?? 'Session timestamp unavailable').toString()),
+                const SizedBox(height: 5),
+                Text('Manual demo note only · no GPS fix or photo evidence was captured.', style: TextStyle(color: mutedInk, fontSize: 9)),
+              ],
               const SizedBox(height: 10),
               Text(
                 'Session history: ' + (timeline.isEmpty ? 'No additional actions recorded.' : timeline.join(' → ')),
@@ -5564,6 +5578,118 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     _record(item['id'].toString() + ' coordination outcome: ' + result);
   }
 
+  Future<void> _recordDemoInspection(Map<String, dynamic> item) async {
+    final observationsController = TextEditingController();
+    final recommendationController = TextEditingController();
+    const outcomes = [
+      'Issue observed',
+      'No issue observed',
+      'Access unavailable',
+      'Further inspection required',
+    ];
+    var outcome = outcomes.first;
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Record simulated field inspection'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Case: ' + item['id'].toString()),
+                Text('Location reference: ' + item['location'].toString()),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: outcome,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Inspection outcome'),
+                  items: outcomes.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => outcome = value);
+                  },
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: observationsController,
+                  maxLength: 500,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Field observations',
+                    hintText: 'Describe what the demonstration inspector observed.',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: recommendationController,
+                  maxLength: 400,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Recommended follow-up',
+                    hintText: 'Record the next action for the responsible department.',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'SIMULATED RECORD ONLY. This form stores typed notes in this screen session. It does not capture GPS, upload photographs, verify an asset or certify a site.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (observationsController.text.trim().isEmpty ||
+                    recommendationController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter both the observation and recommended follow-up.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'outcome': outcome,
+                  'observations': observationsController.text.trim(),
+                  'recommendation': recommendationController.text.trim(),
+                });
+              },
+              child: const Text('Save demo inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
+    observationsController.dispose();
+    recommendationController.dispose();
+    if (!mounted || result == null) return;
+
+    final recordedAt = DateTime.now().toIso8601String();
+    final nextStatus = result['outcome'] == 'Access unavailable' ||
+            result['outcome'] == 'Further inspection required'
+        ? 'Clarification required'
+        : 'Technical recommendation submitted';
+    setState(() {
+      item['demoInspection'] = <String, dynamic>{
+        'outcome': result['outcome'],
+        'observations': result['observations'],
+        'recommendation': result['recommendation'],
+        'location': item['location'],
+        'recorded_at': recordedAt,
+        'record_type': 'SIMULATED · MANUAL NOTE',
+      };
+      item['status'] = nextStatus;
+      _appendCaseEvent(item, 'Department officer recorded field inspection: ' + (result['outcome'] ?? 'Outcome not set'));
+    });
+    _record(item['id'].toString() + ' simulated field inspection saved');
+  }
+
   Widget _caseCard(Map<String, dynamic> item) {
     final isOfficer = _activeRole == 'department';
     final isCoordinator = _activeRole == 'coordinator';
@@ -5601,11 +5727,23 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   icon: Icon(isCitizen ? Icons.track_changes_outlined : Icons.visibility_outlined, size: 15),
                   label: Text(isCitizen ? 'Track request' : 'Details'),
                 ),
-                if (isOfficer || isCoordinator)
+                if (isOfficer) ...[
                   FilledButton.tonalIcon(
                     onPressed: () => _updateCase(item),
-                    icon: Icon(isOfficer ? Icons.rate_review_outlined : Icons.fact_check_outlined, size: 15),
-                    label: Text(isOfficer ? 'Review' : 'Coordination update'),
+                    icon: const Icon(Icons.rate_review_outlined, size: 15),
+                    label: const Text('Review'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _recordDemoInspection(item),
+                    icon: const Icon(Icons.fact_check_outlined, size: 15),
+                    label: const Text('Field inspection'),
+                  ),
+                ],
+                if (isCoordinator)
+                  FilledButton.tonalIcon(
+                    onPressed: () => _updateCase(item),
+                    icon: const Icon(Icons.fact_check_outlined, size: 15),
+                    label: const Text('Coordination update'),
                   ),
                 if (isCoordinator) ...[
                   OutlinedButton.icon(
