@@ -17,17 +17,6 @@ on:
           - "2021-2025"
           - "1991-2020"
           - "2026-2030"
-  push:
-    branches:
-      - feature/alpha-03-integrated-platform
-    paths:
-      - ".github/workflows/import-nwdp-groundwater.yml"
-      - "scripts/import_nwdp_telemetry.py"
-      - "scripts/sync_national_building_portals.py"
-
-concurrency:
-  group: samanvay-nwdp-groundwater-${{ github.ref }}
-  cancel-in-progress: false
 
 permissions:
   contents: read
