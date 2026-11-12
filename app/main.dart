@@ -15761,7 +15761,9 @@ class _MapPageState extends State<MapPage> {
   bool _requestLayerRefreshPending = false;
   String _scaleLabel = '';
   double _scaleWidth = 80;
-  bool _is3D = true;
+  // Initial camera pitch is zero; begin in honest 2D state. The 3D control
+  // animates to a pitched camera and enables the extrusion layers.
+  bool _is3D = false;
   // Start in public surface mode. Underground layers remain opt-in and
   // continue to obey owner-department permissions.
   bool _undergroundMode = false;
