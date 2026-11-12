@@ -190,16 +190,18 @@ class _UtilityAssetEvidenceSubmissionPageState
     setState(() => _busy = true);
     String? uploadedPath;
     try {
-      final file = await FilePicker.pickFile(
+      final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        withData: true,
       );
-      if (file == null) return;
-      final fileSize = file.lengthSync() ?? await file.length();
-      if (fileSize == null || fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
+      if (picked == null || picked.files.isEmpty) return;
+      final file = picked.files.single;
+      final bytes = file.bytes;
+      final fileSize = bytes?.length ?? 0;
+      if (bytes == null || fileSize <= 0 || fileSize > 20 * 1024 * 1024) {
         throw StateError('Select a non-empty file no larger than 20 MB.');
       }
-      final bytes = await file.readAsBytes();
       if (bytes.isEmpty || bytes.length != fileSize) {
         throw StateError('The selected file could not be read completely.');
       }
