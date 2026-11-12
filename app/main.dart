@@ -4920,18 +4920,7 @@ class _AuthPageState extends State<AuthPage> {
 
                   const SizedBox(height: 8),
 
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()),
-                    ),
-                    icon: const Icon(Icons.campaign_outlined),
-                    label: const Text('VIEW PUBLIC WORK NOTICES'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: cyanAccent,
-                      side: const BorderSide(color: Color(0xFF2D6A87)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
+
                 ],
                 ),
               ),
