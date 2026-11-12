@@ -143,10 +143,49 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
       }));
       _scrollToLatest();
     } catch (error) {
-      if (mounted) setState(() => _error = _friendlyError(error));
+      if (mounted) {
+        final fallback = _builtInReply(text);
+        setState(() {
+          _messages.add({
+            'role': 'assistant',
+            'content': '$fallback\\n\\n[Built-in offline guidance; live assistant service unavailable.]',
+          });
+          _error = null;
+        });
+        _scrollToLatest();
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  String _builtInReply(String question) {
+    final q = question.toLowerCase();
+    if (q.contains('what can') || q.contains('about samanvay') || q.contains('explore the app')) {
+      return 'SAMANVAY is a civic infrastructure coordination prototype. Citizens can submit and track infrastructure requests; authorised department officers review assigned work; coordinators monitor cross-department dependencies; administrators manage access and routing. The GIS combines public reference layers with clearly labelled simulated underground visuals. It is a prototype, not an official utility-clearance system.';
+    }
+    if (q.contains('submit') || q.contains('raise a request') || q.contains('complaint')) {
+      return 'To submit a request: open the Citizen workspace, choose New Request, select the infrastructure category, describe the issue, add the location and supporting evidence if available, then submit. Keep personal information out of public descriptions. The request should appear under My Requests after successful submission.';
+    }
+    if (q.contains('status')) {
+      return 'Request statuses describe workflow progress: Submitted means received; Under Review means a department is assessing it; More Information Required means the requester must add details; Coordinating means multiple departments are being consulted; Approved or Scheduled means work is planned; In Progress means work has started; Completed means the responsible team has reported completion. Status labels are prototype workflow indicators, not statutory approvals.';
+    }
+    if (q.contains('department') || q.contains('coordinat')) {
+      return 'SAMANVAY routes requests to relevant infrastructure departments and helps identify work that may overlap in time or location. Department officers should act only on assigned cases. Coordinators review cross-department dependencies. Administrator access is for account governance. Privileged roles must be approved; choosing a role during registration does not grant it.';
+    }
+    if (q.contains('underground') || q.contains('utility') || q.contains('pipe') || q.contains('cable')) {
+      return 'Open GIS and enable the Underground View and utility-domain layers. Simulated demo features are illustrative only and are not surveyed utility routes, depths or clearance data. Never use this prototype to plan excavation or determine whether a site is safe to dig. Confirm conditions with the responsible utility owners and authorised surveys.';
+    }
+    if (q.contains('gis') || q.contains('map') || q.contains('satellite') || q.contains('ward') || q.contains('district')) {
+      return 'Open GIS from the main navigation. Switch between vector and satellite basemaps, use search to navigate administrative areas, and enable available public reference layers. Groundwater observations show their source dates. Any simulated underground layer must remain visibly labelled DEMO / NOT SURVEYED.';
+    }
+    if (q.contains('groundwater') || q.contains('borewell')) {
+      return 'The groundwater layer is a reference view of retained observations, not a live sensor feed. Check the displayed publisher and observation date before interpreting a reading. It cannot certify borewell permission, water quality or current groundwater conditions.';
+    }
+    if (q.contains('password') || q.contains('otp') || q.contains('login') || q.contains('sign in')) {
+      return 'Use your registered email or verified mobile number on the sign-in screen. SMS OTP delivery depends on the Supabase phone-auth provider and its SMS configuration. Use Forgot password for email-based recovery. If a code is not delivered, do not repeatedly request it; check the registered number and provider configuration.';
+    }
+    return 'I can guide you through SAMANVAY navigation, Citizen requests, workflow statuses, department coordination, GIS layers and groundwater references. Ask one of those questions for a specific walkthrough. This built-in fallback is rule-based guidance; live AI responses require the configured assistant service.';
   }
 
   void _newChat() {
