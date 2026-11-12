@@ -18876,13 +18876,18 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _switchProfiles() async {
+    // Keep the profile switcher aligned with the signed-in account rather
+    // than assuming every account opening this page is a Citizen.
+    final profile = await _future;
+    if (!mounted) return;
+    final currentRole = (profile['role'] ?? 'requester').toString();
     final selected = await _showProfileSwitcher(
       context,
-      currentRole: 'requester',
+      currentRole: currentRole,
     );
-    if (!mounted || selected == null || selected == 'requester') return;
+    if (!mounted || selected == null || selected == currentRole) return;
     final navigator = Navigator.of(context);
-    navigator.push(MaterialPageRoute<void>(
+    await navigator.push<void>(MaterialPageRoute<void>(
       builder: (previewContext) => _StaffDemoPreview(
         role: selected,
         staffId: _publicDemoStaffIds[selected]!,
