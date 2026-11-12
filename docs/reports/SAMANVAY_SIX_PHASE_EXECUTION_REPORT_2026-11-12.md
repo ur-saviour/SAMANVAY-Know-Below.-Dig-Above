@@ -234,8 +234,8 @@ Both CI pipelines passed for app commit `01ad3154f501b409a1376626bb14d1f80ddf019
 
 | Target | Workflow | Result | Artifact |
 |---|---|---|---|
-| Android Alpha 0.3 | [43288750400](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43288750400) | Success: Dart analysis, release build, APK packaging, signature/alignment checks, upload and release publication | [Artifact 14008402117](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/14008402117/zip) |
-| Browser portal | [43288750376](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43288750376) | Success: Dart analysis, browser build, bundled GIS smoke tests, packaging and upload | [Artifact 14008402492](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/14008402492/zip) |
+| Android Alpha 0.3 | [43288750400](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43288750400) | Success: Dart analysis, release build, APK packaging, signature/alignment checks, upload and release publication | [Artifact 13975673482](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/14008402117/zip) |
+| Browser portal | [43288750376](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43288750376) | Success: Dart analysis, browser build, bundled GIS smoke tests, packaging and upload | [Artifact 13976501940](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/14008402492/zip) |
 
 - Android workflow artifact: 44,786,312 bytes; SHA-256 `399a6dc16b3109483a1d110a8894a3de6d687099e83fda0637b2b0917cc71cc8`.
 - Browser workflow artifact: 15,017,720 bytes; SHA-256 `3e40e93611c9d452e86d065e9a8ed401990405e9b47187f378533bcc43df77fd`.
