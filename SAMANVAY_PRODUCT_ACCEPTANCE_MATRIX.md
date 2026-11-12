@@ -302,7 +302,8 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Verify `anon` cannot execute the 15 application-facing security-definer RPCs; authenticated RPC calls remain because the app uses these role-checked operations.
 - [x] Align repository migration filenames with the exact two versions recorded by the connected Supabase migration ledger.
 - [x] Run authenticated-role SQL smoke tests: Admin directory, Coordinator advisory, Department-owned-geometry endpoint and Citizen generalised-GIS endpoint all returned expected role-scoped results; a Citizen session was blocked by six privileged staff/admin RPCs. Tests ran inside rolled-back transactions and created no records.
-- [ ] Repeat positive/negative access tests with non-empty owner-authorised utility records and survey evidence; current GIS asset/evidence tables are empty, so this remains unverified.
+- [x] Run rollback-only positive/negative RLS tests with synthetic asset, evidence and import-run fixtures: Admin/Coordinator saw each row and the verification queue; Department Officer/Citizen saw zero rows. The test transaction was rolled back and left no data behind.
+- [ ] Repeat end-to-end tests with real owner-authorised utility records and evidence; the production registry remains empty, so real dataset acceptance is still pending.
 - [ ] Enable Supabase Auth leaked-password protection in the project Auth settings; this setting is not exposed by the connected database migration interface.
 - [ ] Re-run Android/browser CI and complete real-device/browser role regression after the current migration commits.
 
