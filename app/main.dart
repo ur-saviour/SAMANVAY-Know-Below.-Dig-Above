@@ -4193,9 +4193,22 @@ class _AuthPageState extends State<AuthPage> {
   bool hidePassword = true;
   bool usePasswordLogin = true;
   bool usePhoneLogin = false;
+  bool usePhoneSignup = false;
   bool otpSent = false;
   bool isPhoneSignupOtp = false;
   String requestedSignupRole = 'requester';
+  String requestedSignupDepartment = 'Water Supply / PHED';
+  static const List<String> _signupDepartments = [
+    'Water Supply / PHED',
+    'Roads and Highways',
+    'Urban Local Bodies',
+    'Sewerage and Drainage',
+    'Electricity Distribution',
+    'Telecommunications',
+    'Town Planning',
+    'Gas Distribution',
+    'Groundwater / CGWB',
+  ];
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
   String? _pendingOtpEmail;
@@ -4591,7 +4604,13 @@ class _AuthPageState extends State<AuthPage> {
         final response = await supabase.auth.signUp(
           phone: phone,
           password: _passwordController.text,
-          data: {'display_name': _nameController.text.trim(), 'requested_role': requestedSignupRole},
+          data: {
+            'display_name': _nameController.text.trim(),
+            'requested_role': requestedSignupRole,
+            'requested_department': requestedSignupRole == 'department'
+                ? requestedSignupDepartment
+                : null,
+          },
         );
         _pendingOtpPhone = phone;
         _pendingOtpEmail = null;
@@ -4611,7 +4630,13 @@ class _AuthPageState extends State<AuthPage> {
           email: email,
           password: _passwordController.text,
           emailRedirectTo: redirectUrl,
-          data: {'display_name': _nameController.text.trim(), 'requested_role': requestedSignupRole},
+          data: {
+            'display_name': _nameController.text.trim(),
+            'requested_role': requestedSignupRole,
+            'requested_department': requestedSignupRole == 'department'
+                ? requestedSignupDepartment
+                : null,
+          },
         );
         isPhoneSignupOtp = false;
         if (response.session == null) {
@@ -4821,9 +4846,25 @@ class _AuthPageState extends State<AuthPage> {
                         if (value != null) setState(() => requestedSignupRole = value);
                       },
                     ),
+                    if (requestedSignupRole == 'department') ...[
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: requestedSignupDepartment,
+                        decoration: const InputDecoration(
+                          labelText: 'Department requested',
+                          prefixIcon: Icon(Icons.account_balance_outlined),
+                        ),
+                        items: _signupDepartments.map((department) => DropdownMenuItem(
+                          value: department, child: Text(department, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: loading ? null : (value) {
+                          if (value != null) setState(() => requestedSignupDepartment = value);
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     const Text(
-                      'Official access requests require administrator approval. Registration never grants officer, coordinator or administrator permissions automatically.',
+                      'Official role and department are requests only. An administrator must verify and assign final permissions.',
                       style: TextStyle(fontSize: 10, height: 1.35),
                     ),
                     const SizedBox(height: 16),
@@ -4871,11 +4912,41 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  if (!isLogin) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('REGISTER USING', style: TextStyle(
+                        color: cyanAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9,
+                      )),
+                    ),
+                    const SizedBox(height: 5),
+                    Wrap(spacing: 7, children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.email_outlined, size: 15),
+                        label: const Text('Email'),
+                        selected: !usePhoneSignup,
+                        onSelected: loading ? null : (_) => setState(() {
+                          usePhoneSignup = false; otpSent = false; isPhoneSignupOtp = false;
+                          _emailController.clear(); _otpController.clear();
+                        }),
+                      ),
+                      ChoiceChip(
+                        avatar: const Icon(Icons.phone_android_rounded, size: 15),
+                        label: const Text('Mobile number'),
+                        selected: usePhoneSignup,
+                        onSelected: loading ? null : (_) => setState(() {
+                          usePhoneSignup = true; otpSent = false; isPhoneSignupOtp = false;
+                          _emailController.clear(); _otpController.clear();
+                        }),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                  ],
                   TextFormField(
                     controller: _emailController,
                     enabled: !isLogin || !otpSent || usePasswordLogin,
                     keyboardType: !isLogin
-                        ? TextInputType.emailAddress
+                        ? (usePhoneSignup ? TextInputType.phone : TextInputType.emailAddress)
                         : (usePasswordLogin
                             ? TextInputType.text
                             : (usePhoneLogin
@@ -4890,25 +4961,27 @@ class _AuthPageState extends State<AuthPage> {
                               : (usePasswordLogin
                                   ? 'Registered email or mobile number'
                                   : 'Registered email address'))
-                          : 'Email address or mobile number',
+                          : (usePhoneSignup ? 'Mobile number' : 'Email address'),
                       hintText: isLogin
                           ? (usePhoneLogin
                               ? '+91 9876543210 or 9876543210'
                               : (usePasswordLogin
                                   ? 'name@example.com or +91 9876543210'
-                                  : 'name@example.com or staff ID 9013'))
-                          : 'name@example.com or +91 9876543210',
+                                  : 'name@example.com'))
+                          : (usePhoneSignup ? '+91 9876543210' : 'name@example.com'),
                       prefixIcon: Icon(
                         isLogin
                             ? (usePhoneLogin ? Icons.phone_android_rounded : Icons.alternate_email_rounded)
-                            : Icons.email_outlined,
+                            : (usePhoneSignup ? Icons.phone_android_rounded : Icons.email_outlined),
                       ),
                       border: const OutlineInputBorder(),
                       helperText: isLogin
                           ? (usePasswordLogin
                               ? 'Use your registered email or verified mobile number.'
                               : 'A six-digit SMS code will be sent to your mobile number.')
-                          : 'A verification code will be sent to your email or mobile number.',
+                          : (usePhoneSignup
+                              ? 'A six-digit SMS verification code will be requested for this number.'
+                              : 'A confirmation email will be sent to this address.'),
                       helperMaxLines: 2,
                     ),
                     onFieldSubmitted: (_) {
@@ -4919,9 +4992,18067 @@ class _AuthPageState extends State<AuthPage> {
                     validator: (value) {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
-                        if (input.contains('@')) return input.contains('.') && !input.contains(' ') ? null : 'Enter a valid email address';
+                        if (!usePhoneSignup) {
+                          return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+
+                      return _validateLoginIdentifier(value);
+                    },
+                  ),
+
+                  if (otpSent) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _otpController,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      maxLength: 6,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Six-digit verification code',
+                        hintText: '000000',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                        border: OutlineInputBorder(),
+                        counterText: '',
+                      ),
+                      onFieldSubmitted: (_) {
+                        if (!loading) verifyLoginOtp();
+                      },
+                      validator: (value) {
+                        final code = (value ?? '').trim();
+                        return RegExp(r'^\d{6}$').hasMatch(code)
+                            ? null
+                            : 'Enter the six-digit code';
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: loading || otpResendSeconds > 0
+                                ? null
+                                : resendCurrentOtp,
+                            icon: const Icon(Icons.refresh_rounded, size: 17),
+                            label: Text(
+                              otpResendSeconds > 0
+                                  ? 'Resend in ${otpResendSeconds}s'
+                                  : 'Resend code',
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: loading ? null : changeLoginIdentifier,
+                            icon: const Icon(Icons.edit_outlined, size: 17),
+                            label: const Text('Change contact'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  if (!isLogin || usePasswordLogin) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: hidePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!loading) submit();
+                      },
+                      decoration: InputDecoration(
+                        labelText: isLogin ? 'Password' : 'Create password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() => hidePassword = !hidePassword);
+                          },
+                          icon: Icon(
+                            hidePassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return isLogin ? 'Enter your password' : 'Create a password';
+                        }
+                        if (!isLogin && value.length < 8) {
+                          return 'Password must contain at least 8 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+
+                  if (isLogin && usePasswordLogin) ...[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: loading ? null : requestLoginPasswordReset,
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  if (message.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: messageIsSuccess
+                            ? Colors.green.shade50
+                            : Colors.red.shade50,
+                        borderRadius:
+                            BorderRadius.circular(10),
+                        border: Border.all(
+                          color: messageIsSuccess
+                              ? Colors.green.shade200
+                              : Colors.red.shade200,
+                        ),
+                      ),
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: messageIsSuccess
+                              ? Colors.green.shade900
+                              : Colors.red.shade900,
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  FilledButton(
+                    onPressed: loading
+                        ? null
+                        : (isLogin
+                            ? (usePasswordLogin
+                                ? submit
+                                : (otpSent ? verifyLoginOtp : sendLoginOtp))
+                            : (isPhoneSignupOtp && otpSent ? verifyLoginOtp : submit)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: electricBlue,
+                      padding:
+                          const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
+                    ),
+                    child: loading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child:
+                                CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            isLogin
+                                ? (usePasswordLogin
+                                    ? 'SIGN IN'
+                                    : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
+                                : 'CREATE ACCOUNT',
+                          ),
+                  ),
+
+                                    const SizedBox(height: 12),
+
+                  TextButton(
+                    onPressed: loading
+                        ? null
+                        : () {
+                            setState(() {
+                              isLogin = !isLogin;
+                              usePasswordLogin = true;
+                              usePhoneLogin = false;
+                              otpSent = false;
+                              otpResendSeconds = 0;
+                              _pendingOtpEmail = null;
+                              _pendingOtpPhone = null;
+                              _otpController.clear();
+                              _otpResendTimer?.cancel();
+                              message = '';
+                              messageIsSuccess = false;
+                            });
+                          },
+                    child: Text(
+                      isLogin
+                          ? "Don't have an account? Register"
+                          : 'Already registered? Login',
+                    ),
+                  ),
+                  if (isLogin) ...[
+                    const SizedBox(height: 4),
+                    OutlinedButton.icon(
+                      onPressed: loading ? null : chooseDemoWorkspace,
+                      icon: const Icon(Icons.switch_account_rounded),
+                      label: const Text('SWITCH DEMO PROFILES'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF8DECE2),
+                        side: const BorderSide(color: Color(0x6655D9CE)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 3),
+                      child: Text(
+                        'Sample-data preview only. It does not create an authenticated staff session.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 9, height: 1.3, color: Color(0xFF8DA5B8)),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+
+
+                ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// READ-ONLY STAFF PREVIEW
+// No Supabase session, private records, or operational writes are used.
+// ==========================================
+
+class _StaffDemoPreview extends StatefulWidget {
+  final String role;
+  final String staffId;
+  final VoidCallback onExit;
+
+  const _StaffDemoPreview({
+    required this.role,
+    required this.staffId,
+    required this.onExit,
+  });
+
+  @override
+  State<_StaffDemoPreview> createState() => _StaffDemoPreviewState();
+}
+
+class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
+  static const List<String> _departments = [
+    'Water Supply / PHED',
+    'Roads and Highways',
+    'Urban Local Bodies',
+    'Sewerage and Drainage',
+    'Electricity Distribution',
+    'Telecommunications',
+    'Town Planning',
+    'Gas Distribution',
+    'Groundwater / CGWB',
+  ];
+
+  late String _activeRole;
+  late String _activeStaffId;
+  String _section = 'Overview';
+  String _selectedDepartment = 'Water Supply / PHED';
+  String _adminCaseQuery = '';
+  String _adminStatusFilter = 'All statuses';
+  bool _pilotScenarioExecuted = false;
+  int _citizenRequestCounter = 1;
+  final List<Map<String, dynamic>> _cases = [];
+  final List<String> _activity = ['Demo workspace opened'];
+  final List<Map<String, dynamic>> _demoPermits = [];
+  String _demoGisViewMode = '3D cutaway';
+  Set<String> _demoGisVisibleLayers = {
+    'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _activeRole = widget.role;
+    _activeStaffId = widget.staffId;
+    _cases.addAll([
+      {
+        'id': 'DEMO-2026-001',
+        'title': 'Water pipeline replacement',
+        'domain': 'Water supply',
+        'department': 'Water Supply / PHED',
+        'status': 'Under review',
+        'priority': 'High',
+        'location': 'Avinashi Road, Coimbatore',
+        'assigned': ['Water Supply / PHED', 'Roads and Highways'],
+        'description': 'Illustrative pipeline-renewal case linked to road restoration.',
+      },
+      {
+        'id': 'DEMO-2026-002',
+        'title': 'Road resurfacing and fibre duct work',
+        'domain': 'Road reconstruction',
+        'department': 'Roads and Highways',
+        'status': 'Under coordination',
+        'priority': 'Medium',
+        'location': 'Gandhipuram, Coimbatore',
+        'assigned': ['Roads and Highways', 'Telecommunications'],
+        'description': 'Illustrative joint-work opportunity for resurfacing and telecom duct maintenance.',
+      },
+      {
+        'id': 'DEMO-2026-003',
+        'owner': 'citizen',
+        'title': 'Stormwater drain obstruction',
+        'domain': 'Drainage',
+        'department': 'Urban Local Bodies',
+        'status': 'Submitted',
+        'priority': 'High',
+        'location': 'RS Puram, Coimbatore',
+        'assigned': ['Urban Local Bodies', 'Sewerage and Drainage'],
+        'description': 'Illustrative drainage inspection request with a frontage-access observation.',
+      },
+      {
+        'id': 'DEMO-2026-004',
+        'title': 'Building floor compliance inspection',
+        'domain': 'Building compliance',
+        'department': 'Town Planning',
+        'status': 'Assigned',
+        'priority': 'Medium',
+        'location': 'Peelamedu, Coimbatore',
+        'assigned': ['Town Planning'],
+        'description': 'Illustrative site-inspection record for comparison against an approved plan.',
+      },
+      {
+        'id': 'DEMO-2026-005',
+        'owner': 'citizen',
+        'title': 'Groundwater and borewell observation',
+        'domain': 'Groundwater',
+        'department': 'Water Supply / PHED',
+        'status': 'Submitted',
+        'priority': 'Low',
+        'location': 'Saravanampatti, Coimbatore',
+        'assigned': ['Water Supply / PHED'],
+        'description': 'Illustrative groundwater observation; not a regulatory determination.',
+      },
+    ]);
+    _demoPermits.addAll([
+      {
+        'id': 'PRM-DEMO-001',
+        'caseId': 'DEMO-2026-001',
+        'title': 'Water pipeline replacement',
+        'location': 'Avinashi Road, Coimbatore',
+        'department': 'Water Supply / PHED',
+        'stage': 'Approved',
+        'window': '18–20 November 2026',
+        'restoration': 'Pending',
+        'history': <String>['Demo permit approved · illustrative record'],
+      },
+      {
+        'id': 'PRM-DEMO-002',
+        'caseId': 'DEMO-2026-002',
+        'title': 'Fibre duct maintenance',
+        'location': 'Gandhipuram, Coimbatore',
+        'department': 'Telecommunications',
+        'stage': 'Work started',
+        'window': '16–19 November 2026',
+        'restoration': 'Pending',
+        'history': <String>['Demo permit approved · illustrative record', 'Work start recorded · demo'],
+      },
+    ]);
+  }
+
+  String get _roleTitle => switch (_activeRole) {
+    'requester' => 'Citizen Portal',
+    'admin' => 'Administrator Portal',
+    'coordinator' => 'Coordinator Portal',
+    'department' => 'Department Officer Portal',
+    _ => 'Official Demo Portal',
+  };
+
+  String get _roleDescription => switch (_activeRole) {
+    'requester' => 'Public infrastructure services, request submission and transparent status tracking',
+    'admin' => 'National overview, platform governance and department administration',
+    'coordinator' => 'Cross-department coordination, escalations and work-conflict review',
+    'department' => 'Assigned department cases, technical reviews and field-work coordination',
+    _ => 'Official workspace demonstration',
+  };
+
+  List<List<String>> get _metrics => switch (_activeRole) {
+    'requester' => [
+      ['${_cases.where((item) => item['owner'] == 'citizen').length}', 'My demo requests'],
+      ['2', 'Service categories'],
+      ['36', 'State / UT directory'],
+    ],
+    'admin' => [
+      ['36', 'States / UTs'],
+      ['11', 'Service domains'],
+      [_cases.length.toString(), 'Session cases'],
+      [_activity.length.toString(), 'Audit events'],
+    ],
+    'coordinator' => [
+      [_cases.length.toString(), 'Session cases'],
+      [_cases.where((item) => (item['assigned'] as List).length > 1).length.toString(), 'Multi-department'],
+      [_cases.where((item) => item['jointWorkStatus'] != null && item['jointWorkStatus'] != 'Not proposed').length.toString(), 'Joint-work cases'],
+      [_departments.length.toString(), 'Departments'],
+    ],
+    'department' => [
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment)).length.toString(), 'Routed cases'],
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment) && item['status'] == 'Under review').length.toString(), 'In review'],
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment) && item['status'] == 'Clarification required').length.toString(), 'Clarifications'],
+      [_cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment) && item['status'] == 'Completed').length.toString(), 'Completed'],
+    ],
+    _ => const [],
+  };
+
+  Future<void> _switchProfiles() async {
+    final selected = await _showProfileSwitcher(context, currentRole: _activeRole);
+    if (!mounted || selected == null) return;
+    setState(() {
+      _activeRole = selected;
+      _activeStaffId = _publicDemoStaffIds[selected]!;
+      _section = 'Overview';
+    });
+  }
+
+  String get _nextDemoRole => switch (_activeRole) {
+    'requester' => 'department',
+    'department' => 'coordinator',
+    'coordinator' => 'admin',
+    _ => 'requester',
+  };
+
+  String get _nextDemoRoleTitle => switch (_nextDemoRole) {
+    'requester' => 'Citizen',
+    'department' => 'Department Officer',
+    'coordinator' => 'Coordinator',
+    _ => 'Administrator',
+  };
+
+  void _advanceDemoWorkflow() {
+    final nextRole = _nextDemoRole;
+    final nextRoleTitle = _nextDemoRoleTitle;
+    setState(() {
+      _activeRole = nextRole;
+      _activeStaffId = _publicDemoStaffIds[nextRole]!;
+      _section = switch (nextRole) {
+        'requester' => 'Overview',
+        'department' => 'Case queue',
+        'coordinator' => 'Coordination',
+        _ => 'Admin oversight',
+      };
+      if (nextRole == 'department') {
+        final citizenCases = _cases.where((item) => item['owner'] == 'citizen').toList();
+        if (citizenCases.isNotEmpty) {
+          final assigned = List<String>.from(citizenCases.first['assigned'] as List);
+          if (assigned.isNotEmpty && _departments.contains(assigned.first)) {
+            _selectedDepartment = assigned.first;
+          }
+        }
+      }
+    });
+    _record('Guided demo switched to ' + nextRoleTitle + ' profile');
+  }
+
+  Future<void> _toggleTheme() async {
+    final enabled = samanvayThemeMode.value != ThemeMode.light;
+    samanvayThemeMode.value = enabled ? ThemeMode.light : ThemeMode.dark;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('samanvay_light_mode', enabled);
+  }
+
+  void _record(String message) {
+    setState(() {
+      _activity.insert(0, message);
+      if (_activity.length > 10) _activity.removeLast();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message + ' · demo session only'), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _metricCard(String value, String label) => SizedBox(
+    width: 145,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: TextStyle(color: ink, fontSize: 23, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 3),
+            Text(label, style: TextStyle(color: mutedInk, fontSize: 10)),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _panel(String title, String description, IconData icon, {String? status}) => Card(
+    margin: const EdgeInsets.only(bottom: 9),
+    child: Padding(
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: teal, size: 23),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
+                const SizedBox(height: 4),
+                Text(description, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+                if (status != null) ...[
+                  const SizedBox(height: 7),
+                  Text(status, style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _workflowNavigator() => Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Padding(
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.route_outlined, color: teal, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'GUIDED END-TO-END DEMONSTRATION',
+                  style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'The same in-memory cases and audit trail are shared as you move between profiles. Next: ' + _nextDemoRoleTitle + '.',
+            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+          ),
+          const SizedBox(height: 9),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _advanceDemoWorkflow,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: Text('CONTINUE AS ' + _nextDemoRoleTitle.toUpperCase()),
+            ),
+          ),
+          Text(
+            'SIMULATED SESSION · no live account, permit, work order or government record is changed',
+            style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Map<String, Object> _caseWorkflowStage(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString();
+    final jointStatus = (item['jointWorkStatus'] ?? 'Not proposed').toString();
+    if (status == 'Completed' || status == 'Joint-work completed (demo)' ||
+        jointStatus == 'Joint-work completed (demo)') {
+      return {'label': 'Demonstration closure recorded', 'progress': 1.0};
+    }
+    if (status == 'Escalated for authority review' || jointStatus == 'Escalated for authority review') {
+      return {'label': 'Referred for authority review', 'progress': 0.88};
+    }
+    if (jointStatus == 'Conflict resolved (demo)') {
+      return {'label': 'Coordination outcome recorded', 'progress': 0.9};
+    }
+    if (jointStatus != 'Not proposed' && jointStatus != '') {
+      return {'label': 'Cross-department coordination', 'progress': 0.75};
+    }
+    if (status == 'Technical recommendation submitted') {
+      return {'label': 'Officer recommendation submitted', 'progress': 0.62};
+    }
+    if (status == 'Clarification required') {
+      return {'label': 'Officer requested clarification', 'progress': 0.48};
+    }
+    if (status == 'Under coordination') {
+      return {'label': 'Coordinator review', 'progress': 0.72};
+    }
+    if (status == 'Under review' || status == 'Site inspection scheduled' || status == 'Approved') {
+      return {'label': 'Department officer review', 'progress': 0.38};
+    }
+    return {'label': 'Citizen request submitted', 'progress': 0.15};
+  }
+
+  Widget _caseWorkflowProgress(Map<String, dynamic> item) {
+    final stage = _caseWorkflowStage(item);
+    final progress = stage['progress'] as double;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                stage['label'].toString(),
+                style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w800),
+              ),
+            ),
+            Text(
+              '${(progress * 100).round()}%',
+              style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 5,
+            backgroundColor: borderColor.withValues(alpha: .45),
+            valueColor: AlwaysStoppedAnimation<Color>(teal),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionChip(String name) => Padding(
+    padding: const EdgeInsets.only(right: 7),
+    child: ChoiceChip(
+      label: Text(name, style: TextStyle(fontSize: 10, color: _section == name ? teal : ink)),
+      selected: _section == name,
+      selectedColor: teal.withValues(alpha: .14),
+      backgroundColor: panelNavy,
+      side: BorderSide(color: _section == name ? teal : borderColor),
+      onSelected: (_) => setState(() => _section = name),
+    ),
+  );
+
+  Future<void> _showCase(Map<String, dynamic> item) async {
+    final timeline = List<String>.from((item['timeline'] as List?) ?? const []);
+    final inspection = item['demoInspection'] as Map<String, dynamic>?;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(item['title'].toString()),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('CASE ID: ' + item['id'].toString()),
+              Text('Domain: ' + item['domain'].toString()),
+              Text('Department: ' + item['department'].toString()),
+              Text('Location: ' + item['location'].toString()),
+              Text('Priority: ' + item['priority'].toString()),
+              Text('Status: ' + item['status'].toString()),
+              Text('Assigned departments: ' + (item['assigned'] as List).join(' + ')),
+              Text('Joint work: ' + (item['jointWorkStatus'] ?? 'Not proposed').toString()),
+              if (item['jointResponses'] is List) ...[
+                const SizedBox(height: 5),
+                Text('Department responses:', style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 10)),
+                ...((item['jointResponses'] as List).map((row) {
+                  final response = Map<String, dynamic>.from(row as Map);
+                  return Text(
+                    response['department'].toString() + ': ' + response['status'].toString() +
+                        ((response['remarks'] ?? '').toString().isEmpty ? '' : ' · ' + response['remarks'].toString()),
+                    style: TextStyle(color: mutedInk, fontSize: 9),
+                  );
+                })),
+              ],
+              if (item['coordinationWindow'] != null)
+                Text('Coordination note: ' + item['coordinationWindow'].toString()),
+              const SizedBox(height: 8),
+              _caseWorkflowProgress(item),
+              const SizedBox(height: 10),
+              Text(item['description'].toString()),
+              if (inspection != null) ...[
+                const SizedBox(height: 12),
+                const Divider(),
+                Text('SIMULATED FIELD INSPECTION', style: TextStyle(color: teal, fontSize: 10, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 5),
+                Text('Outcome: ' + (inspection['outcome'] ?? 'Not recorded').toString()),
+                Text('Observations: ' + (inspection['observations'] ?? 'Not recorded').toString()),
+                Text('Recommended follow-up: ' + (inspection['recommendation'] ?? 'Not recorded').toString()),
+                Text('Location reference: ' + (inspection['location'] ?? item['location']).toString()),
+                Text('Recorded: ' + (inspection['recorded_at'] ?? 'Session timestamp unavailable').toString()),
+                const SizedBox(height: 5),
+                Text('Manual demo note only · no GPS fix or photo evidence was captured.', style: TextStyle(color: mutedInk, fontSize: 9)),
+              ],
+              finalDemoEvidenceSection(item),
+              const SizedBox(height: 10),
+              Text(
+                'Session history: ' + (timeline.isEmpty ? 'No additional actions recorded.' : timeline.join(' → ')),
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Synthetic demonstration record. No live citizen or department record is opened.',
+                style: TextStyle(color: mutedInk, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Widget finalDemoEvidenceSection(Map<String, dynamic> item) {
+    final rows = ((item['demoEvidence'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        Text('DEMO EVIDENCE REGISTER', style: TextStyle(color: teal, fontSize: 10, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 6),
+        ...rows.map((row) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text((row['kind'] ?? 'Evidence').toString(), style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 11)),
+              Text('Reference: ' + (row['reference'] ?? 'Not assigned').toString(), style: TextStyle(color: mutedInk, fontSize: 9)),
+              if ((row['file_name'] ?? '').toString().isNotEmpty)
+                Text(
+                  'Local file reference: ' + row['file_name'].toString() + ' · ' +
+                      ((((row['file_size_bytes'] as num?) ?? 0).toDouble() / 1024).toStringAsFixed(1)) + ' KB',
+                  style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w700),
+                ),
+              Text((row['description'] ?? '').toString(), style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              Text('Recorded by ' + (row['recorded_by'] ?? 'Demo user').toString() + ' · ' + (row['recorded_at'] ?? '').toString(),
+                style: TextStyle(color: mutedInk, fontSize: 8)),
+            ],
+          ),
+        )),
+        Text('Synthetic register entries only · no files were uploaded or verified.',
+          style: TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+
+  void _appendCaseEvent(Map<String, dynamic> item, String message) {
+    final events = List<String>.from((item['timeline'] as List?) ?? const []);
+    events.insert(0, message + ' · simulated');
+    if (events.length > 10) events.removeRange(10, events.length);
+    item['timeline'] = events;
+  }
+
+  Future<void> _updateCase(Map<String, dynamic> item) async {
+    final choices = _activeRole == 'department'
+        ? const ['Under review', 'Site inspection scheduled', 'Technical recommendation submitted', 'Clarification required', 'Completed']
+        : _activeRole == 'coordinator'
+            ? const ['Under coordination', 'Escalated for authority review', 'Conflict resolved (demo)', 'Joint-work completed (demo)']
+            : const ['Under review', 'Under coordination', 'Escalated for authority review', 'Completed'];
+    var selected = choices.first;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Update demonstration case'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Current status: ' + item['status'].toString()),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Select status'),
+                items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => selected = value);
+                },
+              ),
+              const SizedBox(height: 8),
+              Text('This updates the sample record in this device session only.', style: TextStyle(color: mutedInk, fontSize: 10)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save demo update')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      item['status'] = result;
+      final actor = _activeRole == 'department' ? 'Department officer' : 'Coordinator';
+      _appendCaseEvent(item, actor + ' set status to ' + result);
+    });
+    _record(item['id'].toString() + ' status changed to ' + result);
+  }
+
+  Future<void> _assignDepartment(Map<String, dynamic> item) async {
+    var selected = item['department'].toString();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Assign sample department'),
+          content: DropdownButtonFormField<String>(
+            initialValue: selected,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Department'),
+            items: _departments.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+            onChanged: (value) {
+              if (value != null) setDialogState(() => selected = value);
+            },
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save demo assignment')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      item['department'] = result;
+      final assigned = List<String>.from(item['assigned'] as List);
+      if (!assigned.contains(result)) assigned.add(result);
+      item['assigned'] = assigned;
+      _appendCaseEvent(item, 'Coordinator routed case to ' + result);
+    });
+    _record(item['id'].toString() + ' assigned to ' + result);
+  }
+
+  Future<void> _proposeJointWork(Map<String, dynamic> item) async {
+    final options = _departments.where((name) => name != item['department']).toList();
+    if (options.isEmpty) return;
+    var selected = options.first;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Propose a joint-work package'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Primary department: ' + item['department'].toString()),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Partner department'),
+                items: options.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => selected = value);
+                },
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Both participating departments must respond before the coordinator can finalise this proposal. This is a session-only simulation.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Create proposal')),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      final assigned = List<String>.from(item['assigned'] as List);
+      if (!assigned.contains(result)) assigned.add(result);
+      final participants = assigned.toSet().toList();
+      item['assigned'] = assigned;
+      item['jointDepartments'] = participants;
+      item['jointResponses'] = participants.map((department) => <String, dynamic>{
+        'department': department,
+        'status': 'Pending',
+        'remarks': '',
+        'responded_at': null,
+      }).toList();
+      item['jointWorkStatus'] = 'Awaiting department responses';
+      item['coordinationWindow'] = 'Not scheduled · awaiting department agreement';
+      item['status'] = 'Under coordination';
+      _appendCaseEvent(item, 'Coordinator proposed joint work with ' + result);
+    });
+    _record(item['id'].toString() + ' joint-work proposal created; department responses pending');
+  }
+
+  Future<void> _respondToDemoJointWork(Map<String, dynamic> item) async {
+    final current = ((item['jointResponses'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final responseIndex = current.indexWhere((row) =>
+        row['department'] == _selectedDepartment && row['status'] == 'Pending');
+    if (responseIndex < 0) {
+      _showMessage('No pending joint-work response is assigned to this department.');
+      return;
+    }
+    final remarksController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Department joint-work response'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Department: ' + _selectedDepartment),
+              Text('Case: ' + item['id'].toString()),
+              const SizedBox(height: 9),
+              TextField(
+                controller: remarksController,
+                maxLength: 300,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Department remarks (optional)',
+                  hintText: 'Explain constraints, dependencies or conditions.',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('A decline keeps the proposal from being scheduled. All responses are synthetic and remain in this demo session.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop({
+              'status': 'Declined',
+              'remarks': remarksController.text.trim(),
+            }),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop({
+              'status': 'Accepted',
+              'remarks': remarksController.text.trim(),
+            }),
+            child: const Text('Accept proposal'),
+          ),
+        ],
+      ),
+    );
+    final remarks = remarksController.text.trim();
+    remarksController.dispose();
+    if (!mounted || result == null) return;
+
+    current[responseIndex] = {
+      ...current[responseIndex],
+      'status': result['status'],
+      'remarks': result['remarks'] ?? remarks,
+      'responded_at': DateTime.now().toIso8601String(),
+    };
+    final declined = current.any((row) => row['status'] == 'Declined');
+    final allAccepted = current.isNotEmpty && current.every((row) => row['status'] == 'Accepted');
+    final nextStatus = declined
+        ? 'Department declined'
+        : allAccepted
+            ? 'Ready for coordinator'
+            : 'Awaiting department responses';
+    setState(() {
+      item['jointResponses'] = current;
+      item['jointWorkStatus'] = nextStatus;
+      _appendCaseEvent(
+        item,
+        _selectedDepartment + ' ' + (result['status'] ?? 'responded').toLowerCase() + ' the joint-work proposal',
+      );
+    });
+    _record(_selectedDepartment + ' response recorded: ' + (result['status'] ?? ''));
+  }
+
+  Future<void> _recordCoordinationDecision(Map<String, dynamic> item) async {
+    final responses = ((item['jointResponses'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final pending = responses.where((row) => row['status'] == 'Pending').toList();
+    final declined = responses.where((row) => row['status'] == 'Declined').toList();
+    if (pending.isNotEmpty) {
+      _showMessage('Awaiting response from: ' + pending.map((row) => row['department'].toString()).join(', '));
+      return;
+    }
+    if (responses.isNotEmpty && declined.isEmpty &&
+        !responses.every((row) => row['status'] == 'Accepted')) {
+      _showMessage('All participating departments must accept before finalisation.');
+      return;
+    }
+    final terminal = <String>{
+      'Schedule agreed (demo)',
+      'Conflict resolved (demo)',
+      'Escalated for authority review',
+      'Proposal closed after decline',
+    };
+    if (terminal.contains((item['jointWorkStatus'] ?? '').toString())) {
+      _showMessage('A final demonstration outcome is already recorded for this proposal.');
+      return;
+    }
+    final choices = declined.isNotEmpty
+        ? const ['Proposal closed after decline', 'Escalated for authority review']
+        : const ['Schedule agreed (demo)', 'Conflict resolved (demo)', 'Escalated for authority review'];
+    var selected = choices.first;
+    DateTime? scheduledStart;
+    DateTime? scheduledEnd;
+
+    String dateLabel(DateTime? value) {
+      if (value == null) return 'Select date';
+      final date = value.toLocal();
+      return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
+    final result = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Record coordinator decision'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Participating departments: ' + ((item['jointDepartments'] as List?)?.join(' + ') ?? (item['assigned'] as List).join(' + '))),
+                const SizedBox(height: 8),
+                ...responses.map((row) => Text(
+                  row['department'].toString() + ': ' + row['status'].toString(),
+                  style: TextStyle(color: mutedInk, fontSize: 10),
+                )),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: selected,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Coordinator outcome'),
+                  items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => selected = value);
+                  },
+                ),
+                if (selected == 'Schedule agreed (demo)') ...[
+                  const SizedBox(height: 12),
+                  Text('ILLUSTRATIVE SHARED WORK WINDOW',
+                    style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .45)),
+                  const SizedBox(height: 7),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final today = DateUtils.dateOnly(DateTime.now());
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: scheduledStart ?? today,
+                          firstDate: today,
+                          lastDate: DateTime(today.year + 5),
+                          helpText: 'Select proposed work start date',
+                        );
+                        if (picked == null) return;
+                        setDialogState(() {
+                          scheduledStart = picked;
+                          if (scheduledEnd != null && scheduledEnd!.isBefore(picked)) {
+                            scheduledEnd = null;
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.calendar_today_outlined, size: 15),
+                      label: Text('START · ' + dateLabel(scheduledStart)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final today = DateUtils.dateOnly(DateTime.now());
+                        final first = scheduledStart ?? today;
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: scheduledEnd ?? first,
+                          firstDate: first,
+                          lastDate: DateTime(today.year + 5),
+                          helpText: 'Select proposed work end date',
+                        );
+                        if (picked == null) return;
+                        setDialogState(() => scheduledEnd = picked);
+                      },
+                      icon: const Icon(Icons.event_available_outlined, size: 15),
+                      label: Text('END · ' + dateLabel(scheduledEnd)),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text('Both dates are required. The selected range is a planning simulation, not a permit or confirmed public-works booking.',
+                    style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  'A recorded demo outcome is not a statutory approval or a confirmed public-works schedule.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (selected == 'Schedule agreed (demo)' &&
+                    (scheduledStart == null ||
+                     scheduledEnd == null ||
+                     scheduledEnd!.isBefore(scheduledStart!))) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Select a valid start and end date for the shared work window.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'outcome': selected,
+                  'start': scheduledStart,
+                  'end': scheduledEnd,
+                });
+              },
+              child: const Text('Save outcome'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+
+    final outcome = (result['outcome'] ?? '').toString();
+    final startDate = result['start'] as DateTime?;
+    final endDate = result['end'] as DateTime?;
+    final startLabel = dateLabel(startDate);
+    final endLabel = dateLabel(endDate);
+    final scheduleAgreed = outcome == 'Schedule agreed (demo)';
+    setState(() {
+      item['jointWorkStatus'] = outcome;
+      item['scheduledStartOn'] = scheduleAgreed ? startLabel : null;
+      item['scheduledEndOn'] = scheduleAgreed ? endLabel : null;
+      item['coordinationWindow'] = scheduleAgreed
+          ? startLabel + ' to ' + endLabel + ' · illustrative window only'
+          : 'No confirmed window';
+      item['status'] = outcome == 'Escalated for authority review'
+          ? 'Escalated for authority review'
+          : 'Under coordination';
+      _appendCaseEvent(item, 'Coordinator recorded outcome: ' + outcome);
+    });
+    _record(item['id'].toString() + ' coordination outcome: ' + outcome);
+  }
+
+  Future<void> _recordDemoInspection(Map<String, dynamic> item) async {
+    final observationsController = TextEditingController();
+    final recommendationController = TextEditingController();
+    const outcomes = [
+      'Issue observed',
+      'No issue observed',
+      'Access unavailable',
+      'Further inspection required',
+    ];
+    var outcome = outcomes.first;
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Record simulated field inspection'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Case: ' + item['id'].toString()),
+                Text('Location reference: ' + item['location'].toString()),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: outcome,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Inspection outcome'),
+                  items: outcomes.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => outcome = value);
+                  },
+                ),
+                const SizedBox(height: 9),
+                TextField(
+                  controller: observationsController,
+                  maxLength: 500,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Field observations',
+                    hintText: 'Describe what the demonstration inspector observed.',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: recommendationController,
+                  maxLength: 400,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Recommended follow-up',
+                    hintText: 'Record the next action for the responsible department.',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'SIMULATED RECORD ONLY. This form stores typed notes in this screen session. It does not capture GPS, upload photographs, verify an asset or certify a site.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (observationsController.text.trim().isEmpty ||
+                    recommendationController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter both the observation and recommended follow-up.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'outcome': outcome,
+                  'observations': observationsController.text.trim(),
+                  'recommendation': recommendationController.text.trim(),
+                });
+              },
+              child: const Text('Save demo inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
+    observationsController.dispose();
+    recommendationController.dispose();
+    if (!mounted || result == null) return;
+
+    final recordedAt = DateTime.now().toIso8601String();
+    final nextStatus = result['outcome'] == 'Access unavailable' ||
+            result['outcome'] == 'Further inspection required'
+        ? 'Clarification required'
+        : 'Technical recommendation submitted';
+    setState(() {
+      item['demoInspection'] = <String, dynamic>{
+        'outcome': result['outcome'],
+        'observations': result['observations'],
+        'recommendation': result['recommendation'],
+        'location': item['location'],
+        'recorded_at': recordedAt,
+        'record_type': 'SIMULATED · MANUAL NOTE',
+      };
+      item['status'] = nextStatus;
+      _appendCaseEvent(item, 'Department officer recorded field inspection: ' + (result['outcome'] ?? 'Outcome not set'));
+    });
+    _record(item['id'].toString() + ' simulated field inspection saved');
+  }
+
+  Future<void> _recordDemoEvidence(Map<String, dynamic> item) async {
+    final referenceController = TextEditingController();
+    final descriptionController = TextEditingController();
+    const kinds = <String>[
+      'Site photograph',
+      'Inspection video',
+      'Work log entry',
+      'Restoration checklist',
+      'Site sketch',
+      'Supporting document',
+    ];
+    var kind = kinds.first;
+    String? selectedFileName;
+    int? selectedFileSize;
+    String? selectedFileKind;
+
+    Future<void> selectLocalMedia({
+      required bool video,
+      required StateSetter setDialogState,
+    }) async {
+      try {
+        final picker = ImagePicker();
+        final selected = video
+            ? await picker.pickVideo(source: ImageSource.gallery)
+            : await picker.pickImage(source: ImageSource.gallery);
+        if (selected == null) return;
+        final size = await selected.length();
+        setDialogState(() {
+          selectedFileName = selected.name;
+          selectedFileSize = size;
+          selectedFileKind = video ? 'Video' : 'Photo';
+        });
+      } catch (_) {
+        if (mounted) {
+          _showMessage('Unable to select local media on this device.');
+        }
+      }
+    }
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Add evidence to demo case'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Case: ' + item['id'].toString()),
+                const SizedBox(height: 9),
+                DropdownButtonFormField<String>(
+                  initialValue: kind,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Evidence type'),
+                  items: kinds.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => kind = value);
+                  },
+                ),
+                const SizedBox(height: 9),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 6,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => selectLocalMedia(video: false, setDialogState: setDialogState),
+                      icon: const Icon(Icons.photo_outlined, size: 15),
+                      label: const Text('Choose photo'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => selectLocalMedia(video: true, setDialogState: setDialogState),
+                      icon: const Icon(Icons.video_library_outlined, size: 15),
+                      label: const Text('Choose video'),
+                    ),
+                  ],
+                ),
+                if (selectedFileName != null) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    'Selected ' + (selectedFileKind ?? 'media') + ': ' + selectedFileName! + ' · ' +
+                        ((selectedFileSize ?? 0) / 1024).toStringAsFixed(1) + ' KB',
+                    style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800),
+                  ),
+                ],
+                const SizedBox(height: 9),
+                TextField(
+                  controller: referenceController,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: 'Evidence reference (optional)',
+                    hintText: 'Example: PHOTO-DEMO-001',
+                  ),
+                ),
+                const SizedBox(height: 7),
+                TextField(
+                  controller: descriptionController,
+                  maxLength: 400,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Evidence description',
+                    hintText: 'Describe what this sample evidence is intended to show.',
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text('DEMO METADATA ONLY. The selected filename and size are recorded in this screen session. The file is not uploaded, retained by SAMANVAY or verified.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (descriptionController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter an evidence description.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'kind': kind,
+                  'reference': referenceController.text.trim(),
+                  'description': descriptionController.text.trim(),
+                  'file_name': selectedFileName,
+                  'file_kind': selectedFileKind,
+                  'file_size_bytes': selectedFileSize,
+                });
+              },
+              child: const Text('Save demo evidence entry'),
+            ),
+          ],
+        ),
+      ),
+    );
+    referenceController.dispose();
+    descriptionController.dispose();
+    if (!mounted || result == null) return;
+
+    final recordedAt = DateTime.now().toIso8601String();
+    final existing = (item['demoEvidence'] as List?) ?? const [];
+    final records = existing
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final generatedReference = 'DEMO-EVD-' +
+        item['id'].toString().replaceAll(RegExp(r'[^A-Za-z0-9]'), '') +
+        '-' + (records.length + 1).toString().padLeft(2, '0');
+    final reference = (result['reference'] ?? '').toString().trim();
+    records.insert(0, <String, dynamic>{
+      'kind': result['kind'],
+      'reference': reference.isEmpty ? generatedReference : reference,
+      'description': result['description'],
+      'file_name': result['file_name'],
+      'file_kind': result['file_kind'],
+      'file_size_bytes': result['file_size_bytes'],
+      'recorded_at': recordedAt,
+      'recorded_by': _roleTitle,
+      'record_type': 'SIMULATED · METADATA ONLY',
+    });
+    setState(() {
+      item['demoEvidence'] = records;
+      _appendCaseEvent(item, 'Evidence-register entry added: ' + (result['kind'] ?? 'Evidence').toString());
+    });
+    _record(item['id'].toString() + ' demo evidence-register entry added');
+  }
+
+  Widget _caseCard(Map<String, dynamic> item) {
+    final isOfficer = _activeRole == 'department';
+    final isCoordinator = _activeRole == 'coordinator';
+    final isCitizen = _activeRole == 'requester';
+    final jointResponses = ((item['jointResponses'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final hasMyPendingJointResponse = jointResponses.any((row) =>
+        row['department'] == _selectedDepartment && row['status'] == 'Pending');
+    final jointStatus = (item['jointWorkStatus'] ?? 'Not proposed').toString();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: Text(item['title'].toString(), style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w800))),
+                const SizedBox(width: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(color: teal.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)),
+                  child: Text(item['status'].toString().toUpperCase(), style: TextStyle(color: teal, fontSize: 8, fontWeight: FontWeight.w900)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(item['id'].toString() + ' · ' + item['domain'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+            const SizedBox(height: 4),
+            Text(item['location'].toString() + ' · ' + item['department'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+            if (jointStatus != 'Not proposed') ...[
+              const SizedBox(height: 7),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: teal.withValues(alpha: .07),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: teal.withValues(alpha: .22)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('JOINT WORK · ' + jointStatus.toUpperCase(),
+                      style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w900)),
+                    if (item['scheduledStartOn'] != null && item['scheduledEndOn'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('Shared window: ' + item['scheduledStartOn'].toString() + ' to ' + item['scheduledEndOn'].toString(),
+                          style: TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+                      ),
+                    if (jointResponses.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      ...jointResponses.map((row) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          row['department'].toString() + ' · ' + row['status'].toString() +
+                              (((row['remarks'] ?? '').toString().trim().isEmpty) ? '' : ' · ' + row['remarks'].toString()),
+                          style: TextStyle(color: mutedInk, fontSize: 9, height: 1.3),
+                        ),
+                      )),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            _caseWorkflowProgress(item),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showCase(item),
+                  icon: Icon(isCitizen ? Icons.track_changes_outlined : Icons.visibility_outlined, size: 15),
+                  label: Text(isCitizen ? 'Track request' : 'Details'),
+                ),
+                if (isOfficer) ...[
+                  FilledButton.tonalIcon(
+                    onPressed: () => _updateCase(item),
+                    icon: const Icon(Icons.rate_review_outlined, size: 15),
+                    label: const Text('Review'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _recordDemoInspection(item),
+                    icon: const Icon(Icons.fact_check_outlined, size: 15),
+                    label: const Text('Field inspection'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _recordDemoEvidence(item),
+                    icon: const Icon(Icons.attach_file_rounded, size: 15),
+                    label: const Text('Evidence log'),
+                  ),
+                  if (hasMyPendingJointResponse)
+                    OutlinedButton.icon(
+                      onPressed: () => _respondToDemoJointWork(item),
+                      icon: const Icon(Icons.how_to_vote_outlined, size: 15),
+                      label: const Text('Joint-work response'),
+                    ),
+                ],
+                if (isCoordinator)
+                  FilledButton.tonalIcon(
+                    onPressed: () => _updateCase(item),
+                    icon: const Icon(Icons.fact_check_outlined, size: 15),
+                    label: const Text('Coordination update'),
+                  ),
+                if (isCoordinator) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => _assignDepartment(item),
+                    icon: const Icon(Icons.account_tree_outlined, size: 15),
+                    label: const Text('Route department'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: jointStatus == 'Not proposed'
+                        ? () => _proposeJointWork(item)
+                        : () => _recordCoordinationDecision(item),
+                    icon: const Icon(Icons.hub_outlined, size: 15),
+                    label: Text(jointStatus == 'Not proposed'
+                        ? 'Propose joint work'
+                        : jointStatus == 'Ready for coordinator'
+                            ? 'Finalise joint work'
+                            : 'Review responses'),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitCitizenRequest() async {
+    final titleController = TextEditingController();
+    final locationController = TextEditingController();
+    final descriptionController = TextEditingController();
+    const categories = <String, String>{
+      'water_supply': 'Water supply',
+      'sewerage': 'Sewerage',
+      'stormwater_drainage': 'Stormwater / drainage',
+      'road_reconstruction': 'Roads / road damage',
+      'electricity': 'Electricity',
+      'telecom': 'Telecommunications',
+      'gas': 'Gas network',
+      'borewell_groundwater': 'Borewell / groundwater',
+      'building_planning': 'Building / planning concern',
+      'other': 'Other public infrastructure issue',
+    };
+    String category = 'water_supply';
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Submit a demo civic request'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Service category'),
+                  items: categories.entries.map((entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: titleController,
+                  maxLength: 100,
+                  decoration: const InputDecoration(
+                    labelText: 'Short request title',
+                    hintText: 'Example: Drain blockage near my street',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: locationController,
+                  maxLength: 140,
+                  decoration: const InputDecoration(
+                    labelText: 'Area / locality',
+                    hintText: 'Example: RS Puram, Coimbatore',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  maxLength: 700,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(labelText: 'Describe the issue'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'DEMO ONLY: this sample request stays in this screen session. It is not sent to a government department.',
+                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty ||
+                    locationController.text.trim().isEmpty ||
+                    descriptionController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Complete the title, locality and description.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop({
+                  'category': category,
+                  'title': titleController.text.trim(),
+                  'location': locationController.text.trim(),
+                  'description': descriptionController.text.trim(),
+                });
+              },
+              child: const Text('Create demo request'),
+            ),
+          ],
+        ),
+      ),
+    );
+    titleController.dispose();
+    locationController.dispose();
+    descriptionController.dispose();
+    if (!mounted || result == null) return;
+
+    final categoryName = categories[result['category']] ?? 'Other infrastructure issue';
+    final department = switch (result['category']) {
+      'water_supply' || 'borewell_groundwater' => 'Water Supply / PHED',
+      'sewerage' || 'stormwater_drainage' => 'Sewerage and Drainage',
+      'road_reconstruction' => 'Roads and Highways',
+      'electricity' => 'Electricity Distribution',
+      'telecom' => 'Telecommunications',
+      'gas' => 'Gas Distribution',
+      'building_planning' => 'Town Planning',
+      _ => 'Urban Local Bodies',
+    };
+    final requestId = 'DEMO-CIT-${_citizenRequestCounter.toString().padLeft(3, '0')}';
+    _citizenRequestCounter++;
+    final item = <String, dynamic>{
+      'id': requestId,
+      'owner': 'citizen',
+      'title': result['title'],
+      'domain': categoryName,
+      'department': department,
+      'status': 'Submitted',
+      'priority': 'Normal',
+      'location': result['location'],
+      'assigned': [department],
+      'jointWorkStatus': 'Not proposed',
+      'timeline': <String>['Submitted by Citizen · simulated session'],
+      'description': result['description'],
+    };
+    setState(() {
+      _cases.insert(0, item);
+      _section = 'My requests';
+    });
+    _record('$requestId created in the Citizen demo workspace');
+  }
+
+  Widget _citizenOverview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _metrics.map((metric) => _metricCard(metric[0], metric[1])).toList(),
+      ),
+      const SizedBox(height: 12),
+      _workflowNavigator(),
+      _panel(
+        'One public access point',
+        'Raise and follow requests related to roads, water, sewerage, drainage, electricity, telecom, gas, groundwater and building concerns.',
+        Icons.public_outlined,
+        status: 'CITIZEN DEMONSTRATION',
+      ),
+      _panel(
+        'Transparent request tracking',
+        'Open a sample request to view its reference number, assigned service department and current demonstration status.',
+        Icons.track_changes_outlined,
+        status: 'LOCAL SAMPLE RECORDS',
+      ),
+      _panel(
+        'Public GIS and infrastructure context',
+        'Explore available public reference boundaries, groundwater observations and published work information. Reference coverage is not an underground utility clearance.',
+        Icons.map_outlined,
+        status: 'SOURCE AND DATA LIMITATIONS SHOWN',
+      ),
+      const SizedBox(height: 6),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _submitCitizenRequest,
+          icon: const Icon(Icons.add_location_alt_outlined),
+          label: const Text('SUBMIT A DEMO REQUEST'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => setState(() => _section = 'My requests'),
+          icon: const Icon(Icons.assignment_outlined),
+          label: const Text('TRACK MY REQUESTS'),
+        ),
+      ),
+    ],
+  );
+
+  Widget _citizenServices() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Roads and excavation', 'Report road damage, obstruction or public-work concerns. Published notices and permits remain subject to the responsible authority.', Icons.construction_outlined),
+      _panel('Water, sewerage and drainage', 'Submit a service issue and follow its sample routing to the relevant water or drainage service department.', Icons.water_drop_outlined),
+      _panel('Electricity, telecom and gas', 'Raise a public infrastructure concern. The demo does not establish network ownership or exact underground routes.', Icons.bolt_outlined),
+      _panel('Groundwater and borewells', 'Record an observation for authority review. This does not grant a borewell permission or certify groundwater conditions.', Icons.sensors_outlined),
+      _panel('Buildings and planning', 'Submit a building or planning concern for illustrative routing to the relevant planning authority.', Icons.apartment_outlined),
+    ],
+  );
+
+  Widget _citizenPublicWorks() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Public works information', 'Browse public notices and reported work updates separately from private case records.', Icons.campaign_outlined, status: 'PUBLIC INFORMATION'),
+      _panel('Evidence and accountability', 'A genuine signed-in account is required to attach private evidence to a live case. This guest demo does not upload files.', Icons.verified_user_outlined),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.tonalIcon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const PublicExcavationTrackerPage(),
+            ),
+          ),
+          icon: const Icon(Icons.open_in_new_rounded),
+          label: const Text('OPEN PUBLIC WORKS TRACKER'),
+        ),
+      ),
+    ],
+  );
+
+  Widget _overview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(spacing: 8, runSpacing: 8, children: _metrics.map((m) => _metricCard(m[0], m[1])).toList()),
+      const SizedBox(height: 12),
+      _workflowNavigator(),
+      _panel('Role-based command dashboard', _roleDescription, Icons.dashboard_customize_outlined, status: 'DEMO WORKSPACE · SYNTHETIC RECORDS'),
+      _panel('Multi-department case register', 'Road reconstruction, water supply, sewerage, drainage, electricity, telecom and building-compliance workflows.', Icons.assignment_outlined, status: '5 ILLUSTRATIVE CASES'),
+      _panel('National GIS workspace', 'India-wide jurisdiction model, seven browsing regions and authority-owned evidence workflow.', Icons.map_outlined, status: '36 STATES / UNION TERRITORIES'),
+      _panel('Alerts and audit trail', 'Review local demo assignments, status changes and sample activity history.', Icons.notifications_active_outlined, status: _activity.length.toString() + ' SESSION EVENTS'),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LpuCampusModelPage())),
+          icon: const Icon(Icons.view_in_ar_rounded),
+          label: const Text('OPEN LPU LIVE GIS MAP'),
+        ),
+      ),
+    ],
+  );
+
+  Widget _caseQueue() {
+    final isCitizen = _activeRole == 'requester';
+    final isOfficer = _activeRole == 'department';
+    final visibleCases = isCitizen
+        ? _cases.where((item) => item['owner'] == 'citizen').toList()
+        : isOfficer
+            ? _cases.where((item) => (item['assigned'] as List).contains(_selectedDepartment)).toList()
+            : _cases;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _workflowNavigator(),
+        Text(
+          isCitizen
+              ? 'Your requests in this guest session. Updates made by the demonstration officer and coordinator appear here when you switch back to Citizen.'
+              : isOfficer
+                  ? 'Select a department workspace. Only cases routed to that department appear in this queue.'
+                  : 'Shared simulated case register. Administrator access is read-only; coordination actions are available in the Coordinator profile.',
+          style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+        ),
+        if (isOfficer) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedDepartment,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Active department workspace',
+              prefixIcon: Icon(Icons.account_balance_outlined),
+            ),
+            items: _departments.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedDepartment = value);
+            },
+          ),
+        ],
+        const SizedBox(height: 10),
+        if (visibleCases.isEmpty)
+          _panel(
+            'No cases routed here yet',
+            isOfficer
+                ? 'Submit a Citizen demo request for this department or use Coordinator profile to route an existing sample case.'
+                : 'No demonstration cases are available in this view yet.',
+            Icons.inbox_outlined,
+          ),
+        ...visibleCases.map(_caseCard),
+        if (isCitizen) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _submitCitizenRequest,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Submit another demo request'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _coordination() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _workflowNavigator(),
+      _panel(
+        'Cross-department coordination desk',
+        'Review shared cases, propose a partner department, record a tentative scheduling outcome and maintain a visible session history.',
+        Icons.hub_outlined,
+        status: 'SIMULATED COORDINATOR WORKSPACE',
+      ),
+      _panel(
+        'Repeated-work conflict screening',
+        'Compare overlapping road, drainage, water and telecom works. Conflict flags are illustrative and require real schedule data and authority review.',
+        Icons.alt_route_rounded,
+        status: 'HUMAN REVIEW REQUIRED',
+      ),
+      _panel(
+        'Joint-work decision controls',
+        'A proposal can be recorded, followed by a demo outcome. No real work order, permit, excavation clearance or calendar booking is created.',
+        Icons.calendar_month_outlined,
+        status: 'NOT A LIVE APPROVAL',
+      ),
+      Text('SHARED CASE REGISTER', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 9),
+      ..._cases.map(_caseCard),
+    ],
+  );
+
+  void _advanceDemoPermit(int index) {
+    if (index < 0 || index >= _demoPermits.length) return;
+    final permit = _demoPermits[index];
+    final current = permit['stage'].toString();
+    final next = switch (current) {
+      'Approved' => 'Work started',
+      'Work started' => 'Work completed',
+      'Work completed' => 'Restoration verified',
+      _ => 'Restoration verified',
+    };
+    if (current == 'Restoration verified') return;
+    final event = switch (next) {
+      'Work started' => 'Work commencement recorded · demo',
+      'Work completed' => 'Work completion recorded · demo',
+      _ => 'Road restoration inspection passed · demo',
+    };
+    setState(() {
+      permit['stage'] = next;
+      if (next == 'Restoration verified') permit['restoration'] = 'Verified · demo';
+      (permit['history'] as List<String>).insert(0, event);
+    });
+    _record(permit['id'].toString() + ': ' + event);
+  }
+
+  Widget _demoPermitCard(int index) {
+    final permit = _demoPermits[index];
+    final stage = permit['stage'].toString();
+    final nextAction = switch (stage) {
+      'Approved' => 'Record work start',
+      'Work started' => 'Record work completion',
+      'Work completed' => 'Verify road restoration',
+      _ => 'Restoration verified',
+    };
+    final history = (permit['history'] as List<String>).take(3).toList();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(permit['title'].toString(), style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 13))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: teal.withValues(alpha: .13), borderRadius: BorderRadius.circular(18)), child: Text(stage.toUpperCase(), style: TextStyle(color: teal, fontWeight: FontWeight.w900, fontSize: 8))),
+          ]),
+          const SizedBox(height: 6),
+          Text(permit['id'].toString() + ' · ' + permit['caseId'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          Text(permit['location'].toString() + ' · ' + permit['department'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          Text('Approved work window: ' + permit['window'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          Text('Restoration: ' + permit['restoration'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+          const SizedBox(height: 8),
+          Text('PERMIT ACTIVITY', style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .4)),
+          ...history.map((event) => Padding(padding: const EdgeInsets.only(top: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.history_rounded, size: 13, color: teal), const SizedBox(width: 6), Expanded(child: Text(event, style: TextStyle(color: mutedInk, fontSize: 9)))]))),
+          const SizedBox(height: 9),
+          if (stage != 'Restoration verified')
+            Align(alignment: Alignment.centerLeft, child: FilledButton.tonalIcon(onPressed: () => _advanceDemoPermit(index), icon: const Icon(Icons.arrow_forward_rounded, size: 15), label: Text(nextAction)))
+          else
+            Text('DEMO WORKFLOW CLOSED · not a statutory permit or engineering certification', style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _roadworks() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Road-cut permit compliance', 'Advance a sample permit through work commencement, completion and restoration review.', Icons.construction_outlined, status: 'INTERACTIVE · SESSION-ONLY DEMO'),
+      _panel('Coordinated road-work calendar', 'Compare schedules across departments to reduce repeated road cuts and overlapping works.', Icons.calendar_month_outlined, status: 'ILLUSTRATIVE JOINT WINDOW'),
+      _panel('Road restoration quality assurance', 'Record a sample restoration inspection after work completion.', Icons.verified_outlined, status: 'DEMO INSPECTION TRAIL'),
+      const SizedBox(height: 4),
+      ...List.generate(_demoPermits.length, _demoPermitCard),
+      _panel('Stormwater drainage and frontage', 'Track drain obstructions, frontage access and inspection follow-up for municipal teams.', Icons.water_outlined, status: 'ILLUSTRATIVE OBSERVATION'),
+      _panel('Public excavation tracker', 'Show published notices and planned works without exposing restricted utility geometry.', Icons.campaign_outlined, status: 'PUBLIC VIEW'),
+      Text('All permit records and status changes above are synthetic and exist only in this demonstration session. They do not grant excavation permission, utility clearance or legal approval.', style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+    ],
+  );
+
+  Widget _demoUndergroundModel() {
+    const layers = <Map<String, Object>>[
+      {'name': 'Water', 'colour': Color(0xFF258AD6), 'icon': Icons.water_drop_outlined},
+      {'name': 'Sewer', 'colour': Color(0xFF8B5BC7), 'icon': Icons.water_outlined},
+      {'name': 'Stormwater', 'colour': Color(0xFF18A6A0), 'icon': Icons.grain_rounded},
+      {'name': 'Electricity', 'colour': Color(0xFFE1A928), 'icon': Icons.bolt_outlined},
+      {'name': 'Telecom', 'colour': Color(0xFFD65A9E), 'icon': Icons.cable_rounded},
+      {'name': 'Gas', 'colour': Color(0xFFE47C32), 'icon': Icons.local_fire_department_outlined},
+      {'name': 'Borewell', 'colour': Color(0xFF26B7A8), 'icon': Icons.sensors_outlined},
+    ];
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return Card(
+      margin: const EdgeInsets.only(top: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.layers_outlined, color: teal, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('SUBSURFACE VISUALISATION SANDBOX',
+                    style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .45)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text('Toggle infrastructure layers and switch between plan and cutaway views. This is a synthetic, non-georeferenced teaching visual—not a utility survey or a representation of the ground at the selected map location.',
+              style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+            const SizedBox(height: 5),
+            Text('DEMO ONLY · NOT TO SCALE · NOT FOR EXCAVATION',
+              style: TextStyle(color: isLight ? const Color(0xFF9B4C18) : const Color(0xFFFFC078), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .35)),
+            const SizedBox(height: 11),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: ['2D plan', '3D cutaway'].map((mode) => ChoiceChip(
+                label: Text(mode, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                selected: _demoGisViewMode == mode,
+                onSelected: (_) => setState(() => _demoGisViewMode = mode),
+              )).toList(),
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 218,
+                width: double.infinity,
+                color: isLight ? const Color(0xFFE9F1F4) : const Color(0xFF0B2032),
+                child: CustomPaint(
+                  painter: _DemoSubsurfacePainter(
+                    viewMode: _demoGisViewMode,
+                    visibleLayers: _demoGisVisibleLayers,
+                    isLight: isLight,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text('VISIBLE NETWORK LAYERS', style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .45)),
+            const SizedBox(height: 5),
+            Wrap(
+              spacing: 6,
+              runSpacing: 3,
+              children: layers.map((layer) {
+                final name = layer['name']! as String;
+                final colour = layer['colour']! as Color;
+                final selected = _demoGisVisibleLayers.contains(name);
+                return FilterChip(
+                  label: Text(name, style: TextStyle(fontSize: 9, color: ink, fontWeight: FontWeight.w700)),
+                  avatar: Icon(layer['icon']! as IconData, size: 14, color: colour),
+                  selected: selected,
+                  selectedColor: colour.withValues(alpha: .16),
+                  onSelected: (enabled) => setState(() {
+                    final next = Set<String>.from(_demoGisVisibleLayers);
+                    if (enabled) {
+                      next.add(name);
+                    } else {
+                      next.remove(name);
+                    }
+                    _demoGisVisibleLayers = next;
+                  }),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: isLight ? navy : const Color(0xFFFFD27A)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Illustrative network paths only. No coordinates, real depths, asset ownership, positional accuracy or excavation clearance are implied. Live exact geometry remains restricted to authorised owner-verified workflows.',
+                    style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _gisCoverage() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel(
+        'India-wide jurisdiction explorer',
+        'Browse all 36 States and Union Territories and the currently imported district, sub-district, block and urban local-body reference records. Ward-level LGD records are not yet imported; the bundled Coimbatore 2024 ward polygons are a separate navigation reference. Community-mirror records remain unverified until reconciled with official records.',
+        Icons.public_outlined,
+        status: 'NATIONAL REFERENCE DIRECTORY',
+      ),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AUDITED INDIA DIRECTORY FOOTPRINT',
+                style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .55),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Verified database snapshot · 13 November 2026. These are reference/readiness records, not proof of authority-certified boundaries or operational utility coverage.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _metricCard('36', 'States / UTs'),
+                  _metricCard('396', 'Coverage rows · 11 domains'),
+                  _metricCard('784', 'Distinct LGD district codes'),
+                  _metricCard('7,092', 'Sub-district rows'),
+                  _metricCard('7,312', 'Block rows'),
+                  _metricCard('5,050', 'ULB mirror rows'),
+                  _metricCard('0', 'Imported ward rows'),
+                  _metricCard('0', 'Operational utility layers'),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Text(
+                'All 20,238 imported district / sub-district / block / ULB directory records remain marked imported_unverified. The ULB snapshot is a third-party mirror dated 23 September 2026; district, sub-district and block mirrors are dated 21 October 2026. The 2024 Coimbatore ward polygons are separate reference geometry.',
+                style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'HIERARCHY INTEGRITY CHECKS',
+                style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5),
+              ),
+              const SizedBox(height: 7),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _metricCard('0', 'Duplicate LGD codes'),
+                  _metricCard('0', 'Orphan parent IDs'),
+                  _metricCard('1,467', 'Historical district refs without LGD codes'),
+                  _metricCard('5,050', 'ULBs awaiting district mapping'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'All block and sub-district records link to a district. The ULB source supplied state labels and ULB LGD codes but no district-code field, so no ULB-to-district parent is inferred. The 1,467 names-only district references are kept separate from the 784 LGD-coded districts. Every imported hierarchy row remains unverified.',
+                style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      _demoUndergroundModel(),
+      _panel(
+        'Infrastructure source coverage',
+        'See the responsible agency, source portal, expected granularity and data-readiness state for roads, water, sewerage, drainage, electricity, telecom, gas, groundwater and buildings.',
+        Icons.layers_outlined,
+        status: 'SOURCE REGISTER · NOT ASSET COMPLETENESS',
+      ),
+      _panel(
+        'Underground asset verification',
+        'Exact utility geometry remains owner-controlled. The public map does not estimate pipe, cable, gas or sewer routes, and an empty layer never means a site is clear to dig.',
+        Icons.verified_user_outlined,
+        status: 'NO PUBLIC EXACT ROUTES',
+      ),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PUBLIC GIS WORKSPACE', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 5),
+              Text('Explore the India basemap, satellite/vector views, 2D/3D surface context and available public boundary references. Case markers, verified assets and staff tools remain subject to account permissions.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const MapPage()),
+                  ),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('OPEN INDIA GIS MAP'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const IndiaCoverageExplorerPage()),
+                  ),
+                  icon: const Icon(Icons.account_tree_outlined),
+                  label: const Text('OPEN INDIA COVERAGE DIRECTORY'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const PublicExcavationTrackerPage()),
+                  ),
+                  icon: const Icon(Icons.campaign_outlined),
+                  label: const Text('VIEW PUBLISHED PUBLIC WORKS'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const MapPage(
+                        initialCenter: LatLng(11.0168, 76.9558),
+                        initialZoom: 10.5,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.location_city_outlined),
+                  label: const Text('OPEN COIMBATORE PILOT MAP'),
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text('Public directory access is read-only. Unverified boundary or directory data is for navigation only, never for statutory decisions, permits, excavation clearance or utility-owner verification.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PUBLIC LAYER REGISTER', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 10),
+              _publicGisLayerStatus(
+                'India State / UT outlines',
+                'Available on demand',
+                'geoBoundaries reference geometry. The map displays source, licence and represented year; not LGD-certified statutory boundaries.',
+                Icons.public_outlined,
+              ),
+              _publicGisLayerStatus(
+                'India district outlines',
+                'Reference layer · vintage varies',
+                'Boundary snapshots are navigation references. Older DataMeet shapes are separate from the imported LGD-code directory and must not be silently joined.',
+                Icons.map_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Coimbatore ward polygons',
+                '100 wards · 2024 reference',
+                'Bundled OpenCity / Living Atlas-derived polygons. Not a CCMC-issued statutory GIS boundary or an underground utility layer.',
+                Icons.location_city_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Groundwater observations',
+                '2025-only live subset · 446,068 rows',
+                'The live table currently contains only calendar-year 2025 records from seven agencies (445,553 geocoded). A verified pre-change archive contains 1,911,126 rows, but the earlier history has not yet been restored. This is groundwater telemetry, not underground water-pipe geometry or excavation clearance.',
+                Icons.water_drop_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Underground utility assets',
+                'No verified geometry registered',
+                'The current audit found zero verified underground-asset rows and zero survey-evidence rows. This does not prove that utilities are absent.',
+                Icons.route_outlined,
+              ),
+              _publicGisLayerStatus(
+                'Public excavation notices',
+                'Published notices only',
+                'The public tracker excludes drafts and private case records; it shows notices only when they have been published.',
+                Icons.campaign_outlined,
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('JUMP TO AN INDIA REGION', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 4),
+              Text('These shortcuts open the same coverage directory with the region pre-filtered.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+              const SizedBox(height: 9),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: ['All India', 'North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands']
+                    .map((region) => ActionChip(
+                      avatar: const Icon(Icons.explore_outlined, size: 14),
+                      label: Text(region, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => IndiaCoverageExplorerPage(initialRegion: region),
+                        ),
+                      ),
+                    )).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _publicGisLayerStatus(String title, String status, String detail, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0x1420BFA8),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, color: teal, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text(status.toUpperCase(), style: const TextStyle(color: Color(0xFF168575), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .35)),
+                const SizedBox(height: 3),
+                Text(detail, style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groundwater() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Groundwater telemetry snapshot', 'View sample water-level observations, reporting dates and station metadata.', Icons.water_drop_outlined, status: 'ILLUSTRATIVE STATION DATA'),
+      _panel('Borewell observation register', 'Flag clustered observations for authority review; the dashboard does not itself grant or deny borewell permissions.', Icons.sensors_outlined, status: 'REVIEW WORKFLOW'),
+      _panel('Source verification', 'Separate official observations from reference data and unverified submissions.', Icons.fact_check_outlined, status: 'SOURCE STATUS VISIBLE'),
+      _panel('Sample station', 'Observation: 14.2 m below ground level · Reporting period: illustrative 2026 snapshot.', Icons.location_on_outlined, status: 'SAMPLE ONLY · NOT A LIVE READING'),
+    ],
+  );
+
+  Widget _buildings() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Building approval register', 'Link the sanctioned plan reference, permitted floor count and inspection history.', Icons.apartment_outlined, status: 'SAMPLE APPROVAL RECORDS'),
+      _panel('Floor compliance inspection', 'Record observed floor count, site evidence, inspection outcome and authority follow-up.', Icons.domain_verification_outlined, status: '1 SAMPLE INSPECTION'),
+      _panel('Drainage and setback review', 'Flag missing frontage drainage space and route the observation to the relevant local authority.', Icons.rule_folder_outlined, status: 'INSPECTION WORKFLOW'),
+      _panel('Audit-ready decisions', 'Store responsible officer, decision date, source plan and supporting evidence for official decisions.', Icons.assignment_turned_in_outlined),
+    ],
+  );
+
+  Widget _aiInsights() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Repeated-dig prevention signal', 'A sample AI-assisted recommendation groups pipeline replacement with scheduled road restoration to reduce repeat excavation.', Icons.auto_awesome_outlined, status: 'ILLUSTRATIVE AI OUTPUT'),
+      _panel('Conflict-screening explanation', 'Explain which dates, locations and infrastructure domains caused a potential conflict alert for human review.', Icons.psychology_outlined),
+      _panel('Evidence-aware summaries', 'The production assistant uses authorised case context and records generated assessments for accountable review.', Icons.summarize_outlined, status: 'LIVE AI REQUIRES AUTHENTICATED STAFF ACCESS'),
+      _panel('Human approval remains mandatory', 'AI output is advisory. It does not approve permits, certify utility locations or replace a competent authority.', Icons.verified_user_outlined),
+    ],
+  );
+
+  Widget _adminCaseRegister() {
+    final statuses = <String>[
+      'All statuses',
+      'Submitted',
+      'Assigned',
+      'Under review',
+      'Clarification required',
+      'Technical recommendation submitted',
+      'Site inspection scheduled',
+      'Under coordination',
+      'Approved',
+      'Completed',
+      'Escalated for authority review',
+    ];
+    final query = _adminCaseQuery.trim().toLowerCase();
+    final filtered = _cases.where((item) {
+      final status = (item['status'] ?? 'Submitted').toString();
+      final matchesStatus = _adminStatusFilter == 'All statuses' || status == _adminStatusFilter;
+      final searchable = [
+        item['id'], item['title'], item['location'], item['department'],
+        (item['assigned'] as List).join(' '), item['status'],
+      ].join(' ').toLowerCase();
+      return matchesStatus && (query.isEmpty || searchable.contains(query));
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CASE OVERSIGHT REGISTER', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        TextField(
+          onChanged: (value) => setState(() => _adminCaseQuery = value),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search_rounded),
+            hintText: 'Search ID, case, location or department',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _adminStatusFilter,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'Filter by workflow status',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          items: statuses.map((status) => DropdownMenuItem<String>(
+            value: status,
+            child: Text(status, overflow: TextOverflow.ellipsis),
+          )).toList(),
+          onChanged: (value) => setState(() => _adminStatusFilter = value ?? 'All statuses'),
+        ),
+        const SizedBox(height: 7),
+        Text('${filtered.length} of ${_cases.length} session cases · local demo data',
+          style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        if (filtered.isEmpty)
+          _panel('No matching cases', 'Try a different search term or status filter.', Icons.search_off_rounded)
+        else
+          ...filtered.map(_caseCard),
+      ],
+    );
+  }
+
+  Widget _adminStatusSummary() {
+    const statuses = <String>[
+      'Submitted', 'Assigned', 'Under review', 'Clarification required',
+      'Technical recommendation submitted', 'Site inspection scheduled',
+      'Under coordination', 'Approved', 'Completed', 'Escalated for authority review',
+    ];
+    final total = _cases.length;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('WORKFLOW DISTRIBUTION', style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text('Counts are calculated from the current demonstration session.', style: TextStyle(color: mutedInk, fontSize: 9)),
+            const SizedBox(height: 10),
+            ...statuses.map((status) {
+              final count = _cases.where((item) => item['status'] == status).length;
+              final fraction = total == 0 ? 0.0 : count / total;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(status, style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w700))),
+                        Text('$count', style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: fraction,
+                        minHeight: 5,
+                        backgroundColor: borderColor.withValues(alpha: .4),
+                        valueColor: AlwaysStoppedAnimation<Color>(teal),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _adminOverview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _metrics.map((metric) => _metricCard(metric[0], metric[1])).toList(),
+      ),
+      const SizedBox(height: 12),
+      _workflowNavigator(),
+      _panel(
+        'Platform oversight',
+        'Review the shared session register, department routing, coordination outcomes and audit events across the demonstration profiles.',
+        Icons.admin_panel_settings_outlined,
+        status: 'READ-ONLY ADMIN DEMONSTRATION',
+      ),
+      _panel(
+        'Permission boundary',
+        'Profile switching is a demonstration convenience only. It does not grant production Administrator privileges or change Supabase access controls.',
+        Icons.lock_outline_rounded,
+        status: 'LIVE AUTHORIZATION UNCHANGED',
+      ),
+      _adminStatusSummary(),
+      Text('RECENT SESSION AUDIT', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      ..._activity.map((entry) => _panel(entry, 'Recorded in this local demonstration session.', Icons.history_rounded)),
+      const SizedBox(height: 8),
+      _adminCaseRegister(),
+    ],
+  );
+
+  // Prototype-only calculation: assumptions are never written to Supabase or presented as measured impact.
+  void _runPilotScenario() {
+    setState(() => _pilotScenarioExecuted = true);
+    _record('Pilot simulation run · three illustrative work packages grouped into one shared access window');
+  }
+
+  void _resetPilotScenario() {
+    setState(() => _pilotScenarioExecuted = false);
+    _record('Pilot simulation reset');
+  }
+
+  Widget _pilotImpact() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel(
+        'Coimbatore corridor pilot simulation',
+        'A synthetic demonstration of how road, water and telecommunications work packages could be coordinated before a road is opened.',
+        Icons.insights_outlined,
+        status: 'PHASE 5 · PROTOTYPE SCENARIO ONLY',
+      ),
+      Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ILLUSTRATIVE SCENARIO INPUT',
+                style: TextStyle(
+                  color: teal,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .6,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Avinashi Road demonstration corridor · Coimbatore',
+                style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Three assumed work packages: water-pipeline renewal, telecom duct maintenance and road resurfacing / restoration.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              Text(
+                'UNCOORDINATED BASELINE',
+                style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '3 separate road-access windows are assumed when each work package is planned independently.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.35),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'COORDINATED SAMANVAY SCENARIO',
+                style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '1 shared access window is modelled, subject to all three owners agreeing to the schedule and granting their own clearances.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _metricCard('3', 'Assumed work packages'),
+          _metricCard('3', 'Baseline access windows'),
+          _metricCard(_pilotScenarioExecuted ? '1' : '—', 'Modelled shared window'),
+          _metricCard(_pilotScenarioExecuted ? '2' : '—', 'Potential repeat openings avoided'),
+        ],
+      ),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _runPilotScenario,
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: Text(_pilotScenarioExecuted ? 'RERUN PILOT SCENARIO' : 'RUN ILLUSTRATIVE PILOT SCENARIO'),
+        ),
+      ),
+      if (_pilotScenarioExecuted) ...[
+        const SizedBox(height: 8),
+        _panel(
+          'Scenario calculation completed',
+          'The local demo grouped three assumed work packages into one shared access window. The difference of two windows is a modelled opportunity only; it is not an observed reduction or a verified saving.',
+          Icons.check_circle_outline_rounded,
+          status: 'LOCAL SESSION RESULT · NOT MEASURED',
+        ),
+      ],
+      TextButton.icon(
+        onPressed: _pilotScenarioExecuted ? _resetPilotScenario : null,
+        icon: const Icon(Icons.restart_alt_rounded, size: 17),
+        label: const Text('RESET SCENARIO'),
+      ),
+      _panel(
+        'Conditions before a real shared work window',
+        'Each utility owner must confirm asset records and clearance; each work package must have a valid permit; traffic and public-safety plans must be compatible; and the road authority must approve the common schedule. A missing owner response blocks the combined plan.',
+        Icons.fact_check_outlined,
+        status: 'AUTHORITY APPROVAL REQUIRED',
+      ),
+      _panel(
+        'Pilot measurement discipline',
+        'A real pilot must compare a pre-agreed baseline with timestamped request, review, permit, work-start and restoration records. Measure repeat road openings, median and p90 review time, owner response time, restoration defects and evidence-complete closures. Do not report simulated values as savings, prevention rates or measured impact.',
+        Icons.analytics_outlined,
+        status: 'NO REAL-WORLD KPI CLAIMS',
+      ),
+    ],
+  );
+
+  Widget _governance() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel('Role and department permissions', 'Production access is resolved from the authenticated Supabase profile. Demo profile selection does not grant live officer or administrator permissions.', Icons.admin_panel_settings_outlined),
+      _panel('Source and evidence registry', 'Store originating authority, publication date, checksum and verification status with imported datasets.', Icons.source_outlined),
+      _panel('Audit and approval history', 'Protected operations record actor, timestamp, case identifier and decision rationale.', Icons.history_edu_outlined),
+      _panel('Data readiness', 'District and ULB records require validated official source imports. Underground asset geometry remains separate from directory and coverage records.', Icons.fact_check_outlined, status: 'AUTHORITY VERIFICATION REQUIRED'),
+      _panel('Recent demo activity', _activity.take(6).join(' · '), Icons.history_rounded, status: 'LOCAL SESSION ONLY'),
+    ],
+  );
+
+  Widget _selectedContent() {
+    if (_activeRole == 'requester') {
+      switch (_section) {
+        case 'My requests': return _caseQueue();
+        case 'Service guide': return _citizenServices();
+        case 'Public works': return _citizenPublicWorks();
+        case 'GIS & coverage': return _gisCoverage();
+        default: return _citizenOverview();
+      }
+    }
+    switch (_section) {
+      case 'Case queue': return _caseQueue();
+      case 'Coordination': return _coordination();
+      case 'Roadworks': return _roadworks();
+      case 'GIS & coverage': return _gisCoverage();
+      case 'Groundwater': return _groundwater();
+      case 'Buildings': return _buildings();
+      case 'AI insights': return _aiInsights();
+      case 'Governance': return _governance();
+      case 'Admin oversight': return _adminOverview();
+      case 'Pilot & impact': return _pilotImpact();
+      default: return _activeRole == 'admin' ? _adminOverview() : _overview();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_activeRole == 'requester' ? 'SAMANVAY CITIZEN WORKSPACE' : 'SAMANVAY OFFICIAL WORKSPACE'),
+            Text(
+              'DEMO ID ' + _activeStaffId + ' · ' + _roleTitle.toUpperCase() +
+                  (_activeRole == 'department' ? ' · ' + _selectedDepartment : ''),
+              style: TextStyle(color: cyanAccent, fontSize: 9),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: isLight ? 'Switch to dark mode' : 'Switch to light mode',
+            onPressed: _toggleTheme,
+            icon: Icon(isLight ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
+          ),
+          IconButton(tooltip: 'Switch profiles', onPressed: _switchProfiles, icon: const Icon(Icons.switch_account_rounded)),
+          TextButton.icon(onPressed: widget.onExit, icon: const Icon(Icons.logout_rounded, size: 16), label: const Text('EXIT')),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(15),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: isLight ? const Color(0xFFE5F4F1) : const Color(0xFF3B2D14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isLight ? const Color(0xFFB8DCD5) : const Color(0xFF9C7428)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.visibility_outlined, color: isLight ? teal : const Color(0xFFFFD27A)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _activeRole == 'requester'
+                          ? 'CITIZEN GUEST DEMO ACTIVE. You can submit and track sample requests in this session. Nothing is sent to a government department or saved to a live account.'
+                          : 'DEMO PROFILE ACTIVE. This workspace uses synthetic sample records. Status updates and assignments work in this session only; no Supabase user is impersonated and no live citizen or department data is changed.',
+                      style: TextStyle(color: isLight ? navy : const Color(0xFFFFE5AE), fontSize: 10, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(_roleTitle, style: TextStyle(color: ink, fontSize: 22, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text(_roleDescription, style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: (_activeRole == 'requester'
+                    ? <String>['Overview', 'My requests', 'Service guide', 'Public works', 'GIS & coverage']
+                    : _activeRole == 'admin'
+                        ? <String>[
+                            'Overview', 'Case queue', 'Admin oversight', 'Pilot & impact', 'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                          ]
+                        : <String>[
+                            'Overview', 'Case queue', 'Coordination', 'Roadworks', 'Pilot & impact',
+                            'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                          ]).map(_sectionChip).toList(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _selectedContent(),
+            const SizedBox(height: 8),
+            Text(
+              _activeRole == 'requester'
+                  ? 'Guest demonstration only. Sign in to send a real service request, upload private evidence and receive account-linked updates. Demo entries disappear when this screen session ends.'
+                  : 'Live officer functions and protected records require an authorised Supabase staff account. This interactive demonstration is designed for the five-minute presentation.',
+              style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Animated, visual-only cutaway for the GIS demonstration panel.
+class _AnimatedUndergroundCutaway extends StatefulWidget {
+  const _AnimatedUndergroundCutaway({
+    required this.viewMode,
+    required this.visibleLayers,
+    required this.isLight,
+    super.key,
+  });
+
+  final String viewMode;
+  final Set<String> visibleLayers;
+  final bool isLight;
+
+  @override
+  State<_AnimatedUndergroundCutaway> createState() => _AnimatedUndergroundCutawayState();
+}
+
+class _AnimatedUndergroundCutawayState extends State<_AnimatedUndergroundCutaway>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flowController;
+
+  @override
+  void initState() {
+    super.initState();
+    _flowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flowController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _flowController,
+    builder: (context, _) => CustomPaint(
+      painter: _DemoSubsurfacePainter(
+        viewMode: widget.viewMode,
+        visibleLayers: widget.visibleLayers,
+        isLight: widget.isLight,
+        phase: _flowController.value,
+      ),
+      child: const SizedBox.expand(),
+    ),
+  );
+}
+
+// Synthetic, non-georeferenced visual for the prototype demonstration.
+// Never feed this schematic into GIS, excavation screening or clearance logic.
+class _DemoSubsurfacePainter extends CustomPainter {
+  final String viewMode;
+  final Set<String> visibleLayers;
+  final bool isLight;
+  final double phase;
+
+  const _DemoSubsurfacePainter({
+    required this.viewMode,
+    required this.visibleLayers,
+    required this.isLight,
+    this.phase = 0,
+  });
+
+  static const Map<String, Color> _colours = {
+    'Water': Color(0xFF258AD6),
+    'Sewer': Color(0xFF8B5BC7),
+    'Stormwater': Color(0xFF18A6A0),
+    'Electricity': Color(0xFFE1A928),
+    'Telecom': Color(0xFFD65A9E),
+    'Gas': Color(0xFFE47C32),
+    'Borewell': Color(0xFF26B7A8),
+  };
+
+  void _drawPath(Canvas canvas, Size size, String layer, double y, double bend,
+      {double width = 5, bool tube = false}) {
+    if (!visibleLayers.contains(layer)) return;
+    final path = Path()
+      ..moveTo(size.width * .06, y)
+      ..cubicTo(size.width * .28, y - bend, size.width * .62, y + bend,
+          size.width * .94, y - bend * .25);
+    final colour = _colours[layer]!;
+    canvas.drawPath(path, Paint()
+      ..color = colour.withValues(alpha: .24)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width + 5
+      ..strokeCap = StrokeCap.round);
+    canvas.drawPath(path, Paint()
+      ..color = colour
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round);
+    if (tube) {
+      canvas.drawPath(path, Paint()
+        ..color = Colors.white.withValues(alpha: .55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round);
+    }
+    final metric = path.computeMetrics().first;
+    for (var pulse = 0; pulse < 3; pulse++) {
+      final distance = ((phase + pulse / 3) % 1.0) * metric.length;
+      final tangent = metric.getTangentForOffset(distance);
+      if (tangent == null) continue;
+      canvas.drawCircle(
+        tangent.position,
+        width * 1.05,
+        Paint()
+          ..color = colour.withValues(alpha: .28)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(
+        tangent.position,
+        math.max(1.5, width * .30).toDouble(),
+        Paint()..color = Colors.white.withValues(alpha: .92),
+      );
+    }
+  }
+
+  void _drawBorewellMarkers(Canvas canvas, Size size, {required bool plan}) {
+    if (!visibleLayers.contains('Borewell')) return;
+    final colour = _colours['Borewell']!;
+    final positions = plan
+        ? <Offset>[
+            Offset(size.width * .36, size.height * .49),
+            Offset(size.width * .68, size.height * .49),
+          ]
+        : <Offset>[
+            Offset(size.width * .37, size.height * .40),
+            Offset(size.width * .68, size.height * .40),
+          ];
+
+    for (final point in positions) {
+      if (plan) {
+        canvas.drawCircle(point, 8, Paint()..color = colour.withValues(alpha: .22));
+        canvas.drawCircle(point, 5, Paint()..color = colour);
+        canvas.drawCircle(point, 2, Paint()..color = Colors.white);
+      } else {
+        final bottom = Offset(point.dx, size.height * .88);
+        canvas.drawLine(
+          point,
+          bottom,
+          Paint()
+            ..color = colour.withValues(alpha: .28)
+            ..strokeWidth = 12
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawLine(
+          point,
+          bottom,
+          Paint()
+            ..color = colour
+            ..strokeWidth = 5
+            ..strokeCap = StrokeCap.round,
+        );
+        canvas.drawCircle(point, 6, Paint()..color = colour);
+        canvas.drawCircle(bottom, 4, Paint()..color = Colors.white);
+      }
+    }
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ground = isLight ? const Color(0xFFD5E2D0) : const Color(0xFF263E3B);
+    final soil = isLight ? const Color(0xFFD9B98E) : const Color(0xFF574735);
+    final deepSoil = isLight ? const Color(0xFFB99A76) : const Color(0xFF3E392F);
+    final road = isLight ? const Color(0xFF52616C) : const Color(0xFF263747);
+    final block = isLight ? const Color(0xFFB9C9D2) : const Color(0xFF506579);
+    final paint = Paint()..isAntiAlias = true;
+
+    if (viewMode == '2D plan') {
+      paint.color = ground;
+      canvas.drawRect(Offset.zero & size, paint);
+      paint.color = road;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, size.height * .30, size.width, size.height * .42),
+          const Radius.circular(3),
+        ),
+        paint,
+      );
+      paint
+        ..color = Colors.white.withValues(alpha: .72)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      for (var x = 8.0; x < size.width; x += 31) {
+        canvas.drawLine(Offset(x, size.height * .51),
+            Offset(x + 15, size.height * .51), paint);
+      }
+      paint
+        ..style = PaintingStyle.fill
+        ..color = block;
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(8, 10, size.width * .20, size.height * .17),
+        const Radius.circular(5)), paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * .73, 10, size.width * .22, size.height * .17),
+        const Radius.circular(5)), paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(8, size.height * .79, size.width * .25, size.height * .15),
+        const Radius.circular(5)), paint);
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * .70, size.height * .79, size.width * .25, size.height * .15),
+        const Radius.circular(5)), paint);
+      _drawPath(canvas, size, 'Water', size.height * .39, 13, width: 5);
+      _drawPath(canvas, size, 'Sewer', size.height * .61, 15, width: 5);
+      _drawPath(canvas, size, 'Stormwater', size.height * .68, 8, width: 4);
+      _drawPath(canvas, size, 'Electricity', size.height * .45, 4, width: 3);
+      _drawPath(canvas, size, 'Telecom', size.height * .56, 6, width: 3);
+      _drawPath(canvas, size, 'Gas', size.height * .64, 10, width: 3);
+      _drawBorewellMarkers(canvas, size, plan: true);
+    } else {
+      paint.color = isLight ? const Color(0xFFB9D7E7) : const Color(0xFF16364C);
+      canvas.drawRect(Offset.zero & size, paint);
+      final skyline = Path()
+        ..moveTo(0, size.height * .36)
+        ..lineTo(size.width, size.height * .36)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close();
+      paint.color = soil;
+      canvas.drawPath(skyline, paint);
+      paint.color = deepSoil.withValues(alpha: .72);
+      canvas.drawRect(Rect.fromLTWH(0, size.height * .72, size.width, size.height * .28), paint);
+
+      // Surface context is schematic, not a measured building or road model.
+      paint.color = block;
+      canvas.drawRect(Rect.fromLTWH(size.width * .04, size.height * .11,
+          size.width * .18, size.height * .24), paint);
+      paint.color = isLight ? const Color(0xFFE8EFF3) : const Color(0xFF8197A9);
+      canvas.drawRect(Rect.fromLTWH(size.width * .78, size.height * .15,
+          size.width * .17, size.height * .20), paint);
+      paint.color = road;
+      final roadTop = Path()
+        ..moveTo(size.width * .25, size.height * .27)
+        ..lineTo(size.width * .77, size.height * .27)
+        ..lineTo(size.width * .84, size.height * .39)
+        ..lineTo(size.width * .18, size.height * .39)
+        ..close();
+      canvas.drawPath(roadTop, paint);
+      paint
+        ..color = Colors.white.withValues(alpha: .72)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(size.width * .34, size.height * .33),
+          Offset(size.width * .67, size.height * .33), paint);
+      paint.style = PaintingStyle.fill;
+      _drawPath(canvas, size, 'Water', size.height * .51, 12, width: 9, tube: true);
+      _drawPath(canvas, size, 'Sewer', size.height * .82, 8, width: 11, tube: true);
+      _drawPath(canvas, size, 'Stormwater', size.height * .68, 12, width: 8, tube: true);
+      _drawPath(canvas, size, 'Electricity', size.height * .57, 4, width: 4);
+      _drawPath(canvas, size, 'Telecom', size.height * .62, 5, width: 4);
+      _drawPath(canvas, size, 'Gas', size.height * .74, 6, width: 5);
+      _drawBorewellMarkers(canvas, size, plan: false);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DemoSubsurfacePainter oldDelegate) =>
+      oldDelegate.viewMode != viewMode ||
+      oldDelegate.isLight != isLight ||
+      oldDelegate.visibleLayers != visibleLayers ||
+      oldDelegate.phase != phase;
+}
+
+// ==========================================
+// MAIN APPLICATION
+// ==========================================
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int selectedIndex = 0;
+  final pages = const [
+    DashboardPage(), RequestsPage(), MapPage(),
+    PublicExcavationTrackerPage(), ProfilePage(),
+  ];
+
+  static const destinations = <NavigationRailDestination>[
+    NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: Text('Home')),
+    NavigationRailDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment_rounded), label: Text('Cases')),
+    NavigationRailDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: Text('GIS')),
+    NavigationRailDestination(icon: Icon(Icons.campaign_outlined), selectedIcon: Icon(Icons.campaign_rounded), label: Text('Public works')),
+    NavigationRailDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: Text('Profile')),
+  ];
+
+  Future<void> _switchProfiles() async {
+    final selected = await _showProfileSwitcher(
+      context,
+      currentRole: 'requester',
+    );
+    if (!mounted || selected == null || selected == 'requester') return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (previewContext) => _StaffDemoPreview(
+          role: selected,
+          staffId: _publicDemoStaffIds[selected]!,
+          onExit: () => Navigator.of(previewContext).pop(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      final extended = constraints.maxWidth >= 1200;
+      return Scaffold(
+        backgroundColor: background,
+        body: Row(children: [
+          if (wide) ...[
+            Container(
+              color: _usesLegacyLightPalette ? Colors.white : navy,
+              child: SafeArea(
+                child: NavigationRail(
+                  extended: extended,
+                  minWidth: 76,
+                  minExtendedWidth: 205,
+                  backgroundColor: _usesLegacyLightPalette ? Colors.white : navy,
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: (index) => setState(() => selectedIndex = index),
+                  labelType: extended ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                  indicatorColor: cyanAccent.withValues(alpha: .18),
+                  selectedIconTheme:  IconThemeData(color: cyanAccent),
+                  unselectedIconTheme:  IconThemeData(color: mutedInk),
+                  selectedLabelTextStyle:  TextStyle(color: cyanAccent, fontWeight: FontWeight.w800, fontSize: 10),
+                  unselectedLabelTextStyle:  TextStyle(color: mutedInk, fontSize: 10),
+                  leading: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 14, 8, 20),
+                    child: extended
+                      ? Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                          const _SamanvayBrandLogo(size: 42, radius: 11),
+                          const SizedBox(width: 9),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 2),
+                            Text('TOWARDS OUR DEVELOPMENT 📈', style: TextStyle(color: cyanAccent, fontSize: 7.5, letterSpacing: .45, fontWeight: FontWeight.w800)),
+                          ])),
+                        ])
+                      : const _SamanvayBrandLogo(size: 48, radius: 13),
+                  ),
+                  destinations: destinations,
+                ),
+              ),
+            ),
+            VerticalDivider(width: 1, thickness: 1, color: borderColor),
+          ],
+          Expanded(child: IndexedStack(index: selectedIndex, children: pages)),
+        ]),
+        floatingActionButton: FloatingActionButton.extended(
+          heroTag: 'samanvay-switch-profile',
+          tooltip: 'Switch between Citizen and official demo profiles',
+          onPressed: _switchProfiles,
+          icon: const Icon(Icons.switch_account_rounded),
+          label: const Text('SWITCH PROFILE'),
+        ),
+        bottomNavigationBar: wide ? null : NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) => setState(() => selectedIndex = index),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment_rounded), label: 'Cases'),
+            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: 'GIS'),
+            NavigationDestination(icon: Icon(Icons.campaign_outlined), selectedIcon: Icon(Icons.campaign_rounded), label: 'Public works'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+// ==========================================
+// DASHBOARD
+// ==========================================
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage>
+    with SingleTickerProviderStateMixin {
+  bool loading = true;
+  String? error;
+  List<Map<String, dynamic>> requests = [];
+  List<Map<String, dynamic>> departments = [];
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw StateError('Session expired');
+      final result = await Future.wait([
+        supabase.from('excavation_requests').select('id,status,created_at,case_category')
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false).limit(100),
+        supabase.from('departments').select('id,name').order('name').limit(12),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        requests = List<Map<String, dynamic>>.from(result[0]);
+        departments = List<Map<String, dynamic>>.from(result[1]);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; error = 'Live data unavailable. Pull down to retry.'; });
+    }
+  }
+
+  int count(String status) => requests.where((r) =>
+    (r['status'] ?? '').toString().toLowerCase() == status).length;
+
+  Widget _categoryOverview() {
+    final grouped = <String, int>{};
+    for (final request in requests) {
+      final category = (request['case_category'] ?? 'legacy_excavation').toString();
+      grouped[category] = (grouped[category] ?? 0) + 1;
+    }
+    final entries = grouped.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isEmpty) {
+      return  Text(
+        'Your infrastructure-domain breakdown will appear after your first case is submitted.',
+        style: TextStyle(fontSize: 11, color: mutedInk),
+      );
+    }
+    final maxCount = entries.first.value;
+    return Column(
+      children: entries.take(6).map((entry) {
+        final label = entry.key.replaceAll('_', ' ').toUpperCase();
+        final ratio = maxCount == 0 ? 0.0 : entry.value / maxCount;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(label,
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: ink)),
+                  ),
+                  Text(entry.value.toString(),
+                    style: GoogleFonts.robotoMono(fontSize: 11, fontWeight: FontWeight.w700, color: ink)),
+                ],
+              ),
+              const SizedBox(height: 5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 7,
+                  backgroundColor: const Color(0xFFE7EDF2),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF20AFA5)),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget metric(String title, String value, IconData icon, Color color) =>
+    Expanded(child: Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(color: panelNavy,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 10),
+        Text(value, style: GoogleFonts.robotoMono(
+          color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+        Text(title, style: GoogleFonts.inter(
+          color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
+      ]),
+    ));
+
+  @override
+  Widget build(BuildContext context) {
+    final rawName = supabase.auth.currentUser?.userMetadata?['display_name'];
+    final name = rawName == null || rawName.toString().trim().isEmpty
+      ? 'there' : rawName.toString().trim();
+    final resolved = requests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return status == 'completed' || status == 'resolved';
+    }).length;
+    final inactive = {'completed', 'resolved', 'rejected', 'cancelled'};
+    final active = requests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return status.isNotEmpty && !inactive.contains(status);
+    }).length;
+
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        title: const Text('SAMANVAY'),
+        actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NotificationsPage()),
+            ),
+          ),
+          IconButton(
+            tooltip: 'India data coverage',
+            icon: const Icon(Icons.public_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()),
+            ),
+          ),
+          IconButton(onPressed: loading ? null : refresh,
+            tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded)),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: refresh,
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+          Container(
+            padding: const EdgeInsets.all(21),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  navy.withValues(alpha: .72),
+                  const Color(0xFF173B55).withValues(alpha: .58),
+                  const Color(0xFF075E67).withValues(alpha: .66),
+                ],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0x5534E5D1)),
+              boxShadow: const [BoxShadow(color: Color(0x180B1728),
+                blurRadius: 20, offset: Offset(0, 9))]),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: [
+                Positioned.fill(
+                  child: SvgPicture.asset(
+                    'assets/brand/samanvay_home_banner.svg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xC908182B),
+                          Color(0xA908182B),
+                          Color(0xB3075E67),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              const SizedBox(height: 3),
+              _SamanvayBrandLogo(
+                size: math.min(340.0, MediaQuery.sizeOf(context).width * .88),
+                radius: 38,
+              ),
+              const SizedBox(height: 9),
+              const _AnimatedDevelopmentTagline(fontSize: 14),
+              const SizedBox(height: 6),
+              const Text(
+                'SMART COORDINATION  •  TRANSPARENT GOVERNANCE  •  A DEVELOPED INDIA',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFFE3EDF7), fontSize: 8,
+                  fontWeight: FontWeight.w900, letterSpacing: .55),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Hello, $name! 👋',
+                      style: GoogleFonts.spaceGrotesk(color: Colors.white,
+                        fontSize: 23, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text('Towards a smarter, better-coordinated India',
+                      style: GoogleFonts.inter(color: const Color(0xFFD1E0EA), fontSize: 10)),
+                  ])),
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: const Color(0xFF35D7F2),
+                    child: ClipOval(
+                      child: SvgPicture.asset(
+                        'assets/brand/samanvay_profile_avatar.svg',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MapPage())),
+                icon: const Icon(Icons.layers_rounded),
+                label: const Text('OPEN PUBLIC GIS MAP  ↗'),
+                style: FilledButton.styleFrom(backgroundColor: teal,
+                  foregroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+              )),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SamanvayAiChatPage())),
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: const Text('ASK SAMANVAY AI'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0x332C6EBE),
+                  side: const BorderSide(color: Color(0xFF5CA9FF)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              )),
+            ]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('My activity', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('Live status of your infrastructure requests',
+            style: GoogleFonts.inter(color: mutedInk, fontSize: 11)),
+          const SizedBox(height: 11),
+          Row(children: [
+            metric('MY REQUESTS', loading ? '—' : '${requests.length}',
+              Icons.assignment_outlined, teal),
+            const SizedBox(width: 8),
+            metric('IN PROGRESS', loading ? '—' : '$active',
+              Icons.pending_actions, const Color(0xFFD28A28)),
+            const SizedBox(width: 8),
+            metric('RESOLVED', loading ? '—' : '$resolved',
+              Icons.task_alt, const Color(0xFF25845C)),
+          ]),
+          const SizedBox(height: 20),
+          Text('Quick actions', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          LayoutBuilder(builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 650 ? 5 : 4;
+            const spacing = 9.0;
+            final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            Widget action(String title, IconData icon, Color accent, Widget page) =>
+              SizedBox(width: width, child: Material(
+                color: panelNavy,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => page)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor)),
+                    child: Column(children: [
+                      Icon(icon, color: accent, size: 22),
+                      const SizedBox(height: 7),
+                      Text(title, textAlign: TextAlign.center,
+                        style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                ),
+              ));
+            return Wrap(spacing: spacing, runSpacing: spacing, children: [
+              action('New request', Icons.add_circle_outline, cyanAccent, const NewRequestPage()),
+              action('Track requests', Icons.track_changes_outlined, const Color(0xFF7FC8FF), const RequestsPage()),
+              action('3D GIS map', Icons.layers_outlined, const Color(0xFF8B9DFF), const MapPage()),
+              action('Notifications', Icons.notifications_none_rounded, const Color(0xFFBFA7FF), const NotificationsPage()),
+              action('LPU underground map', Icons.school_outlined, const Color(0xFF36D7C2), const LpuCampusModelPage()),
+            ]);
+          }),
+          const SizedBox(height: 19),
+          Card(
+            color: panelNavy,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(children: [
+                const _SamanvayBrandLogo(size: 52, radius: 13),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('PUBLIC TRANSPARENCY DASHBOARD',
+                    style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 11)),
+                  const SizedBox(height: 4),
+                  Text('This is the SAMANVAY public works register: authority-published notices and source-linked updates currently visible here, not a complete national works inventory.',
+                    style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w600)),
+                ])),
+                IconButton(
+                  tooltip: 'Open public transparency dashboard',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => PublicTransparencyDashboardPage(
+                      client: supabase,
+                      onOpenMap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MapPage())),
+                      onOpenNotices: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage())),
+                    ),
+                  )),
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                ),
+              ]),
+            ),
+          ),
+          if (error != null) Padding(padding: const EdgeInsets.only(bottom: 10),
+            child: Text(error!, style: const TextStyle(color: Colors.deepOrange))),
+          const SizedBox(height: 22),
+          Text('Cases by infrastructure domain', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('Distribution of your submitted cases', style: GoogleFonts.inter(
+            color: mutedInk, fontSize: 12)),
+          const SizedBox(height: 13),
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: panelNavy,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor),
+            ),
+            child: loading && requests.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _categoryOverview(),
+          ),
+          const SizedBox(height: 24),
+          Text('Department network', style: GoogleFonts.spaceGrotesk(
+            color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('Live directory from the SAMANVAY database',
+            style: GoogleFonts.inter(color: mutedInk, fontSize: 12)),
+          const SizedBox(height: 12),
+          if (loading && departments.isEmpty)
+            const Center(child: Padding(padding: EdgeInsets.all(18),
+              child: CircularProgressIndicator()))
+          else if (departments.isEmpty)
+             Text('No department directory records available.',
+              style: TextStyle(color: mutedInk))
+          else
+            ...departments.map((d) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(color: panelNavy,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor)),
+              child: ListTile(dense: true,
+                leading:  CircleAvatar(
+                  backgroundColor: Color(0xFFE7F8F6),
+                  child: Icon(Icons.account_tree_outlined, color: teal)),
+                title: Text((d['name'] ?? 'Department').toString(),
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                trailing:  Icon(Icons.chevron_right, color: mutedInk),
+              ),
+            )),
+          const SizedBox(height: 14),
+          Container(padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: panelNavy,
+              borderRadius: BorderRadius.circular(14), border: Border.all(color: borderColor)),
+            child: Text(
+              'Underground visibility depends on verified survey records and access permissions. An empty layer does not prove that no utility exists.',
+              style: GoogleFonts.inter(color: mutedInk,
+                fontSize: 11, fontWeight: FontWeight.w700, height: 1.45))),
+        ]),
+      ),
+    );
+  }
+}
+
+
+// RLS-backed authoring and review desk for public excavation notices.
+// Live activity feed. Status events follow case visibility RLS;
+// admin audit events are queried only for an authenticated admin portal.
+class CommandCentreActivityBoard extends StatefulWidget {
+  final bool isAdmin;
+  const CommandCentreActivityBoard({super.key, required this.isAdmin});
+  @override
+  State<CommandCentreActivityBoard> createState() => _CommandCentreActivityBoardState();
+}
+
+class _CommandCentreActivityBoardState extends State<CommandCentreActivityBoard> {
+  List<Map<String, dynamic>> statusEvents = [];
+  List<Map<String, dynamic>> auditEvents = [];
+  bool loading = true;
+  bool statusUnavailable = false;
+  bool auditUnavailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() { loading = true; statusUnavailable = false; auditUnavailable = false; });
+    try {
+      final rows = await supabase.from('request_status_history')
+        .select('request_id,old_status,new_status,created_at')
+        .order('created_at', ascending: false).limit(15);
+      if (mounted) statusEvents = List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      if (mounted) statusUnavailable = true;
+    }
+
+    if (widget.isAdmin) {
+      try {
+        final rows = await supabase.from('admin_audit_events')
+          .select('event_type,created_at')
+          .order('created_at', ascending: false).limit(15);
+        if (mounted) auditEvents = List<Map<String, dynamic>>.from(rows);
+      } catch (_) {
+        if (mounted) auditUnavailable = true;
+      }
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  String _date(dynamic raw) {
+    final date = DateTime.tryParse((raw ?? '').toString())?.toLocal();
+    if (date == null) return 'Date not available';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return day + '/' + month + '/' + date.year.toString() + ' · ' + hour + ':' + minute;
+  }
+
+  String _label(dynamic value) =>
+    (value ?? 'not recorded').toString().replaceAll('_', ' ').toUpperCase();
+
+  Widget _event({
+    required IconData icon,
+    required Color accent,
+    required String title,
+    required String subtitle,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 9),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(width: 30, height: 30,
+        decoration: BoxDecoration(color: accent.withValues(alpha: .13), shape: BoxShape.circle),
+        child: Icon(icon, color: accent, size: 16)),
+      const SizedBox(width: 10),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(subtitle, style:  TextStyle(color: mutedInk, fontSize: 9, height: 1.35)),
+      ])),
+    ]),
+  );
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: borderColor)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+         Icon(Icons.timeline_rounded, color: cyanAccent, size: 19),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Command-centre activity',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800))),
+        IconButton(onPressed: loading ? null : refresh,
+          tooltip: 'Refresh activity', icon:  Icon(Icons.refresh_rounded, color: cyanAccent)),
+      ]),
+       Text('Recent case status transitions visible to this account. Audit events are restricted to administrators.',
+        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+      const SizedBox(height: 11),
+      Row(children: [
+        Expanded(child: Text('CASE TIMELINE · ' + statusEvents.length.toString(),
+          style:  TextStyle(color: cyanAccent, fontSize: 9, letterSpacing: .7, fontWeight: FontWeight.w900))),
+        if (widget.isAdmin)
+          Text('ADMIN AUDIT · ' + auditEvents.length.toString(),
+            style: const TextStyle(color: Color(0xFF9FBCFF), fontSize: 9, letterSpacing: .5, fontWeight: FontWeight.w900)),
+      ]),
+       Divider(color: borderColor, height: 18),
+      if (loading && statusEvents.isEmpty && auditEvents.isEmpty)
+         Center(child: Padding(padding: EdgeInsets.all(12),
+          child: CircularProgressIndicator(color: cyanAccent)))
+      else if (statusUnavailable)
+        const Text('Case timeline is unavailable for this account. Check the case-access policy.',
+          style: TextStyle(color: Color(0xFFFFB4AB), fontSize: 10))
+      else if (statusEvents.isEmpty)
+         Text('No case status transitions are recorded yet.',
+          style: TextStyle(color: mutedInk, fontSize: 10))
+      else
+        ...statusEvents.map((event) {
+          final requestId = (event['request_id'] ?? '').toString();
+          final caseLabel = requestId.length >= 8 ? requestId.substring(0, 8).toUpperCase() : 'CASE';
+          final oldStatus = event['old_status'] == null ? 'CREATED' : _label(event['old_status']);
+          final newStatus = _label(event['new_status']);
+          return _event(
+            icon: Icons.sync_alt_rounded,
+            accent: const Color(0xFF66D6CB),
+            title: caseLabel + ' · ' + oldStatus + ' → ' + newStatus,
+            subtitle: _date(event['created_at']),
+          );
+        }),
+      if (widget.isAdmin) ...[
+         Divider(color: borderColor, height: 20),
+        const Text('ADMIN AUDIT LOG',
+          style: TextStyle(color: Color(0xFF9FBCFF), fontSize: 9, letterSpacing: .7, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        if (auditUnavailable)
+          const Text('Audit records could not be loaded. They are not substituted with case events.',
+            style: TextStyle(color: Color(0xFFFFB4AB), fontSize: 10))
+        else if (auditEvents.isEmpty)
+           Text('No administrator audit events are recorded yet.',
+            style: TextStyle(color: mutedInk, fontSize: 10))
+        else
+          ...auditEvents.map((event) => _event(
+            icon: Icons.admin_panel_settings_outlined,
+            accent: const Color(0xFF9FBCFF),
+            title: _label(event['event_type']),
+            subtitle: _date(event['created_at']),
+          )),
+      ],
+    ]),
+  );
+}
+
+
+class PublicWorksOperationsBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const PublicWorksOperationsBoard({super.key, required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<PublicWorksOperationsBoard> createState() => _PublicWorksOperationsBoardState();
+}
+
+class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard> {
+  List<Map<String, dynamic>> notices = [];
+  List<Map<String, dynamic>> reports = [];
+  List<Map<String, dynamic>> departments = [];
+  bool loading = true;
+  bool saving = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    departments = List<Map<String, dynamic>>.from(widget.departments);
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final rows = await Future.wait([
+        supabase.from('public_excavation_notices')
+          .select('id,notice_code,title,notice_type,city,district,ward_code,area_label,responsible_department_id,responsible_department_name,starts_on,ends_on,progress_percent,notice_status,source_reference,source_url,summary,published_at')
+          .order('updated_at', ascending: false).limit(100),
+        supabase.from('public_obstruction_reports')
+          .select('id,city,district,ward_code,area_label,report_type,details,assigned_department_id,report_status,created_at')
+          .order('created_at', ascending: false).limit(100),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        notices = List<Map<String, dynamic>>.from(rows[0]);
+        reports = List<Map<String, dynamic>>.from(rows[1]);
+        loading = false;
+      });
+      if (departments.isEmpty) await loadDepartments();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; error = 'The queue could not be loaded. Supabase RLS still controls which records this account can see.'; });
+    }
+  }
+
+  Future<void> loadDepartments() async {
+    try {
+      final rows = widget.isDepartment && widget.departmentId != null
+        ? await supabase.from('departments').select('id,name').eq('id', widget.departmentId!).order('name')
+        : await supabase.from('departments').select('id,name').order('name');
+      if (mounted) setState(() => departments = List<Map<String, dynamic>>.from(rows));
+    } catch (_) {}
+  }
+
+  String departmentName(String? id) {
+    if (id == null || id.isEmpty) return 'Not assigned';
+    for (final d in departments) {
+      if (d['id'].toString() == id) return d['name'].toString();
+    }
+    return 'Assigned department';
+  }
+
+  String pretty(String value) => value.replaceAll('_', ' ').toUpperCase();
+
+  void toast(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  Future<void> createNotice() async {
+    if (saving) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final code = TextEditingController();
+    final title = TextEditingController();
+    final city = TextEditingController();
+    final area = TextEditingController();
+    final starts = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 10));
+    final source = TextEditingController();
+    final url = TextEditingController();
+    final form = GlobalKey<FormState>();
+    var type = 'work';
+    String? departmentId = widget.isDepartment ? widget.departmentId
+      : (departments.isEmpty ? null : departments.first['id'].toString());
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Create work / no-dig notice'),
+          content: SizedBox(width: 520, child: SingleChildScrollView(
+            child: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'Notice type'),
+                items: const [
+                  DropdownMenuItem(value: 'work', child: Text('Excavation / public works')),
+                  DropdownMenuItem(value: 'no_dig', child: Text('No-dig notice')),
+                ],
+                onChanged: (v) { if (v != null) setDialog(() => type = v); },
+              ),
+              TextFormField(controller: code, decoration: const InputDecoration(labelText: 'Official notice code / reference'),
+                validator: (v) => v == null || v.trim().length < 3 ? 'Enter the source notice code' : null),
+              TextFormField(controller: title, decoration: const InputDecoration(labelText: 'Notice title'),
+                validator: (v) => v == null || v.trim().length < 5 ? 'Enter a descriptive title' : null),
+              TextFormField(controller: city, decoration: const InputDecoration(labelText: 'City / town', hintText: 'e.g. Bhopal, Indore, Delhi, or Coimbatore'),
+                validator: (v) => v == null || v.trim().length < 2 ? 'Enter a city / town' : null),
+              TextFormField(controller: area, decoration: const InputDecoration(labelText: 'Area / road / landmark')),
+              TextFormField(controller: starts, decoration: const InputDecoration(labelText: 'Start date (YYYY-MM-DD)'),
+                validator: (v) => v == null || DateTime.tryParse(v.trim()) == null ? 'Enter a valid date' : null),
+              TextFormField(controller: source, decoration: const InputDecoration(labelText: 'Official source reference (required to publish)')),
+              TextFormField(controller: url, decoration: const InputDecoration(labelText: 'Official HTTPS source URL (optional)'),
+                validator: (v) => v != null && v.trim().isNotEmpty && !v.trim().toLowerCase().startsWith('https://') ? 'Use an HTTPS URL' : null),
+              const SizedBox(height: 8),
+              if (widget.isDepartment)
+                Align(alignment: Alignment.centerLeft, child: Text('Responsible department: ' + departmentName(departmentId),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Responsible department'),
+                  items: departments.map((d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(), child: Text(d['name'].toString()))).toList(),
+                  onChanged: (v) => setDialog(() => departmentId = v),
+                  validator: (v) => v == null ? 'Select a department' : null,
+                ),
+              const SizedBox(height: 8),
+               Text('This creates a draft only. A source reference is required before a staff user can publish it.',
+                style: TextStyle(fontSize: 10, color: mutedInk)),
+            ])),
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () {
+              if (form.currentState!.validate() && departmentId != null) Navigator.pop(dialog, true);
+            }, child: const Text('Save draft')),
+          ],
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      setState(() => saving = true);
+      try {
+        Map<String, dynamic>? department;
+        for (final d in departments) {
+          if (d['id'].toString() == departmentId) department = d;
+        }
+        if (department == null) {
+          final row = await supabase.from('departments').select('id,name')
+            .eq('id', departmentId!).maybeSingle();
+          if (row != null) department = Map<String, dynamic>.from(row);
+        }
+        if (department == null) throw StateError('Responsible department is unavailable.');
+        final inserted = await supabase.from('public_excavation_notices').insert({
+          'notice_code': code.text.trim(), 'title': title.text.trim(), 'notice_type': type,
+          'city': city.text.trim(), 'area_label': area.text.trim().isEmpty ? null : area.text.trim(),
+          'responsible_department_id': departmentId,
+          'responsible_department_name': department['name'].toString(),
+          'starts_on': starts.text.trim(),
+          'source_reference': source.text.trim().isEmpty ? null : source.text.trim(),
+          'source_url': url.text.trim().isEmpty ? null : url.text.trim(),
+          'notice_status': 'draft', 'created_by': user.id,
+        }).select('id').maybeSingle();
+        if (inserted == null) throw StateError('The database did not confirm the draft insert.');
+        toast('Notice draft saved. It is not public until an authorised publisher publishes it.');
+        await refresh();
+      } catch (e) {
+        toast('Notice draft not saved: ' + e.toString());
+      } finally {
+        if (mounted) setState(() => saving = false);
+      }
+    }
+    for (final c in [code,title,city,area,starts,source,url]) { c.dispose(); }
+  }
+
+  Future<void> editNotice(Map<String, dynamic> notice) async {
+    if (saving) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    final source = TextEditingController(text: (notice['source_reference'] ?? '').toString());
+    final progress = TextEditingController(text: notice['progress_percent']?.toString() ?? '');
+    var status = (notice['notice_status'] ?? 'draft').toString();
+    final form = GlobalKey<FormState>();
+    final firstPublication = notice['published_at'] == null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text('Update notice ' + notice['notice_code'].toString()),
+          content: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Status'),
+              items: const [
+                DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                DropdownMenuItem(value: 'published', child: Text('Published')),
+                DropdownMenuItem(value: 'active', child: Text('Active work')),
+                DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+              ],
+              onChanged: (v) { if (v != null) setDialog(() => status = v); },
+            ),
+            TextFormField(controller: source, decoration: const InputDecoration(labelText: 'Official source reference'),
+              validator: (v) => status != 'draft' && (v == null || v.trim().isEmpty)
+                ? 'A source reference is required before publication' : null),
+            TextFormField(controller: progress, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Reported progress (0–100)'),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return null;
+                final n = int.tryParse(v.trim());
+                return n == null || n < 0 || n > 100 ? 'Enter 0–100' : null;
+              }),
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () { if (form.currentState!.validate()) Navigator.pop(dialog, true); },
+              child: const Text('Save update')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      setState(() => saving = true);
+      try {
+        final sourceValue = source.text.trim();
+        final progressValue = progress.text.trim().isEmpty ? null : int.parse(progress.text.trim());
+        final publishedNow = firstPublication && status != 'draft';
+        final responsibleDepartment = (notice['responsible_department_name'] ?? '').toString().trim().toLowerCase();
+        final isHighwayNotice = responsibleDepartment == 'highway department' ||
+          responsibleDepartment == 'roads & highways';
+
+        if (publishedNow && isHighwayNotice) {
+          final response = await supabase.rpc('publish_highway_work_notice', params: {
+            'p_notice_id': notice['id'].toString(),
+            'p_notice_status': status,
+            'p_source_reference': sourceValue,
+            'p_progress_percent': progressValue,
+          });
+          final result = Map<String, dynamic>.from(response as Map);
+          if (result['already_published'] == true) {
+            toast('This notice was already published. Duplicate notifications were not sent.');
+          } else {
+            final citizens = (result['citizen_notifications'] as num?)?.toInt() ?? 0;
+            final municipal = (result['municipal_notifications'] as num?)?.toInt() ?? 0;
+            toast('Highway notice published. In-app alerts sent to $citizens Citizen account(s) and $municipal municipal service department officer account(s).');
+          }
+        } else {
+          final updated = await supabase.from('public_excavation_notices').update({
+            'notice_status': status,
+            'source_reference': sourceValue.isEmpty ? null : sourceValue,
+            'progress_percent': progressValue,
+            if (publishedNow) 'published_at': DateTime.now().toUtc().toIso8601String(),
+            if (publishedNow) 'published_by': user.id,
+          }).eq('id', notice['id'].toString()).select('id').maybeSingle();
+          if (updated == null) throw StateError('The database did not confirm the authorised update.');
+          final eventType = publishedNow ? 'published'
+            : status == 'completed' ? 'work_completed'
+            : status == 'cancelled' ? 'notice_cancelled'
+            : status == 'active' ? 'work_started' : 'progress_update';
+          await supabase.from('public_excavation_notice_events').insert({
+            'notice_id': notice['id'].toString(), 'event_type': eventType,
+            'title': publishedNow ? 'Notice published' : 'Notice updated: ' + pretty(status),
+            'details': 'Recorded by an authorised department account. Source reference: ' + (sourceValue.isEmpty ? 'not provided' : sourceValue),
+            'progress_percent': progressValue,
+            'created_by': user.id,
+          });
+          toast(publishedNow ? 'Notice published with its source reference.' : 'Notice and timeline updated.');
+        }
+        await refresh();
+      } catch (e) {
+        toast('Notice update failed: ' + e.toString());
+        await refresh();
+      } finally {
+        if (mounted) setState(() => saving = false);
+      }
+    }
+    source.dispose();
+    progress.dispose();
+  }
+
+  Future<void> reviewReport(Map<String, dynamic> report) async {
+    if (saving) return;
+    var status = (report['report_status'] ?? 'submitted').toString();
+    String? assigned = report['assigned_department_id']?.toString();
+    final oldAssigned = assigned;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Review obstruction report'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('Area: ' + (report['area_label'] ?? 'Not specified').toString()),
+            DropdownButtonFormField<String>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Review status'),
+              items: const [
+                DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
+                DropdownMenuItem(value: 'acknowledged', child: Text('Acknowledged')),
+                DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+                DropdownMenuItem(value: 'resolved', child: Text('Resolved')),
+                DropdownMenuItem(value: 'dismissed', child: Text('Dismissed')),
+              ],
+              onChanged: (v) { if (v != null) setDialog(() => status = v); },
+            ),
+            if (!widget.isDepartment)
+              DropdownButtonFormField<String>(
+                initialValue: assigned,
+                decoration: const InputDecoration(labelText: 'Assign department'),
+                items: [
+                  const DropdownMenuItem<String>(value: null, child: Text('Unassigned')),
+                  ...departments.map((d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(), child: Text(d['name'].toString()))),
+                ],
+                onChanged: (v) => setDialog(() => assigned = v),
+              )
+            else
+              Align(alignment: Alignment.centerLeft, child: Text('Assigned to: ' + departmentName(assigned))),
+            const SizedBox(height: 6),
+             Text('This list excludes reporter identity. Reports are visible only to the reporter and authorised reviewers.',
+              style: TextStyle(fontSize: 10, color: mutedInk)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Save review')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      setState(() => saving = true);
+      try {
+        final changes = <String, dynamic>{'report_status': status};
+        if (!widget.isDepartment) changes['assigned_department_id'] = assigned;
+        final updated = await supabase.from('public_obstruction_reports').update(changes)
+          .eq('id', report['id'].toString()).select('id').maybeSingle();
+        if (updated == null) throw StateError('The database did not confirm an authorised report update.');
+        toast(oldAssigned != assigned && !widget.isDepartment
+          ? 'Report assignment and status saved.' : 'Report status updated.');
+        await refresh();
+      } catch (e) {
+        toast('Report review failed: ' + e.toString());
+      } finally {
+        if (mounted) setState(() => saving = false);
+      }
+    }
+  }
+
+  Widget _sectionTitle(String value) => Padding(
+    padding: const EdgeInsets.only(top: 10, bottom: 5),
+    child: Text(value, style:  TextStyle(color: cyanAccent, fontSize: 10,
+      letterSpacing: .8, fontWeight: FontWeight.w900)),
+  );
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(17),
+      border: Border.all(color: borderColor)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+         Icon(Icons.campaign_outlined, color: cyanAccent, size: 19),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Public works publishing & review',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800))),
+        IconButton(onPressed: loading ? null : refresh, icon:  Icon(Icons.refresh, color: cyanAccent)),
+      ]),
+       Text('Create department-owned drafts, publish source-backed notices, update work timelines and review reports using existing RLS rules.',
+        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+      const SizedBox(height: 5),
+      Text('Highway Department first publication sends in-app alerts to Citizen accounts and municipal service department officers. The published notice is also visible in the Citizen-facing Public works tab.',
+        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      SizedBox(width: double.infinity, child: FilledButton.icon(
+        onPressed: saving || loading ? null : createNotice,
+        icon: const Icon(Icons.add_circle_outline), label: const Text('CREATE NOTICE DRAFT'),
+        style: FilledButton.styleFrom(backgroundColor: electricBlue, foregroundColor: Colors.white))),
+      if (error != null) Padding(padding: const EdgeInsets.only(top: 8),
+        child: Text(error!, style: const TextStyle(color: Color(0xFFFFB4AB), fontSize: 10))),
+      if (loading && notices.isEmpty && reports.isEmpty)
+         Padding(padding: EdgeInsets.all(14), child: Center(child: CircularProgressIndicator(color: cyanAccent))),
+      _sectionTitle('WORK / NO-DIG NOTICES'),
+      if (notices.isEmpty)  Text('No notices are visible to this account. This does not imply that no public work is taking place.',
+        style: TextStyle(color: mutedInk, fontSize: 10)),
+      ...notices.map((notice) => Container(
+        margin: const EdgeInsets.only(top: 7), padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: borderColor)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text((notice['notice_code'] ?? 'Notice').toString(),
+              style:  TextStyle(color: cyanAccent, fontSize: 10, fontWeight: FontWeight.w900))),
+            Text(pretty((notice['notice_status'] ?? 'draft').toString()),
+              style: const TextStyle(color: Color(0xFFF3C969), fontSize: 9, fontWeight: FontWeight.w900)),
+          ]),
+          Text((notice['title'] ?? 'Public works notice').toString(),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+          Text((notice['city'] ?? '').toString() + ' · ' + (notice['responsible_department_name'] ?? 'Department not listed').toString(),
+            style:  TextStyle(color: mutedInk, fontSize: 10)),
+          if (['highway department', 'roads & highways'].contains(
+            (notice['responsible_department_name'] ?? '').toString().trim().toLowerCase()))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(spacing: 5, runSpacing: 5, children: [
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.campaign_outlined, size: 14),
+                  label: const Text('CITIZEN ALERTS'),
+                  labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+                Chip(
+                  visualDensity: VisualDensity.compact,
+                  avatar: const Icon(Icons.account_balance_outlined, size: 14),
+                  label: const Text('MUNICIPAL ALERTS'),
+                  labelStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+              ]),
+            ),
+          Text('Source: ' + (notice['source_reference'] ?? 'Not yet recorded').toString(),
+            style:  TextStyle(color: mutedInk, fontSize: 9)),
+          Align(alignment: Alignment.centerRight, child: TextButton.icon(
+            onPressed: saving ? null : () => editNotice(notice),
+            icon: const Icon(Icons.edit_outlined, size: 15), label: const Text('Update / publish'))),
+        ]),
+      )),
+       Divider(color: borderColor, height: 22),
+      _sectionTitle('CITIZEN OBSTRUCTION REPORTS'),
+      if (reports.isEmpty)  Text('No obstruction reports are visible to this account. Reports remain private to the reporter and authorised reviewers.',
+        style: TextStyle(color: mutedInk, fontSize: 10)),
+      ...reports.map((report) => Container(
+        margin: const EdgeInsets.only(top: 7), padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: borderColor)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(pretty((report['report_type'] ?? 'other').toString()),
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900))),
+            Text(pretty((report['report_status'] ?? 'submitted').toString()),
+              style: const TextStyle(color: Color(0xFFF3C969), fontSize: 9, fontWeight: FontWeight.w900)),
+          ]),
+          Text((report['area_label'] ?? '').toString() + ' · ' + (report['city'] ?? '').toString(),
+            style:  TextStyle(color: cyanAccent, fontSize: 10)),
+          Text((report['details'] ?? '').toString(), maxLines: 3, overflow: TextOverflow.ellipsis,
+            style:  TextStyle(color: mutedInk, fontSize: 10)),
+          Text('Assigned: ' + departmentName(report['assigned_department_id']?.toString()),
+            style:  TextStyle(color: mutedInk, fontSize: 9)),
+          Align(alignment: Alignment.centerRight, child: TextButton.icon(
+            onPressed: saving ? null : () => reviewReport(report),
+            icon: const Icon(Icons.fact_check_outlined, size: 15), label: const Text('Review report'))),
+        ]),
+      )),
+      const SizedBox(height: 8),
+       Text('A public notice or no-dig notice is not an excavation permit or underground-utility clearance.',
+        style: TextStyle(color: mutedInk, fontSize: 9, height: 1.4)),
+    ]),
+  );
+}
+
+
+class RoadCutPermitBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+
+  const RoadCutPermitBoard({
+    super.key,
+    required this.requests,
+    required this.departments,
+    required this.isDepartment,
+    this.departmentId,
+  });
+
+  @override
+  State<RoadCutPermitBoard> createState() => _RoadCutPermitBoardState();
+}
+
+class _RoadCutPermitBoardState extends State<RoadCutPermitBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('road_cut_permit_compliance')
+          .select().order('updated_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Permit records could not be loaded for this account.';
+      });
+    }
+  }
+
+  String _requestLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final number = r['request_number']?.toString() ?? '';
+        final title = (r['title'] ?? r['road_name'] ?? 'Infrastructure case').toString();
+        return number.isEmpty ? title : 'Case #' + number + ' · ' + title;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  String _departmentLabel(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return widget.isDepartment ? 'Your assigned department' : 'Department';
+  }
+
+  String _pretty(String value) => value.replaceAll('_', ' ').toUpperCase();
+
+  Color _stateColor(String state) {
+    if (state == 'closed' || state == 'not_required') return const Color(0xFF25845C);
+    if (['restoration_overdue','permit_expired','revoked','work_outside_permit_window'].contains(state)) {
+      return const Color(0xFFB54747);
+    }
+    if (['restoration_due_soon','awaiting_permit','suspended','review_required'].contains(state)) {
+      return const Color(0xFFB7791F);
+    }
+    return const Color(0xFF3978B8);
+  }
+
+  DateTime? _date(String value) =>
+      value.trim().isEmpty ? null : DateTime.tryParse(value.trim());
+
+  String? _asDate(DateTime? value) {
+    if (value == null) return null;
+    return value.year.toString().padLeft(4, '0') + '-' +
+        value.month.toString().padLeft(2, '0') + '-' +
+        value.day.toString().padLeft(2, '0');
+  }
+
+  String? _asTimestamp(DateTime? value) {
+    if (value == null) return null;
+    return DateTime.utc(value.year, value.month, value.day).toIso8601String();
+  }
+
+  Future<void> _editRecord({Map<String, dynamic>? existing}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    if (widget.requests.isEmpty) { _message('No accessible cases are available.'); return; }
+
+    final ids = widget.requests.map((r) => r['id'].toString()).toSet();
+    var requestId = existing?['request_id']?.toString();
+    if (requestId == null || !ids.contains(requestId)) requestId = widget.requests.first['id'].toString();
+    var departmentId = existing?['responsible_department_id']?.toString()
+        ?? widget.departmentId
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var status = (existing?['permit_status'] ?? 'pending').toString();
+    var traffic = existing?['traffic_management_confirmed'] == true;
+    var clearance = existing?['utility_clearance_confirmed'] == true;
+    var safety = existing?['road_safety_plan_confirmed'] == true;
+    var saving = false;
+
+    final reference = TextEditingController(text: existing?['permit_reference']?.toString() ?? '');
+    final authority = TextEditingController(text: existing?['issuing_authority']?.toString() ?? '');
+    final fromText = TextEditingController(text: existing?['permit_valid_from']?.toString() ?? '');
+    final untilText = TextEditingController(text: existing?['permit_valid_until']?.toString() ?? '');
+    final dueText = TextEditingController(text: existing?['restoration_due_date']?.toString() ?? '');
+    final startedText = TextEditingController(text: existing?['work_started_at'] == null ? '' : existing!['work_started_at'].toString().substring(0, 10));
+    final completedText = TextEditingController(text: existing?['work_completed_at'] == null ? '' : existing!['work_completed_at'].toString().substring(0, 10));
+    final notes = TextEditingController(text: existing?['notes']?.toString() ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(existing == null ? 'Register road-cut permit' : 'Update road-cut permit'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: requestId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Linked infrastructure case'),
+                    items: widget.requests.map((r) => DropdownMenuItem<String>(
+                      value: r['id'].toString(),
+                      child: Text('Case #' + (r['request_number']?.toString() ?? '') + ' · ' +
+                          (r['title'] ?? r['road_name'] ?? 'Infrastructure case').toString(),
+                          overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setDialogState(() => requestId = v),
+                  ),
+                  const SizedBox(height: 8),
+                  if (widget.isDepartment)
+                    Text('Responsible department: ' + (widget.departmentId ?? 'Not assigned'),
+                      style:  TextStyle(fontSize: 12, color: mutedInk))
+                  else
+                    DropdownButtonFormField<String>(
+                      initialValue: departmentId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Responsible department'),
+                      items: widget.departments.map((d) => DropdownMenuItem<String>(
+                        value: d['id'].toString(),
+                        child: Text((d['name'] ?? 'Department').toString()),
+                      )).toList(),
+                      onChanged: (v) => setDialogState(() => departmentId = v),
+                    ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(labelText: 'Permit status'),
+                    items: const [
+                      DropdownMenuItem(value: 'pending', child: Text('Pending approval')),
+                      DropdownMenuItem(value: 'issued', child: Text('Issued / active')),
+                      DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
+                      DropdownMenuItem(value: 'expired', child: Text('Expired')),
+                      DropdownMenuItem(value: 'revoked', child: Text('Revoked')),
+                      DropdownMenuItem(value: 'not_required', child: Text('Permit not required')),
+                      DropdownMenuItem(value: 'closed', child: Text('Closed after restoration')),
+                    ],
+                    onChanged: (v) => setDialogState(() => status = v ?? status),
+                  ),
+                  TextField(controller: reference, decoration: const InputDecoration(labelText: 'Permit / approval reference')),
+                  TextField(controller: authority, decoration: const InputDecoration(labelText: 'Issuing road authority')),
+                  const SizedBox(height: 8),
+                  const Text('Dates (YYYY-MM-DD)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  Row(children: [
+                    Expanded(child: TextField(controller: fromText, decoration: const InputDecoration(labelText: 'Valid from'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: untilText, decoration: const InputDecoration(labelText: 'Valid until'))),
+                  ]),
+                  TextField(controller: dueText, decoration: const InputDecoration(labelText: 'Restoration deadline')),
+                  Row(children: [
+                    Expanded(child: TextField(controller: startedText, decoration: const InputDecoration(labelText: 'Work started'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: completedText, decoration: const InputDecoration(labelText: 'Work completed'))),
+                  ]),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero, dense: true, value: traffic,
+                    onChanged: (v) => setDialogState(() => traffic = v ?? false),
+                    title: const Text('Traffic management arrangements confirmed'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero, dense: true, value: clearance,
+                    onChanged: (v) => setDialogState(() => clearance = v ?? false),
+                    title: const Text('Utility-owner clearance confirmed'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero, dense: true, value: safety,
+                    onChanged: (v) => setDialogState(() => safety = v ?? false),
+                    title: const Text('Road safety plan confirmed'),
+                  ),
+                  TextField(controller: notes, minLines: 2, maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Conditions, exemption reason or notes')),
+                  const SizedBox(height: 8),
+                   Text('The competent road authority determines permit requirements and statutory conditions.',
+                    style: TextStyle(fontSize: 11, color: mutedInk)),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
+            FilledButton(
+              onPressed: saving ? null : () async {
+                if (requestId == null || departmentId == null || departmentId!.isEmpty) {
+                  _message('Select a case and responsible department.'); return;
+                }
+                final from = _date(fromText.text);
+                final until = _date(untilText.text);
+                final due = _date(dueText.text);
+                final started = _date(startedText.text);
+                final completed = _date(completedText.text);
+                final invalid = (fromText.text.trim().isNotEmpty && from == null) ||
+                    (untilText.text.trim().isNotEmpty && until == null) ||
+                    (dueText.text.trim().isNotEmpty && due == null) ||
+                    (startedText.text.trim().isNotEmpty && started == null) ||
+                    (completedText.text.trim().isNotEmpty && completed == null);
+                if (invalid) { _message('Enter dates in YYYY-MM-DD format.'); return; }
+                if (from != null && until != null && until.isBefore(from)) {
+                  _message('Permit expiry cannot be before its start date.'); return;
+                }
+                if (from != null && due != null && due.isBefore(from)) {
+                  _message('Restoration deadline cannot be before permit start.'); return;
+                }
+                if (started != null && completed != null && completed.isBefore(started)) {
+                  _message('Completion date cannot be before work started.'); return;
+                }
+                if (['issued','suspended','expired','revoked','closed'].contains(status) &&
+                    (reference.text.trim().isEmpty || authority.text.trim().isEmpty || from == null || until == null)) {
+                  _message('This status requires a permit reference, authority and validity dates.'); return;
+                }
+                if (status == 'not_required' && notes.text.trim().isEmpty) {
+                  _message('Record the reason why a permit is not required.'); return;
+                }
+                if (status == 'closed' && completed == null) {
+                  _message('Enter the work completion date before closing the permit.'); return;
+                }
+
+                setDialogState(() => saving = true);
+                final payload = <String, dynamic>{
+                  'permit_status': status,
+                  'permit_reference': reference.text.trim().isEmpty ? null : reference.text.trim(),
+                  'issuing_authority': authority.text.trim().isEmpty ? null : authority.text.trim(),
+                  'permit_valid_from': _asDate(from),
+                  'permit_valid_until': _asDate(until),
+                  'restoration_due_date': _asDate(due),
+                  'work_started_at': _asTimestamp(started),
+                  'work_completed_at': _asTimestamp(completed),
+                  'traffic_management_confirmed': traffic,
+                  'utility_clearance_confirmed': clearance,
+                  'road_safety_plan_confirmed': safety,
+                  'notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'updated_by': user.id,
+                };
+                try {
+                  if (existing == null) {
+                    await supabase.from('road_cut_permit_records').insert({
+                      ...payload, 'request_id': requestId,
+                      'responsible_department_id': departmentId, 'created_by': user.id,
+                    });
+                  } else {
+                    await supabase.from('road_cut_permit_records')
+                        .update(payload).eq('id', existing['id'].toString());
+                  }
+                  if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                } catch (_) {
+                  setDialogState(() => saving = false);
+                  _message('Unable to save. Check assignment, dates and restoration acceptance requirements.');
+                }
+              },
+              child: saving ? const SizedBox(width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save permit record'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    reference.dispose(); authority.dispose(); fromText.dispose(); untilText.dispose();
+    dueText.dispose(); startedText.dispose(); completedText.dispose(); notes.dispose();
+    if (saved == true) {
+      await _loadRecords();
+      _message('Road-cut permit record saved.');
+    }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+             Icon(Icons.fact_check_outlined, color: teal),
+            const SizedBox(width: 9),
+             Expanded(child: Text('Road-cut permits & deadline compliance',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+            IconButton(onPressed: loading ? null : _loadRecords,
+              icon: const Icon(Icons.refresh), tooltip: 'Refresh permit records'),
+          ]),
+           Text('Track permit references, validity windows, utility clearance, road safety and restoration deadlines.',
+            style: TextStyle(fontSize: 11, color: mutedInk)),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: widget.requests.isEmpty ? null : () => _editRecord(),
+            icon: const Icon(Icons.add), label: const Text('REGISTER ROAD-CUT PERMIT'))),
+          const SizedBox(height: 8),
+          if (loading)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+          else if (records.isEmpty)
+             Text('No permit records have been entered yet.',
+              style: TextStyle(fontSize: 12, color: mutedInk))
+          else
+            ...records.map((record) {
+              final state = (record['compliance_state'] ?? 'review_required').toString();
+              final req = record['request_id'].toString();
+              final dept = record['responsible_department_id'].toString();
+              final days = record['days_to_restoration_due'];
+              final dueLabel = days == null ? (record['restoration_due_date']?.toString() ?? 'No deadline')
+                  : days is num && days < 0 ? days.abs().toString() + ' day(s) overdue'
+                  : days == 0 ? 'Due today' : 'Due in ' + days.toString() + ' day(s)';
+              return Container(
+                margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFF7FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE4EAF1))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(_requestLabel(req),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: _stateColor(state).withOpacity(.12),
+                        borderRadius: BorderRadius.circular(20)),
+                      child: Text(_pretty(state), style: TextStyle(color: _stateColor(state),
+                        fontSize: 9, fontWeight: FontWeight.w800))),
+                  ]),
+                  const SizedBox(height: 5),
+                  Text(_departmentLabel(dept) + ' · ' + _pretty((record['permit_status'] ?? '').toString()),
+                    style:  TextStyle(fontSize: 10, color: mutedInk)),
+                  Text('Restoration: ' + dueLabel + ' · Permit expiry: ' +
+                    (record['permit_valid_until']?.toString() ?? 'Not recorded'),
+                    style:  TextStyle(fontSize: 11, color: ink)),
+                  Align(alignment: Alignment.centerRight, child: TextButton.icon(
+                    onPressed: () => _editRecord(existing: record),
+                    icon: const Icon(Icons.edit_outlined, size: 15), label: const Text('UPDATE'))),
+                ]),
+              );
+            }),
+        ]),
+      ),
+    );
+  }
+}
+
+
+class RoadWorkScheduleBoard extends StatefulWidget {
+  const RoadWorkScheduleBoard({super.key});
+
+  @override
+  State<RoadWorkScheduleBoard> createState() => _RoadWorkScheduleBoardState();
+}
+
+class _RoadWorkScheduleBoardState extends State<RoadWorkScheduleBoard> {
+  List<Map<String, dynamic>> rows = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final result = await supabase.from('road_work_schedule_advisories')
+          .select().order('planned_start_date', ascending: true).limit(100);
+      if (!mounted) return;
+      setState(() {
+        rows = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Road-work schedule could not be loaded for this account.';
+      });
+    }
+  }
+
+  String _stateLabel(String state) => state.replaceAll('_', ' ').toUpperCase();
+
+  Color _stateColor(String state) {
+    if (state == 'road_window_overlap' || state == 'invalid_window' || state == 'past_due') {
+      return const Color(0xFFB54747);
+    }
+    if (state == 'dates_missing') return const Color(0xFFB7791F);
+    if (state == 'closed') return const Color(0xFF25845C);
+    return const Color(0xFF3978B8);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+             Icon(Icons.calendar_month_outlined, color: teal),
+            const SizedBox(width: 9),
+             Expanded(child: Text('Coordinated road-work schedule',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+            IconButton(onPressed: loading ? null : _load,
+              icon: const Icon(Icons.refresh), tooltip: 'Refresh road schedule'),
+          ]),
+           Text('Compare planned work windows on the same road and city. Update dates in the linked case record.',
+            style: TextStyle(fontSize: 11, color: mutedInk)),
+          const SizedBox(height: 8),
+          if (loading)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+          else if (rows.isEmpty)
+             Text('No accessible road-work schedules are available.',
+              style: TextStyle(fontSize: 12, color: mutedInk))
+          else
+            ...rows.map((row) {
+              final state = (row['schedule_state'] ?? 'dates_missing').toString();
+              final number = row['request_number']?.toString() ?? '';
+              final road = (row['road_name'] ?? 'Road not specified').toString();
+              final city = (row['city'] ?? '').toString();
+              final start = row['planned_start_date']?.toString() ?? 'Start not set';
+              final end = row['planned_end_date']?.toString() ?? 'End not set';
+              final department = (row['department_name'] ?? 'Unassigned').toString();
+              final rawOverlaps = row['overlapping_request_numbers'];
+              final overlapText = rawOverlaps is List
+                  ? rawOverlaps.map((v) => v.toString()).join(', ')
+                  : '';
+              final days = row['days_until_start'];
+              final startLabel = days == null ? start
+                  : days is num && days < 0 ? days.abs().toString() + ' day(s) since planned start'
+                  : days == 0 ? 'Starts today'
+                  : 'Starts in ' + days.toString() + ' day(s)';
+              return Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFF7FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE4EAF1))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text('Case #' + number + ' · ' + road,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: _stateColor(state).withOpacity(.12),
+                        borderRadius: BorderRadius.circular(20)),
+                      child: Text(_stateLabel(state),
+                        style: TextStyle(color: _stateColor(state), fontSize: 9, fontWeight: FontWeight.w800)),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(city + ' · ' + department,
+                    style:  TextStyle(fontSize: 10, color: mutedInk)),
+                  Text(start + ' → ' + end + ' · ' + startLabel,
+                    style:  TextStyle(fontSize: 11, color: ink)),
+                  if (overlapText.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('Overlapping case numbers: ' + overlapText,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFFB54747),
+                          fontWeight: FontWeight.w700)),
+                    ),
+                ]),
+              );
+            }),
+        ]),
+      ),
+    );
+  }
+}
+
+class RoadRestorationBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+
+  const RoadRestorationBoard({
+    super.key,
+    required this.requests,
+    required this.departments,
+    required this.isDepartment,
+    this.departmentId,
+  });
+
+  @override
+  State<RoadRestorationBoard> createState() => _RoadRestorationBoardState();
+}
+
+class _RoadRestorationBoardState extends State<RoadRestorationBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecords();
+  }
+
+  Future<void> _loadRecords() async {
+    if (!mounted) return;
+    setState(() {
+      loading = true;
+      errorMessage = '';
+    });
+    try {
+      final rows = await supabase
+          .from('road_restoration_records')
+          .select()
+          .order('updated_at', ascending: false)
+          .limit(100);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Restoration records could not be loaded for this account.';
+      });
+    }
+  }
+
+  String _requestLabel(String requestId) {
+    for (final request in widget.requests) {
+      if (request['id'].toString() == requestId) {
+        final number = request['request_number']?.toString();
+        final title = (request['title'] ?? request['road_name'] ?? 'Infrastructure case').toString();
+        return number == null ? title : 'Case #$number · $title';
+      }
+    }
+    final shortId = requestId.length > 8 ? requestId.substring(0, 8) : requestId;
+    return 'Case $shortId';
+  }
+
+  String _departmentLabel(String departmentId) {
+    for (final department in widget.departments) {
+      if (department['id'].toString() == departmentId) {
+        return (department['name'] ?? 'Department').toString();
+      }
+    }
+    return widget.isDepartment ? 'Your assigned department' : 'Department';
+  }
+
+  String _pretty(String value) => value.replaceAll('_', ' ').toUpperCase();
+
+  Color _statusColor(String value) {
+    switch (value) {
+      case 'accepted':
+        return const Color(0xFF25845C);
+      case 'rework_required':
+        return const Color(0xFFB54747);
+      case 'awaiting_inspection':
+        return const Color(0xFFB7791F);
+      case 'in_progress':
+        return const Color(0xFF3978B8);
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  double? _optionalNumber(String value) {
+    if (value.trim().isEmpty) return null;
+    return double.tryParse(value.trim());
+  }
+
+  Future<void> _editRecord({Map<String, dynamic>? existing}) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _showMessage('Please sign in again.');
+      return;
+    }
+    if (widget.requests.isEmpty) {
+      _showMessage('No accessible cases are available to link to a restoration record.');
+      return;
+    }
+
+    final requestIds = widget.requests.map((r) => r['id'].toString()).toSet();
+    var selectedRequestId = existing?['request_id']?.toString();
+    if (selectedRequestId == null || !requestIds.contains(selectedRequestId)) {
+      selectedRequestId = widget.requests.first['id'].toString();
+    }
+
+    var selectedDepartmentId = existing?['responsible_department_id']?.toString()
+        ?? widget.departmentId
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var surface = (existing?['road_surface_type'] ?? 'bituminous').toString();
+    var status = (existing?['restoration_status'] ?? 'planned').toString();
+    var inspection = (existing?['inspection_outcome'] ?? 'not_inspected').toString();
+    var compaction = existing?['compaction_verified'] == true;
+    var drainage = existing?['drainage_clear'] == true;
+    var saving = false;
+
+    final cutLength = TextEditingController(text: existing?['cut_length_m']?.toString() ?? '');
+    final cutWidth = TextEditingController(text: existing?['cut_width_m']?.toString() ?? '');
+    final restoredLength = TextEditingController(text: existing?['restored_length_m']?.toString() ?? '');
+    final restoredWidth = TextEditingController(text: existing?['restored_width_m']?.toString() ?? '');
+    final method = TextEditingController(text: existing?['restoration_method']?.toString() ?? '');
+    final plannedDate = TextEditingController(text: existing?['planned_restore_date']?.toString() ?? '');
+    final notes = TextEditingController(text: existing?['surface_quality_notes']?.toString() ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Record road restoration' : 'Update road restoration'),
+              content: SizedBox(
+                width: 480,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedRequestId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Linked case'),
+                        items: widget.requests.map((request) {
+                          final number = request['request_number']?.toString() ?? '';
+                          final title = (request['title'] ?? request['road_name'] ?? 'Infrastructure case').toString();
+                          return DropdownMenuItem<String>(
+                            value: request['id'].toString(),
+                            child: Text(number.isEmpty ? title : 'Case #$number · $title',
+                              overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (value) => setDialogState(() => selectedRequestId = value),
+                      ),
+                      const SizedBox(height: 10),
+                      if (widget.isDepartment)
+                        Text('Responsible department: ${widget.departmentId ?? 'Not assigned'}',
+                          style:  TextStyle(fontSize: 12, color: mutedInk))
+                      else
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedDepartmentId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Responsible department'),
+                          items: widget.departments.map((department) => DropdownMenuItem<String>(
+                            value: department['id'].toString(),
+                            child: Text((department['name'] ?? 'Department').toString()),
+                          )).toList(),
+                          onChanged: (value) => setDialogState(() => selectedDepartmentId = value),
+                        ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: surface,
+                        decoration: const InputDecoration(labelText: 'Road surface type'),
+                        items: const [
+                          DropdownMenuItem(value: 'bituminous', child: Text('Bituminous / asphalt')),
+                          DropdownMenuItem(value: 'concrete', child: Text('Concrete')),
+                          DropdownMenuItem(value: 'interlocking_pavers', child: Text('Interlocking pavers')),
+                          DropdownMenuItem(value: 'gravel', child: Text('Gravel')),
+                          DropdownMenuItem(value: 'earthen', child: Text('Earthen')),
+                          DropdownMenuItem(value: 'other', child: Text('Other')),
+                        ],
+                        onChanged: (value) => setDialogState(() => surface = value ?? surface),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: status,
+                        decoration: const InputDecoration(labelText: 'Restoration status'),
+                        items: const [
+                          DropdownMenuItem(value: 'planned', child: Text('Planned')),
+                          DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+                          DropdownMenuItem(value: 'awaiting_inspection', child: Text('Awaiting inspection')),
+                          DropdownMenuItem(value: 'accepted', child: Text('Accepted')),
+                          DropdownMenuItem(value: 'rework_required', child: Text('Rework required')),
+                        ],
+                        onChanged: (value) => setDialogState(() => status = value ?? status),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: inspection,
+                        decoration: const InputDecoration(labelText: 'Final inspection outcome'),
+                        items: const [
+                          DropdownMenuItem(value: 'not_inspected', child: Text('Not inspected')),
+                          DropdownMenuItem(value: 'accepted', child: Text('Accepted')),
+                          DropdownMenuItem(value: 'rework_required', child: Text('Rework required')),
+                        ],
+                        onChanged: (value) => setDialogState(() => inspection = value ?? inspection),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Measured dimensions (optional, metres)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      Row(children: [
+                        Expanded(child: TextField(controller: cutLength, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Cut length'))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: cutWidth, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Cut width'))),
+                      ]),
+                      Row(children: [
+                        Expanded(child: TextField(controller: restoredLength, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Restored length'))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: restoredWidth, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Restored width'))),
+                      ]),
+                      TextField(controller: plannedDate, decoration: const InputDecoration(labelText: 'Planned restoration date', hintText: 'YYYY-MM-DD')),
+                      TextField(controller: method, decoration: const InputDecoration(labelText: 'Restoration method')),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: compaction,
+                        onChanged: (value) => setDialogState(() => compaction = value ?? false),
+                        title: const Text('Compaction / surface preparation verified'),
+                        dense: true,
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: drainage,
+                        onChanged: (value) => setDialogState(() => drainage = value ?? false),
+                        title: const Text('Drainage path is clear'),
+                        dense: true,
+                      ),
+                      TextField(
+                        controller: notes,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Surface quality / inspection notes',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                       Text('Acceptance is blocked until inspection, compaction and drainage checks pass.',
+                        style: TextStyle(fontSize: 11, color: mutedInk)),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : () async {
+                    if (selectedRequestId == null || selectedDepartmentId == null || selectedDepartmentId!.isEmpty) {
+                      _showMessage('Select a case and responsible department.');
+                      return;
+                    }
+                    if (plannedDate.text.trim().isNotEmpty &&
+                        DateTime.tryParse(plannedDate.text.trim()) == null) {
+                      _showMessage('Enter the planned date as YYYY-MM-DD.');
+                      return;
+                    }
+                    final cutLengthValue = _optionalNumber(cutLength.text);
+                    final cutWidthValue = _optionalNumber(cutWidth.text);
+                    final restoredLengthValue = _optionalNumber(restoredLength.text);
+                    final restoredWidthValue = _optionalNumber(restoredWidth.text);
+                    if ((cutLength.text.trim().isNotEmpty && cutLengthValue == null) ||
+                        (cutWidth.text.trim().isNotEmpty && cutWidthValue == null) ||
+                        (restoredLength.text.trim().isNotEmpty && restoredLengthValue == null) ||
+                        (restoredWidth.text.trim().isNotEmpty && restoredWidthValue == null)) {
+                      _showMessage('Enter valid numeric dimensions in metres.');
+                      return;
+                    }
+                    if (status == 'accepted' &&
+                        (inspection != 'accepted' || !compaction || !drainage)) {
+                      _showMessage('Acceptance requires a passed inspection, compaction verification and clear drainage.');
+                      return;
+                    }
+                    if (status == 'rework_required' && inspection != 'rework_required') {
+                      _showMessage('Select “Rework required” as the inspection outcome.');
+                      return;
+                    }
+                    if (inspection == 'accepted' && status != 'accepted') {
+                      _showMessage('Set the restoration status to Accepted after a passed inspection.');
+                      return;
+                    }
+                    if (inspection == 'rework_required' && status != 'rework_required') {
+                      _showMessage('Set the restoration status to Rework required.');
+                      return;
+                    }
+                    if (inspection != 'not_inspected' && notes.text.trim().isEmpty) {
+                      _showMessage('Add inspection notes before recording an inspection outcome.');
+                      return;
+                    }
+
+                    setDialogState(() => saving = true);
+                    try {
+                      await supabase.rpc('save_road_restoration_record', params: {
+                        'p_request_id': selectedRequestId,
+                        'p_responsible_department_id': selectedDepartmentId,
+                        'p_road_surface_type': surface,
+                        'p_restoration_status': status,
+                        'p_cut_length_m': cutLengthValue,
+                        'p_cut_width_m': cutWidthValue,
+                        'p_restored_length_m': restoredLengthValue,
+                        'p_restored_width_m': restoredWidthValue,
+                        'p_restoration_method': method.text.trim().isEmpty ? null : method.text.trim(),
+                        'p_planned_restore_date': plannedDate.text.trim().isEmpty ? null : plannedDate.text.trim(),
+                        'p_inspection_outcome': inspection,
+                        'p_compaction_verified': compaction,
+                        'p_drainage_clear': drainage,
+                        'p_surface_quality_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                      });
+
+                      if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                    } catch (_) {
+                      setDialogState(() => saving = false);
+                      _showMessage('Unable to save restoration record. Confirm the case is assigned to the selected department.');
+                    }
+                  },
+                  child: saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save record'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    cutLength.dispose();
+    cutWidth.dispose();
+    restoredLength.dispose();
+    restoredWidth.dispose();
+    method.dispose();
+    plannedDate.dispose();
+    notes.dispose();
+
+    if (saved == true) {
+      await _loadRecords();
+      _showMessage('Road restoration record saved.');
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+               Icon(Icons.construction_outlined, color: teal),
+              const SizedBox(width: 9),
+               Expanded(child: Text('Road restoration & quality assurance',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+              IconButton(onPressed: loading ? null : _loadRecords,
+                icon: const Icon(Icons.refresh), tooltip: 'Refresh restoration records'),
+            ]),
+             Text('Track reinstatement after road openings, inspect the restored surface and drainage, and record accepted work or required rework.',
+              style: TextStyle(fontSize: 11, color: mutedInk)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: widget.requests.isEmpty ? null : () => _editRecord(),
+                icon: const Icon(Icons.add),
+                label: const Text('RECORD RESTORATION'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (loading)
+              const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+            else if (errorMessage.isNotEmpty)
+              Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+            else if (records.isEmpty)
+               Text('No restoration records have been entered yet.',
+                style: TextStyle(fontSize: 12, color: mutedInk))
+            else
+              ...records.map((record) {
+                final state = (record['restoration_status'] ?? 'planned').toString();
+                final surfaceName = _pretty((record['road_surface_type'] ?? 'other').toString());
+                final outcome = _pretty((record['inspection_outcome'] ?? 'not_inspected').toString());
+                final departmentId = record['responsible_department_id'].toString();
+                final dimensions = [
+                  if (record['restored_length_m'] != null) '${record['restored_length_m']} m length',
+                  if (record['restored_width_m'] != null) '${record['restored_width_m']} m width',
+                ].join(' · ');
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE4EAF1)),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    onTap: () => _editRecord(existing: record),
+                    leading: Icon(Icons.route_outlined, color: _statusColor(state)),
+                    title: Text(_requestLabel(record['request_id'].toString()),
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
+                    subtitle: Text(
+                      '${_departmentLabel(departmentId)} · $surfaceName · inspection: $outcome${dimensions.isEmpty ? '' : ' · $dimensions'}',
+                      style:  TextStyle(fontSize: 10, color: mutedInk)),
+                    trailing: Icon(Icons.chevron_right, color: _statusColor(state)),
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class BuildingComplianceInspectionBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const BuildingComplianceInspectionBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<BuildingComplianceInspectionBoard> createState() => _BuildingComplianceInspectionBoardState();
+}
+
+class _BuildingComplianceInspectionBoardState extends State<BuildingComplianceInspectionBoard> {
+  List<Map<String, dynamic>> records = [];
+  List<Map<String, dynamic>> publicApprovalRecords = [];
+  bool loading = true;
+  String errorMessage = '';
+  List<Map<String, dynamic>> get buildingCases => widget.requests
+      .where((r) => (r['case_category'] ?? '').toString() == 'building_planning').toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('building_compliance_inspections')
+          .select().order('inspected_at', ascending: false).limit(100);
+      List<Map<String, dynamic>> publishedRows = [];
+      try {
+        final publicRows = await supabase
+            .from('building_approval_public_register_records')
+            .select('source_record_id,zone_name,building_type,building_sub_type,plot_area_sqm,approval_status,release_date')
+            .eq('source_dataset', 'MCD_NEXGEN_OBPS_PLAN_RELEASE_REPORT_2023')
+            .order('release_date', ascending: false)
+            .limit(8);
+        publishedRows = List<Map<String, dynamic>>.from(publicRows);
+      } catch (_) {
+        publishedRows = [];
+      }
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        publicApprovalRecords = publishedRows;
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Building inspection records could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final n = r['request_number']?.toString();
+        final t = (r['title'] ?? r['road_name'] ?? 'Building case').toString();
+        return n == null ? t : 'Case #' + n + ' · ' + t;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  String _departmentLabel(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return widget.isDepartment ? 'Assigned department' : 'Department';
+  }
+
+  Future<void> _addInspection() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    final cases = buildingCases;
+    if (cases.isEmpty) { _message('No accessible building-planning cases are available.'); return; }
+
+    var requestId = cases.first['id'].toString();
+    var departmentId = widget.departmentId ?? cases.first['department_id']?.toString()
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var reviewState = 'awaiting_review';
+    var saving = false;
+    final approval = TextEditingController();
+    final authority = TextEditingController();
+    final approvedFloors = TextEditingController();
+    final observedFloors = TextEditingController();
+    final approvedHeight = TextEditingController();
+    final observedHeight = TextEditingController();
+    final notes = TextEditingController();
+
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) =>
+      StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Record building compliance inspection'),
+        content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: requestId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Building-planning case'),
+              items: cases.map((r) {
+                final id = r['id'].toString();
+                return DropdownMenuItem(value: id, child: Text(_caseLabel(id), overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => requestId = v); },
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: departmentId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Responsible department'),
+              items: widget.departments.map((d) => DropdownMenuItem<String>(
+                value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString(),
+                  overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: saving ? null : (v) => setDialogState(() => departmentId = v),
+            ),
+            TextField(controller: approval, decoration: const InputDecoration(labelText: 'Approval / permit reference')),
+            TextField(controller: authority, decoration: const InputDecoration(labelText: 'Issuing authority')),
+            TextField(controller: approvedFloors, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Approved floor count')),
+            TextField(controller: observedFloors, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Observed floor count *')),
+            TextField(controller: approvedHeight, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Approved height (m)')),
+            TextField(controller: observedHeight, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Observed height (m)')),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: reviewState,
+              decoration: const InputDecoration(labelText: 'Inspection review state'),
+              items: const [
+                DropdownMenuItem(value: 'awaiting_review', child: Text('Awaiting review')),
+                DropdownMenuItem(value: 'reviewed_consistent', child: Text('Reviewed — consistent with recorded approval')),
+                DropdownMenuItem(value: 'refer_to_authority', child: Text('Refer to competent authority')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => reviewState = v); },
+            ),
+            TextField(controller: notes, maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Inspection notes / verification limitations')),
+            const SizedBox(height: 8),
+             Text('A recorded difference is an inspection flag only. It does not establish unlawful construction or replace review by the competent planning authority.',
+              style: TextStyle(fontSize: 11, color: mutedInk)),
+          ],
+        ))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(
+            onPressed: saving ? null : () async {
+              final observed = int.tryParse(observedFloors.text.trim());
+              final approved = approvedFloors.text.trim().isEmpty ? null : int.tryParse(approvedFloors.text.trim());
+              final aHeight = approvedHeight.text.trim().isEmpty ? null : double.tryParse(approvedHeight.text.trim());
+              final oHeight = observedHeight.text.trim().isEmpty ? null : double.tryParse(observedHeight.text.trim());
+              if (departmentId == null || departmentId!.isEmpty || observed == null || observed < 0) {
+                _message('Select a department and enter a valid observed floor count.'); return;
+              }
+              if ((approvedFloors.text.trim().isNotEmpty && (approved == null || approved < 0)) ||
+                  (approvedHeight.text.trim().isNotEmpty && (aHeight == null || aHeight < 0)) ||
+                  (observedHeight.text.trim().isNotEmpty && (oHeight == null || oHeight < 0))) {
+                _message('Floor counts and heights must be valid non-negative numbers.'); return;
+              }
+              if (approved == null && aHeight == null && approval.text.trim().isEmpty) {
+                _message('Enter an approval reference, approved floor count, or approved height.'); return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                await supabase.from('building_compliance_inspections').insert({
+                  'request_id': requestId,
+                  'responsible_department_id': departmentId,
+                  'approval_reference': approval.text.trim().isEmpty ? null : approval.text.trim(),
+                  'issuing_authority': authority.text.trim().isEmpty ? null : authority.text.trim(),
+                  'approved_floor_count': approved,
+                  'observed_floor_count': observed,
+                  'approved_height_m': aHeight,
+                  'observed_height_m': oHeight,
+                  'review_state': reviewState,
+                  'inspection_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'created_by': user.id,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (_) {
+                setDialogState(() => saving = false);
+                _message('Unable to save. Confirm that the case is assigned to the selected department.');
+              }
+            },
+            child: saving ? const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save inspection'),
+          ),
+        ],
+      )),
+    );
+
+    approval.dispose(); authority.dispose(); approvedFloors.dispose(); observedFloors.dispose();
+    approvedHeight.dispose(); observedHeight.dispose(); notes.dispose();
+    if (saved == true) { await _load(); _message('Building compliance inspection recorded.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+           Icon(Icons.apartment_outlined, color: teal),
+          const SizedBox(width: 9),
+           Expanded(child: Text('Building height & floor compliance',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ]),
+         Text('Compare observed building details with recorded approval information. Discrepancies require competent-authority verification.',
+          style: TextStyle(fontSize: 11, color: mutedInk)),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F7F8),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFD7E8E9)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+             Text('OFFICIAL PUBLIC APPROVAL REGISTER',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: teal, letterSpacing: 0.6)),
+            const SizedBox(height: 4),
+             Text('2,015 MCD plan-release records imported · Delhi · 2023',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
+            const SizedBox(height: 3),
+             Text('Partial MCD coverage only. The source does not provide approved floor count, building height or verified coordinates.',
+              style: TextStyle(fontSize: 10, color: mutedInk)),
+            if (publicApprovalRecords.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...publicApprovalRecords.map((record) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                   Icon(Icons.verified_outlined, size: 15, color: teal),
+                  const SizedBox(width: 7),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Request #${record['source_record_id'] ?? '—'} · ${record['zone_name'] ?? 'Zone not stated'}',
+                      style:  TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)),
+                    Text('${record['building_type'] ?? 'Building'} · ${record['plot_area_sqm'] ?? '—'} m² plot · ${record['approval_status'] ?? 'Status not stated'} · ${record['release_date'] ?? 'Date not stated'}',
+                      style:  TextStyle(fontSize: 10, color: mutedInk)),
+                  ])),
+                ]),
+              )),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: buildingCases.isEmpty ? null : _addInspection,
+          icon: const Icon(Icons.add), label: const Text('RECORD BUILDING INSPECTION'))),
+        const SizedBox(height: 8),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else if (records.isEmpty)  Text('No building inspections have been recorded yet.',
+          style: TextStyle(fontSize: 12, color: mutedInk))
+        else ...records.map((record) {
+          final dept = record['responsible_department_id'].toString();
+          final approved = record['approved_floor_count']?.toString() ?? 'Not recorded';
+          final observed = record['observed_floor_count']?.toString() ?? 'Not recorded';
+          final state = (record['review_state'] ?? 'awaiting_review').toString().replaceAll('_', ' ').toUpperCase();
+          final heights = record['approved_height_m'] == null && record['observed_height_m'] == null ? ''
+            : ' · height ' + (record['observed_height_m']?.toString() ?? '—') + ' m observed / ' +
+              (record['approved_height_m']?.toString() ?? '—') + ' m approved';
+          return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_caseLabel(record['request_id'].toString()),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              Text(_departmentLabel(dept) + ' · floors ' + observed + ' observed / ' + approved +
+                ' approved' + heights + ' · ' + state,
+                style:  TextStyle(fontSize: 10, color: mutedInk)),
+              if ((record['approval_reference'] ?? '').toString().isNotEmpty)
+                Text('Approval: ' + record['approval_reference'].toString(),
+                  style:  TextStyle(fontSize: 10, color: ink)),
+              if ((record['inspection_notes'] ?? '').toString().isNotEmpty)
+                Text(record['inspection_notes'].toString(), style:  TextStyle(fontSize: 10, color: ink)),
+            ]));
+        }),
+      ],
+    )));
+  }
+}
+
+class DrainageInspectionBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+
+  const DrainageInspectionBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+
+  @override
+  State<DrainageInspectionBoard> createState() => _DrainageInspectionBoardState();
+}
+
+class _DrainageInspectionBoardState extends State<DrainageInspectionBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  List<Map<String, dynamic>> get drainageCases => widget.requests.where((r) =>
+      (r['case_category'] ?? '').toString() == 'stormwater_drainage').toList();
+
+  @override
+  void initState() { super.initState(); _loadRecords(); }
+
+  Future<void> _loadRecords() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('drainage_inspection_records')
+          .select().order('updated_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Drainage records could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final number = r['request_number']?.toString();
+        final title = (r['title'] ?? r['road_name'] ?? 'Drainage case').toString();
+        return number == null ? title : 'Case #' + number + ' · ' + title;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  String _departmentLabel(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return widget.isDepartment ? 'Assigned department' : 'Department';
+  }
+
+  String _pretty(String value) => value.replaceAll('_', ' ');
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'cleared': return const Color(0xFF25845C);
+      case 'critical': return const Color(0xFFB54747);
+      case 'high': return const Color(0xFFB7791F);
+      case 'in_progress': return const Color(0xFF3978B8);
+      default: return const Color(0xFF64748B);
+    }
+  }
+
+  Future<void> _edit({Map<String, dynamic>? existing}) async {
+    if (supabase.auth.currentUser == null) { _message('Please sign in again.'); return; }
+    final cases = drainageCases;
+    if (cases.isEmpty) { _message('No accessible stormwater-drainage cases are available.'); return; }
+
+    var requestId = existing?['request_id']?.toString() ?? cases.first['id'].toString();
+    if (!cases.any((r) => r['id'].toString() == requestId)) requestId = cases.first['id'].toString();
+    var departmentId = existing?['responsible_department_id']?.toString()
+        ?? widget.departmentId
+        ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var obstruction = (existing?['obstruction_type'] ?? 'blocked_inlet').toString();
+    var severity = (existing?['severity'] ?? 'moderate').toString();
+    var status = (existing?['action_status'] ?? 'reported').toString();
+    var standingWater = existing?['standing_water'] == true;
+    var inletClear = existing?['inlet_clear'] == true;
+    var outfallClear = existing?['outfall_clear'] == true;
+    var frontageDrain = existing?['frontage_drain_present'] != false;
+    var saving = false;
+    final notes = TextEditingController(text: existing?['inspection_notes']?.toString() ?? '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(existing == null ? 'Record drainage inspection' : 'Update drainage inspection'),
+          content: SizedBox(width: 480, child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: requestId, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Stormwater case'),
+                items: cases.map((r) {
+                  final n = r['request_number']?.toString() ?? '';
+                  final t = (r['title'] ?? r['road_name'] ?? 'Drainage case').toString();
+                  return DropdownMenuItem(value: r['id'].toString(),
+                    child: Text(n.isEmpty ? t : 'Case #' + n + ' · ' + t, overflow: TextOverflow.ellipsis));
+                }).toList(),
+                onChanged: (v) => setDialogState(() => requestId = v ?? requestId),
+              ),
+              const SizedBox(height: 8),
+              if (widget.isDepartment)
+                Align(alignment: Alignment.centerLeft,
+                  child: Text('Responsible department: ' + (widget.departmentId ?? 'Not assigned')))
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId, isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Responsible department'),
+                  items: widget.departments.map((d) => DropdownMenuItem(
+                    value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString()))).toList(),
+                  onChanged: (v) => setDialogState(() => departmentId = v),
+                ),
+              DropdownButtonFormField<String>(
+                initialValue: obstruction,
+                decoration: const InputDecoration(labelText: 'Observed issue'),
+                items: const [
+                  DropdownMenuItem(value: 'blocked_inlet', child: Text('Blocked drain inlet')),
+                  DropdownMenuItem(value: 'silt_debris', child: Text('Silt / debris accumulation')),
+                  DropdownMenuItem(value: 'encroachment', child: Text('Drain encroachment')),
+                  DropdownMenuItem(value: 'damaged_drain', child: Text('Damaged drain')),
+                  DropdownMenuItem(value: 'missing_frontage_drain', child: Text('Missing frontage drain')),
+                  DropdownMenuItem(value: 'inadequate_capacity', child: Text('Inadequate drainage capacity')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) => setDialogState(() => obstruction = v ?? obstruction),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: severity, decoration: const InputDecoration(labelText: 'Severity'),
+                items: const [
+                  DropdownMenuItem(value: 'low', child: Text('Low')),
+                  DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
+                  DropdownMenuItem(value: 'high', child: Text('High')),
+                  DropdownMenuItem(value: 'critical', child: Text('Critical')),
+                ],
+                onChanged: (v) => setDialogState(() => severity = v ?? severity),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: status, decoration: const InputDecoration(labelText: 'Action status'),
+                items: const [
+                  DropdownMenuItem(value: 'reported', child: Text('Reported')),
+                  DropdownMenuItem(value: 'inspection_required', child: Text('Inspection required')),
+                  DropdownMenuItem(value: 'action_assigned', child: Text('Action assigned')),
+                  DropdownMenuItem(value: 'in_progress', child: Text('In progress')),
+                  DropdownMenuItem(value: 'cleared', child: Text('Cleared')),
+                  DropdownMenuItem(value: 'monitoring', child: Text('Monitoring')),
+                ],
+                onChanged: (v) => setDialogState(() => status = v ?? status),
+              ),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: standingWater, onChanged: (v) => setDialogState(() => standingWater = v ?? false),
+                title: const Text('Standing water observed')),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: inletClear, onChanged: (v) => setDialogState(() => inletClear = v ?? false),
+                title: const Text('Drain inlet verified clear')),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: outfallClear, onChanged: (v) => setDialogState(() => outfallClear = v ?? false),
+                title: const Text('Outfall / discharge path verified clear')),
+              CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true,
+                value: frontageDrain, onChanged: (v) => setDialogState(() => frontageDrain = v ?? false),
+                title: const Text('Frontage drain is present')),
+              TextField(controller: notes, minLines: 2, maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Inspection / action notes')),
+              const SizedBox(height: 6),
+               Text('Clearance requires a clear inlet, clear outfall and no standing water.',
+                style: TextStyle(fontSize: 11, color: mutedInk)),
+            ]),
+          )),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel')),
+            FilledButton(
+              onPressed: saving ? null : () async {
+                if (departmentId == null || departmentId!.isEmpty) {
+                  _message('Select a responsible department.'); return;
+                }
+                if (status == 'cleared' && (!inletClear || !outfallClear || standingWater)) {
+                  _message('Clearance requires a clear inlet, clear outfall and no standing water.'); return;
+                }
+                setDialogState(() => saving = true);
+                try {
+                  await supabase.rpc('save_drainage_inspection_record', params: {
+                    'p_request_id': requestId,
+                    'p_responsible_department_id': departmentId,
+                    'p_obstruction_type': obstruction,
+                    'p_severity': severity,
+                    'p_action_status': status,
+                    'p_standing_water': standingWater,
+                    'p_inlet_clear': inletClear,
+                    'p_outfall_clear': outfallClear,
+                    'p_frontage_drain_present': frontageDrain,
+                    'p_inspection_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  });
+                  if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                } catch (_) {
+                  setDialogState(() => saving = false);
+                  _message('Unable to save. Confirm the case is assigned to the selected department.');
+                }
+              },
+              child: saving ? const SizedBox(width: 16,height: 16,child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    notes.dispose();
+    if (saved == true) { await _loadRecords(); _message('Drainage inspection saved.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+           Icon(Icons.water_damage_outlined, color: teal),
+          const SizedBox(width: 9),
+           Expanded(child: Text('Stormwater & frontage drainage',
+            style: TextStyle(fontSize: 14,fontWeight: FontWeight.w800,color: ink))),
+          IconButton(onPressed: loading ? null : _loadRecords,
+            icon: const Icon(Icons.refresh), tooltip: 'Refresh drainage records'),
+        ]),
+         Text('Track blocked inlets, silt, encroachment, standing water and missing frontage drains. This is case-management data, not engineering clearance.',
+          style: TextStyle(fontSize: 11,color: mutedInk)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: drainageCases.isEmpty ? null : () => _edit(),
+          icon: const Icon(Icons.add), label: const Text('RECORD DRAINAGE INSPECTION'))),
+        if (drainageCases.isEmpty)
+           Padding(padding: EdgeInsets.only(top: 8),
+            child: Text('Create or assign a case under Stormwater and drainage to start an inspection.',
+              style: TextStyle(fontSize: 11,color: mutedInk))),
+        const SizedBox(height: 8),
+        if (loading)
+          const Center(child: Padding(padding: EdgeInsets.all(12),child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty)
+          Text(errorMessage,style: const TextStyle(fontSize: 12,color: Colors.red))
+        else if (records.isEmpty)
+           Text('No drainage inspections have been entered yet.',
+            style: TextStyle(fontSize: 12,color: mutedInk))
+        else
+          ...records.map((r) {
+            final status = (r['action_status'] ?? 'reported').toString();
+            final severity = (r['severity'] ?? 'moderate').toString();
+            final dept = r['responsible_department_id'].toString();
+            final issue = _pretty((r['obstruction_type'] ?? 'other').toString());
+            return Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(color: const Color(0xFFF7FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE4EAF1))),
+              child: ListTile(dense: true, onTap: () => _edit(existing: r),
+                leading: Icon(Icons.water_damage_outlined,color: _statusColor(status)),
+                title: Text(_caseLabel(r['request_id'].toString()),maxLines: 2,overflow: TextOverflow.ellipsis,
+                  style:  TextStyle(fontSize: 12,fontWeight: FontWeight.w700,color: ink)),
+                subtitle: Text(_departmentLabel(dept) + ' · ' + issue + ' · ' +
+                  severity.toUpperCase() + ' · ' + _pretty(status),
+                  style:  TextStyle(fontSize: 10,color: mutedInk)),
+                trailing: const Icon(Icons.chevron_right)),
+            );
+          }),
+      ]),
+    ));
+  }
+}
+
+class GroundwaterTelemetryDashboard extends StatefulWidget {
+  const GroundwaterTelemetryDashboard({super.key});
+  @override
+  State<GroundwaterTelemetryDashboard> createState() => _GroundwaterTelemetryDashboardState();
+}
+
+class _GroundwaterTelemetryDashboardState extends State<GroundwaterTelemetryDashboard> {
+  List<Map<String, dynamic>> jurisdictions = [];
+  List<Map<String, dynamic>> stations = [];
+  List<Map<String, dynamic>> districtAssessments = [];
+  Map<String, dynamic>? assessment;
+  String? selectedStateId;
+  String selectedStateName = 'Tamil Nadu';
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() { super.initState(); _loadSnapshot(); }
+
+  Future<void> _loadSnapshot({String? requestedStateId}) async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rawJurisdictions = await supabase.from('india_state_uts')
+          .select('id,name,jurisdiction_type').order('name');
+      final loaded = List<Map<String, dynamic>>.from(rawJurisdictions);
+      if (loaded.isEmpty) throw Exception('Empty State/UT directory');
+      String? nextId = requestedStateId ?? selectedStateId;
+      if (nextId == null || !loaded.any((r) => r['id'].toString() == nextId)) {
+        final tn = loaded.where((r) => r['name'].toString() == 'Tamil Nadu');
+        nextId = tn.isNotEmpty ? tn.first['id'].toString() : loaded.first['id'].toString();
+      }
+      final selected = loaded.firstWhere((r) => r['id'].toString() == nextId);
+      final stateName = selected['name'].toString();
+      final rawStations = await supabase.from('latest_groundwater_station_observations')
+          .select('station_name,agency,state_name,district_name,tehsil,block_name,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text,imported_at')
+          .eq('state_name', stateName).order('observed_at_local', ascending: false).limit(300);
+      final rawAssessment = await supabase.from('groundwater_state_assessments')
+          .select('assessment_year,agency,total_annual_recharge_bcm,annual_extractable_resource_bcm,total_annual_extraction_bcm,stage_of_extraction_pct,source_document_url,source_reference')
+          .eq('state_ut_id', nextId).order('assessment_year', ascending: false).limit(1);
+      final rawDistrictAssessments = await supabase
+          .from('groundwater_resource_assessments')
+          .select('district_name,total_annual_recharge_ham,annual_extractable_resource_ham,annual_extraction_ham,stage_of_extraction_pct,source_reference,source_document_url')
+          .eq('state_name', stateName)
+          .eq('assessment_year', 2025)
+          .eq('geography_level', 'district')
+          .ilike('source_reference', 'National Compilation on Dynamic Ground Water Resources of India, 2025, Annexure II%')
+          .order('stage_of_extraction_pct', ascending: false)
+          .limit(100);
+      if (!mounted) return;
+      setState(() {
+        jurisdictions = loaded; selectedStateId = nextId; selectedStateName = stateName;
+        stations = List<Map<String, dynamic>>.from(rawStations);
+        districtAssessments = List<Map<String, dynamic>>.from(rawDistrictAssessments);
+        assessment = rawAssessment.isEmpty ? null : Map<String, dynamic>.from(rawAssessment.first);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Nationwide groundwater records could not be loaded. Check your connection and account permissions.'; });
+    }
+  }
+
+  String _number(dynamic value, {int digits = 2, String suffix = ''}) {
+    if (value is num) return value.toStringAsFixed(digits) + suffix;
+    final parsed = num.tryParse(value?.toString() ?? '');
+    return parsed == null ? 'Not reported' : parsed.toStringAsFixed(digits) + suffix;
+  }
+
+  String _reading(Map<String, dynamic> station) {
+    final value = station['reported_level_m'];
+    if (value is num) return value.toStringAsFixed(3) + ' m (as published)';
+    final raw = (station['reported_level_text'] ?? '').toString();
+    return raw.isEmpty || raw == '-' ? 'Not reported' : raw + ' (as published)';
+  }
+
+  Widget _metric(String label, String value) => Expanded(
+    child: Container(padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12), border: Border.all(color: borderColor)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style:  TextStyle(fontSize: 10, color: mutedInk)),
+        const SizedBox(height: 4),
+        Text(value, style:  TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: ink)),
+      ])));
+
+  Widget _districtAssessmentTile(Map<String, dynamic> district) {
+    final name = (district['district_name'] ?? 'District not named').toString();
+    final recharge = _number(district['total_annual_recharge_ham'], digits: 0);
+    final extractable = _number(district['annual_extractable_resource_ham'], digits: 0);
+    final extraction = _number(district['annual_extraction_ham'], digits: 0);
+    final stage = _number(district['stage_of_extraction_pct'], suffix: '%');
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(name, style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
+      subtitle: Text('Recharge $recharge ha.m · Extractable $extractable ha.m · Extraction $extraction ha.m',
+        style:  TextStyle(fontSize: 10, color: mutedInk)),
+      trailing: Text(stage, style:  TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: ink)),
+    );
+  }
+
+  Widget _stationTile(Map<String, dynamic> station) {
+    final name = (station['station_name'] ?? 'Unnamed station').toString();
+    final district = (station['district_name'] ?? 'District not supplied').toString();
+    final tehsil = (station['tehsil'] ?? station['block_name'] ?? '').toString();
+    final observed = (station['observed_at_local'] ?? 'Timestamp unavailable').toString();
+    final place = [district, tehsil].where((v) => v.trim().isNotEmpty).join(' · ');
+    final rl = station['rl_msl_m'] is num ? ' · RL MSL ${(station['rl_msl_m'] as num).toStringAsFixed(2)} m' : '';
+    return ListTile(dense: true, contentPadding: EdgeInsets.zero,
+      leading:  Icon(Icons.sensors_outlined, color: teal),
+      title: Text(name, style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ink)),
+      subtitle: Text('$place · Observed $observed$rl', style:  TextStyle(fontSize: 10, color: mutedInk)),
+      trailing: Text(_reading(station), style:  TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = stations.isNotEmpty ? (stations.first['observed_at_local'] ?? 'Unavailable').toString() : 'Unavailable';
+    final year = assessment?['assessment_year']?.toString() ?? 'Unavailable';
+    final stage = assessment == null ? 'Not reported' : _number(assessment?['stage_of_extraction_pct'], suffix: '%');
+    return Card(child: Padding(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+           Icon(Icons.public, color: teal), const SizedBox(width: 9),
+           Expanded(child: Text('India groundwater intelligence', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+          IconButton(onPressed: loading ? null : () => _loadSnapshot(), icon: const Icon(Icons.refresh), tooltip: 'Refresh nationwide groundwater records'),
+        ]),
+         Text('CGWB State/UT resource assessments + published NWDP monitoring observations', style: TextStyle(fontSize: 11, color: mutedInk)),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          initialValue: selectedStateId, isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Select State / Union Territory', border: OutlineInputBorder(), isDense: true),
+          items: jurisdictions.map((r) => DropdownMenuItem<String>(value: r['id'].toString(), child: Text(r['name'].toString()))).toList(),
+          onChanged: loading || jurisdictions.isEmpty ? null : (v) { if (v != null) _loadSnapshot(requestedStateId: v); },
+        ),
+        const SizedBox(height: 10),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else ...[
+          Text(selectedStateName, style:  TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
+          const SizedBox(height: 8),
+          Row(children: [_metric('Assessment year', year), const SizedBox(width: 8), _metric('Extraction stage', stage)]),
+          const SizedBox(height: 8),
+          Row(children: [
+            _metric('Annual recharge', assessment == null ? 'Not reported' : _number(assessment?['total_annual_recharge_bcm'], suffix: ' BCM')),
+            const SizedBox(width: 8),
+            _metric('Annual extraction', assessment == null ? 'Not reported' : _number(assessment?['total_annual_extraction_bcm'], suffix: ' BCM')),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+             Expanded(child: Text('CGWB 2025 district resource assessments', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink))),
+            Text('${districtAssessments.length} districts', style:  TextStyle(fontSize: 10, color: mutedInk)),
+          ]),
+           Text('Official CGWB Annexure II values · hectare-metres (ha.m). These are annual resource assessments, not live readings or individual borewell permissions.',
+            style: TextStyle(fontSize: 10, color: mutedInk)),
+          if (districtAssessments.isEmpty)
+             Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No Annexure II district rows are currently registered for this jurisdiction. This is a coverage gap, not evidence that district assessments do not exist.', style: TextStyle(fontSize: 10, color: mutedInk)))
+          else ...[
+            const SizedBox(height: 5),
+            ...districtAssessments.take(6).map(_districtAssessmentTile),
+            if (districtAssessments.length > 6)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text('Show remaining ${districtAssessments.length - 6} districts', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                children: districtAssessments.skip(6).map(_districtAssessmentTile).toList(),
+              ),
+          ],
+          const SizedBox(height: 12),
+          Row(children: [
+             Expanded(child: Text('Published monitoring stations', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink))),
+            Text('${stations.length} shown', style:  TextStyle(fontSize: 10, color: mutedInk)),
+          ]),
+          if (stations.isEmpty)
+             Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Text('No station observations are currently imported for this jurisdiction. This does not mean that monitoring stations are absent.', style: TextStyle(fontSize: 11, color: mutedInk)))
+          else ...[
+            Text('Latest observation in this result: $latest', style:  TextStyle(fontSize: 10, color: mutedInk)),
+            const SizedBox(height: 6),
+            ...stations.take(10).map(_stationTile),
+            if (stations.length > 10) ExpansionTile(tilePadding: EdgeInsets.zero,
+              title: Text('Show remaining ${stations.length - 10} stations', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              children: stations.skip(10).map(_stationTile).toList()),
+          ],
+          const SizedBox(height: 6),
+           Text('Resource assessments are annual CGWB estimates, not live sensor values. Station readings are displayed as published. Missing observations are not evidence of absent groundwater or safe borewell conditions. National telemetry imports run through the controlled server-side import workflow.', style: TextStyle(fontSize: 10, color: mutedInk)),
+        ],
+      ])));
+  }
+}
+
+
+class NationalDataCoverageBoard extends StatefulWidget {
+  const NationalDataCoverageBoard({super.key});
+  @override
+  State<NationalDataCoverageBoard> createState() => _NationalDataCoverageBoardState();
+}
+
+class _NationalDataCoverageBoardState extends State<NationalDataCoverageBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('india_data_coverage')
+          .select('state_ut_id,data_domain,coverage_status,operational_use_allowed,telemetry_records_imported,telemetry_status')
+          .limit(1000);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'National data coverage status is unavailable.'; });
+    }
+  }
+
+  Widget _domainSummary(String domain, String label) {
+    final items = records.where((r) => r['data_domain']?.toString() == domain).toList();
+    final jurisdictions = items.map((r) => r['state_ut_id']?.toString()).whereType<String>().toSet().length;
+    final operational = items.where((r) => r['operational_use_allowed'] == true).length;
+    final statuses = <String, int>{};
+    for (final row in items) {
+      final status = (row['coverage_status'] ?? 'unknown').toString();
+      statuses[status] = (statuses[status] ?? 0) + 1;
+    }
+    final imported = items.fold<int>(0, (sum, row) {
+      final v = row['telemetry_records_imported'];
+      return sum + (v is num ? v.toInt() : 0);
+    });
+    return Container(width: double.infinity, margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12), border: Border.all(color: borderColor)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink)),
+        const SizedBox(height: 5),
+        Text(jurisdictions.toString() + ' of 36 jurisdictions have a coverage row · ' +
+          operational.toString() + ' operationally authorised', style:  TextStyle(fontSize: 10, color: mutedInk)),
+        if (domain == 'groundwater') Text('State-level telemetry records attributed in coverage matrix: ' + imported.toString(),
+          style:  TextStyle(fontSize: 10, color: mutedInk)),
+        const SizedBox(height: 5),
+        ...statuses.entries.map((e) => Padding(padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            Expanded(child: Text(e.key.replaceAll('_', ' '), style:  TextStyle(fontSize: 10, color: mutedInk))),
+            Text(e.value.toString(), style:  TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ink)),
+          ]))),
+      ]));
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(16),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+         Icon(Icons.account_tree_outlined, color: teal), const SizedBox(width: 9),
+         Expanded(child: Text('India-wide data readiness', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+        IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh national coverage matrix'),
+      ]),
+       Text('36 States / UTs · 10 infrastructure domains · authority verification tracked', style: TextStyle(fontSize: 11, color: mutedInk)),
+      if (loading) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
+      else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
+      else ...[
+        _domainSummary('groundwater', 'Groundwater'),
+        _domainSummary('utility_gis', 'Underground utility GIS'),
+        _domainSummary('building_approvals', 'Building approvals'),
+        _domainSummary('road_right_of_way', 'Roads and right-of-way'),
+        _domainSummary('water_supply', 'Drinking-water supply'),
+        _domainSummary('sewerage_wastewater', 'Sewerage and wastewater'),
+        _domainSummary('stormwater_drainage', 'Stormwater drainage'),
+        _domainSummary('electricity_distribution', 'Electricity distribution'),
+        _domainSummary('telecom_fibre', 'Telecom and fibre'),
+        _domainSummary('city_gas', 'City gas distribution'),
+        _domainSummary('administrative_directory', 'Districts, ULBs and local bodies'),
+        const SizedBox(height: 8),
+         Text('A portal reference or imported public record does not establish a complete or current asset inventory. Operational use remains disabled until the responsible authority validates the relevant records.', style: TextStyle(fontSize: 10, color: mutedInk)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const IndiaCoverageExplorerPage(),
+          )),
+          icon: const Icon(Icons.public),
+          label: const Text('OPEN INDIA-WIDE COVERAGE EXPLORER'),
+        )),
+      ],
+    ])));
+}
+
+class IndiaCoverageExplorerPage extends StatefulWidget {
+  const IndiaCoverageExplorerPage({
+    super.key,
+    this.initialRegion = 'All India',
+  });
+  final String initialRegion;
+  @override
+  State<IndiaCoverageExplorerPage> createState() => _IndiaCoverageExplorerPageState();
+}
+
+class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
+  List<Map<String, dynamic>> states = [];
+  List<Map<String, dynamic>> coverage = [];
+  List<Map<String, dynamic>> administrativeUnits = [];
+  Map<String, int> administrativeUnitCounts = {};
+  int authorityVerifiedUnitCount = 0;
+  List<Map<String, dynamic>> directoryBatches = [];
+  bool canManageDirectory = false;
+  bool loading = true;
+  String errorMessage = '';
+  String searchText = '';
+  String? selectedStateId;
+  String selectedDomain = 'all';
+  String selectedRegion = 'All India';
+
+  static const List<String> regionOrder = [
+    'All India', 'North', 'Northeast', 'East', 'Central', 'West', 'South', 'Islands',
+  ];
+
+  static const Map<String, Set<String>> regionJurisdictions = {
+    'North': {
+      'Chandigarh', 'Delhi', 'Haryana', 'Himachal Pradesh',
+      'Jammu and Kashmir', 'Ladakh', 'Punjab', 'Rajasthan',
+      'Uttar Pradesh', 'Uttarakhand',
+    },
+    'Northeast': {
+      'Arunachal Pradesh', 'Assam', 'Manipur', 'Meghalaya',
+      'Mizoram', 'Nagaland', 'Sikkim', 'Tripura',
+    },
+    'East': {'Bihar', 'Jharkhand', 'Odisha', 'West Bengal'},
+    'Central': {'Chhattisgarh', 'Madhya Pradesh'},
+    'West': {
+      'Dadra and Nagar Haveli and Daman and Diu', 'Goa', 'Gujarat', 'Maharashtra',
+    },
+    'South': {
+      'Andhra Pradesh', 'Karnataka', 'Kerala', 'Puducherry',
+      'Tamil Nadu', 'Telangana',
+    },
+    'Islands': {'Andaman and Nicobar Islands', 'Lakshadweep'},
+  };
+
+  static const Map<String, String> domainLabels = {
+    'all': 'All infrastructure domains',
+    'groundwater': 'Groundwater',
+    'utility_gis': 'Underground utility GIS',
+    'building_approvals': 'Building approvals',
+    'road_right_of_way': 'Roads and right-of-way',
+    'water_supply': 'Drinking-water supply',
+    'sewerage_wastewater': 'Sewerage and wastewater',
+    'stormwater_drainage': 'Stormwater drainage',
+    'electricity_distribution': 'Electricity distribution',
+    'telecom_fibre': 'Telecom and fibre',
+    'city_gas': 'City gas distribution',
+    'administrative_directory': 'Districts, ULBs and local bodies',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    selectedRegion = regionOrder.contains(widget.initialRegion)
+        ? widget.initialRegion
+        : 'All India';
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rawStates = await supabase.from('india_state_uts')
+          .select('id,name,jurisdiction_type').order('name').limit(100);
+      final rawCoverage = await supabase.from('india_data_coverage')
+          .select('state_ut_id,data_domain,responsible_authority,official_portal_url,national_source_url,coverage_status,data_granularity,operational_use_allowed,last_checked_at,notes,telemetry_resource_count,telemetry_records_imported,telemetry_source_records,telemetry_status')
+          .limit(1000);
+      // Fetch a small row sample for diagnostics, but obtain national totals from
+      // a database aggregate so the Supabase 1,000-row REST cap cannot undercount
+      // the directory shown to citizens.
+      final rawAdministrativeUnits = await supabase.from('india_administrative_units')
+          .select('unit_type,verification_status,state_ut_id')
+          .limit(1000);
+      final rawUnitCounts = await supabase.rpc('get_india_administrative_unit_counts');
+      final unitCounts = <String, int>{};
+      var verifiedUnitCount = 0;
+      for (final raw in (rawUnitCounts as List)) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final type = (row['unit_type'] ?? '').toString();
+        final total = (row['total_count'] as num?)?.toInt() ?? 0;
+        final verified = (row['verified_count'] as num?)?.toInt() ?? 0;
+        if (type.isNotEmpty) unitCounts[type] = total;
+        verifiedUnitCount += verified;
+      }
+      final userId = supabase.auth.currentUser?.id;
+      final profile = userId == null ? null : await supabase.from('profiles')
+          .select('role').eq('id', userId).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      final manager = role == 'admin' || role == 'coordinator';
+      final rawDirectoryBatches = manager
+          ? await supabase.from('india_directory_import_batches')
+              .select('unit_type,import_status,rows_received,rows_inserted,rows_rejected,jurisdiction_state_ut_id')
+              .limit(1000)
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        states = List<Map<String, dynamic>>.from(rawStates);
+        coverage = List<Map<String, dynamic>>.from(rawCoverage);
+        administrativeUnits = List<Map<String, dynamic>>.from(rawAdministrativeUnits);
+        administrativeUnitCounts = unitCounts;
+        authorityVerifiedUnitCount = verifiedUnitCount;
+        directoryBatches = List<Map<String, dynamic>>.from(rawDirectoryBatches);
+        canManageDirectory = manager;
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Public coverage records could not be reached. Check the network or public read access, then retry.';
+      });
+    }
+  }
+
+  String _domainLabel(String domain) => domainLabels[domain] ?? domain.replaceAll('_', ' ');
+
+  List<Map<String, dynamic>> _rowsFor(String stateId) {
+    final rows = coverage.where((row) {
+      final sameState = row['state_ut_id']?.toString() == stateId;
+      final sameDomain = selectedDomain == 'all' || row['data_domain']?.toString() == selectedDomain;
+      return sameState && sameDomain;
+    }).toList();
+    rows.sort((a, b) => _domainLabel(a['data_domain'].toString())
+        .compareTo(_domainLabel(b['data_domain'].toString())));
+    return rows;
+  }
+
+  String _statusLabel(Map<String, dynamic> row) {
+    if (row['operational_use_allowed'] == true) return 'OPERATIONAL AUTHORISED';
+    final status = (row['coverage_status'] ?? '').toString().toLowerCase();
+    if (status.contains('partial')) return 'PARTIAL REGISTER';
+    if (status.contains('imported')) return 'IMPORTED · REVIEW REQUIRED';
+    if (status.contains('national_authority_identified_state_level_register_pending')) {
+      return 'NATIONAL SOURCE · LOCAL DATA PENDING';
+    }
+    if (status.contains('captcha_required_for_bulk_export')) {
+      return 'OFFICIAL DIRECTORY · EXPORT PENDING';
+    }
+    if (status.contains('portal_identified')) return 'PORTAL IDENTIFIED';
+    return 'AUTHORITY DATA PENDING';
+  }
+
+  Color _statusBackground(Map<String, dynamic> row) {
+    if (row['operational_use_allowed'] == true) return const Color(0xFFE4F4E9);
+    final status = (row['coverage_status'] ?? '').toString().toLowerCase();
+    if (status.contains('partial')) return const Color(0xFFFFF0D7);
+    if (status.contains('imported')) return const Color(0xFFE6F0FB);
+    if (status.contains('national_authority_identified_state_level_register_pending') ||
+        status.contains('captcha_required_for_bulk_export')) {
+      return const Color(0xFFFFF0D7);
+    }
+    if (status.contains('portal_identified')) return const Color(0xFFEAF4F4);
+    return const Color(0xFFF0F2F5);
+  }
+
+  Color _statusForeground(Map<String, dynamic> row) {
+    if (row['operational_use_allowed'] == true) return const Color(0xFF216B3B);
+    final status = (row['coverage_status'] ?? '').toString().toLowerCase();
+    if (status.contains('partial')) return const Color(0xFF8A5A00);
+    if (status.contains('imported')) return const Color(0xFF285B8F);
+    if (status.contains('national_authority_identified_state_level_register_pending') ||
+        status.contains('captcha_required_for_bulk_export')) {
+      return const Color(0xFF8A5A00);
+    }
+    if (status.contains('portal_identified')) return const Color(0xFF176B6D);
+    return const Color(0xFF526071);
+  }
+
+  Future<void> _openSource(String? value) async {
+    final raw = value?.trim() ?? '';
+    final uri = Uri.tryParse(raw);
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+      _message('No verified source link is recorded for this item.');
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) _message('The source portal could not be opened.');
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: panelNavy,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: teal),
+        const SizedBox(width: 7),
+        Text(value, style:  TextStyle(fontWeight: FontWeight.w800, color: ink)),
+        const SizedBox(width: 5),
+        Text(label, style:  TextStyle(fontSize: 10, color: mutedInk)),
+      ]),
+    );
+  }
+
+  Widget _coverageRow(Map<String, dynamic> row) {
+    final domain = (row['data_domain'] ?? '').toString();
+    final status = _statusLabel(row);
+    final authority = (row['responsible_authority'] ?? 'Authority not yet confirmed').toString();
+    final granularity = (row['data_granularity'] ?? '').toString();
+    final notes = (row['notes'] ?? '').toString();
+    final nationalUrl = row['national_source_url']?.toString();
+    final portalUrl = row['official_portal_url']?.toString();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7EDF2)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Text(_domainLabel(domain),
+            style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ink))),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(color: _statusBackground(row), borderRadius: BorderRadius.circular(8)),
+            child: Text(status, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: _statusForeground(row))),
+          ),
+        ]),
+        const SizedBox(height: 8),
+         Text('RESPONSIBLE AUTHORITY / CUSTODIAN',
+          style: TextStyle(fontSize: 8, letterSpacing: .6, fontWeight: FontWeight.w900, color: mutedInk)),
+        const SizedBox(height: 3),
+        Text(authority, style:  TextStyle(fontSize: 11, color: ink, height: 1.35)),
+        if (granularity.isNotEmpty) ...[
+          const SizedBox(height: 8),
+           Text('DATA EXPECTED',
+            style: TextStyle(fontSize: 8, letterSpacing: .6, fontWeight: FontWeight.w900, color: mutedInk)),
+          const SizedBox(height: 3),
+          Text(granularity, style:  TextStyle(fontSize: 10, color: mutedInk, height: 1.35)),
+        ],
+        if (notes.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(notes, style:  TextStyle(fontSize: 10, color: mutedInk, height: 1.35)),
+        ],
+        if ((nationalUrl != null && nationalUrl.isNotEmpty) || (portalUrl != null && portalUrl.isNotEmpty)) ...[
+          const SizedBox(height: 5),
+          Wrap(spacing: 4, children: [
+            if (nationalUrl != null && nationalUrl.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => _openSource(nationalUrl),
+                icon: const Icon(Icons.public, size: 14),
+                label: const Text('National source', style: TextStyle(fontSize: 10)),
+              ),
+            if (portalUrl != null && portalUrl.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => _openSource(portalUrl),
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: const Text('State / local portal', style: TextStyle(fontSize: 10)),
+              ),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  Widget _administrativeDirectoryCard() {
+    // National counts come from the aggregate RPC, not the capped sample.
+    final counts = administrativeUnitCounts;
+    final verified = authorityVerifiedUnitCount;
+    final totalDirectoryRecords = counts.values.fold<int>(0, (sum, value) => sum + value);
+    final pendingDistrictExports = directoryBatches.where((row) =>
+      row['unit_type'] == 'district' && row['import_status'] == 'awaiting_authorised_export').length;
+    final pendingUlbExports = directoryBatches.where((row) =>
+      row['unit_type'] == 'urban_local_body' && row['import_status'] == 'awaiting_authorised_export').length;
+    final completedBatches = directoryBatches.where((row) =>
+      row['import_status'] == 'imported').length;
+    const labels = {
+      'district': 'Districts',
+      'sub_district': 'Sub-districts',
+      'block': 'Blocks',
+      'urban_local_body': 'Urban local bodies',
+      'gram_panchayat': 'Gram panchayats',
+      'village': 'Villages',
+      'ward': 'Wards',
+      'traditional_local_body': 'Traditional local bodies',
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+             Icon(Icons.account_balance_outlined, color: teal),
+            const SizedBox(width: 8),
+             Expanded(child: Text('India administrative reference directory',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF0D7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('AUTHORITY CHECK PENDING',
+                style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF8A5A00))),
+            ),
+          ]),
+          const SizedBox(height: 7),
+          Text(totalDirectoryRecords.toString() + ' reference codes across India · ' +
+            verified.toString() + ' authority-verified · ' +
+            administrativeUnits.length.toString() + ' rows sampled for diagnostics',
+            style:  TextStyle(fontSize: 10, color: mutedInk)),
+          if (canManageDirectory) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 7, runSpacing: 7, children: [
+              _metric('DISTRICT EXPORTS PENDING', pendingDistrictExports.toString(), Icons.map_outlined),
+              _metric('ULB EXPORTS PENDING', pendingUlbExports.toString(), Icons.location_city_outlined),
+              _metric('BATCHES IMPORTED', completedBatches.toString(), Icons.fact_check_outlined),
+            ]),
+          ],
+          const SizedBox(height: 8),
+          if (totalDirectoryRecords == 0)
+            Text(
+              canManageDirectory
+                ? 'No district or local-government rows are currently visible. ' + pendingDistrictExports.toString() + ' district and ' + pendingUlbExports.toString() + ' urban-local-body state export tasks are queued. Each official report must be generated through the LGD portal with its normal CAPTCHA check.'
+                : 'No district or local-government rows are currently visible. The national directory source is registered; authority validation remains pending.',
+              style:  TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
+            )
+          else
+            Wrap(spacing: 7, runSpacing: 7, children: labels.entries
+              .where((entry) => (counts[entry.key] ?? 0) > 0)
+              .map((entry) => _metric(entry.value, counts[entry.key].toString(), Icons.location_city_outlined))
+              .toList()),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const IndiaAdministrativeHierarchyPage(),
+              )),
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('BROWSE DISTRICT / SUB-DISTRICT / BLOCK DIRECTORY'),
+            ),
+          ),
+           Text(
+            'Current reference counts combine the 21 Oct 2026 LGD community mirror (districts, sub-districts and blocks) and the 23 Sep 2026 ULB API mirror. These are code-bearing directory references, not authority-certified records or boundary polygons. The 733 older district geometries are maintained separately as dated, code-less reference shapes.',
+            style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Required authoritative source: Ministry of Panchayati Raj Local Government Directory (LGD). Obtain the official report through its normal authorised workflow, including its CAPTCHA check, and import the source file with its generation date. Do not treat community mirrors, approximate name matches or manually typed names as verified records.',
+            style: TextStyle(fontSize: 10, color: mutedInk, height: 1.4),
+          ),
+          const SizedBox(height: 7),
+          Wrap(spacing: 8, runSpacing: 6, children: [
+            TextButton.icon(
+              onPressed: () => _openSource('https://lgdirectory.gov.in/downloadDirectory.do'),
+              icon: const Icon(Icons.open_in_new, size: 15),
+              label: const Text('Open official LGD report generator'),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const IndiaNationalAuthorityDirectoryPage(),
+              )),
+              icon: const Icon(Icons.account_balance, size: 15),
+              label: const Text('National authority directory'),
+            ),
+            if (canManageDirectory) ...[
+              FilledButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const IndiaLgdCsvImportPage(),
+                  ));
+                  if (mounted) _load();
+                },
+                icon: const Icon(Icons.upload_file, size: 15),
+                label: const Text('Import official CSV'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const IndiaUlbDistrictReconciliationPage(),
+                  ));
+                  if (mounted) _load();
+                },
+                icon: const Icon(Icons.account_tree_outlined, size: 15),
+                label: const Text('ULB-to-district reconciliation queue'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const UtilityAssetVerificationPage(),
+                )),
+                icon: const Icon(Icons.fact_check_outlined, size: 15),
+                label: const Text('Asset verification centre'),
+              ),
+            ],
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _jurisdictionCard(Map<String, dynamic> state) {
+    final stateId = state['id'].toString();
+    final rows = _rowsFor(stateId);
+    final authorised = rows.where((row) => row['operational_use_allowed'] == true).length;
+    final kind = (state['jurisdiction_type'] ?? 'jurisdiction').toString() == 'state'
+        ? 'STATE' : 'UNION TERRITORY';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      child: ExpansionTile(
+        initiallyExpanded: selectedStateId == stateId,
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFE7F8F6),
+          child: Icon(kind == 'STATE' ? Icons.map_outlined : Icons.location_city_outlined,
+            color: teal, size: 19),
+        ),
+        title: Text(state['name'].toString(),
+          style:  TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
+        subtitle: Text(kind + ' · ' + rows.length.toString() + ' domain record(s) · ' +
+          authorised.toString() + ' operationally authorised',
+          style:  TextStyle(fontSize: 10, color: mutedInk)),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(children: rows.map(_coverageRow).toList()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredStates = states.where((state) {
+      final rawName = state['name'].toString();
+      final name = rawName.toLowerCase();
+      final matchesSearch = searchText.isEmpty || name.contains(searchText.toLowerCase());
+      final matchesSelected = selectedStateId == null || state['id'].toString() == selectedStateId;
+      final regionStates = regionJurisdictions[selectedRegion];
+      final matchesRegion = regionStates == null || regionStates.contains(rawName);
+      return matchesSearch && matchesSelected && matchesRegion;
+    }).toList();
+
+    final uniqueDomains = coverage.map((row) => row['data_domain']?.toString())
+        .whereType<String>().toSet().length;
+    final authorisedRows = coverage.where((row) => row['operational_use_allowed'] == true).length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('India-wide coverage'),
+        actions: [
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh coverage'),
+        ],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage.isNotEmpty
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                     Icon(Icons.cloud_off_outlined, size: 42, color: mutedInk),
+                    const SizedBox(height: 12),
+                    Text(errorMessage, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+                  ]),
+                ))
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(15),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [navy, Color(0xFF14515E)],
+                            begin: Alignment.topLeft, end: Alignment.bottomRight),
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Icon(Icons.public, color: Colors.white, size: 28),
+                          SizedBox(height: 9),
+                          Text('NATIONAL INFRASTRUCTURE COVERAGE',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                          SizedBox(height: 6),
+                          Text('Explore official source coverage and data-readiness across every Indian State and Union Territory.',
+                            style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4)),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(spacing: 7, runSpacing: 7, children: [
+                        _metric('JURISDICTIONS', states.length.toString(), Icons.location_on_outlined),
+                        _metric('DATA DOMAINS', uniqueDomains.toString(), Icons.layers_outlined),
+                        _metric('OPERATIONAL', authorisedRows.toString(), Icons.verified_outlined),
+                        _metric('COVERAGE ROWS', coverage.length.toString(), Icons.storage_outlined),
+                      ]),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(13),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                               Text('BROWSE BY INDIA REGION',
+                                style: TextStyle(fontSize: 10, letterSpacing: .8,
+                                  fontWeight: FontWeight.w900, color: cyanAccent)),
+                              const SizedBox(height: 4),
+                               Text(
+                                'Regional filters expose northern and other State/UT records directly. These are browse groupings, not separate data-authority boundaries.',
+                                style: TextStyle(fontSize: 10, color: mutedInk, height: 1.35),
+                              ),
+                              const SizedBox(height: 10),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    for (final region in regionOrder)
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 7),
+                                        child: ChoiceChip(
+                                          selected: selectedRegion == region,
+                                          label: Text(
+                                            region + ' · ' +
+                                            (region == 'All India'
+                                              ? states.length
+                                              : regionJurisdictions[region]!.length).toString(),
+                                          ),
+                                          labelStyle: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: selectedRegion == region
+                                              ? Colors.white
+                                              : ink,
+                                          ),
+                                          selectedColor: teal,
+                                          backgroundColor: panelNavy,
+                                          side: BorderSide(
+                                            color: selectedRegion == region
+                                              ? const Color(0xFF35D7C2)
+                                              : borderColor,
+                                          ),
+                                          onSelected: (_) => setState(() {
+                                            selectedRegion = region;
+                                            selectedStateId = null;
+                                          }),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _administrativeDirectoryCard(),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(13),
+                          child: Column(children: [
+                            TextField(
+                              onChanged: (value) => setState(() => searchText = value),
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.search),
+                                hintText: 'Search a State or Union Territory',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String?>(
+                              initialValue: selectedStateId,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Jurisdiction',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(value: null, child: Text('All India')),
+                                ...states.map((state) => DropdownMenuItem<String?>(
+                                  value: state['id'].toString(),
+                                  child: Text(state['name'].toString(), overflow: TextOverflow.ellipsis),
+                                )),
+                              ],
+                              onChanged: (value) => setState(() {
+                                selectedStateId = value;
+                                if (value != null) selectedRegion = 'All India';
+                              }),
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedDomain,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Infrastructure domain',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: domainLabels.entries.map((entry) => DropdownMenuItem<String>(
+                                value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                              )).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => selectedDomain = value);
+                              },
+                            ),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Showing ' + filteredStates.length.toString() + ' of ' + states.length.toString() + ' jurisdictions',
+                        style:  TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: mutedInk)),
+                      const SizedBox(height: 8),
+                      if (filteredStates.isEmpty)
+                        const Card(child: Padding(
+                          padding: EdgeInsets.all(18),
+                          child: Text('No State or Union Territory matches this search.'),
+                        ))
+                      else
+                        ...filteredStates.map(_jurisdictionCard),
+                      const SizedBox(height: 10),
+                       Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(13),
+                          child: Text(
+                            'DATA GOVERNANCE: This explorer records source discovery, coverage and verification status. It does not publish exact underground utility routes, depths or asset-point locations. Public-source presence is not an excavation permit or safety clearance; the responsible authority must confirm current records before field work.',
+                            style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+
+
+class IndiaUlbDistrictReconciliationPage extends StatefulWidget {
+  const IndiaUlbDistrictReconciliationPage({super.key});
+
+  @override
+  State<IndiaUlbDistrictReconciliationPage> createState() =>
+      _IndiaUlbDistrictReconciliationPageState();
+}
+
+class _IndiaUlbDistrictReconciliationPageState
+    extends State<IndiaUlbDistrictReconciliationPage> {
+  static const int _pageSize = 100;
+
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _authorised = false;
+  bool _hasMore = true;
+  String _error = '';
+  String _status = 'unmapped';
+  int _page = 0;
+  final List<Map<String, dynamic>> _rows = [];
+
+  static const Map<String, String> _statusLabels = {
+    'unmapped': 'Unmapped',
+    'candidate': 'Candidate proposed',
+    'verified': 'Verified with evidence',
+    'rejected': 'Rejected',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load(reset: true);
+  }
+
+  Future<void> _load({required bool reset}) async {
+    if (!mounted) return;
+    if (reset) {
+      setState(() {
+        _loading = true;
+        _error = '';
+        _rows.clear();
+        _page = 0;
+        _hasMore = true;
+      });
+    } else {
+      setState(() => _loadingMore = true);
+    }
+
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw StateError('Sign in as an administrator or coordinator to use this queue.');
+      }
+      final profile = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      if (role != 'admin' && role != 'coordinator') {
+        throw StateError('Administrator or coordinator access is required.');
+      }
+
+      final start = _page * _pageSize;
+      final end = start + _pageSize - 1;
+      final raw = await supabase
+          .from('india_ulb_district_reconciliation')
+          .select(
+            'id,ulb_unit_id,state_ut_id,source_system,source_vintage,'
+            'resolution_status,proposed_district_unit_id,mapping_source,'
+            'mapping_source_url,mapping_source_reference,rationale,'
+            'last_verified_at,'
+            'ulb:india_administrative_units!india_ulb_district_reconciliation_ulb_unit_id_fkey(name,lgd_code),'
+            'state:india_state_uts!india_ulb_district_reconciliation_state_ut_id_fkey(name),'
+            'district:india_administrative_units!india_ulb_district_reconciliation_proposed_district_unit_id_fkey(name,lgd_code)',
+          )
+          .eq('resolution_status', _status)
+          .order('created_at')
+          .range(start, end);
+
+      final rows = List<Map<String, dynamic>>.from(raw);
+      if (!mounted) return;
+      setState(() {
+        _authorised = true;
+        _rows.addAll(rows);
+        _hasMore = rows.length == _pageSize;
+        if (!_hasMore) _page = _page;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _error = error is StateError
+            ? error.message
+            : 'The reconciliation queue could not be loaded. Check access and network connectivity.';
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _districtsForState(String stateId) async {
+    final raw = await supabase
+        .from('india_administrative_units')
+        .select('id,name,lgd_code,verification_status')
+        .eq('unit_type', 'district')
+        .eq('state_ut_id', stateId)
+        .not('lgd_code', 'is', null)
+        .order('name')
+        .limit(300);
+    return List<Map<String, dynamic>>.from(raw);
+  }
+
+  Future<void> _reviewRow(Map<String, dynamic> row) async {
+    List<Map<String, dynamic>> districts;
+    try {
+      districts = await _districtsForState(row['state_ut_id'].toString());
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('District candidates could not be loaded.')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    final sourceController = TextEditingController(
+      text: (row['mapping_source'] ?? '').toString(),
+    );
+    final urlController = TextEditingController(
+      text: (row['mapping_source_url'] ?? '').toString(),
+    );
+    final referenceController = TextEditingController(
+      text: (row['mapping_source_reference'] ?? '').toString(),
+    );
+    final rationaleController = TextEditingController(
+      text: (row['rationale'] ?? '').toString(),
+    );
+    String? districtId = row['proposed_district_unit_id']?.toString();
+    var saving = false;
+
+    Future<void> saveResolution(
+      BuildContext dialogContext,
+      StateSetter setDialogState,
+      String resolution,
+    ) async {
+      if (saving) return;
+      if (resolution == 'candidate' || resolution == 'verified') {
+        if (districtId == null || districtId!.isEmpty) {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(content: Text('Select a district from the same State/UT.')),
+          );
+          return;
+        }
+      }
+      if (resolution == 'candidate' || resolution == 'verified' || resolution == 'rejected') {
+        if (rationaleController.text.trim().length < 10) {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(content: Text('Enter a mapping rationale of at least 10 characters.')),
+          );
+          return;
+        }
+      }
+      if (resolution == 'verified') {
+        final uri = Uri.tryParse(urlController.text.trim());
+        if (sourceController.text.trim().isEmpty ||
+            uri == null ||
+            uri.scheme != 'https' ||
+            referenceController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(content: Text('A source name, HTTPS evidence URL and specific source-record reference are required for verification.')),
+          );
+          return;
+        }
+      }
+
+      setDialogState(() => saving = true);
+      try {
+        final payload = <String, dynamic>{
+          'resolution_status': resolution,
+          'proposed_district_unit_id':
+              resolution == 'rejected' ? null : districtId,
+          'mapping_source': sourceController.text.trim().isEmpty
+              ? null
+              : sourceController.text.trim(),
+          'mapping_source_url': urlController.text.trim().isEmpty
+              ? null
+              : urlController.text.trim(),
+          'mapping_source_reference': referenceController.text.trim().isEmpty
+              ? null
+              : referenceController.text.trim(),
+          'rationale': rationaleController.text.trim().isEmpty
+              ? null
+              : rationaleController.text.trim(),
+        };
+        await supabase
+            .from('india_ulb_district_reconciliation')
+            .update(payload)
+            .eq('id', row['id'].toString());
+
+        if (!dialogContext.mounted) return;
+        Navigator.of(dialogContext).pop(true);
+      } catch (_) {
+        setDialogState(() => saving = false);
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          const SnackBar(
+            content: Text('The database rejected this mapping. Check the district, State/UT and evidence requirements.'),
+          ),
+        );
+      }
+    }
+
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final ulb = (row['ulb'] as Map?) ?? const {};
+          final state = (row['state'] as Map?) ?? const {};
+          return AlertDialog(
+            title: const Text('Review ULB district mapping'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      (ulb['name'] ?? 'Urban local body').toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'LGD code: ' + (ulb['lgd_code'] ?? 'not recorded').toString(),
+                      style: TextStyle(color: mutedInk, fontSize: 11),
+                    ),
+                    Text(
+                      'State / UT: ' + (state['name'] ?? 'Unknown').toString(),
+                      style: TextStyle(color: mutedInk, fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: districtId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'District candidate',
+                        helperText: 'Only LGD-coded districts from the same State/UT are listed.',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: districts.map((district) {
+                        final id = district['id'].toString();
+                        final code = (district['lgd_code'] ?? '').toString();
+                        return DropdownMenuItem<String>(
+                          value: id,
+                          child: Text(
+                            district['name'].toString() +
+                                (code.isEmpty ? '' : ' · LGD ' + code),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: saving
+                          ? null
+                          : (value) => setDialogState(() => districtId = value),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: sourceController,
+                      enabled: !saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Mapping source / authority',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: urlController,
+                      enabled: !saving,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Evidence URL (HTTPS)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: referenceController,
+                      enabled: !saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Source record / document reference',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: rationaleController,
+                      enabled: !saving,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Rationale and jurisdiction evidence',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'A candidate is not verified. Verification requires an authoritative or explicitly authorised source URL and rationale. The database rejects cross-State/UT mappings.',
+                      style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              OutlinedButton(
+                onPressed: saving
+                    ? null
+                    : () => saveResolution(dialogContext, setDialogState, 'rejected'),
+                child: const Text('Reject mapping'),
+              ),
+              OutlinedButton(
+                onPressed: saving
+                    ? null
+                    : () => saveResolution(dialogContext, setDialogState, 'candidate'),
+                child: const Text('Save candidate'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () => saveResolution(dialogContext, setDialogState, 'verified'),
+                child: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Verify with evidence'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    sourceController.dispose();
+    urlController.dispose();
+    referenceController.dispose();
+    rationaleController.dispose();
+
+    if (changed == true && mounted) {
+      await _load(reset: true);
+    }
+  }
+
+  Widget _statusChip(String status) {
+    final colour = status == 'verified'
+        ? const Color(0xFF1B8A58)
+        : status == 'candidate'
+            ? const Color(0xFFB7791F)
+            : status == 'rejected'
+                ? const Color(0xFFB54747)
+                : const Color(0xFF64748B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        _statusLabels[status] ?? status,
+        style: TextStyle(color: colour, fontSize: 9, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+
+  Widget _queueCard(Map<String, dynamic> row) {
+    final ulb = (row['ulb'] as Map?) ?? const {};
+    final state = (row['state'] as Map?) ?? const {};
+    final district = (row['district'] as Map?) ?? const {};
+    final status = (row['resolution_status'] ?? 'unmapped').toString();
+    final districtName = (district['name'] ?? '').toString();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    (ulb['name'] ?? 'Unnamed ULB').toString(),
+                    style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _statusChip(status),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              (state['name'] ?? 'Unknown State/UT').toString() +
+                  ' · LGD ' + (ulb['lgd_code'] ?? 'not recorded').toString(),
+              style: TextStyle(color: mutedInk, fontSize: 10),
+            ),
+            if (districtName.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Proposed district: ' + districtName +
+                    ' · LGD ' + (district['lgd_code'] ?? 'not recorded').toString(),
+                style: TextStyle(color: mutedInk, fontSize: 10),
+              ),
+            ],
+            const SizedBox(height: 5),
+            Text(
+              'Source: ' + (row['source_system'] ?? 'not recorded').toString() +
+                  (row['source_vintage'] == null
+                      ? ''
+                      : ' · ' + row['source_vintage'].toString()),
+              style: TextStyle(color: mutedInk, fontSize: 9),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: () => _reviewRow(row),
+                icon: const Icon(Icons.fact_check_outlined, size: 16),
+                label: const Text('Review mapping'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = _rows.length;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ULB-to-district reconciliation'),
+        actions: [
+          IconButton(
+            onPressed: _loading ? null : () => _load(reset: true),
+            tooltip: 'Refresh queue',
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(_error, textAlign: TextAlign.center),
+                  ),
+                )
+              : !_authorised
+                  ? const Center(child: Text('Authorised administrator or coordinator access is required.'))
+                  : ListView(
+                      padding: const EdgeInsets.all(14),
+                      children: [
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(13),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '5,050 ULB records seeded as unmapped',
+                                  style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 14),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  'The source mirror supplies ULB codes and State/UT labels, but no district-code field. No district parent has been inferred. Only administrators and coordinators can review this queue.',
+                                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'A mapping is marked verified only with source name, HTTPS evidence URL, rationale and a same-State/UT district match. The database records the reviewer and timestamp.',
+                                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          value: _status,
+                          decoration: const InputDecoration(
+                            labelText: 'Queue status',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _statusLabels.entries.map((entry) =>
+                            DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          ).toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _status = value);
+                            _load(reset: true);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Showing ' + count.toString() +
+                              (_hasMore ? ' loaded rows · more available' : ' rows in this status'),
+                          style: TextStyle(color: mutedInk, fontSize: 10),
+                        ),
+                        const SizedBox(height: 7),
+                        if (_rows.isEmpty)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(18),
+                              child: Text('No records are present in this queue status.'),
+                            ),
+                          )
+                        else
+                          ..._rows.map(_queueCard),
+                        if (_hasMore)
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _loadingMore
+                                  ? null
+                                  : () {
+                                      _page += 1;
+                                      _load(reset: false);
+                                    },
+                              icon: _loadingMore
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.expand_more),
+                              label: const Text('Load more'),
+                            ),
+                          ),
+                      ],
+                    ),
+    );
+  }
+}
+
+class IndiaAdministrativeHierarchyPage extends StatefulWidget {
+  const IndiaAdministrativeHierarchyPage({super.key});
+
+  @override
+  State<IndiaAdministrativeHierarchyPage> createState() =>
+      _IndiaAdministrativeHierarchyPageState();
+}
+
+class _IndiaAdministrativeHierarchyPageState
+    extends State<IndiaAdministrativeHierarchyPage> {
+  static const int _pageSize = 500;
+
+  List<Map<String, dynamic>> states = [];
+  List<Map<String, dynamic>> districts = [];
+  List<Map<String, dynamic>> subDistricts = [];
+  List<Map<String, dynamic>> blocks = [];
+  List<Map<String, dynamic>> localBodies = [];
+
+  String? selectedStateId;
+  String? selectedDistrictId;
+  String districtSearch = '';
+  String localBodySearch = '';
+  bool loadingStates = true;
+  bool loadingDistricts = false;
+  bool loadingChildren = false;
+  bool loadingLocalBodies = false;
+  int _districtRequestVersion = 0;
+  int _childrenRequestVersion = 0;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStates();
+  }
+
+  Future<void> _loadStates() async {
+    if (!mounted) return;
+    setState(() {
+      loadingStates = true;
+      errorMessage = '';
+    });
+    try {
+      final rows = await supabase
+          .from('india_state_uts')
+          .select('id,name,jurisdiction_type')
+          .order('name')
+          .limit(100);
+      if (!mounted) return;
+      setState(() {
+        states = List<Map<String, dynamic>>.from(rows);
+        loadingStates = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingStates = false;
+        errorMessage = 'State and Union Territory records could not be loaded.';
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchUnits({
+    required String unitType,
+    String? stateId,
+    String? parentId,
+  }) async {
+    final rows = <Map<String, dynamic>>[];
+    var offset = 0;
+    while (true) {
+      final List<dynamic> page;
+      if (parentId != null) {
+        page = await supabase
+            .from('india_administrative_units')
+            .select('id,unit_type,lgd_code,name,parent_unit_id,state_ut_id,source_system,source_updated_at,source_vintage,verification_status')
+            .eq('unit_type', unitType)
+            .eq('is_active', true)
+            .not('lgd_code', 'is', null)
+            .eq('parent_unit_id', parentId)
+            .order('name')
+            .order('lgd_code')
+            .range(offset, offset + _pageSize - 1);
+      } else if (stateId != null) {
+        page = await supabase
+            .from('india_administrative_units')
+            .select('id,unit_type,lgd_code,name,parent_unit_id,state_ut_id,source_system,source_updated_at,source_vintage,verification_status')
+            .eq('unit_type', unitType)
+            .eq('is_active', true)
+            .not('lgd_code', 'is', null)
+            .eq('state_ut_id', stateId)
+            .order('name')
+            .order('lgd_code')
+            .range(offset, offset + _pageSize - 1);
+      } else {
+        throw ArgumentError('A State / UT or parent unit is required.');
+      }
+
+      rows.addAll(page.map((row) => Map<String, dynamic>.from(row as Map)));
+      if (page.length < _pageSize) break;
+      offset += _pageSize;
+    }
+    return rows;
+  }
+
+  Future<void> _selectState(String? stateId) async {
+    if (stateId == null) return;
+    final requestVersion = ++_districtRequestVersion;
+    ++_childrenRequestVersion;
+    setState(() {
+      selectedStateId = stateId;
+      selectedDistrictId = null;
+      districts = [];
+      subDistricts = [];
+      blocks = [];
+      localBodies = [];
+      districtSearch = '';
+      localBodySearch = '';
+      loadingDistricts = true;
+      loadingLocalBodies = true;
+      loadingChildren = false;
+      errorMessage = '';
+    });
+    try {
+      // The ULB source provides State/UT linkage but no validated district
+      // parent. Load these rows at State/UT level instead of guessing parents.
+      final results = await Future.wait([
+        _fetchUnits(unitType: 'district', stateId: stateId),
+        _fetchUnits(unitType: 'urban_local_body', stateId: stateId),
+      ]);
+      if (!mounted || requestVersion != _districtRequestVersion) return;
+      setState(() {
+        districts = results[0];
+        localBodies = results[1];
+        loadingDistricts = false;
+        loadingLocalBodies = false;
+      });
+    } catch (_) {
+      if (!mounted || requestVersion != _districtRequestVersion) return;
+      setState(() {
+        loadingDistricts = false;
+        loadingLocalBodies = false;
+        errorMessage = 'District and State/UT-level local-body records could not be loaded.';
+      });
+    }
+  }
+
+  Future<void> _selectDistrict(String districtId) async {
+    final requestVersion = ++_childrenRequestVersion;
+    setState(() {
+      selectedDistrictId = districtId;
+      subDistricts = [];
+      blocks = [];
+      loadingChildren = true;
+      errorMessage = '';
+    });
+    try {
+      // The imported source links both unit types to the district. It does not
+      // provide a validated block-to-sub-district parent relationship.
+      final results = await Future.wait([
+        _fetchUnits(unitType: 'sub_district', parentId: districtId),
+        _fetchUnits(unitType: 'block', parentId: districtId),
+      ]);
+      if (!mounted || requestVersion != _childrenRequestVersion) return;
+      setState(() {
+        subDistricts = results[0];
+        blocks = results[1];
+        loadingChildren = false;
+      });
+    } catch (_) {
+      if (!mounted || requestVersion != _childrenRequestVersion) return;
+      setState(() {
+        loadingChildren = false;
+        errorMessage = 'Sub-district and block records could not be loaded.';
+      });
+    }
+  }
+
+  Widget _recordTile(Map<String, dynamic> row) {
+    final name = (row['name'] ?? 'Unnamed administrative unit').toString();
+    final code = (row['lgd_code'] ?? '').toString();
+    final source = (row['source_system'] ?? 'Imported source not stated').toString();
+    final status = (row['verification_status'] ?? 'unverified').toString();
+    final sourceDate = row['source_updated_at']?.toString();
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      leading: Icon(Icons.location_city_outlined, color: teal, size: 19),
+      title: Text(name, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 12)),
+      subtitle: Text(
+        'LGD code: $code · $status · ${sourceDate == null ? 'source date not recorded' : 'source snapshot $sourceDate'}\n$source',
+        style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+      ),
+      isThreeLine: true,
+    );
+  }
+
+  Widget _unitSection(String title, List<Map<String, dynamic>> rows) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Text(title, style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 13)),
+        subtitle: Text('${rows.length} imported row(s) · source verification pending',
+            style: TextStyle(color: mutedInk, fontSize: 10)),
+        children: rows.isEmpty
+            ? [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('No records are currently linked to this district.',
+                        style: TextStyle(color: mutedInk, fontSize: 11)),
+                  ),
+                ),
+              ]
+            : rows.map(_recordTile).toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredDistricts = districts.where((row) {
+      final name = (row['name'] ?? '').toString().toLowerCase();
+      final code = (row['lgd_code'] ?? '').toString().toLowerCase();
+      final query = districtSearch.trim().toLowerCase();
+      return query.isEmpty || name.contains(query) || code.contains(query);
+    }).toList();
+    final filteredLocalBodies = localBodies.where((row) {
+      final name = (row['name'] ?? '').toString().toLowerCase();
+      final code = (row['lgd_code'] ?? '').toString().toLowerCase();
+      final query = localBodySearch.trim().toLowerCase();
+      return query.isEmpty || name.contains(query) || code.contains(query);
+    }).toList();
+
+    final selectedState = states.where((row) => row['id'].toString() == selectedStateId);
+    final selectedStateName = selectedState.isEmpty
+        ? 'No State / UT selected'
+        : selectedState.first['name'].toString();
+    final selectedDistrict = districts.where((row) => row['id'].toString() == selectedDistrictId);
+    final selectedDistrictName = selectedDistrict.isEmpty
+        ? ''
+        : selectedDistrict.first['name'].toString();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('India administrative directory'),
+        actions: [
+          IconButton(
+            onPressed: loadingStates || loadingDistricts || loadingLocalBodies || loadingChildren ? null : _loadStates,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh directory',
+          ),
+        ],
+      ),
+      body: loadingStates
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadStates,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(14),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('REFERENCE DIRECTORY — NOT AUTHORITY VERIFIED',
+                              style: TextStyle(color: Color(0xFF8A5A00),
+                                  fontSize: 10, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 7),
+                          Text(
+                            'This browser uses active, LGD-code-bearing records from a 21 October 2026 community mirror of LGD data. Every imported row remains unverified. Confirm the latest directory and jurisdiction with the competent authority before relying on it.',
+                            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.45),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            'Select a State / UT, then a district. Sub-districts and blocks are shown as separate district-linked lists because the imported records do not establish a validated block-under-sub-district relationship.',
+                            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.45),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (errorMessage.isNotEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(errorMessage, style: const TextStyle(color: Colors.red, fontSize: 11)),
+                      ),
+                    ),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedStateId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'State / Union Territory',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: states.map((row) => DropdownMenuItem<String>(
+                      value: row['id'].toString(),
+                      child: Text(row['name'].toString(), overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: loadingDistricts || loadingLocalBodies ? null : _selectState,
+                  ),
+                  if (selectedStateId != null) ...[
+                    const SizedBox(height: 10),
+                    Text('$selectedStateName — ${districts.length} imported district record(s)',
+                        style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 7),
+                    TextField(
+                      onChanged: (value) => setState(() => districtSearch = value),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search district name or LGD code',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    if (loadingDistricts)
+                      const Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (filteredDistricts.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Text('No imported district record matches this State / UT and search.',
+                              style: TextStyle(color: mutedInk, fontSize: 11)),
+                        ),
+                      )
+                    else
+                      Card(
+                        child: Column(
+                          children: filteredDistricts.map((row) {
+                            final id = row['id'].toString();
+                            final selected = id == selectedDistrictId;
+                            return ListTile(
+                              dense: true,
+                              selected: selected,
+                              title: Text(row['name'].toString(),
+                                  style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 12)),
+                              subtitle: Text(
+                                'LGD code ${row['lgd_code']} · ${row['verification_status']} · source date ${row['source_updated_at'] ?? 'not recorded'}\n${row['source_system'] ?? 'source not stated'}',
+                                style: TextStyle(color: mutedInk, fontSize: 9, height: 1.3),
+                              ),
+                              isThreeLine: true,
+                              trailing: Icon(selected ? Icons.expand_less : Icons.chevron_right, color: teal),
+                              onTap: loadingChildren ? null : () => _selectDistrict(id),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    if (selectedDistrictId != null) ...[
+                      const SizedBox(height: 9),
+                      Text(selectedDistrictName,
+                          style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 14)),
+                      if (loadingChildren)
+                        const Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else ...[
+                        _unitSection('Sub-districts', subDistricts),
+                        _unitSection('Blocks', blocks),
+                      ],
+                    ],
+                    const SizedBox(height: 8),
+                    Card(
+                      child: ExpansionTile(
+                        initiallyExpanded: false,
+                        title: Text(
+                          'Urban local bodies — ${selectedStateName}',
+                          style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
+                        subtitle: Text(
+                          loadingLocalBodies
+                              ? 'Loading State/UT-linked records…'
+                              : '${localBodies.length} imported ULB reference record(s) · district association unavailable',
+                          style: TextStyle(color: mutedInk, fontSize: 10),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Source: 23 September 2026 community mirror. These records are linked to this State/UT only; the imported source does not establish district parents or ward boundaries. All entries remain unverified.',
+                                  style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  onChanged: (value) => setState(() => localBodySearch = value),
+                                  decoration: const InputDecoration(
+                                    prefixIcon: Icon(Icons.search),
+                                    hintText: 'Search ULB name or LGD code',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                if (loadingLocalBodies)
+                                  const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(child: CircularProgressIndicator()),
+                                  )
+                                else if (filteredLocalBodies.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Text(
+                                      'No ULB reference rows match this State/UT and search.',
+                                      style: TextStyle(color: mutedInk, fontSize: 10),
+                                    ),
+                                  )
+                                else
+                                  SizedBox(
+                                    height: 320,
+                                    child: ListView.builder(
+                                      itemCount: filteredLocalBodies.length,
+                                      itemBuilder: (context, index) =>
+                                          _recordTile(filteredLocalBodies[index]),
+                                    ),
+                                  ),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Showing ${filteredLocalBodies.length} matching row(s)',
+                                    style: TextStyle(color: mutedInk, fontSize: 9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Administrative coverage and source limitations',
+                              style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 12)),
+                          const SizedBox(height: 5),
+                          Text(
+                            'The database contains 5,050 active State/UT-linked ULB code records from a 23 Sep 2026 community mirror. The source does not include validated district parent links or ward polygons. Gram-panchayat and ward records are not present in the current import. All mirrored rows remain unverified; no local-body boundary geometry or statutory status is inferred.',
+                            style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Directory names and codes are navigation references only. They do not certify statutory boundaries, asset ownership, utility routes, excavation permits or site safety.',
+                    style: TextStyle(color: mutedInk, fontSize: 9, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+
+class IndiaNationalAuthorityDirectoryPage extends StatefulWidget {
+  const IndiaNationalAuthorityDirectoryPage({super.key});
+  @override
+  State<IndiaNationalAuthorityDirectoryPage> createState() => _IndiaNationalAuthorityDirectoryPageState();
+}
+
+class _IndiaNationalAuthorityDirectoryPageState extends State<IndiaNationalAuthorityDirectoryPage> {
+  List<Map<String, dynamic>> authorities = [];
+  bool loading = true;
+  String errorMessage = '';
+  String searchText = '';
+  String selectedDomain = 'all';
+
+  static const Map<String, String> domainLabels = {
+    'all': 'All domains',
+    'administrative_directory': 'Administrative directory',
+    'building_approvals': 'Building approvals',
+    'groundwater': 'Groundwater',
+    'road_right_of_way': 'Roads / right-of-way',
+    'water_supply': 'Water supply',
+    'sewerage_wastewater': 'Sewerage / wastewater',
+    'stormwater_drainage': 'Stormwater drainage',
+    'electricity_distribution': 'Electricity',
+    'telecom_fibre': 'Telecom / fibre',
+    'city_gas': 'City gas',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('india_national_authority_directory')
+        .select('authority_name,authority_level,responsibility,domain_tags,official_portal_url,source_reference_url,local_custodian_required,verification_status,notes,last_checked_at')
+        .order('authority_name').limit(100);
+      if (!mounted) return;
+      setState(() {
+        authorities = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'National authority references could not be loaded. Check the account permissions and refresh.';
+      });
+    }
+  }
+
+  Future<void> _open(String? value) async {
+    final uri = Uri.tryParse((value ?? '').trim());
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+      _message('No valid official source link is recorded.');
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) _message('The official portal could not be opened.');
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  Widget _authorityCard(Map<String, dynamic> row) {
+    final name = (row['authority_name'] ?? '').toString();
+    final level = (row['authority_level'] ?? '').toString().replaceAll('_', ' ').toUpperCase();
+    final responsibility = (row['responsibility'] ?? '').toString();
+    final notes = (row['notes'] ?? '').toString();
+    final tags = (row['domain_tags'] is List)
+      ? List<String>.from((row['domain_tags'] as List).map((v) => v.toString()))
+      : <String>[];
+    final localRequired = row['local_custodian_required'] == true;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style:  TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
+          const SizedBox(height: 4),
+          Text(level, style:  TextStyle(fontSize: 8, letterSpacing: .7, fontWeight: FontWeight.w900, color: teal)),
+          const SizedBox(height: 8),
+          Text(responsibility, style:  TextStyle(fontSize: 11, height: 1.4, color: ink)),
+          if (tags.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Wrap(spacing: 6, runSpacing: 6, children: tags.map((tag) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(color: const Color(0xFFEAF4F4), borderRadius: BorderRadius.circular(7)),
+              child: Text(domainLabels[tag] ?? tag.replaceAll('_', ' '),
+                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF176B6D))),
+            )).toList()),
+          ],
+          if (localRequired) ...[
+            const SizedBox(height: 9),
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(color: const Color(0xFFFFF0D7), borderRadius: BorderRadius.circular(8)),
+              child: const Text(
+                'LOCAL CUSTODIAN REQUIRED: Confirm the relevant State/UT department, municipal body, utility operator or asset owner before treating this authority as responsible for a specific site.',
+                style: TextStyle(fontSize: 9, height: 1.4, color: Color(0xFF805600), fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(notes, style:  TextStyle(fontSize: 10, height: 1.4, color: mutedInk)),
+          ],
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _open(row['official_portal_url']?.toString()),
+            icon: const Icon(Icons.open_in_new, size: 15),
+            label: const Text('Open official authority portal'),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = authorities.where((row) {
+      final name = (row['authority_name'] ?? '').toString().toLowerCase();
+      final responsibility = (row['responsibility'] ?? '').toString().toLowerCase();
+      final matchesText = searchText.isEmpty || name.contains(searchText.toLowerCase()) ||
+        responsibility.contains(searchText.toLowerCase());
+      final tags = (row['domain_tags'] is List)
+        ? (row['domain_tags'] as List).map((v) => v.toString()).toList()
+        : <String>[];
+      final matchesDomain = selectedDomain == 'all' || tags.contains(selectedDomain);
+      return matchesText && matchesDomain;
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('National authority directory'),
+        actions: [
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : errorMessage.isNotEmpty
+          ? Center(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(errorMessage, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+              ]),
+            ))
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(15),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                         Text('NATIONAL GOVERNMENT SOURCES',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: ink)),
+                        const SizedBox(height: 6),
+                        Text(authorities.length.toString() + ' national authority and directory references registered.',
+                          style:  TextStyle(fontSize: 10, color: mutedInk)),
+                        const SizedBox(height: 8),
+                         Text(
+                          'These records identify national policy, programme, regulatory and technical bodies. They do not establish which State/UT or local operator owns an asset. Confirm the local custodian for each site.',
+                          style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    onChanged: (value) => setState(() => searchText = value),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Search authority or responsibility',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedDomain,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Infrastructure domain', border: OutlineInputBorder(), isDense: true),
+                    items: domainLabels.entries.map((entry) => DropdownMenuItem<String>(
+                      value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) { if (value != null) setState(() => selectedDomain = value); },
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Showing ' + filtered.length.toString() + ' of ' + authorities.length.toString() + ' authorities',
+                    style:  TextStyle(fontSize: 10, color: mutedInk, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  if (filtered.isEmpty)
+                    const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No authority references match this filter.')))
+                  else
+                    ...filtered.map(_authorityCard),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+
+class UtilityAssetVerificationPage extends StatefulWidget {
+  const UtilityAssetVerificationPage({super.key});
+  @override
+  State<UtilityAssetVerificationPage> createState() => _UtilityAssetVerificationPageState();
+}
+
+class _UtilityAssetVerificationPageState extends State<UtilityAssetVerificationPage> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  bool authorised = false;
+  String errorMessage = '';
+  String selectedStatus = 'all';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      final profile = userId == null ? null : await supabase.from('profiles')
+          .select('role').eq('id', userId).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      if (role != 'admin' && role != 'coordinator') {
+        if (!mounted) return;
+        setState(() { authorised = false; loading = false; });
+        return;
+      }
+      final rows = await supabase.from('utility_asset_verification_queue')
+          .select('asset_id,asset_type,owner_department,operational_status,source_type,verification_status,surveyed_at,surveyed_by_org,verified_at,verification_notes,evidence_count,created_at,import_run_id,source_title,source_organisation,authorization_reference,source_url,import_status,evidence_reference_items')
+          .order('created_at', ascending: false).limit(300);
+      if (!mounted) return;
+      setState(() {
+        authorised = true;
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'The restricted verification queue could not be loaded. Check administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _review(Map<String, dynamic> row, String decision) async {
+    final rationaleController = TextEditingController();
+    final rationale = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(decision == 'approve' ? 'Approve verified submission' : 'Reject / dispute submission'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Approval marks the submitted asset record as verified after recorded survey evidence is present. Approve only after independently checking the evidence and authority record. This does not provide excavation clearance.'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: rationaleController,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              labelText: 'Review rationale (minimum 10 characters)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final value = rationaleController.text.trim();
+              if (value.length >= 10) Navigator.pop(dialogContext, value);
+            },
+            child: Text(decision == 'approve' ? 'Confirm approval' : 'Record dispute'),
+          ),
+        ],
+      ),
+    );
+    rationaleController.dispose();
+    if (rationale == null || !mounted) return;
+    try {
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-review',
+        body: {
+          'asset_id': row['asset_id'].toString(),
+          'decision': decision,
+          'rationale': rationale,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw Exception('Review endpoint returned an error.');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(decision == 'approve'
+          ? 'Asset marked verified and review audit recorded.'
+          : 'Submission marked disputed; review audit recorded.')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review could not be completed. Confirm reviewer permissions and evidence requirements.')),
+      );
+    }
+  }
+
+  String _date(dynamic value) {
+    if (value == null) return 'Not recorded';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return 'Not recorded';
+    return parsed.toLocal().toString().split('.').first;
+  }
+
+  Color _statusColor(String status) {
+    if (status == 'verified' || status == 'owner_confirmed') return const Color(0xFFE4F4E9);
+    if (status == 'field_surveyed') return const Color(0xFFE6F0FB);
+    if (status == 'disputed') return const Color(0xFFFFE8E8);
+    return const Color(0xFFFFF0D7);
+  }
+
+  Widget _metric(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: panelNavy,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: teal),
+        const SizedBox(width: 7),
+        Text(value, style:  TextStyle(fontWeight: FontWeight.w800, color: ink)),
+        const SizedBox(width: 5),
+        Text(label, style:  TextStyle(fontSize: 10, color: mutedInk)),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = records.where((row) {
+      return selectedStatus == 'all' || row['verification_status'] == selectedStatus;
+    }).toList();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Asset verification centre'),
+        actions: [IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : !authorised
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Restricted area. Only authorised SAMANVAY administrators and coordinators can access this review queue.',
+                    textAlign: TextAlign.center),
+                ))
+              : errorMessage.isNotEmpty
+                  ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(errorMessage)))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(padding: const EdgeInsets.all(15), children: [
+                         Card(child: Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Text(
+                            'AUTHORITY REVIEW QUEUE — metadata only. This screen deliberately excludes underground asset coordinates, routes, depths, dimensions and precise geometry. A verification label is not excavation clearance.',
+                            style: TextStyle(fontSize: 10, height: 1.45, color: mutedInk),
+                          ),
+                        )),
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _metric('RECORDS LOADED', records.length.toString(), Icons.inventory_2_outlined),
+                          _metric('WITH EVIDENCE', records.where((r) => (r['evidence_count'] as num? ?? 0) > 0).length.toString(), Icons.attach_file),
+                          _metric('VERIFIED', records.where((r) => r['verification_status'] == 'verified').length.toString(), Icons.verified_outlined),
+                        ]),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedStatus,
+                          decoration: const InputDecoration(labelText: 'Verification status', border: OutlineInputBorder()),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All statuses')),
+                            DropdownMenuItem(value: 'unverified', child: Text('Unverified')),
+                            DropdownMenuItem(value: 'field_surveyed', child: Text('Field surveyed')),
+                            DropdownMenuItem(value: 'owner_confirmed', child: Text('Owner confirmed')),
+                            DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                            DropdownMenuItem(value: 'disputed', child: Text('Disputed')),
+                            DropdownMenuItem(value: 'retired', child: Text('Retired')),
+                          ],
+                          onChanged: (value) { if (value != null) setState(() => selectedStatus = value); },
+                        ),
+                        const SizedBox(height: 12),
+                        if (filtered.isEmpty)
+                          const Card(child: Padding(
+                            padding: EdgeInsets.all(18),
+                            child: Text('No asset metadata records are available for this queue yet. Authorised owner or survey submissions are required before review can begin.'),
+                          ))
+                        else
+                          ...filtered.map((row) {
+                            final status = (row['verification_status'] ?? 'unverified').toString();
+                            final evidenceItems = (row['evidence_reference_items'] is List
+                              ? row['evidence_reference_items'] as List : const [])
+                              .whereType<Map>()
+                              .map((item) => Map<String, dynamic>.from(item))
+                              .toList();
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 9),
+                              child: Padding(
+                                padding: const EdgeInsets.all(13),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Expanded(child: Text((row['asset_type'] ?? 'unknown').toString().toUpperCase(),
+                                      style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: ink))),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                      decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(8)),
+                                      child: Text(status.replaceAll('_', ' ').toUpperCase(),
+                                        style:  TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: ink)),
+                                    ),
+                                  ]),
+                                  const SizedBox(height: 7),
+                                  Text('Owner department: ' + (row['owner_department'] ?? 'Not assigned').toString(),
+                                    style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Source: ' + (row['source_type'] ?? 'Not recorded').toString() +
+                                    ' · Operational status: ' + (row['operational_status'] ?? 'unknown').toString(),
+                                    style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  Text('Survey date: ' + _date(row['surveyed_at']) +
+                                    ' · Evidence items: ' + (row['evidence_count'] ?? 0).toString(),
+                                    style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['surveyed_by_org'] ?? '').toString().isNotEmpty)
+                                    Text('Survey organisation: ' + row['surveyed_by_org'].toString(),
+                                      style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_title'] ?? '').toString().isNotEmpty)
+                                    Text('Submitted source: ' + row['source_title'].toString(),
+                                      style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['source_organisation'] ?? '').toString().isNotEmpty)
+                                    Text('Source organisation: ' + row['source_organisation'].toString(),
+                                      style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['authorization_reference'] ?? '').toString().isNotEmpty)
+                                    Text('Authority reference: ' + row['authorization_reference'].toString(),
+                                      style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                  if ((row['import_status'] ?? '').toString().isNotEmpty)
+                                    Text('Import audit: ' + row['import_status'].toString().replaceAll('_', ' ').toUpperCase(),
+                                      style: const TextStyle(fontSize: 10, color: Color(0xFF9A6700), fontWeight: FontWeight.w700)),
+                                  if ((row['import_run_id'] ?? '').toString().isNotEmpty)
+                                    Text('Audit run: ' + row['import_run_id'].toString(),
+                                      style:  TextStyle(fontSize: 9, color: mutedInk)),
+                                  if (evidenceItems.isNotEmpty) ...[
+                                    const Divider(height: 16),
+                                     Text('REFERENCE-ONLY SURVEY EVIDENCE',
+                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: ink)),
+                                    ...evidenceItems.map((item) => Padding(
+                                      padding: const EdgeInsets.only(top: 7),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            (item['evidence_reference_code'] ?? 'Reference').toString(),
+                                            style:  TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ink),
+                                          ),
+                                          Text(
+                                            '${item['survey_method']} · ${_date(item['survey_date'])} · ${item['surveyor_organisation']}',
+                                            style:  TextStyle(fontSize: 9, color: mutedInk),
+                                          ),
+                                          Text(
+                                            'SHA-256: ${item['evidence_sha256']}',
+                                            style:  TextStyle(fontSize: 8, color: mutedInk),
+                                          ),
+                                        ],
+                                      ),
+                                    )),
+                                    const Text(
+                                      'Original source material is not stored or viewable in this queue. Confirm the reference with the owner department through authorised channels.',
+                                      style: TextStyle(fontSize: 9, color: Color(0xFF9A6700), height: 1.35),
+                                    ),
+                                  ],
+                                  if ((row['verification_notes'] ?? '').toString().isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(row['verification_notes'].toString(),
+                                        style:  TextStyle(fontSize: 10, color: mutedInk)),
+                                    ),
+                                  if (status != 'verified' && status != 'retired') ...[
+                                    const Divider(height: 18),
+                                    Wrap(spacing: 8, runSpacing: 8, children: [
+                                      FilledButton.icon(
+                                        onPressed: (row['evidence_count'] as num? ?? 0) > 0
+                                          ? () => _review(row, 'approve') : null,
+                                        icon: const Icon(Icons.verified_outlined, size: 16),
+                                        label: const Text('Approve after evidence review'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _review(row, 'reject'),
+                                        icon: const Icon(Icons.flag_outlined, size: 16),
+                                        label: const Text('Reject / dispute'),
+                                      ),
+                                    ]),
+                                    if ((row['evidence_count'] as num? ?? 0) == 0)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 6),
+                                        child: Text('Approval requires recorded evidence. Verify the source and authority independently before approval.',
+                                          style: TextStyle(fontSize: 10, color: Color(0xFF9A6700))),
+                                      ),
+                                  ],
+                                ]),
+                              ),
+                            );
+                          }),
+                      ]),
+                    ),
+    );
+  }
+}
+
+class IndiaLgdCsvImportPage extends StatefulWidget {
+  const IndiaLgdCsvImportPage({super.key});
+  @override
+  State<IndiaLgdCsvImportPage> createState() => _IndiaLgdCsvImportPageState();
+}
+
+class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
+  final TextEditingController reportDateController = TextEditingController();
+  String unitType = 'district';
+  bool busy = false;
+  String statusMessage = '';
+
+  static const Map<String, String> unitTypes = {
+    'district': 'Districts',
+    'sub_district': 'Sub-districts',
+    'block': 'Blocks',
+    'urban_local_body': 'Urban Local Bodies',
+    'gram_panchayat': 'Gram Panchayats',
+    'village': 'Villages',
+    'ward': 'Wards',
+    'traditional_local_body': 'Traditional Local Bodies',
+  };
+
+  String _key(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  int _column(List<String> headers, List<String> aliases) {
+    for (var i = 0; i < headers.length; i++) {
+      if (aliases.contains(headers[i])) return i;
+    }
+    return -1;
+  }
+
+  String _cell(List<dynamic> row, int index) {
+    if (index < 0 || index >= row.length) return '';
+    return (row[index] ?? '').toString().trim();
+  }
+
+  Future<void> _pickAndImport() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() => statusMessage = 'Sign in before importing an official directory report.');
+      return;
+    }
+    final profile = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+    final role = (profile?['role'] ?? '').toString();
+    if (role != 'admin' && role != 'coordinator') {
+      setState(() => statusMessage = 'This import is restricted to SAMANVAY administrators and coordinators.');
+      return;
+    }
+    final reportDate = DateTime.tryParse(reportDateController.text.trim());
+    if (reportDate == null) {
+      setState(() => statusMessage = 'Enter the report date in YYYY-MM-DD format before importing.');
+      return;
+    }
+
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (picked == null) return;
+    final selectedFile = picked;
+    const maxCsvBytes = 25 * 1024 * 1024;
+    final bytes = await selectedFile.readAsBytes();
+    if (bytes.isEmpty) {
+      setState(() => statusMessage = 'The selected CSV could not be read completely.');
+      return;
+    }
+    if (bytes.length > maxCsvBytes) {
+      setState(() => statusMessage =
+          'The selected CSV exceeds the 25 MB import limit. Split a larger official export into jurisdiction-sized files.');
+      return;
+    }
+    // Fingerprint the exact uploaded bytes for the import audit record.
+    final fileSha256 = sha256.convert(bytes).toString();
+
+    setState(() { busy = true; statusMessage = 'Validating the official LGD CSV...'; });
+    try {
+      var csvText = utf8.decode(bytes, allowMalformed: true);
+      if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
+      final parsed = csv.decode(csvText);
+      if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
+      final headers = parsed.first.map((v) => _key(v.toString())).toList();
+      final codeAliases = switch (unitType) {
+        'district' => ['lgdcode', 'districtlgdcode', 'districtcode', 'code'],
+        'sub_district' => ['lgdcode', 'subdistrictlgdcode', 'subdistrictcode', 'code'],
+        'block' => ['lgdcode', 'blocklgdcode', 'blockcode', 'code'],
+        'urban_local_body' => [
+          'lgdcode', 'localbodylgdcode', 'urbanlocalbodylgdcode',
+          'localbodycode', 'urbanlocalbodycode', 'code',
+        ],
+        'gram_panchayat' => [
+          'lgdcode', 'grampanchayatlgdcode', 'grampanchayatcode',
+          'panchayatcode', 'code',
+        ],
+        'village' => ['lgdcode', 'villagelgdcode', 'villagecode', 'code'],
+        'ward' => ['lgdcode', 'wardlgdcode', 'wardcode', 'code'],
+        _ => ['lgdcode', 'traditionalbodylgdcode', 'traditionalbodycode', 'code'],
+      };
+      final nameAliases = switch (unitType) {
+        'district' => ['name', 'districtname', 'districtnameenglish', 'nameenglish'],
+        'sub_district' => ['name', 'subdistrictname', 'subdistrictnameenglish', 'nameenglish'],
+        'block' => ['name', 'blockname', 'blocknameenglish', 'nameenglish'],
+        'urban_local_body' => [
+          'name', 'localbodyname', 'localbodynameenglish',
+          'urbanlocalbodyname', 'municipalbodyname', 'nameenglish',
+        ],
+        'gram_panchayat' => [
+          'name', 'grampanchayatname', 'panchayatname', 'nameenglish',
+        ],
+        'village' => ['name', 'villagename', 'villagenameenglish', 'nameenglish'],
+        'ward' => ['name', 'wardname', 'wardnameenglish', 'nameenglish'],
+        _ => ['name', 'traditionalbodyname', 'nameenglish'],
+      };
+      final parentAliases = switch (unitType) {
+        'district' => <String>[],
+        'sub_district' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'districtlgdcode', 'districtcode',
+        ],
+        'block' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'subdistrictlgdcode', 'subdistrictcode',
+          'districtlgdcode', 'districtcode',
+        ],
+        'urban_local_body' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'districtlgdcode', 'districtcode',
+        ],
+        'gram_panchayat' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'blocklgdcode', 'blockcode', 'subdistrictlgdcode',
+          'subdistrictcode', 'districtlgdcode', 'districtcode',
+        ],
+        'village' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'grampanchayatlgdcode', 'grampanchayatcode',
+          'blocklgdcode', 'blockcode', 'subdistrictlgdcode',
+          'subdistrictcode',
+        ],
+        'ward' => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'urbanlocalbodylgdcode', 'urbanlocalbodycode',
+          'localbodylgdcode', 'localbodycode',
+        ],
+        _ => [
+          'parentlgdcode', 'parentcode', 'parentunitcode',
+          'districtlgdcode', 'districtcode',
+        ],
+      };
+      final codeCol = _column(headers, codeAliases);
+      final nameCol = _column(headers, nameAliases);
+      final stateCol = _column(headers, [
+        'statename', 'statenameenglish', 'stateutname',
+        'stateutnameenglish', 'state',
+      ]);
+      final localNameCol = _column(headers, [
+        'namelocal', 'localname', 'localbodynamelocal', 'nameinlocal',
+      ]);
+      final parentCol = _column(headers, parentAliases);
+      if (codeCol < 0 || nameCol < 0 || stateCol < 0) {
+        throw Exception(
+          'Required columns not found for ' + unitTypes[unitType]! +
+          '. Include the entity LGD code, entity name and State Name. '
+          'Recognised code headers: ' + codeAliases.join(', ') + '.',
+        );
+      }
+      if (unitType != 'district' && parentCol < 0) {
+        throw Exception(
+          'The ' + unitTypes[unitType]! +
+          ' CSV has no recognised direct-parent LGD code column. '
+          'Include Parent LGD Code or the appropriate parent code column so imported records can be linked into the national hierarchy. '
+          'No rows were imported.',
+        );
+      }
+
+      final rawStates = await supabase.from('india_state_uts').select('id,name').limit(100);
+      final stateIds = <String, String>{};
+      for (final state in rawStates) {
+        stateIds[_key(state['name'].toString())] = state['id'].toString();
+      }
+      // Resolve only the parent LGD codes referenced by this CSV. A fixed
+      // first-page lookup (for example, LIMIT 5000) silently misses valid
+      // parents once the national directory grows beyond that page.
+      final parentCodes = parsed.skip(1)
+          .map((row) => _cell(row, parentCol))
+          .where((code) => code.isNotEmpty)
+          .toSet()
+          .toList();
+      final parentIds = <String, Map<String, dynamic>>{};
+      const parentLookupBatchSize = 200;
+      for (var offset = 0; offset < parentCodes.length; offset += parentLookupBatchSize) {
+        final end = (offset + parentLookupBatchSize < parentCodes.length)
+            ? offset + parentLookupBatchSize
+            : parentCodes.length;
+        final codeBatch = parentCodes.sublist(offset, end);
+        final parentRows = await supabase
+            .from('india_administrative_units')
+            .select('id,lgd_code,state_ut_id,unit_type')
+            .eq('source_system', 'Local Government Directory (LGD)')
+            .eq('is_active', true)
+            .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
+            .inFilter('lgd_code', codeBatch)
+            .limit(parentLookupBatchSize);
+        for (final row in parentRows) {
+          final code = (row['lgd_code'] ?? '').toString();
+          if (code.isNotEmpty) {
+            parentIds[code] = {
+              'id': row['id'].toString(),
+              'state_ut_id': row['state_ut_id'].toString(),
+              'unit_type': row['unit_type'].toString(),
+            };
+          }
+        }
+      }
+
+      final payload = <Map<String, dynamic>>[];
+      final seenCodes = <String>{};
+      final rejectionReasons = <String, int>{};
+      var rejected = 0;
+      void rejectRow(String reason) {
+        rejected++;
+        rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
+      }
+      final expectedParentTypes = switch (unitType) {
+        'district' => <String>{},
+        'sub_district' => <String>{'district'},
+        'block' => <String>{'district', 'sub_district'},
+        'urban_local_body' => <String>{'district'},
+        'gram_panchayat' => <String>{'district', 'sub_district', 'block'},
+        'village' => <String>{'sub_district', 'block', 'gram_panchayat'},
+        'ward' => <String>{'urban_local_body'},
+        _ => <String>{'district', 'sub_district'},
+      };
+      for (final row in parsed.skip(1)) {
+        final code = _cell(row, codeCol);
+        final name = _cell(row, nameCol);
+        final stateName = _cell(row, stateCol);
+        final stateId = stateIds[_key(stateName)];
+        if (code.isEmpty) {
+          rejectRow('Missing entity LGD code');
+          continue;
+        }
+        if (name.isEmpty) {
+          rejectRow('Missing entity name');
+          continue;
+        }
+        if (stateId == null) {
+          rejectRow('State name does not match the 36 State/UT directory');
+          continue;
+        }
+        if (!seenCodes.add(code)) {
+          rejectRow('Duplicate LGD code within this CSV');
+          continue;
+        }
+
+        final parentCode = _cell(row, parentCol);
+        Map<String, dynamic>? parent;
+        if (unitType != 'district' && parentCode.isEmpty) {
+          rejectRow('Missing direct-parent LGD code');
+          continue;
+        }
+        if (parentCode.isNotEmpty) {
+          parent = parentIds[parentCode];
+          if (parent == null) {
+            rejectRow('Parent LGD code is not already imported');
+            continue;
+          }
+          if (parent['state_ut_id'] != stateId) {
+            rejectRow('Parent LGD code belongs to a different State/UT');
+            continue;
+          }
+          if (!expectedParentTypes.contains(parent['unit_type'])) {
+            rejectRow('Parent LGD code has an incompatible hierarchy type');
+            continue;
+          }
+        }
+        final parentId = parent?['id'];
+        payload.add({
+          'state_ut_id': stateId,
+          'parent_unit_id': parentId,
+          'unit_type': unitType,
+          'lgd_code': code,
+          'name': name,
+          'local_name': _cell(row, localNameCol).isEmpty ? null : _cell(row, localNameCol),
+          'source_system': 'Local Government Directory (LGD)',
+          'source_url': 'https://lgdirectory.gov.in/',
+          'source_updated_at': reportDate.toIso8601String().split('T').first,
+          'verification_status': 'imported_unverified',
+          'is_active': true,
+        });
+      }
+      if (payload.isEmpty) {
+        final reasonSummary = rejectionReasons.entries
+            .map((entry) => entry.key + ': ' + entry.value.toString())
+            .join('; ');
+        throw Exception(
+          'No valid rows remain after LGD hierarchy validation. ' +
+          (reasonSummary.isEmpty ? 'Check the CSV headers and source records.' : reasonSummary),
+        );
+      }
+
+      final touchedStates = payload.map((row) => row['state_ut_id'].toString()).toSet();
+      final batchStateId = touchedStates.length == 1 ? touchedStates.first : null;
+      Map<String, dynamic>? queuedBatch;
+      if (batchStateId != null) {
+        queuedBatch = await supabase.from('india_directory_import_batches')
+          .select('id')
+          .eq('jurisdiction_state_ut_id', batchStateId)
+          .eq('unit_type', unitType)
+          .eq('import_status', 'awaiting_authorised_export')
+          .maybeSingle();
+      }
+
+      late final String batchId;
+      final batchMetadata = {
+        'jurisdiction_state_ut_id': batchStateId,
+        'source_url': 'https://lgdirectory.gov.in/downloadDirectory.do',
+        'unit_type': unitType,
+        'source_updated_at': reportDate.toIso8601String().split('T').first,
+        'original_file_name': selectedFile.name,
+        'file_sha256': fileSha256,
+        'import_status': 'uploaded',
+        'rows_received': parsed.length - 1,
+        'rows_rejected': rejected,
+        'imported_by': userId,
+        'notes': 'Imported from an administrator-supplied LGD report converted to CSV. Records remain unverified until authority review.',
+      };
+      if (queuedBatch != null) {
+        batchId = queuedBatch['id'].toString();
+        await supabase.from('india_directory_import_batches')
+          .update(batchMetadata).eq('id', batchId);
+      } else {
+        final batch = await supabase.from('india_directory_import_batches')
+          .insert(batchMetadata).select('id').single();
+        batchId = batch['id'].toString();
+      }
+
+      for (var i = 0; i < payload.length; i += 100) {
+        final end = (i + 100 < payload.length) ? i + 100 : payload.length;
+        final chunk = payload.sublist(i, end)
+            .map((row) => {...row, 'import_batch_id': batchId})
+            .toList();
+        await supabase.from('india_administrative_units')
+            .upsert(chunk, onConflict: 'source_system,lgd_code');
+      }
+      await supabase.from('india_directory_import_batches').update({
+        'import_status': 'imported',
+        'rows_inserted': payload.length,
+        'completed_at': DateTime.now().toIso8601String(),
+      }).eq('id', batchId);
+
+      for (final stateId in touchedStates) {
+        await supabase.from('india_data_coverage').update({
+          'coverage_status': 'directory_records_imported_pending_authority_validation',
+          'operational_use_allowed': false,
+          'last_checked_at': DateTime.now().toIso8601String(),
+          'notes': 'LGD directory rows imported from ' + selectedFile.name +
+            ' dated ' + reportDate.toIso8601String().split('T').first +
+            '. Imported records remain unverified pending authority review.',
+        }).eq('state_ut_id', stateId).eq('data_domain', 'administrative_directory');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        final reasonSummary = rejectionReasons.entries
+            .map((entry) => entry.key + ': ' + entry.value.toString())
+            .join('; ');
+        statusMessage = 'Import complete: ' + payload.length.toString() +
+          ' rows inserted/updated; ' + rejected.toString() +
+          ' rows rejected. ' +
+          (reasonSummary.isEmpty ? '' : 'Rejection reasons: ' + reasonSummary + '. ') +
+          'Records remain unverified until authority review.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        statusMessage = 'Import stopped: ' + error.toString();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    reportDateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Import official LGD directory')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+       Card(child: Padding(
+        padding: EdgeInsets.all(14),
+        child: Text(
+          'ADMINISTRATOR / COORDINATOR ONLY. Generate the report on the official LGD portal yourself, complete its CAPTCHA normally, and convert the XLS/HTML report to CSV using the standard column headings. This importer does not automate or bypass the CAPTCHA.',
+          style: TextStyle(fontSize: 11, height: 1.45, color: mutedInk),
+        ),
+      )),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: unitType,
+        decoration: const InputDecoration(labelText: 'Directory entity type', border: OutlineInputBorder()),
+        items: unitTypes.entries.map((entry) => DropdownMenuItem(
+          value: entry.key, child: Text(entry.value),
+        )).toList(),
+        onChanged: busy ? null : (value) { if (value != null) setState(() => unitType = value); },
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: reportDateController,
+        enabled: !busy,
+        decoration: const InputDecoration(
+          labelText: 'Official report date',
+          hintText: 'YYYY-MM-DD',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        unitType == 'district'
+            ? 'Required: District LGD Code, District Name and State Name. Maximum CSV size: 25 MB.'
+            : 'Required: entity LGD code, entity name, State Name and direct-parent LGD code. Ward files should include Local Body Code; village files should include their direct revenue / local-government parent code. Maximum CSV size: 25 MB.',
+        style:  TextStyle(fontSize: 11, color: mutedInk, height: 1.4),
+      ),
+      const SizedBox(height: 14),
+      FilledButton.icon(
+        onPressed: busy ? null : _pickAndImport,
+        icon: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.upload_file),
+        label: Text(busy ? 'IMPORTING...' : 'SELECT CSV AND IMPORT'),
+      ),
+      if (statusMessage.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Card(child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(statusMessage, style: const TextStyle(fontSize: 11, height: 1.4)),
+        )),
+      ],
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => launchUrl(Uri.parse('https://lgdirectory.gov.in/downloadDirectory.do'),
+          mode: LaunchMode.externalApplication),
+        icon: const Icon(Icons.open_in_new),
+        label: const Text('Open official LGD report generator'),
+      ),
+    ]),
+  );
+}
+
+
+class BuildingApprovalRegisterBoard extends StatefulWidget {
+  const BuildingApprovalRegisterBoard({super.key});
+
+  @override
+  State<BuildingApprovalRegisterBoard> createState() => _BuildingApprovalRegisterBoardState();
+}
+
+class _BuildingApprovalRegisterBoardState extends State<BuildingApprovalRegisterBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase
+          .from('building_approval_public_register_records')
+          .select('authority,jurisdiction,source_document_title,source_url,approval_status,approved_floor_count,approved_height_m')
+          .limit(3000);
+      if (!mounted) return;
+      setState(() {
+        records = List<Map<String, dynamic>>.from(rows);
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        errorMessage = 'Public building approval register summary is unavailable for this account.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusCounts = <String, int>{};
+    for (final row in records) {
+      final status = (row['approval_status'] ?? 'Status not supplied').toString();
+      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+    }
+    final floorValues = records.where((r) => r['approved_floor_count'] != null).length;
+    final heightValues = records.where((r) => r['approved_height_m'] != null).length;
+    final sourceUrl = records.isNotEmpty ? (records.first['source_url'] ?? '').toString() : '';
+    final authority = records.isNotEmpty ? (records.first['authority'] ?? 'Authority not supplied').toString() : 'Municipal Corporation of Delhi';
+    final jurisdiction = records.isNotEmpty ? (records.first['jurisdiction'] ?? 'Jurisdiction not supplied').toString() : 'Delhi, India';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+             Icon(Icons.apartment_outlined, color: teal),
+            const SizedBox(width: 9),
+             Expanded(child: Text('Public building-approval register', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+            IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh public approval register'),
+          ]),
+           Text('Official published plan-release records imported into SAMANVAY. This is not a nationwide permit registry.', style: TextStyle(fontSize: 10, color: mutedInk)),
+          if (loading)
+            const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
+          else if (errorMessage.isNotEmpty)
+            Text(errorMessage, style: const TextStyle(fontSize: 11, color: Colors.red))
+          else ...[
+            const SizedBox(height: 9),
+            Row(children: [
+              Expanded(child: _approvalMetric('Records', records.length.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Jurisdiction', jurisdiction)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _approvalMetric('Official floor values', floorValues.toString())),
+              const SizedBox(width: 8),
+              Expanded(child: _approvalMetric('Official height values', heightValues.toString())),
+            ]),
+            const SizedBox(height: 8),
+            Text('$authority · $jurisdiction', style:  TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink)),
+            const SizedBox(height: 4),
+            ...statusCounts.entries.map((entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Expanded(child: Text(entry.key, style:  TextStyle(fontSize: 10, color: mutedInk))),
+                Text(entry.value.toString(), style:  TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ink)),
+              ]),
+            )),
+            const SizedBox(height: 6),
+             Text('Source status is preserved as published. No sanctioned floors, building heights, parcel locations or legal compliance conclusions are inferred from missing fields.', style: TextStyle(fontSize: 10, color: mutedInk)),
+            if (sourceUrl.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(sourceUrl);
+                    if (uri != null && await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 15),
+                  label: const Text('Open original authority register'),
+                ),
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _approvalMetric(String label, String value) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12), border: Border.all(color: borderColor)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style:  TextStyle(fontSize: 9, color: mutedInk)),
+      const SizedBox(height: 3),
+      Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
+        style:  TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink)),
+    ]),
+  );
+}
+
+class GroundwaterObservationBoard extends StatefulWidget {
+  final List<Map<String, dynamic>> requests;
+  final List<Map<String, dynamic>> departments;
+  final bool isDepartment;
+  final String? departmentId;
+  const GroundwaterObservationBoard({super.key, required this.requests,
+    required this.departments, required this.isDepartment, this.departmentId});
+  @override
+  State<GroundwaterObservationBoard> createState() => _GroundwaterObservationBoardState();
+}
+
+class _GroundwaterObservationBoardState extends State<GroundwaterObservationBoard> {
+  List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String errorMessage = '';
+  List<Map<String, dynamic>> get groundwaterCases => widget.requests
+      .where((r) => (r['case_category'] ?? '').toString() == 'borewell_groundwater').toList();
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() { loading = true; errorMessage = ''; });
+    try {
+      final rows = await supabase.from('groundwater_observation_records')
+          .select().order('observed_at', ascending: false).limit(100);
+      if (!mounted) return;
+      setState(() { records = List<Map<String, dynamic>>.from(rows); loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { loading = false; errorMessage = 'Groundwater observations could not be loaded for this account.'; });
+    }
+  }
+
+  String _caseLabel(String id) {
+    for (final r in widget.requests) {
+      if (r['id'].toString() == id) {
+        final n = r['request_number']?.toString();
+        final t = (r['title'] ?? r['road_name'] ?? 'Groundwater case').toString();
+        return n == null ? t : 'Case #' + n + ' · ' + t;
+      }
+    }
+    return 'Case ' + (id.length > 8 ? id.substring(0, 8) : id);
+  }
+
+  Future<void> _add() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _message('Please sign in again.'); return; }
+    final cases = groundwaterCases;
+    if (cases.isEmpty) { _message('No accessible borewell/groundwater cases are available.'); return; }
+    var requestId = cases.first['id'].toString();
+    var departmentId = widget.departmentId ?? cases.first['department_id']?.toString()
+      ?? (widget.departments.isNotEmpty ? widget.departments.first['id'].toString() : null);
+    var wellType = 'borewell';
+    var method = 'manual_measurement';
+    var pumping = 'unknown';
+    var sourceType = 'field_observed';
+    var saving = false;
+    final site = TextEditingController();
+    final level = TextEditingController();
+    final sourceRef = TextEditingController();
+    final notes = TextEditingController();
+
+    final saved = await showDialog<bool>(context: context, builder: (dialogContext) =>
+      StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
+        title: const Text('Record groundwater observation'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: requestId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Groundwater case'),
+              items: cases.map((r) {
+                final id = r['id'].toString();
+                return DropdownMenuItem(value: id, child: Text(_caseLabel(id), overflow: TextOverflow.ellipsis));
+              }).toList(),
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => requestId = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: departmentId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Responsible department'),
+              items: widget.departments.map((d) => DropdownMenuItem<String>(
+                value: d['id'].toString(), child: Text((d['name'] ?? 'Department').toString(),
+                  overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: saving ? null : (v) => setDialogState(() => departmentId = v),
+            ),
+            TextField(controller: site, decoration: const InputDecoration(labelText: 'Site / well reference *')),
+            DropdownButtonFormField<String>(
+              initialValue: wellType, decoration: const InputDecoration(labelText: 'Well type'),
+              items: const [
+                DropdownMenuItem(value: 'borewell', child: Text('Borewell')),
+                DropdownMenuItem(value: 'open_well', child: Text('Open well')),
+                DropdownMenuItem(value: 'observation_well', child: Text('Observation well')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => wellType = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: method, decoration: const InputDecoration(labelText: 'Observation method'),
+              items: const [
+                DropdownMenuItem(value: 'manual_measurement', child: Text('Manual measurement')),
+                DropdownMenuItem(value: 'sensor_reading', child: Text('Sensor reading')),
+                DropdownMenuItem(value: 'authority_record', child: Text('Authority record')),
+                DropdownMenuItem(value: 'field_inspection', child: Text('Field inspection')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => method = v); },
+            ),
+            TextField(controller: level, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Water level below ground (m) *')),
+            DropdownButtonFormField<String>(
+              initialValue: pumping, decoration: const InputDecoration(labelText: 'Pumping state at observation'),
+              items: const [
+                DropdownMenuItem(value: 'unknown', child: Text('Unknown')),
+                DropdownMenuItem(value: 'not_pumping', child: Text('Not pumping')),
+                DropdownMenuItem(value: 'pumping', child: Text('Pumping')),
+                DropdownMenuItem(value: 'recovery', child: Text('Recovery')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => pumping = v); },
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: sourceType, decoration: const InputDecoration(labelText: 'Source type'),
+              items: const [
+                DropdownMenuItem(value: 'field_observed', child: Text('Field observed')),
+                DropdownMenuItem(value: 'authority_document', child: Text('Authority document')),
+                DropdownMenuItem(value: 'sensor_snapshot', child: Text('Sensor snapshot')),
+              ],
+              onChanged: saving ? null : (v) { if (v != null) setDialogState(() => sourceType = v); },
+            ),
+            TextField(controller: sourceRef, decoration: const InputDecoration(labelText: 'Source / document reference')),
+            TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Measurement notes')),
+            const SizedBox(height: 8),
+             Text('A water-level reading is not a legal or sustainability classification. Record the measurement time, method and pumping state accurately. This form does not connect to live sensors.',
+              style: TextStyle(fontSize: 11, color: mutedInk)),
+          ],
+        ))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel')),
+          FilledButton(
+            onPressed: saving ? null : () async {
+              final value = double.tryParse(level.text.trim());
+              if (departmentId == null || departmentId!.isEmpty || site.text.trim().isEmpty ||
+                  value == null || value < 0) {
+                _message('Enter a site reference and a valid non-negative water-level measurement.');
+                return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                await supabase.from('groundwater_observation_records').insert({
+                  'request_id': requestId,
+                  'responsible_department_id': departmentId,
+                  'site_reference': site.text.trim(),
+                  'well_type': wellType,
+                  'observation_method': method,
+                  'water_level_below_ground_m': value,
+                  'pumping_state': pumping,
+                  'source_type': sourceType,
+                  'source_reference': sourceRef.text.trim().isEmpty ? null : sourceRef.text.trim(),
+                  'measurement_notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+                  'created_by': user.id,
+                });
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (_) {
+                setDialogState(() => saving = false);
+                _message('Unable to save. Confirm that the case is assigned to the selected department.');
+              }
+            },
+            child: saving ? const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save observation'),
+          ),
+        ],
+      )),
+    );
+    site.dispose(); level.dispose(); sourceRef.dispose(); notes.dispose();
+    if (saved == true) { await _load(); _message('Groundwater observation recorded.'); }
+  }
+
+  void _message(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+           Icon(Icons.water_drop_outlined, color: teal),
+          const SizedBox(width: 9),
+           Expanded(child: Text('Borewell & groundwater field observations',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink))),
+          IconButton(onPressed: loading ? null : _load, icon: const Icon(Icons.refresh)),
+        ]),
+         Text('Append dated site measurements to a borewell/groundwater case. The public station snapshot above remains separate.',
+          style: TextStyle(fontSize: 11, color: mutedInk)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: groundwaterCases.isEmpty ? null : _add,
+          icon: const Icon(Icons.add), label: const Text('RECORD GROUNDWATER OBSERVATION'))),
+        const SizedBox(height: 8),
+        if (loading) const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+        else if (errorMessage.isNotEmpty) Text(errorMessage, style: const TextStyle(fontSize: 12, color: Colors.red))
+        else if (records.isEmpty)  Text('No field observations have been recorded yet.',
+          style: TextStyle(fontSize: 12, color: mutedInk))
+        else ...records.map((r) {
+          final dept = (r['responsible_department_id'] ?? '').toString();
+          return Container(margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_caseLabel(r['request_id'].toString()),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              Text((r['site_reference'] ?? 'Site not specified').toString() + ' · ' +
+                (r['well_type'] ?? '').toString().replaceAll('_', ' ') + ' · ' +
+                (r['water_level_below_ground_m']?.toString() ?? '—') + ' m below ground',
+                style:  TextStyle(fontSize: 11, color: ink)),
+              Text(_departmentName(dept) + ' · ' +
+                (r['pumping_state'] ?? 'unknown').toString().replaceAll('_', ' ') + ' · ' +
+                (r['source_type'] ?? '').toString().replaceAll('_', ' '),
+                style:  TextStyle(fontSize: 10, color: mutedInk)),
+              Text('Observed: ' + (r['observed_at'] ?? '').toString(),
+                style:  TextStyle(fontSize: 10, color: mutedInk)),
+            ]));
+        }),
+      ],
+    )));
+  }
+
+  String _departmentName(String id) {
+    for (final d in widget.departments) {
+      if (d['id'].toString() == id) return (d['name'] ?? 'Department').toString();
+    }
+    return 'Department';
+  }
+}
+
+class StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const StatCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: panelNavy,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: teal, size: 28),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style:  TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: ink,
+            ),
+          ),
+          Text(
+            title,
+            style:  TextStyle(color: mutedInk),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// DEPARTMENT TILE
+// ==========================================
+
+class DepartmentTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const DepartmentTile({
+    super.key,
+    required this.title,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: teal.withValues(alpha: 0.12),
+          child: Icon(icon, color: teal),
+        ),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+}
+
+
+// ==========================================
+// REQUESTS — LIVE SUPABASE MODULE
+// ==========================================
+
+class RequestsPage extends StatefulWidget {
+  const RequestsPage({super.key});
+
+  @override
+  State<RequestsPage> createState() => _RequestsPageState();
+}
+
+class _RequestsPageState extends State<RequestsPage> {
+  StreamSubscription<List<Map<String, dynamic>>>? _requestEvents;
+  List<Map<String, dynamic>> requests = [];
+  bool loading = true;
+  String? errorMessage;
+  String selectedFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    loadRequests();
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      _requestEvents = supabase
+          .from('excavation_requests')
+          .stream(primaryKey: ['id'])
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false)
+          .listen((rows) {
+        if (!mounted) return;
+        setState(() {
+          requests = List<Map<String, dynamic>>.from(rows);
+          loading = false;
+          errorMessage = null;
+        });
+      }, onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          errorMessage = 'Live updates are unavailable. Use refresh to retry.';
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _requestEvents?.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadRequests() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        loading = false;
+        errorMessage = 'Please log in again.';
+      });
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final result = await supabase
+          .from('excavation_requests')
+          .select()
+          .eq('requester_id', user.id)
+          .order('created_at', ascending: false);
+
+      if (!mounted) return;
+
+      setState(() {
+        requests = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        errorMessage = error.toString();
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredRequests {
+    if (selectedFilter == 'all') return requests;
+
+    return requests.where((request) {
+      return request['status'] == selectedFilter;
+    }).toList();
+  }
+
+  Future<void> openNewRequestForm() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NewRequestPage(),
+      ),
+    );
+
+    if (created == true) {
+      await loadRequests();
+    }
+  }
+
+  String statusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return 'Submitted';
+      case 'under_review':
+        return 'Under Review';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'in_progress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
+      default:
+        return status.replaceAll('_', ' ').toUpperCase();
+    }
+  }
+
+  Color statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'completed':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'in_progress':
+        return Colors.blue;
+      case 'under_review':
+        return Colors.orange;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  String displayDate(dynamic value) {
+    if (value == null) return 'Not specified';
+
+    final date = DateTime.tryParse(value.toString());
+    if (date == null) return value.toString();
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleRequests = filteredRequests;
+
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        title: const Text('Excavation Requests'),
+        actions: [
+          IconButton(
+            onPressed: loading ? null : loadRequests,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh requests',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: openNewRequestForm,
+        backgroundColor: electricBlue,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('New Request'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: loadRequests,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 90),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.assignment_turned_in_outlined,
+                    color: Colors.white,
+                    size: 36,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Excavation Requests',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${requests.length} request(s) recorded',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+             Text(
+              'Filter by status',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: ink,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('All', 'all'),
+                  _filterChip('Submitted', 'submitted'),
+                  _filterChip('Under Review', 'under_review'),
+                  _filterChip('Approved', 'approved'),
+                  _filterChip('Rejected', 'rejected'),
+                  _filterChip('In Progress', 'in_progress'),
+                  _filterChip('Completed', 'completed'),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.all(45),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (errorMessage != null)
+              _errorView()
+            else if (visibleRequests.isEmpty)
+              _emptyView()
+            else
+              ...visibleRequests.map(
+                (request) => _requestCard(request),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, String value) {
+    final selected = selectedFilter == value;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) {
+          setState(() {
+            selectedFilter = value;
+          });
+        },
+        selectedColor: teal.withValues(alpha: 0.18),
+        checkmarkColor: teal,
+      ),
+    );
+  }
+
+  Widget _requestCard(Map<String, dynamic> request) {
+    final status = request['status']?.toString() ?? 'submitted';
+    final number = request['request_number']?.toString() ?? '-';
+    final title = request['title']?.toString() ?? 'Untitled';
+    final road = request['road_name']?.toString() ?? '';
+    final city = request['city']?.toString() ?? '';
+    final category = (request['case_category'] ?? 'legacy_excavation')
+        .toString().replaceAll('_', ' ').toUpperCase();
+    final activity = (request['work_activity'] ?? 'not specified')
+        .toString().replaceAll('_', ' ');
+    final color = statusColor(status);
+
+    return Card(
+      color: panelNavy,
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 13),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Request #$number',
+                    style:  TextStyle(
+                      color: teal,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    statusLabel(status),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              title,
+              style:  TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: ink,
+              ),
+            ),
+
+            const SizedBox(height: 9),
+
+            _detailRow(Icons.location_on_outlined, '$road, $city'),
+            _detailRow(Icons.layers_outlined, 'Domain: $category'),
+            _detailRow(Icons.build_outlined, 'Activity: $activity'),
+
+            const SizedBox(height: 7),
+
+            _detailRow(
+              Icons.calendar_today_outlined,
+              'Start: ${displayDate(request['planned_start_date'])}',
+            ),
+
+            const SizedBox(height: 7),
+
+            _detailRow(
+              Icons.event_outlined,
+              'End: ${displayDate(request['planned_end_date'])}',
+            ),
+
+            if (request['description'] != null &&
+                request['description'].toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                request['description'].toString(),
+                style:  TextStyle(
+                  color: mutedInk,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CaseWorkspacePage(
+                      requestId: request['id'].toString(),
+                      requestTitle: title,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.forum_outlined),
+                label: const Text('OPEN CASE WORKSPACE'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: mutedInk),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style:  TextStyle(
+              fontSize: 13,
+              color: mutedInk,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyView() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 55),
+      child: Column(
+        children: [
+           Icon(
+            Icons.assignment_outlined,
+            size: 65,
+            color: teal,
+          ),
+          const SizedBox(height: 15),
+           Text(
+            'No requests found',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.bold,
+              color: ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+           Text(
+            'Create your first excavation request '
+            'using the button below.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: mutedInk),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorView() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 40),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 55,
+            color: Colors.redAccent,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Unable to load requests',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            errorMessage ?? 'Unknown error',
+            textAlign: TextAlign.center,
+            style:  TextStyle(color: mutedInk),
+          ),
+          const SizedBox(height: 15),
+          FilledButton.icon(
+            onPressed: loadRequests,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// NEW EXCAVATION REQUEST FORM
+// ==========================================
+
+class NewRequestPage extends StatefulWidget {
+  const NewRequestPage({super.key});
+
+  @override
+  State<NewRequestPage> createState() => _NewRequestPageState();
+}
+
+class _NewRequestPageState extends State<NewRequestPage> {
+  LatLng? selectedWorkPoint;
+  String selectedCategory = 'road_reconstruction';
+  String selectedActivity = 'new_installation';
+  final _formKey = GlobalKey<FormState>();
+
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _roadController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _workRadiusController = TextEditingController();
+
+  DateTime? startDate;
+  DateTime? endDate;
+
+  bool submitting = false;
+  String? formError;
+  Future<void> pickWorkLocation() async {
+  final LatLng? picked = await Navigator.push<LatLng>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MapLocationPickerPage(
+        initialPoint: selectedWorkPoint,
+      ),
+    ),
+  );
+
+  if (picked == null || !mounted) return;
+
+  setState(() {
+    selectedWorkPoint = picked;
+  });
+  }
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _roadController.dispose();
+    _cityController.dispose();
+    _workRadiusController.dispose();
+    super.dispose();
+  }
+
+  Future<void> chooseDate(bool isStart) async {
+    final now = DateTime.now();
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: isStart
+          ? startDate ?? now
+          : endDate ?? startDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 10),
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      if (isStart) {
+        startDate = selected;
+
+        if (endDate != null && endDate!.isBefore(selected)) {
+          endDate = null;
+        }
+      } else {
+        endDate = selected;
+      }
+    });
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) return 'Select date';
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  Future<void> submitRequest() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (selectedWorkPoint == null) {
+      setState(() {
+        formError = 'Select the work or issue location on the map to support GIS coordination.';
+      });
+      return;
+    }
+
+    final radiusText = _workRadiusController.text.trim();
+    final workRadius = radiusText.isEmpty ? null : double.tryParse(radiusText);
+    if (radiusText.isNotEmpty &&
+        (workRadius == null || workRadius < 1 || workRadius > 500)) {
+      setState(() {
+        formError = 'Work-site radius must be a number between 1 and 500 metres.';
+      });
+      return;
+    }
+
+    if (startDate != null &&
+        endDate != null &&
+        endDate!.isBefore(startDate!)) {
+      setState(() {
+        formError = 'End date cannot be before start date.';
+      });
+      return;
+    }
+
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        formError = 'Your session has expired. Please log in again.';
+      });
+      return;
+    }
+
+    setState(() {
+      submitting = true;
+      formError = null;
+    });
+
+    try {
+      final data = <String, dynamic>{
+        'requester_id': user.id,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'road_name': _roadController.text.trim(),
+        'city': _cityController.text.trim(),
+        'case_category': selectedCategory,
+        'work_activity': selectedActivity,
+        'work_radius_m': workRadius,
+        'latitude': selectedWorkPoint!.latitude,
+        'longitude': selectedWorkPoint!.longitude,
+      };
+
+      if (startDate != null) {
+        data['planned_start_date'] =
+            startDate!.toIso8601String().split('T').first;
+      }
+
+      if (endDate != null) {
+        data['planned_end_date'] =
+            endDate!.toIso8601String().split('T').first;
+      }
+
+      await supabase
+          .from('excavation_requests')
+          .insert(data)
+          .select()
+          .single();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Infrastructure case submitted successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        formError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          submitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Infrastructure Case'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+             Text(
+              'Request details',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: ink,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+             Text(
+              'Register a work proposal or infrastructure issue for coordinated review by the responsible departments.',
+              style: TextStyle(color: mutedInk),
+            ),
+
+            const SizedBox(height: 22),
+
+            _field(
+              controller: _titleController,
+              label: 'Project title',
+              icon: Icons.title,
+              required: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _descriptionController,
+              label: 'Work / issue description',
+              icon: Icons.description_outlined,
+              maxLines: 4,
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedCategory,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Infrastructure domain',
+                prefixIcon: Icon(Icons.account_tree_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'road_reconstruction', child: Text('Road reconstruction')),
+                DropdownMenuItem(value: 'water_supply', child: Text('Water supply')),
+                DropdownMenuItem(value: 'sewerage', child: Text('Sewerage')),
+                DropdownMenuItem(value: 'stormwater_drainage', child: Text('Stormwater and drainage')),
+                DropdownMenuItem(value: 'electricity', child: Text('Electricity')),
+                DropdownMenuItem(value: 'telecom', child: Text('Telecommunications')),
+                DropdownMenuItem(value: 'gas', child: Text('Gas network')),
+                DropdownMenuItem(value: 'borewell_groundwater', child: Text('Borewell and groundwater')),
+                DropdownMenuItem(value: 'building_planning', child: Text('Building planning / regulation')),
+                DropdownMenuItem(value: 'public_health_engineering', child: Text('Public health engineering')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedCategory = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedActivity,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Reported issue / work activity',
+                prefixIcon: Icon(Icons.build_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'new_installation', child: Text('New installation / development')),
+                DropdownMenuItem(value: 'repair', child: Text('Repair')),
+                DropdownMenuItem(value: 'maintenance', child: Text('Repair / maintenance of existing infrastructure')),
+                DropdownMenuItem(value: 'relocation', child: Text('Relocation')),
+                DropdownMenuItem(value: 'survey', child: Text('Survey')),
+                DropdownMenuItem(value: 'inspection', child: Text('Inspection')),
+                DropdownMenuItem(value: 'violation_report', child: Text('Possible violation / complaint')),
+                DropdownMenuItem(value: 'emergency_response', child: Text('Emergency response')),
+                DropdownMenuItem(value: 'repeat_excavation_coordination', child: Text('Repeated digging / joint-work coordination')),
+                DropdownMenuItem(value: 'utility_route_conflict', child: Text('Underground utility route conflict / clash')),
+                DropdownMenuItem(value: 'unplanned_road_cutting', child: Text('Unplanned road cutting / restoration issue')),
+                DropdownMenuItem(value: 'frontage_drainage_gap', child: Text('Missing or obstructed house-front drainage')),
+                DropdownMenuItem(value: 'unauthorised_borewell', child: Text('Possible unauthorised / excessive borewell')),
+                DropdownMenuItem(value: 'groundwater_overextraction', child: Text('Groundwater stress / over-extraction concern')),
+                DropdownMenuItem(value: 'building_height_violation', child: Text('Possible building height / planning violation')),
+                DropdownMenuItem(value: 'water_pipeline_leakage', child: Text('Drinking-water pipeline leakage / failure')),
+                DropdownMenuItem(value: 'water_pipeline_mapping', child: Text('Water pipeline mapping / asset-record gap')),
+                DropdownMenuItem(value: 'stormwater_encroachment', child: Text('Stormwater drain obstruction / encroachment')),
+                DropdownMenuItem(value: 'other', child: Text('Other infrastructure issue')),
+              ],
+              onChanged: submitting ? null : (value) {
+                if (value != null) setState(() => selectedActivity = value);
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _roadController,
+              label: 'Road name / location',
+              icon: Icons.location_on_outlined,
+              required: true,
+            ),
+
+            const SizedBox(height: 16),
+
+            _field(
+              controller: _cityController,
+              label: 'City',
+              icon: Icons.location_city,
+              required: true,
+            ),
+            const SizedBox(height: 14),
+
+            OutlinedButton.icon(
+              onPressed: pickWorkLocation,
+              icon: const Icon(Icons.location_on),
+              label: Text(
+                selectedWorkPoint == null
+                    ? 'Select work location on map'
+                    : 'Change selected location',
+              ),
+             ),
+
+             if (selectedWorkPoint != null) ...[
+               const SizedBox(height: 8),
+               Text(
+                  'Latitude: ${selectedWorkPoint!.latitude.toStringAsFixed(6)}\n'
+                  'Longitude: ${selectedWorkPoint!.longitude.toStringAsFixed(6)}',
+                  style: const TextStyle(fontSize: 13),
+               ),
+              ],
+
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _workRadiusController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Approximate work-site radius (metres)',
+                helperText: 'Optional. Enter 1–500 m to enable the recorded-utility proximity check. This is not a verified work boundary or safety clearance.',
+                prefixIcon: Icon(Icons.radar_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                final text = (value ?? '').trim();
+                if (text.isEmpty) return null;
+                final number = double.tryParse(text);
+                if (number == null || number < 1 || number > 500) {
+                  return 'Enter a radius between 1 and 500 metres.';
+                }
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 22),
+
+             Text(
+              'Planned schedule',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: ink,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            _dateTile(
+              'Planned start date',
+              startDate,
+              true,
+            ),
+
+            const SizedBox(height: 12),
+
+            _dateTile(
+              'Planned end date',
+              endDate,
+              false,
+            ),
+
+            const SizedBox(height: 18),
+
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: teal.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child:  Text(
+                'A case number will be generated automatically. Department assignment and official decisions are completed by authorised officers.',
+                style: TextStyle(
+                  color: ink,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+
+            if (formError != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  formError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 22),
+
+            FilledButton.icon(
+              onPressed: submitting ? null : submitRequest,
+              style: FilledButton.styleFrom(
+                backgroundColor: navy,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              icon: submitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(
+                submitting ? 'SUBMITTING...' : 'SUBMIT REQUEST',
+              ),
+            ),
+
+            const SizedBox(height: 25),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool required = false,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: const OutlineInputBorder(),
+        alignLabelWithHint: maxLines > 1,
+      ),
+      validator: (value) {
+        if (required &&
+            (value == null || value.trim().isEmpty)) {
+          return 'Please enter $label';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _dateTile(
+    String label,
+    DateTime? date,
+    bool isStart,
+  ) {
+    return OutlinedButton(
+      onPressed: submitting ? null : () => chooseDate(isStart),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.all(16),
+        alignment: Alignment.centerLeft,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      child: Row(
+        children: [
+           Icon(Icons.calendar_month, color: teal),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style:  TextStyle(color: mutedInk),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formatDate(date),
+                  style:  TextStyle(
+                    color: ink,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.edit_calendar_outlined),
+        ],
+      ),
+    );
+  }
+}
+
+
+// ==========================================
+// MAP
+// ==========================================
+
+
+class MapLocationPickerPage extends StatefulWidget {
+  final LatLng? initialPoint;
+
+  const MapLocationPickerPage({
+    super.key,
+    this.initialPoint,
+  });
+
+  @override
+  State<MapLocationPickerPage> createState() =>
+      _MapLocationPickerPageState();
+}
+
+class _MapLocationPickerPageState
+    extends State<MapLocationPickerPage> {
+  MapLibreMapController? _controller;
+  bool _ready = false;
+  bool _locating = false;
+  bool _hasLocationPermission = false;
+
+  static const String _style =
+      'https://tiles.openfreemap.org/styles/liberty';
+
+  LatLng get _initialPoint =>
+      widget.initialPoint ?? const LatLng(0, 0);
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _ready = true);
+
+    if (widget.initialPoint == null) {
+      await _goToCurrentLocation();
+    }
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _message('Location permission is needed only to centre the map on your device. You can still select a location manually.');
+    }
+    return false;
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    final controller = _controller;
+    if (controller == null || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!mounted || !granted) return;
+
+    setState(() => _locating = true);
+
+    try {
+      final location =
+          await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _message(
+          'Current location unavailable. Check GPS permissions.',
+        );
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 18,
+            tilt: 45,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1000),
+      );
+    } catch (_) {
+      _message(
+        'Unable to access GPS. You can still move the map manually.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _locating = false);
+      }
+    }
+  }
+
+  Future<void> _confirmLocation() async {
+    final controller = _controller;
+
+    if (controller == null || !_ready) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      final selected = camera?.target;
+
+      if (selected == null) {
+        _message('Unable to read the selected map coordinates.');
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.pop(context, selected);
+    } catch (_) {
+      _message('Unable to select this location.');
+    }
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: panelNavy,
+      appBar: AppBar(
+        title: const Text('Select Work Location'),
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Use current GPS location',
+            onPressed: _goToCurrentLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              styleString: _style,
+              initialCameraPosition: CameraPosition(
+                target: _initialPoint,
+                zoom: widget.initialPoint == null ? 2 : 17,
+                tilt: 40,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              myLocationEnabled: _hasLocationPermission,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              minMaxZoomPreference:
+                  const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          // Fixed centre marker: selected coordinate is
+          // the map centre when the user confirms.
+          const Center(
+            child: IgnorePointer(
+              child: Icon(
+                Icons.location_on,
+                size: 46,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+
+          if (!_ready)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF23C5B5),
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 20,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xF2182638),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Move the map until the required work location '
+                    'is under the centre marker.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed:
+                        _ready ? _confirmLocation : null,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('CONFIRM THIS LOCATION'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFF13A89E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_locating)
+            const Positioned(
+              top: 15,
+              left: 15,
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      SizedBox(width: 9),
+                      Text('Finding GPS location...'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+// ==========================================
+// ==========================================
+// LPU CAMPUS — LIVE BASEMAP VIEW
+// ==========================================
+// Uses the same live national GIS map as every other region. No synthetic
+// routes or invented campus asset locations are rendered. LPU-owned utility
+// geometry will appear only after authorised, verified survey records exist.
+class LpuCampusModelPage extends StatelessWidget {
+  const LpuCampusModelPage({super.key});
+
+  static const LatLng _campusCentre = LatLng(31.2559, 75.7050);
+
+  @override
+  Widget build(BuildContext context) => const MapPage(
+    initialCenter: _campusCentre,
+    initialZoom: 16.1,
+    initialTilt: 54,
+    contextLabel: 'LPU CAMPUS · PHAGWARA',
+  );
+}
+
+class ClashVisualizerPage extends StatefulWidget {
+  const ClashVisualizerPage({super.key, required this.candidates});
+  final List<Map<String, dynamic>> candidates;
+
+  @override
+  State<ClashVisualizerPage> createState() => _ClashVisualizerPageState();
+}
+
+class _ClashVisualizerPageState extends State<ClashVisualizerPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flow;
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _flow = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _flow.dispose();
+    super.dispose();
+  }
+
+  String _caseTitle(dynamic value) {
+    if (value is! Map) return 'Infrastructure case';
+    final row = Map<String, dynamic>.from(value);
+    return (row['title'] ?? row['case_category'] ?? row['request_number'] ?? 'Infrastructure case')
+        .toString().replaceAll('_', ' ');
+  }
+
+  Widget _alertCard(Map<String, dynamic> match, int index) {
+    final first = Map<String, dynamic>.from(match['first'] as Map);
+    final second = Map<String, dynamic>.from(match['second'] as Map);
+    final distance = ((match['distance'] as num?) ?? 0).toDouble();
+    final start = match['start'] is DateTime ? match['start'] as DateTime : null;
+    final end = match['end'] is DateTime ? match['end'] as DateTime : null;
+    final selected = index == _selectedIndex;
+    final title = _caseTitle(first) + '  ↔  ' + _caseTitle(second);
+    final window = start == null || end == null
+        ? 'Overlapping planned works · date window unavailable'
+        : 'Overlapping window · ' + start.toString().substring(0, 10) + ' – ' + end.toString().substring(0, 10);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: InkWell(
+        onTap: () => setState(() => _selectedIndex = index),
+        borderRadius: BorderRadius.circular(13),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF3A222B) : const Color(0xFF14253A),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: selected ? const Color(0xFFFF646E) : const Color(0xFF30465B),
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: selected
+                ? const [BoxShadow(color: Color(0x33FF454F), blurRadius: 18)]
+                : const [],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.warning_amber_rounded,
+                color: selected ? const Color(0xFFFF767F) : const Color(0xFFFFB45F), size: 17),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'POTENTIAL SPATIAL OVERLAP',
+                style: TextStyle(
+                  color: selected ? const Color(0xFFFFA1A6) : const Color(0xFFFFD18D),
+                  fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7,
+                ),
+              )),
+              Text(distance.round().toString() + ' m',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+            ]),
+            const SizedBox(height: 8),
+            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(window, style: const TextStyle(color: Color(0xFFB8C9D8), fontSize: 9)),
+            const SizedBox(height: 7),
+            Text(
+              'Coordinator review required · verify owner records and field conditions',
+              style: TextStyle(color: selected ? const Color(0xFFFFA6AB) : const Color(0xFF91D7D0),
+                fontSize: 9, fontWeight: FontWeight.w700),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _sceneBadge(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0xE90B1A2B),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withValues(alpha: .6)),
+    ),
+    child: Text(text, style: TextStyle(color: color, fontSize: 8,
+      fontWeight: FontWeight.w900, letterSpacing: .6)),
+  );
+
+  Widget _legendDot(Color color, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(width: 8, height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: color.withValues(alpha: .45), blurRadius: 7)])),
+      const SizedBox(width: 5),
+      Text(label, style: const TextStyle(color: Color(0xFFB8C9D8), fontSize: 8, fontWeight: FontWeight.w700)),
+    ],
+  );
+
+  Widget _scenePanel() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(fit: StackFit.expand, children: [
+            AnimatedBuilder(
+              animation: _flow,
+              builder: (context, _) => CustomPaint(
+                painter: _Clash3DScenePainter(
+                  phase: _flow.value,
+                  hasCandidate: widget.candidates.isNotEmpty,
+                  selectedIndex: _selectedIndex,
+                ),
+              ),
+            ),
+            Positioned(left: 13, top: 13,
+              child: _sceneBadge(
+                widget.candidates.isEmpty ? 'NO CURRENT CANDIDATES' : 'POTENTIAL OVERLAP DETECTED',
+                widget.candidates.isEmpty ? const Color(0xFF39C6B5) : const Color(0xFFFF666F),
+              ),
+            ),
+            Positioned(right: 12, top: 12,
+              child: _sceneBadge('3D CUTAWAY · ADVISORY', const Color(0xFF8BDCD3))),
+            Positioned(right: 12, bottom: 12,
+              child: _sceneBadge('SCHEMATIC · NOT SURVEYED', const Color(0xFFFFD18D))),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 11),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _legendDot(const Color(0xFF31BFF2), 'Water'),
+          _legendDot(const Color(0xFFFFA34B), 'Sewer'),
+          _legendDot(const Color(0xFFB88CFF), 'Power / fibre'),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MapPage()),
+            ),
+            icon: const Icon(Icons.map_outlined, size: 16),
+            label: const Text('Open live GIS'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF167D87),
+              foregroundColor: Colors.white,
+              textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFF071426),
+    appBar: AppBar(
+      backgroundColor: const Color(0xFF0B1D31),
+      foregroundColor: Colors.white,
+      title: Row(children: [
+        const Icon(Icons.hub_rounded, color: Color(0xFF5ED8D0), size: 22),
+        const SizedBox(width: 9),
+        const Expanded(child: Text('CLASH DETECTION & CONFLICT ALERT',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: .55))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFF4B2029), borderRadius: BorderRadius.circular(9)),
+          child: Text(widget.candidates.length.toString() + ' CANDIDATE(S)',
+            style: const TextStyle(color: Color(0xFFFF8990), fontSize: 8, fontWeight: FontWeight.w900)),
+        ),
+      ]),
+    ),
+    body: LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      final alertList = Container(
+        width: wide ? 350 : double.infinity,
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E2035),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: const Color(0xFF283D55)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Expanded(child: Text('CONFLICT CANDIDATES',
+              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))),
+            Text(widget.candidates.length.toString(),
+              style: const TextStyle(color: Color(0xFFFF7C84), fontSize: 17, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 7),
+          const Text('Different work domains within 100 m with overlapping planned dates.',
+            style: TextStyle(color: Color(0xFF9EB3C6), fontSize: 9, height: 1.4)),
+          const SizedBox(height: 12),
+          Expanded(
+            child: widget.candidates.isEmpty
+                ? const Center(child: Text(
+                    'No qualifying candidates in the current record window.\nCases without coordinates or planned dates are not assessed.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF9EB3C6), fontSize: 11, height: 1.5),
+                  ))
+                : ListView.builder(
+                    itemCount: widget.candidates.length,
+                    itemBuilder: (context, index) => _alertCard(widget.candidates[index], index),
+                  ),
+          ),
+        ]),
+      );
+
+      final scene = Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D1C2D),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: const Color(0xFF28445D)),
+        ),
+        child: Column(children: [
+          Expanded(child: _scenePanel()),
+          const SizedBox(height: 10),
+          const Text(
+            'This view is a coordination aid, not an underground utility survey. Candidate generation is rule-based. The 3D crossing graphic is illustrative; live pipe routes appear only when verified owner-authorised geometry is available.',
+            style: TextStyle(color: Color(0xFFFFD18D), fontSize: 8.5, height: 1.45),
+          ),
+        ]),
+      );
+
+      if (wide) {
+        return Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SizedBox(width: 350, child: alertList),
+            const SizedBox(width: 13),
+            Expanded(child: scene),
+          ]),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(children: [
+          SizedBox(height: 250, child: alertList),
+          const SizedBox(height: 10),
+          Expanded(child: scene),
+        ]),
+      );
+    }),
+  );
+}
+
+class _DemoUndergroundCrossSectionPainter extends CustomPainter {
+  const _DemoUndergroundCrossSectionPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final ground = h * .34;
+    final soil = Paint()..color = const Color(0xFF25384A);
+    canvas.drawRect(Rect.fromLTWH(0, ground, w, h - ground), soil);
+    canvas.drawRect(
+      Rect.fromLTWH(0, ground - 12, w, 12),
+      Paint()..color = const Color(0xFF64748B),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, ground - 3, w, 3),
+      Paint()..color = const Color(0xFFCBD5E1),
+    );
+
+    final lane = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    for (var x = 10.0; x < w; x += 25) {
+      canvas.drawLine(Offset(x, ground - 7), Offset(x + 12, ground - 7), lane);
+    }
+
+    final strata = Paint()
+      ..color = const Color(0xFF78909C).withValues(alpha: .35)
+      ..strokeWidth = 1;
+    for (var y = ground + 22; y < h; y += 20) {
+      canvas.drawLine(Offset(0, y), Offset(w, y), strata);
+    }
+
+    void conduit(double y, Color color, double thickness, {double phase = 0}) {
+      final path = Path()
+        ..moveTo(-4, y)
+        ..cubicTo(w * .22, y - 8 + phase, w * .38, y + 8, w * .53, y)
+        ..cubicTo(w * .70, y - 7, w * .82, y + 6 - phase, w + 4, y - 1);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFF07111D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = thickness + 4
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = thickness
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    conduit(ground + 23, const Color(0xFF38BDF8), 5, phase: 2);
+    conduit(ground + 43, const Color(0xFF22C55E), 4, phase: -2);
+    conduit(ground + 62, const Color(0xFFFBBF24), 3);
+    conduit(ground + 80, const Color(0xFFFB7185), 4, phase: 1);
+
+    final marker = Paint()..color = const Color(0xFFCBD5E1);
+    for (final x in [w * .18, w * .48, w * .78]) {
+      canvas.drawCircle(Offset(x, ground + 23), 2.3, marker);
+    }
+
+    final labels = [
+      ('WATER', const Color(0xFF38BDF8)),
+      ('DRAIN', const Color(0xFF22C55E)),
+      ('POWER / FIBRE', const Color(0xFFFBBF24)),
+      ('GAS', const Color(0xFFFB7185)),
+    ];
+    for (var i = 0; i < labels.length; i++) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: labels[i].$1,
+          style: TextStyle(
+            color: labels[i].$2,
+            fontSize: 6.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .35,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: w * .35);
+      painter.paint(canvas, Offset(w - painter.width - 6, ground + 13 + i * 17));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DemoUndergroundCrossSectionPainter oldDelegate) => false;
+}
+
+class _Clash3DScenePainter extends CustomPainter {
+  const _Clash3DScenePainter({
+    required this.phase,
+    required this.hasCandidate,
+    required this.selectedIndex,
+  });
+  final double phase;
+  final bool hasCandidate;
+  final int selectedIndex;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height, rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0xFF0C2439), Color(0xFF091829), Color(0xFF050F1C)],
+      ).createShader(rect));
+
+    final roadTop = Path()
+      ..moveTo(w * .03, h * .18)
+      ..lineTo(w * .94, h * .08)
+      ..lineTo(w * .98, h * .48)
+      ..lineTo(w * .07, h * .62)
+      ..close();
+    canvas.drawPath(roadTop, Paint()..color = const Color(0xFF384B5E));
+    canvas.drawPath(roadTop, Paint()
+      ..color = const Color(0xFF9FB4C4).withValues(alpha: .65)
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2);
+
+    final soil = Path()
+      ..moveTo(w * .07, h * .62)
+      ..lineTo(w * .98, h * .48)
+      ..lineTo(w * .98, h)
+      ..lineTo(w * .07, h)
+      ..close();
+    canvas.drawPath(soil, Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0xFF354854), Color(0xFF1E3443), Color(0xFF102538)],
+      ).createShader(Rect.fromLTWH(0, h * .48, w, h * .52)));
+
+    for (var i = 0; i < 4; i++) {
+      final y = h * (.68 + i * .075);
+      final band = Path()
+        ..moveTo(w * .07, y)
+        ..cubicTo(w * .34, y - h * .035, w * .64, y + h * .02, w * .98, y - h * .04);
+      canvas.drawPath(band, Paint()
+        ..color = const Color(0xFFB0C3BF).withValues(alpha: .16)
+        ..style = PaintingStyle.stroke..strokeWidth = 1.1);
+    }
+
+    final centre = Path()
+      ..moveTo(w * .06, h * .39)
+      ..cubicTo(w * .35, h * .34, w * .62, h * .28, w * .96, h * .23);
+    canvas.drawPath(centre, Paint()
+      ..color = const Color(0xFFD3E0E8).withValues(alpha: .70)
+      ..style = PaintingStyle.stroke..strokeWidth = 1.2);
+
+    Path pipe(double y, bool reverse) {
+      final p = Path();
+      if (!reverse) {
+        p.moveTo(-w * .03, y);
+        p.cubicTo(w * .23, y - h * .16, w * .36, y + h * .12, w * .54, h * .77);
+        p.cubicTo(w * .72, h * .86, w * .83, y - h * .09, w * 1.04, y + h * .05);
+      } else {
+        p.moveTo(w * .04, h * .91);
+        p.cubicTo(w * .24, h * .76, w * .42, h * .71, w * .54, h * .77);
+        p.cubicTo(w * .69, h * .80, w * .81, h * .59, w * .98, h * .68);
+      }
+      return p;
+    }
+
+    void drawTube(Path path, Color color, double width, double offset) {
+      canvas.drawPath(path, Paint()
+        ..color = const Color(0xFF050C16)
+        ..style = PaintingStyle.stroke..strokeWidth = width + 11
+        ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = Color.lerp(color, Colors.black, .42)!
+        ..style = PaintingStyle.stroke..strokeWidth = width + 4
+        ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke..strokeWidth = width
+        ..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+      canvas.drawPath(path, Paint()
+        ..color = Colors.white.withValues(alpha: .42)
+        ..style = PaintingStyle.stroke..strokeWidth = math.max(1.1, width * .18).toDouble()
+        ..strokeCap = StrokeCap.round);
+      final m = path.computeMetrics().first;
+      for (var i = 0; i < 4; i++) {
+        final d = ((phase + offset + i / 4) % 1.0) * m.length;
+        final t = m.getTangentForOffset(d);
+        if (t == null) continue;
+        canvas.drawCircle(t.position, width * .66,
+          Paint()..color = color.withValues(alpha: .4)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7));
+        canvas.drawCircle(t.position, width * .22,
+          Paint()..color = Colors.white.withValues(alpha: .95));
+      }
+    }
+
+    drawTube(pipe(h * .72, false), const Color(0xFF27BDF5), 9, 0);
+    drawTube(pipe(h * .84, true), const Color(0xFFFF9848), 8, .28);
+    drawTube(pipe(h * .64, true), const Color(0xFF22C9A6), 5, .55);
+
+    final c = Offset(w * .54, h * .77);
+    if (hasCandidate) {
+      final pulse = .5 + .5 * math.sin(phase * math.pi * 2);
+      canvas.drawCircle(c, 17 + pulse * 16,
+        Paint()..color = const Color(0xFFFF334B).withValues(alpha: .19)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18));
+      canvas.drawCircle(c, 10 + pulse * 4,
+        Paint()..color = const Color(0xFFFF334B).withValues(alpha: .18)
+          ..style = PaintingStyle.stroke..strokeWidth = 2);
+      canvas.drawCircle(c, 5, Paint()..color = const Color(0xFFFF6A73));
+    } else {
+      canvas.drawCircle(c, 5, Paint()..color = const Color(0xFF44C9B6));
+    }
+
+    final grid = Paint()..color = Colors.white.withValues(alpha: .07)..strokeWidth = .7;
+    for (var i = 0; i < 6; i++) {
+      final yy = h * (.66 + i * .06);
+      canvas.drawLine(Offset(w * .07, yy), Offset(w * .98, yy - h * .13), grid);
+    }
+    final tp = TextPainter(
+      text: TextSpan(
+        text: hasCandidate ? 'POTENTIAL CONFLICT · REVIEW REQUIRED' : 'NO CURRENT COORDINATION CANDIDATE',
+        style: const TextStyle(color: Color(0xFFFFA3A8), fontSize: 9,
+          fontWeight: FontWeight.w900, letterSpacing: .7),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: w * .75);
+    tp.paint(canvas, Offset(w * .08, h * .06));
+  }
+
+  @override
+  bool shouldRepaint(covariant _Clash3DScenePainter old) =>
+      old.phase != phase || old.hasCandidate != hasCandidate || old.selectedIndex != selectedIndex;
+}
+
+class MapPage extends StatefulWidget {
+  const MapPage({
+    super.key,
+    this.initialCenter,
+    this.initialZoom = 3.5,
+    this.initialTilt = 0,
+    this.contextLabel,
+  });
+
+  final LatLng? initialCenter;
+  final double initialZoom;
+  final double initialTilt;
+  final String? contextLabel;
+
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  static const String _mapTilerKey =
+      String.fromEnvironment('MAPTILER_API_KEY');
+  // Dark OpenFreeMap OSM vector style; satellite uses the MapTiler source key.
+  static const String _vectorStyle =
+      'https://tiles.openfreemap.org/styles/dark';
+
+  static const String _esriImageryStyle = '''
+  {
+    "version": 8,
+    "sources": {
+      "esri-world-imagery": {
+        "type": "raster",
+        "tiles": ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+        "tileSize": 256,
+        "attribution": "Sources: Esri, Maxar, Earthstar Geographics, USDA FSA, USGS, and the GIS User Community"
+      },
+      "esri-world-imagery-labels": {
+        "type": "raster",
+        "tiles": ["https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],
+        "tileSize": 256,
+        "attribution": "Esri"
+      }
+    },
+    "layers": [
+      {"id": "esri-imagery", "type": "raster", "source": "esri-world-imagery"},
+      {"id": "esri-imagery-labels", "type": "raster", "source": "esri-world-imagery-labels"}
+    ]
+  }
+  ''';
+
+  MapLibreMapController? _controller;
+  CameraPosition? _pendingBasemapCamera;
+  final TextEditingController _searchController = TextEditingController();
+  final Set<String> _openingMapCases = <String>{};
+  Timer? _viewportRefreshTimer;
+  List<Map<String, dynamic>> _placeResults = [];
+  bool _searching = false;
+  bool _utilityQueryInFlight = false;
+  bool _requestLayerInFlight = false;
+  bool _requestLayerRefreshPending = false;
+  String _scaleLabel = '';
+  double _scaleWidth = 80;
+  // Initial camera pitch is zero; begin in honest 2D state. The 3D control
+  // animates to a pitched camera and enables the extrusion layers.
+  bool _is3D = false;
+  // Start in the underground presentation so the subsurface model is
+  // immediately visible to Citizens and officials. Verified operational
+  // geometry remains permission-gated; the public schematic is illustrative.
+  bool _undergroundMode = true;
+   final Set<String> _undergroundVisibleLayers = <String>{
+     'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell',
+   };
+  bool _styleReady = false;
+  bool _buildingReadinessLoaded = false;
+  bool _utilityReadinessLoaded = false;
+  bool _groundwaterReadinessLoaded = false;
+  int _approvalRecordCount = 0;
+  int _approvalMappedCount = 0;
+  int _approvalFloorCount = 0;
+  int _utilityLayerCatalogueCount = 0;
+  int _utilityLayersPending = 0;
+  int _utilityLayersOperational = 0;
+  int _groundwaterCoverageJurisdictions = 0;
+  int _groundwaterTelemetryGaps = 0;
+  bool _satellite = false;
+  bool _showRequests = true;
+  bool _showUtilityZones = true;
+  bool _canViewUtilityOverview = false;
+  bool _canViewConflictScreening = false;
+  bool _loadingLayers = false;
+  bool _locating = false;
+  bool _hasLocationPermission = false;
+  int _requestMarkerCount = 0;
+  int _utilityCellCount = 0;
+  int _verifiedAssetCount = 0;
+  int _unverifiedAssetCount = 0;
+  int _utilityConflictCount = 0;
+  String _utilityConflictStatus = 'Conflict screening has not run.';
+  List<Map<String, dynamic>> _visibleRequests = [];
+  final Map<String, Map<String, dynamic>> _utilityConflictDetails = {};
+  String _lastConflictAlertSignature = '';
+  bool _canViewDepartmentAssets = false;
+  bool _showVerifiedAssets = true;
+  bool _showCoimbatoreWardBoundaries = false;
+  int _coimbatoreWardCount = 0;
+  bool _showIndiaStateBoundaries = true;
+  bool _showIndiaDistrictBoundaries = false;
+  bool _indiaBoundaryLoadInFlight = false;
+  bool _indiaBoundaryRefreshPending = false;
+  int _indiaStateBoundaryCount = 0;
+  int _indiaDistrictBoundaryCount = 0;
+  String _indiaStateBoundaryVintage = 'Not loaded';
+  String _indiaDistrictBoundaryVintage = 'Not loaded';
+  String _indiaStateBoundaryAttribution = 'geoBoundaries / DataMeet / Election Commission of India';
+  String _indiaDistrictBoundaryAttribution = 'geoBoundaries / Pathways Data / LG Directory';
+  String _indiaStateBoundarySourceUpdateDate = 'Not reported';
+  String _indiaDistrictBoundarySourceUpdateDate = 'Not reported';
+  String _indiaStateBoundaryBuildDate = 'Not reported';
+  String _indiaDistrictBoundaryBuildDate = 'Not reported';
+  String _indiaBoundaryStatus = 'India reference boundaries are loading on demand.';
+  bool _showGroundwaterTelemetry = true;
+  int _groundwaterStationCount = 0;
+  String _groundwaterFreshnessLabel = 'Not loaded';
+  String _groundwaterArchiveLatestObservation = 'Not checked';
+  String _groundwaterLatestAgency = 'Not reported';
+  final Map<String, Map<String, dynamic>> _groundwaterStationDetails = {};
+  String _deviceCoordinateLabel = '';
+  String _layerStatus =
+      'Underground visibility requires authorised, verified GIS records.';
+  bool _routing = false;
+  String _routeSummary = '';
+  List<String> _routeInstructions = [];
+  Map<String, dynamic>? _activeRouteGeoJson;
+
+  String get _mapStyle {
+    if (_satellite) {
+      if (_mapTilerKey.isNotEmpty) {
+        return 'https://api.maptiler.com/maps/hybrid/style.json?key=$_mapTilerKey';
+      }
+      return _esriImageryStyle;
+    }
+    return _vectorStyle;
+  }
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+    controller.onFeatureTapped.add(_onMapFeatureTapped);
+  }
+
+  void _onMapFeatureTapped(
+    math.Point<double> point,
+    LatLng coordinates,
+    String id,
+    String layerId,
+    Annotation? annotation,
+  ) {
+    if (layerId == 'samanvay-groundwater-telemetry-points') {
+      final details = _groundwaterStationDetails[id];
+      if (details != null) {
+        final station = (details['station_name'] ?? 'Groundwater station').toString();
+        final district = (details['district_name'] ?? '').toString();
+        final state = (details['state_name'] ?? '').toString();
+        final reading = details['reported_level_m'];
+        final readingText = (details['reported_level_text'] ?? '').toString();
+        final observed = (details['observed_at_local'] ?? 'Timestamp unavailable').toString();
+        final place = [district, state].where((part) => part.isNotEmpty).join(', ');
+        final level = readingText.isNotEmpty
+            ? readingText
+            : reading == null ? 'not reported' : '$reading m';
+        _showMessage('$station${place.isEmpty ? '' : ' · $place'} · level: $level · observed: $observed');
+      }
+      return;
+    }
+    if (layerId == 'samanvay-utility-conflict-markers') {
+      final details = _utilityConflictDetails[id];
+      if (details != null) {
+        final conflicts = (details['conflicts'] as List?) ?? const [];
+        final summary = conflicts.take(3).map((raw) {
+          final item = Map<String, dynamic>.from(raw as Map);
+          return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m · depth ${item['depth_m'] ?? 'n/a'} m · accuracy ${item['horizontal_accuracy_m'] ?? 'unknown'} m';
+        }).join(' | ');
+        _showMessage(
+          'POTENTIAL UTILITY PROXIMITY · Request ${details['request_number']} · '
+          '${details['candidate_count']} verified asset match(es). $summary. '
+          'Recorded depths/accuracy are advisory metadata only. Obtain owner-department clearance and field verification; this is not a safety clearance.',
+        );
+      }
+      return;
+    }
+    if (layerId == 'samanvay-work-request-points') {
+      unawaited(_openCaseFromMap(id));
+    }
+  }
+
+  Future<void> _openCaseFromMap(String requestId) async {
+    final id = requestId.trim();
+    if (id.isEmpty || !_openingMapCases.add(id)) return;
+
+    try {
+      // Re-fetch through the authenticated client. RLS remains the authority
+      // for whether this account may open the selected case.
+      final row = await supabase
+          .from('excavation_requests')
+          .select('id,title,request_number')
+          .eq('id', id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      if (row == null) {
+        _showMessage('This case is no longer available to your account.');
+        return;
+      }
+
+      final title = (row['title'] ?? row['request_number'] ?? 'Infrastructure case').toString();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CaseWorkspacePage(
+            requestId: id,
+            requestTitle: title,
+          ),
+        ),
+      );
+    } catch (_) {
+      _showMessage('Unable to open this case. Your account may not have access.');
+    } finally {
+      _openingMapCases.remove(id);
+    }
+  }
+
+  @override
+  void dispose() {
+    _viewportRefreshTimer?.cancel();
+    try {
+      _controller?.onFeatureTapped.remove(_onMapFeatureTapped);
+    } catch (_) {}
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Reload request markers and cross-department advisories for the current
+  // map viewport. A pending flag coalesces camera movement during pagination.
+  Future<void> _loadVisibleWorkRequests() async {
+    if (_requestLayerInFlight) {
+      _requestLayerRefreshPending = true;
+      return;
+    }
+    _requestLayerInFlight = true;
+    try {
+      do {
+        _requestLayerRefreshPending = false;
+        final controller = _controller;
+        if (controller == null || !_styleReady) break;
+
+        final visibleBounds = await controller.getVisibleRegion();
+        final centerLatitude =
+            (visibleBounds.southwest.latitude + visibleBounds.northeast.latitude) / 2;
+        final latitudeBuffer = 1000 / 110540;
+        final longitudeScale =
+            (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+        final longitudeBuffer = 1000 / (111320 * longitudeScale);
+        final minRequestLat =
+            (visibleBounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+        final maxRequestLat =
+            (visibleBounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+        final minRequestLon =
+            (visibleBounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+        final maxRequestLon =
+            (visibleBounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+
+        final loadedRequestRows = <Map<String, dynamic>>[];
+        const requestPageSize = 500;
+        var requestOffset = 0;
+        while (true) {
+          final requestPage = await supabase
+              .from('excavation_requests')
+              .select('id,request_number,title,status,latitude,longitude,work_radius_m')
+              .gte('latitude', minRequestLat)
+              .lte('latitude', maxRequestLat)
+              .gte('longitude', minRequestLon)
+              .lte('longitude', maxRequestLon)
+              .order('created_at', ascending: false)
+              .order('id')
+              .range(requestOffset, requestOffset + requestPageSize - 1);
+          final pageRows = List<Map<String, dynamic>>.from(requestPage);
+          loadedRequestRows.addAll(pageRows);
+          if (pageRows.length < requestPageSize) break;
+          requestOffset += requestPageSize;
+        }
+
+        if (!mounted) break;
+        _visibleRequests = loadedRequestRows;
+        final features = <Map<String, dynamic>>[];
+        for (final row in loadedRequestRows) {
+          final lat = (row['latitude'] as num?)?.toDouble();
+          final lon = (row['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) {
+            continue;
+          }
+          features.add({
+            'type': 'Feature',
+            'id': row['id'].toString(),
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_id': row['id'].toString(),
+              'request_number': row['request_number']?.toString() ?? '',
+              'title': row['title']?.toString() ?? 'Infrastructure request',
+              'status': row['status']?.toString() ?? 'submitted',
+            },
+          });
+        }
+
+        final sourceIds = await controller.getSourceIds();
+        final requestCollection = {
+          'type': 'FeatureCollection',
+          'features': features,
+        };
+        if (sourceIds.contains('samanvay-work-requests')) {
+          await controller.setGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        } else {
+          await controller.addGeoJsonSource(
+            'samanvay-work-requests',
+            requestCollection,
+          );
+        }
+
+        var layerIds = await controller.getLayerIds();
+        if (!layerIds.contains('samanvay-work-request-points')) {
+          await controller.addCircleLayer(
+            'samanvay-work-requests',
+            'samanvay-work-request-points',
+            CircleLayerProperties(
+              circleRadius: 6,
+              circleColor: [
+                'match',
+                ['get', 'status'],
+                'submitted', '#38BDF8',
+                'under_review', '#F59E0B',
+                'approved', '#22C55E',
+                'in_progress', '#F97316',
+                'completed', '#64748B',
+                'resolved', '#64748B',
+                'rejected', '#EF4444',
+                '#20D6C2',
+              ],
+              circleOpacity: 0.96,
+              circleStrokeColor: '#082033',
+              circleStrokeWidth: 1.6,
+            ),
+            enableInteraction: true,
+          );
+          layerIds = await controller.getLayerIds();
+        }
+        if (layerIds.contains('samanvay-work-request-points')) {
+          await controller.setLayerVisibility(
+            'samanvay-work-request-points',
+            _showRequests,
+          );
+        }
+
+        if (mounted) {
+          setState(() => _requestMarkerCount = features.length);
+        }
+        if (_canViewConflictScreening) {
+          await _refreshUtilityConflictOverlay();
+        }
+      } while (_requestLayerRefreshPending && mounted);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Request locations or conflict advisories could not be refreshed. Check connectivity and staff access; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    } finally {
+      _requestLayerInFlight = false;
+    }
+  }
+
+  void _handleCameraIdle() {
+    if (!_styleReady) return;
+    _viewportRefreshTimer?.cancel();
+    _viewportRefreshTimer = Timer(const Duration(milliseconds: 420), () async {
+      if (!mounted) return;
+      await _refreshMapScale();
+      if (!mounted) return;
+      if (supabase.auth.currentUser != null) {
+        await _loadVisibleWorkRequests();
+      }
+      if (_showGroundwaterTelemetry) {
+        await _loadGroundwaterTelemetryStations();
+      }
+      if (_showUtilityZones && _canViewUtilityOverview) {
+        await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && _canViewDepartmentAssets) {
+        await _loadDepartmentAssets();
+      }
+    });
+  }
+
+  Future<void> _refreshMapScale() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final camera = await controller.queryCameraPosition();
+      if (camera == null) return;
+      final latitude = camera.target.latitude.clamp(-85.0, 85.0);
+      final metersPerPixel = (
+        156543.03392 *
+        math.cos(latitude * math.pi / 180) /
+        math.pow(2, camera.zoom)
+      ).toDouble();
+
+      if (!metersPerPixel.isFinite || metersPerPixel <= 0) return;
+      final targetMeters = metersPerPixel * 82;
+      final magnitude = math.pow(
+        10,
+        (math.log(targetMeters) / math.ln10).floor(),
+      ).toDouble();
+      final fraction = targetMeters / magnitude;
+      final niceMeters = (fraction >= 5 ? 5 : (fraction >= 2 ? 2 : 1)) * magnitude;
+      final width = (niceMeters / metersPerPixel).clamp(42.0, 112.0).toDouble();
+      final label = niceMeters >= 1000
+          ? '${(niceMeters / 1000).toStringAsFixed(niceMeters >= 10000 ? 0 : 1)} km'
+          : '${niceMeters.toStringAsFixed(niceMeters < 10 ? 1 : 0)} m';
+
+      if (!mounted) return;
+      setState(() {
+        _scaleLabel = label;
+        _scaleWidth = width;
+      });
+    } catch (_) {
+      // A missing camera reading does not block map navigation.
+    }
+  }
+
+  Future<void> _ensure3DBuildings() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      final sources = await controller.getSourceIds();
+      if (!sources.contains('openmaptiles')) return;
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-3d-buildings')) {
+        await controller.addFillExtrusionLayer(
+          'openmaptiles',
+          'samanvay-3d-buildings',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#66849A',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              14,
+              0,
+              16,
+              [
+                'max',
+                6,
+                [
+                  'coalesce',
+                  ['to-number', ['get', 'render_height']],
+                  ['to-number', ['get', 'height']],
+                  ['*', ['to-number', ['get', 'building:levels']], 3],
+                  6,
+                ],
+              ],
+            ],
+            fillExtrusionBase: [
+              'coalesce',
+              ['get', 'render_min_height'],
+              ['get', 'min_height'],
+              0,
+            ],
+            fillExtrusionOpacity: 0.84,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      // Fine footprint edges improve the legibility of real OSM building
+      // massing at neighbourhood zoom without inventing facade geometry.
+      final refreshedLayers = await controller.getLayerIds();
+      if (!refreshedLayers.contains('samanvay-3d-building-outlines')) {
+        await controller.addLineLayer(
+          'openmaptiles',
+          'samanvay-3d-building-outlines',
+          const LineLayerProperties(
+            lineColor: '#B8D0E0',
+            lineWidth: 0.65,
+            lineOpacity: 0.48,
+          ),
+          sourceLayer: 'building',
+          minzoom: 14,
+          enableInteraction: false,
+        );
+      }
+
+      await controller.setLayerVisibility(
+        'samanvay-3d-buildings',
+        _is3D,
+      );
+      await controller.setLayerVisibility(
+        'samanvay-3d-building-outlines',
+        _is3D,
+      );
+    } catch (_) {
+      // If a provider style lacks the expected source/attributes, the
+      // basemap remains usable. No illustrative buildings are substituted.
+    }
+  }
+
+  Future<void> _openJurisdictionNavigator() async {
+    List<Map<String, dynamic>> stateRows;
+    try {
+      final rows = await supabase
+          .from('india_state_uts')
+          .select('id,name,jurisdiction_type')
+          .order('name')
+          .limit(100);
+      stateRows = List<Map<String, dynamic>>.from(rows);
+    } catch (_) {
+      _showMessage('The State/UT directory could not be loaded for this account.');
+      return;
+    }
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: panelNavy,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        String? stateId;
+        String? districtId;
+        String? localBodyId;
+        String? wardId;
+        List<Map<String, dynamic>> districts = [];
+        List<Map<String, dynamic>> localBodies = [];
+        List<Map<String, dynamic>> wards = [];
+        bool loadingDistricts = false;
+        bool loadingLocalBodies = false;
+        bool loadingWards = false;
+        String directoryMessage = '';
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Map<String, dynamic>? findById(
+              List<Map<String, dynamic>> rows,
+              String? id,
+            ) {
+              if (id == null) return null;
+              for (final row in rows) {
+                if (row['id']?.toString() == id) return row;
+              }
+              return null;
+            }
+
+            String unitLabel(Map<String, dynamic> row) {
+              final name = (row['name'] ?? 'Unnamed unit').toString();
+              final code = (row['lgd_code'] ?? '').toString();
+              final verified = row['verification_status'] == 'authority_verified';
+              final suffix = verified
+                  ? ' · authority verified'
+                  : ' · imported, verification pending';
+              final sourceDate = (row['source_updated_at'] ?? '').toString().trim();
+              final datedSuffix = sourceDate.isEmpty ? '' : ' · report ' + sourceDate;
+              final sourceSystem = (row['source_system'] ?? '').toString();
+              final sourceSuffix = sourceSystem.startsWith('India LGD Community Mirror')
+                  ? ' · community LGD snapshot'
+                  : sourceSystem.startsWith('DataMeet')
+                      ? ' · reference only'
+                      : '';
+              return name + (code.isEmpty ? '' : ' · LGD ' + code) +
+                  suffix + datedSuffix + sourceSuffix;
+            }
+
+            Future<void> loadDistricts(String selectedId) async {
+              setSheetState(() {
+                loadingDistricts = true;
+                loadingLocalBodies = false;
+                loadingWards = false;
+                districts = [];
+                localBodies = [];
+                wards = [];
+                districtId = null;
+                localBodyId = null;
+                wardId = null;
+                directoryMessage = '';
+              });
+              try {
+                var rows = await supabase
+                    .from('india_administrative_units')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                    .eq('state_ut_id', selectedId)
+                    .eq('unit_type', 'district')
+                    .eq('source_system', 'Local Government Directory (LGD)')
+                    .eq('is_active', true)
+                    .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
+                    .order('name')
+                    .limit(1000);
+                // Prefer the newer community-mirrored LGD snapshot for map navigation
+                // when the direct LGD source has no rows. Its codes remain imported_unverified.
+                if (rows.isEmpty) {
+                  rows = await supabase
+                      .from('india_administrative_units')
+                      .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                      .eq('state_ut_id', selectedId)
+                      .eq('unit_type', 'district')
+                      .eq('source_system', 'India LGD Community Mirror 21Oct2026 — Districts')
+                      .eq('is_active', true)
+                      .eq('verification_status', 'imported_unverified')
+                      .order('name')
+                      .limit(1000);
+                }
+                // Fall back to the older DataMeet national name reference only if
+                // neither direct LGD nor the newer LGD mirror has rows.
+                if (rows.isEmpty) {
+                  rows = await supabase
+                      .from('india_administrative_units')
+                      .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                      .eq('state_ut_id', selectedId)
+                      .eq('unit_type', 'district')
+                      .eq('source_system', 'DataMeet India district boundaries via guneetnarula/indian-district-boundaries')
+                      .eq('is_active', true)
+                      .eq('verification_status', 'imported_unverified')
+                      .order('name')
+                      .limit(1000);
+                }
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  districts = List<Map<String, dynamic>>.from(rows);
+                  loadingDistricts = false;
+                  if (districts.isEmpty) {
+                    directoryMessage =
+                        'No district reference rows are available for this State/UT yet. State-level map search is still available.';
+                  } else if (districts.any((row) =>
+                      (row['source_system'] ?? '').toString().startsWith('India LGD Community Mirror'))) {
+                    directoryMessage =
+                        'Showing a community-mirrored LGD snapshot dated 21 Oct 2026 for map navigation. It is not a live government feed; all imported rows remain unverified pending an authoritative refresh. Do not use it as permit, statutory or utility-clearance evidence.';
+                  } else if (districts.any((row) =>
+                      (row['source_system'] ?? '').toString().startsWith('DataMeet'))) {
+                    directoryMessage =
+                        'Showing the DataMeet national district reference snapshot for map navigation only. Feature vintages vary; these are not current LGD records, carry no LGD codes, and must not be used as statutory or utility-clearance evidence.';
+                  }
+                });
+              } catch (_) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  loadingDistricts = false;
+                  directoryMessage =
+                      'District directory is unavailable under the current account permissions.';
+                });
+              }
+            }
+
+            Future<void> loadLocalBodies(String parentId) async {
+              setSheetState(() {
+                loadingLocalBodies = true;
+                loadingWards = false;
+                localBodies = [];
+                wards = [];
+                localBodyId = null;
+                wardId = null;
+                directoryMessage = '';
+              });
+              try {
+                var rows = await supabase
+                    .from('india_administrative_units')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                    .eq('state_ut_id', stateId!)
+                    .eq('parent_unit_id', parentId)
+                    .eq('unit_type', 'urban_local_body')
+                    .eq('source_system', 'Local Government Directory (LGD)')
+                    .eq('is_active', true)
+                    .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
+                    .order('name')
+                    .limit(1000);
+                // The independent 23-Sep-2026 LGD-derived community snapshot
+                // carries ULB codes and State/UT names, but no district parent.
+                // Keep it as a state-level navigation fallback only.
+                if (rows.isEmpty) {
+                  rows = await supabase
+                      .from('india_administrative_units')
+                      .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                      .eq('state_ut_id', stateId!)
+                      .eq('unit_type', 'urban_local_body')
+                      .eq('source_system', 'India Cities & Administrative Data API mirror 23Sep2026 — Urban Local Bodies')
+                      .eq('is_active', true)
+                      .eq('verification_status', 'imported_unverified')
+                      .order('name')
+                      .limit(1000);
+                }
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  localBodies = List<Map<String, dynamic>>.from(rows);
+                  loadingLocalBodies = false;
+                  if (localBodies.isEmpty) {
+                    directoryMessage =
+                        'No urban-local-body reference records are available for this State/UT.';
+                  } else if (localBodies.any((row) =>
+                      (row['source_system'] ?? '').toString().startsWith('India Cities & Administrative Data API mirror'))) {
+                    directoryMessage =
+                        'Showing a State/UT-level ULB reference snapshot dated 23 Sep 2026. The source does not provide district parent links or wards. These entries are unverified and are for navigation only, not statutory or permit evidence.';
+                  }
+                });
+              } catch (_) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  loadingLocalBodies = false;
+                  directoryMessage = 'Urban-local-body records could not be loaded.';
+                });
+              }
+            }
+
+            Future<void> loadWards(String parentId) async {
+              setSheetState(() {
+                loadingWards = true;
+                wards = [];
+                wardId = null;
+                directoryMessage = '';
+              });
+              try {
+                final rows = await supabase
+                    .from('india_administrative_units')
+                    .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
+                    .eq('state_ut_id', stateId!)
+                    .eq('parent_unit_id', parentId)
+                    .eq('unit_type', 'ward')
+                    .eq('source_system', 'Local Government Directory (LGD)')
+                    .eq('is_active', true)
+                    .inFilter('verification_status', ['imported_unverified', 'authority_verified'])
+                    .order('name')
+                    .limit(2000);
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  wards = List<Map<String, dynamic>>.from(rows);
+                  loadingWards = false;
+                  if (wards.isEmpty) {
+                    directoryMessage =
+                        'No ward records are linked to this urban local body in the imported LGD directory.';
+                  }
+                });
+              } catch (_) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  loadingWards = false;
+                  directoryMessage = 'Ward records could not be loaded.';
+                });
+              }
+            }
+
+            final selectedState = findById(stateRows, stateId);
+            final selectedDistrict = findById(districts, districtId);
+            final selectedLocalBody = findById(localBodies, localBodyId);
+            final selectedWard = findById(wards, wardId);
+
+            Widget unavailable(String message) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: panelNavy,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0x665F7C93)),
+              ),
+              child: Text(
+                message,
+                style:  TextStyle(
+                  color: mutedInk,
+                  fontSize: 10,
+                  height: 1.4,
+                ),
+              ),
+            );
+
+            final queryParts = [
+              selectedWard?['name'],
+              selectedLocalBody?['name'],
+              selectedDistrict?['name'],
+              selectedState?['name'],
+              'India',
+            ].where((part) => part != null && part.toString().trim().isNotEmpty)
+             .map((part) => part.toString().trim()).toList();
+            final canSearch = selectedState != null;
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16, 16, 16, MediaQuery.of(sheetContext).viewInsets.bottom + 18,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.account_tree_outlined,
+                              color: Color(0xFF55D9CE)),
+                          const SizedBox(width: 9),
+                          const Expanded(
+                            child: Text(
+                              'INDIA JURISDICTION NAVIGATOR',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .7,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            icon: const Icon(Icons.close, color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                       Text(
+                        'Choose a level from the imported directory. Missing district, city or ward records are not filled with estimates.',
+                        style: TextStyle(
+                          color: mutedInk,
+                          fontSize: 10,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 13),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('jurisdiction-state-' + (stateId ?? '')),
+                        initialValue: stateId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'State / Union Territory',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: stateRows.map((row) => DropdownMenuItem<String>(
+                          value: row['id'].toString(),
+                          child: Text(
+                            row['name'].toString(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )).toList(),
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          setSheetState(() {
+                            stateId = value;
+                            districtId = null;
+                            localBodyId = null;
+                            wardId = null;
+                          });
+                          await loadDistricts(value);
+                        },
+                      ),
+                      if (stateId != null) ...[
+                        const SizedBox(height: 10),
+                        if (loadingDistricts)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (districts.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('jurisdiction-district-' + (districtId ?? '') + '-' + districts.length.toString()),
+                            initialValue: districtId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'District (official LGD directory)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: districts.map((row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                unitLabel(row),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (value) async {
+                              if (value == null) return;
+                              setSheetState(() {
+                                districtId = value;
+                                localBodyId = null;
+                                wardId = null;
+                              });
+                              await loadLocalBodies(value);
+                            },
+                          )
+                        else if (!loadingDistricts)
+                          unavailable(
+                            'District directory not imported for this State/UT. You can still search the selected State/UT.',
+                          ),
+                      ],
+                      if (districtId != null) ...[
+                        const SizedBox(height: 10),
+                        if (loadingLocalBodies)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (localBodies.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('jurisdiction-ulb-' + (localBodyId ?? '') + '-' + localBodies.length.toString()),
+                            initialValue: localBodyId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'City / Urban Local Body',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: localBodies.map((row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                unitLabel(row),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (value) async {
+                              if (value == null) return;
+                              setSheetState(() {
+                                localBodyId = value;
+                                wardId = null;
+                              });
+                              await loadWards(value);
+                            },
+                          )
+                        else if (!loadingLocalBodies)
+                          unavailable(
+                            'No city / urban-local-body records are currently linked to the selected district.',
+                          ),
+                      ],
+                      if (localBodyId != null) ...[
+                        const SizedBox(height: 10),
+                        if (loadingWards)
+                          const LinearProgressIndicator(minHeight: 2),
+                        if (wards.isNotEmpty)
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('jurisdiction-ward-' + (wardId ?? '') + '-' + wards.length.toString()),
+                            initialValue: wardId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Ward',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: wards.map((row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                unitLabel(row),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (value) {
+                              if (value != null) setSheetState(() => wardId = value);
+                            },
+                          )
+                        else if (!loadingWards)
+                          unavailable(
+                            'No ward rows are currently linked to the selected urban local body.',
+                          ),
+                      ],
+                      if (directoryMessage.isNotEmpty)
+                        unavailable(directoryMessage),
+                      const SizedBox(height: 13),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: !canSearch
+                              ? null
+                              : () {
+                                  final query = queryParts.join(', ');
+                                  Navigator.of(sheetContext).pop();
+                                  _searchController.text = query;
+                                  _searchPlaces(query);
+                                },
+                          icon: const Icon(Icons.location_searching_rounded),
+                          label: Text(
+                            selectedWard != null
+                                ? 'SEARCH SELECTED WARD'
+                                : selectedLocalBody != null
+                                    ? 'SEARCH SELECTED CITY'
+                                    : selectedDistrict != null
+                                        ? 'SEARCH SELECTED DISTRICT'
+                                        : 'SEARCH SELECTED STATE / UT',
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF13A89E),
+                            foregroundColor: background,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      const Text(
+                        'MAP NAVIGATION ONLY: The selected LGD name is sent to the map search provider. Search-result coordinates are geocoding results, not official boundary polygons or legal jurisdiction geometry. Imported LGD rows remain unverified until authority review.',
+                        style: TextStyle(
+                          color: Color(0xFFF6C66B),
+                          fontSize: 9,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _searchPlaces(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.isEmpty) {
+      _showMessage('Enter a place, area, ward or road name to search.');
+      return;
+    }
+    if (query.length > 120) {
+      _showMessage('Search text is too long. Use a shorter place name.');
+      return;
+    }
+    // MapTiler is preferred when configured. Photon provides a no-key
+    // OpenStreetMap-based fallback so place search still works in free builds.
+
+    setState(() {
+      _searching = true;
+      _placeResults = [];
+    });
+
+    try {
+      final uri = _mapTilerKey.isNotEmpty
+          ? Uri.https(
+              'api.maptiler.com',
+              '/geocoding/$query.json',
+              {
+                'key': _mapTilerKey,
+                'limit': '6',
+                'country': 'IN',
+                'language': 'en',
+                'autocomplete': 'false',
+              },
+            )
+          : Uri.https(
+              'photon.komoot.io',
+              '/api/',
+              {
+                'q': query,
+                'limit': '6',
+                'lang': 'en',
+              },
+            );
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) {
+        throw StateError('Place search provider returned HTTP ${response.statusCode}.');
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['features'] is! List) {
+        throw const FormatException('Unexpected place search response.');
+      }
+
+      final results = <Map<String, dynamic>>[];
+      for (final rawFeature in decoded['features'] as List) {
+        if (rawFeature is! Map) continue;
+        final feature = Map<String, dynamic>.from(rawFeature);
+
+        if (_mapTilerKey.isNotEmpty) {
+          final center = feature['center'];
+          if (center is List &&
+              center.length >= 2 &&
+              center[0] is num &&
+              center[1] is num) {
+            results.add(feature);
+          }
+          continue;
+        }
+
+        // Normalize Photon GeoJSON to the same shape consumed by _selectPlace.
+        final geometry = feature['geometry'];
+        final properties = feature['properties'];
+        if (geometry is! Map || properties is! Map) continue;
+        final coordinates = geometry['coordinates'];
+        if (coordinates is! List ||
+            coordinates.length < 2 ||
+            coordinates[0] is! num ||
+            coordinates[1] is! num) {
+          continue;
+        }
+        final props = Map<String, dynamic>.from(properties);
+        final name = (props['name'] ??
+                props['street'] ??
+                props['district'] ??
+                props['city'] ??
+                'Place')
+            .toString();
+        final locationParts = [
+          name,
+          props['district'],
+          props['city'],
+          props['state'],
+          props['country'],
+        ].where((part) => part != null && part.toString().trim().isNotEmpty)
+         .map((part) => part.toString().trim())
+         .toList();
+        results.add({
+          'center': [coordinates[0], coordinates[1]],
+          'text': name,
+          'place_name': locationParts.toSet().join(', '),
+        });
+      }
+
+      if (!mounted) return;
+      setState(() => _placeResults = results);
+      if (results.isEmpty) {
+        _showMessage('No matching place was found. Try a nearby landmark or shorter query.');
+      }
+    } catch (_) {
+      _showMessage('Place search failed. Check the MapTiler key, connection and usage quota.');
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _selectPlace(Map<String, dynamic> feature) async {
+    final center = feature['center'];
+    if (center is! List ||
+        center.length < 2 ||
+        center[0] is! num ||
+        center[1] is! num) {
+      _showMessage('The selected place has no usable map coordinates.');
+      return;
+    }
+
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    final longitude = (center[0] as num).toDouble();
+    final latitude = (center[1] as num).toDouble();
+    final name = (feature['place_name'] ?? feature['text'] ?? 'Selected place').toString();
+
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(latitude, longitude),
+            zoom: 16,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchController.text = name;
+        _placeResults = [];
+      });
+      FocusScope.of(context).unfocus();
+    } catch (_) {
+      _showMessage('Unable to move the map to that search result.');
+    }
+  }
+
+  Future<LatLng> _geocodeRoutePlace(String query) async {
+    final uri = Uri.https('photon.komoot.io', '/api/', {
+      'q': query,
+      'limit': '1',
+      'lang': 'en',
+    });
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw StateError('Place lookup returned HTTP ${response.statusCode}.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['features'] is! List ||
+        (decoded['features'] as List).isEmpty) {
+      throw StateError('Could not find: $query');
+    }
+    final first = (decoded['features'] as List).first;
+    if (first is! Map || first['geometry'] is! Map) {
+      throw const FormatException('Place lookup returned invalid geometry.');
+    }
+    final coordinates = (first['geometry'] as Map)['coordinates'];
+    if (coordinates is! List || coordinates.length < 2 ||
+        coordinates[0] is! num || coordinates[1] is! num) {
+      throw const FormatException('Place lookup returned invalid coordinates.');
+    }
+    return LatLng(
+      (coordinates[1] as num).toDouble(),
+      (coordinates[0] as num).toDouble(),
+    );
+  }
+
+  Future<void> _renderActiveRoute() async {
+    final controller = _controller;
+    final route = _activeRouteGeoJson;
+    if (controller == null || !_styleReady || route == null) return;
+
+    final sources = await controller.getSourceIds();
+    if (sources.contains('samanvay-navigation-route')) {
+      await controller.setGeoJsonSource('samanvay-navigation-route', route);
+    } else {
+      await controller.addGeoJsonSource('samanvay-navigation-route', route);
+    }
+
+    final layers = await controller.getLayerIds();
+    if (!layers.contains('samanvay-navigation-route-line')) {
+      await controller.addLineLayer(
+        'samanvay-navigation-route',
+        'samanvay-navigation-route-line',
+        const LineLayerProperties(
+          lineColor: '#20D6C2',
+          lineWidth: 5,
+          lineOpacity: 0.96,
+        ),
+        enableInteraction: false,
+      );
+    }
+    await controller.setLayerVisibility('samanvay-navigation-route-line', true);
+  }
+
+  Future<void> _calculateRoute(String originText, String destinationText) async {
+    if (_routing) return;
+    if (originText.trim().isEmpty || destinationText.trim().isEmpty) {
+      _showMessage('Enter both a starting point and a destination.');
+      return;
+    }
+
+    setState(() {
+      _routing = true;
+      _routeSummary = '';
+      _routeInstructions = [];
+    });
+
+    try {
+      final origin = await _geocodeRoutePlace(originText.trim());
+      final destination = await _geocodeRoutePlace(destinationText.trim());
+      final uri = Uri.https(
+        'router.project-osrm.org',
+        '/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}',
+        {
+          'overview': 'full',
+          'geometries': 'geojson',
+          'steps': 'true',
+          'alternatives': 'true',
+        },
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (response.statusCode != 200) {
+        throw StateError('Routing service returned HTTP ${response.statusCode}.');
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map || decoded['code'] != 'Ok' ||
+          decoded['routes'] is! List || (decoded['routes'] as List).isEmpty) {
+        throw StateError('No drivable route was returned for these places.');
+      }
+
+      final route = (decoded['routes'] as List).first;
+      if (route is! Map || route['geometry'] is! Map ||
+          (route['geometry'] as Map)['coordinates'] is! List) {
+        throw const FormatException('Routing service returned invalid route geometry.');
+      }
+      final coordinates = (route['geometry'] as Map)['coordinates'] as List;
+      if (coordinates.length < 2) {
+        throw const FormatException('The route contains too few coordinates.');
+      }
+
+      final featureCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {'source': 'OSRM public demonstration routing service'},
+            'geometry': Map<String, dynamic>.from(route['geometry'] as Map),
+          },
+        ],
+      };
+
+      final distanceMeters = (route['distance'] as num?)?.toDouble() ?? 0;
+      final durationSeconds = (route['duration'] as num?)?.toDouble() ?? 0;
+      final distanceLabel = distanceMeters >= 1000
+          ? '${(distanceMeters / 1000).toStringAsFixed(1)} km'
+          : '${distanceMeters.round()} m';
+      final durationMinutes = (durationSeconds / 60).round();
+      final summary = '$distanceLabel · about $durationMinutes min · driving preview';
+
+      final instructions = <String>[];
+      final legs = route['legs'];
+      if (legs is List) {
+        for (final leg in legs) {
+          if (leg is! Map || leg['steps'] is! List) continue;
+          for (final step in leg['steps'] as List) {
+            if (step is! Map) continue;
+            final maneuver = step['maneuver'];
+            final name = (step['name'] ?? '').toString().trim();
+            if (maneuver is! Map) continue;
+            final type = (maneuver['type'] ?? 'continue').toString();
+            final modifier = (maneuver['modifier'] ?? '').toString();
+            final distance = (step['distance'] as num?)?.toDouble() ?? 0;
+            final action = [type, modifier].where((v) => v.isNotEmpty).join(' ');
+            final road = name.isEmpty ? 'unnamed road' : name;
+            instructions.add('${action.isEmpty ? 'Continue' : action} on $road · ${distance.round()} m');
+            if (instructions.length >= 12) break;
+          }
+          if (instructions.length >= 12) break;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _activeRouteGeoJson = featureCollection;
+        _routeSummary = summary;
+        _routeInstructions = instructions;
+      });
+      await _renderActiveRoute();
+
+      final middle = coordinates[coordinates.length ~/ 2];
+      if (middle is List && middle.length >= 2 &&
+          middle[0] is num && middle[1] is num) {
+        await _controller?.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(
+                (middle[1] as num).toDouble(),
+                (middle[0] as num).toDouble(),
+              ),
+              zoom: 11.5,
+              tilt: _is3D && !_undergroundMode ? 42 : 0,
+              bearing: 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 900),
+        );
+      }
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Route preview'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(summary, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Preview route only. This public routing service does not provide live traffic, guaranteed turn-by-turn guidance or excavation clearance.',
+                    style: TextStyle(fontSize: 12, color: Colors.deepOrange),
+                  ),
+                  const SizedBox(height: 12),
+                  ...instructions.map((instruction) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text('• $instruction', style: const TextStyle(fontSize: 12)),
+                  )),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _showMessage('Route preview failed: ${error.toString()}');
+    } finally {
+      if (mounted) setState(() => _routing = false);
+    }
+  }
+
+  Future<void> _showDirectionsDialog() async {
+    final originController = TextEditingController();
+    final destinationController = TextEditingController();
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Plan a route'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: originController,
+              decoration: const InputDecoration(
+                labelText: 'Starting point',
+                hintText: 'e.g. Coimbatore Railway Station',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: destinationController,
+              decoration: const InputDecoration(
+                labelText: 'Destination',
+                hintText: 'e.g. Gandhipuram Bus Stand',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.directions),
+            label: const Text('Find route'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted == true) {
+      await _calculateRoute(originController.text, destinationController.text);
+    }
+    originController.dispose();
+    destinationController.dispose();
+  }
+
+  Future<void> _onStyleLoaded() async {
+    if (!mounted) return;
+
+    setState(() => _styleReady = true);
+
+    final controller = _controller;
+    if (controller == null) return;
+
+    try {
+      await controller.setMapLanguage('en');
+
+      // Preserve the exact camera when switching between vector and
+      // satellite styles. Only use device GPS on the first map load.
+      final restoreCamera = _pendingBasemapCamera;
+      if (restoreCamera != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(restoreCamera),
+          duration: const Duration(milliseconds: 900),
+        );
+        _pendingBasemapCamera = null;
+      } else if (widget.initialCenter != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: widget.initialCenter!,
+              zoom: widget.initialZoom,
+              tilt: widget.initialTilt,
+              bearing: 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 1000),
+        );
+      } else {
+        await _goToMyLocation();
+      }
+
+      await _ensure3DBuildings();
+      await _loadMapLayers();
+      await _renderActiveRoute();
+      await _refreshMapScale();
+    } catch (_) {
+      _showMessage('The map loaded, but one or more data layers could not be prepared.');
+    }
+  }
+
+
+  Future<void> _loadIndiaAdministrativeBoundaries() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (_indiaBoundaryLoadInFlight) {
+      _indiaBoundaryRefreshPending = true;
+      return;
+    }
+    _indiaBoundaryLoadInFlight = true;
+    try {
+      if (_showIndiaStateBoundaries) {
+        await _loadIndiaBoundaryLevel('ADM1');
+      } else {
+        final layers = await controller.getLayerIds();
+        if (layers.contains('samanvay-india-adm1-lines')) {
+          await controller.setLayerVisibility('samanvay-india-adm1-lines', false);
+        }
+      }
+      if (_showIndiaDistrictBoundaries) {
+        await _loadIndiaBoundaryLevel('ADM2');
+      } else {
+        final layers = await controller.getLayerIds();
+        if (layers.contains('samanvay-india-adm2-lines')) {
+          await controller.setLayerVisibility('samanvay-india-adm2-lines', false);
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _indiaBoundaryStatus = 'Reference boundaries loaded. They are not LGD-code verified statutory boundaries.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _indiaBoundaryStatus = 'India reference boundary service unavailable. Existing map layers remain available.';
+        });
+      }
+    } finally {
+      _indiaBoundaryLoadInFlight = false;
+      if (_indiaBoundaryRefreshPending) {
+        _indiaBoundaryRefreshPending = false;
+        unawaited(_loadIndiaAdministrativeBoundaries());
+      }
+    }
+  }
+
+  Future<void> _loadIndiaBoundaryLevel(String level) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    final isState = level == 'ADM1';
+    final sourceId = isState
+        ? 'samanvay-india-adm1-reference'
+        : 'samanvay-india-adm2-reference';
+    final layerId = isState
+        ? 'samanvay-india-adm1-lines'
+        : 'samanvay-india-adm2-lines';
+
+    // The Edge Function proxies only public geoBoundaries reference data.
+    // No underground-asset data is requested or returned here.
+    final response = await supabase.functions.invoke(
+      'samanvay-public-boundaries',
+      body: {'level': level},
+    );
+    if (response.status < 200 || response.status >= 300 ||
+        response.data is! Map) {
+      throw StateError('India reference boundary fetch failed.');
+    }
+    final payload = Map<String, dynamic>.from(response.data as Map);
+    final metadata = payload['metadata'] is Map
+        ? Map<String, dynamic>.from(payload['metadata'] as Map)
+        : <String, dynamic>{};
+    final rawGeoJson = payload['geojson'];
+    if (rawGeoJson is! Map) {
+      throw const FormatException('Boundary service did not return GeoJSON.');
+    }
+    final collection = Map<String, dynamic>.from(rawGeoJson);
+    final features = collection['features'];
+    if (collection['type'] != 'FeatureCollection' ||
+        features is! List || features.isEmpty) {
+      throw const FormatException('Boundary GeoJSON is invalid or empty.');
+    }
+
+    final sourceIds = await controller.getSourceIds();
+    if (sourceIds.contains(sourceId)) {
+      await controller.setGeoJsonSource(sourceId, collection);
+    } else {
+      await controller.addGeoJsonSource(sourceId, collection);
+    }
+
+    var layerIds = await controller.getLayerIds();
+    if (!layerIds.contains(layerId)) {
+      await controller.addLineLayer(
+        sourceId,
+        layerId,
+        LineLayerProperties(
+          lineColor: isState ? '#45D9CE' : '#B9CAD8',
+          lineWidth: isState ? 2.0 : 0.72,
+          lineOpacity: isState ? 0.92 : 0.62,
+        ),
+        minzoom: isState ? 2.0 : 5.2,
+        maxzoom: 20,
+        enableInteraction: false,
+      );
+    }
+    layerIds = await controller.getLayerIds();
+    if (layerIds.contains(layerId)) {
+      await controller.setLayerVisibility(
+        layerId,
+        isState ? _showIndiaStateBoundaries : _showIndiaDistrictBoundaries,
+      );
+    }
+
+    final year = (metadata['boundaryYearRepresented'] ?? 'Vintage not reported').toString();
+    final source = (metadata['boundarySource'] ?? 'Source not reported').toString();
+    final license = (metadata['boundaryLicense'] ?? 'Licence not reported').toString();
+    final sourceDataUpdateDate = (metadata['sourceDataUpdateDate'] ?? 'Not reported').toString();
+    final buildDate = (metadata['buildDate'] ?? 'Not reported').toString();
+    if (mounted) {
+      setState(() {
+        if (isState) {
+          _indiaStateBoundaryCount = features.length;
+          _indiaStateBoundaryVintage = year;
+          _indiaStateBoundaryAttribution = '$source · $license';
+          _indiaStateBoundarySourceUpdateDate = sourceDataUpdateDate;
+          _indiaStateBoundaryBuildDate = buildDate;
+        } else {
+          _indiaDistrictBoundaryCount = features.length;
+          _indiaDistrictBoundaryVintage = year;
+          _indiaDistrictBoundaryAttribution = '$source · $license';
+          _indiaDistrictBoundarySourceUpdateDate = sourceDataUpdateDate;
+          _indiaDistrictBoundaryBuildDate = buildDate;
+        }
+      });
+    }
+  }
+
+  void _toggleIndiaStateBoundaries(bool value) {
+    if (mounted) setState(() => _showIndiaStateBoundaries = value);
+    unawaited(_loadIndiaAdministrativeBoundaries());
+  }
+
+  void _toggleIndiaDistrictBoundaries(bool value) {
+    if (mounted) setState(() => _showIndiaDistrictBoundaries = value);
+    unawaited(_loadIndiaAdministrativeBoundaries());
+  }
+
+  Future<void> _loadCoimbatoreWardBoundaries() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final text = await rootBundle.loadString(
+        'assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson',
+      );
+      final decoded = jsonDecode(text);
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection') {
+        throw const FormatException('Invalid ward reference GeoJSON.');
+      }
+      final rawFeatures = decoded['features'];
+      if (rawFeatures is! List || rawFeatures.isEmpty) {
+        throw const FormatException('Ward reference GeoJSON has no features.');
+      }
+
+      final collection = Map<String, dynamic>.from(decoded);
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-coimbatore-ward-reference')) {
+        await controller.setGeoJsonSource(
+          'samanvay-coimbatore-ward-reference',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-coimbatore-ward-reference',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.addFillLayer(
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-fill',
+          const FillLayerProperties(
+            fillColor: '#20D6C2',
+            fillOpacity: 0.045,
+            fillOutlineColor: '#45D9CE',
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.addLineLayer(
+          'samanvay-coimbatore-ward-reference',
+          'samanvay-coimbatore-ward-lines',
+          const LineLayerProperties(
+            lineColor: '#45D9CE',
+            lineWidth: 1.4,
+            lineOpacity: 0.88,
+          ),
+          enableInteraction: false,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-fill',
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
+        );
+      }
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-lines',
+          _showCoimbatoreWardBoundaries && !_undergroundMode,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _coimbatoreWardCount = rawFeatures.length);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _coimbatoreWardCount = 0);
+    }
+  }
+
+  Future<void> _loadGroundwaterTelemetryStations() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (supabase.auth.currentUser == null) {
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = 0;
+          _groundwaterFreshnessLabel = 'Sign in to view retained 2025 station readings';
+          _groundwaterArchiveLatestObservation = 'Guest access not enabled';
+          _groundwaterLatestAgency = 'NWIC 2025 retained subset';
+          _groundwaterStationDetails.clear();
+        });
+      }
+      return;
+    }
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final rows = await supabase
+          .from('latest_groundwater_station_observations')
+          .select('id,station_name,agency,state_name,district_name,tehsil,latitude,longitude,rl_msl_m,observed_at_local,reported_level_m,reported_level_text')
+          .gte('latitude', bounds.southwest.latitude)
+          .lte('latitude', bounds.northeast.latitude)
+          .gte('longitude', bounds.southwest.longitude)
+          .lte('longitude', bounds.northeast.longitude)
+          .order('state_name')
+          .order('district_name')
+          .limit(1000);
+
+      // Report the source-wide archive cutoff separately from the current
+      // viewport's newest loaded point. This prevents an old archive from
+      // being mistaken for live groundwater telemetry.
+      var archiveLatestObservation = 'Unavailable';
+      try {
+        final archiveLatestRow = await supabase
+            .from('latest_groundwater_station_observations')
+            .select('observed_at_local')
+            .order('observed_at_local', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        final archiveLatestTime = DateTime.tryParse(
+          (archiveLatestRow?['observed_at_local'] ?? '').toString(),
+        );
+        archiveLatestObservation = archiveLatestTime == null
+            ? 'No published timestamp'
+            : archiveLatestTime.toString().split('.').first;
+      } catch (_) {
+        archiveLatestObservation = 'Unavailable (source query failed)';
+      }
+
+      final features = <Map<String, dynamic>>[];
+      final stationDetails = <Map<String, dynamic>>[];
+      DateTime? latestObservationTime;
+      String latestObservationSourceText = '';
+      String latestObservationAgency = '';
+      for (final item in rows) {
+        final properties = Map<String, dynamic>.from(item);
+        final latitude = properties['latitude'];
+        final longitude = properties['longitude'];
+        if (latitude is! num || longitude is! num) continue;
+
+        final sourceTimestamp = (properties['observed_at_local'] ?? '').toString().trim();
+        final parsedTimestamp = DateTime.tryParse(sourceTimestamp);
+        if (parsedTimestamp != null &&
+            (latestObservationTime == null || parsedTimestamp.isAfter(latestObservationTime))) {
+          latestObservationTime = parsedTimestamp;
+          latestObservationSourceText = sourceTimestamp;
+          latestObservationAgency = (properties['agency'] ?? '').toString().trim();
+        }
+
+        final featureId = (properties['id'] ?? '').toString();
+        if (featureId.isEmpty) continue;
+        features.add({
+          'type': 'Feature',
+          'id': featureId,
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [longitude.toDouble(), latitude.toDouble()],
+          },
+          'properties': properties,
+        });
+        stationDetails.add(Map<String, dynamic>.from(properties));
+      }
+
+      final collection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-groundwater-telemetry')) {
+        await controller.setGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-groundwater-telemetry',
+          collection,
+        );
+      }
+
+      var layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.addCircleLayer(
+          'samanvay-groundwater-telemetry',
+          'samanvay-groundwater-telemetry-points',
+          const CircleLayerProperties(
+            circleRadius: 6.2,
+            circleColor: '#A78BFA',
+            circleOpacity: 0.96,
+            circleStrokeColor: '#101B29',
+            circleStrokeWidth: 1.8,
+          ),
+          enableInteraction: true,
+        );
+      }
+
+      layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          _showGroundwaterTelemetry,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = features.length;
+          _groundwaterFreshnessLabel = latestObservationSourceText.isEmpty
+              ? 'No valid source timestamp in the current map extent'
+              : latestObservationSourceText;
+          _groundwaterLatestAgency = latestObservationAgency.isEmpty
+              ? 'Publisher not stated'
+              : latestObservationAgency;
+          _groundwaterArchiveLatestObservation = archiveLatestObservation;
+          _groundwaterStationDetails
+            ..clear()
+            ..addEntries(stationDetails.map((properties) => MapEntry(
+              (properties['id'] ?? '').toString(),
+              properties,
+            )));
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _groundwaterStationCount = 0;
+          _groundwaterFreshnessLabel = 'Observation layer unavailable';
+          _groundwaterArchiveLatestObservation = 'Unavailable';
+          _groundwaterLatestAgency = 'Publisher unavailable';
+          _groundwaterStationDetails.clear();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMapLayers() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (mounted) setState(() => _loadingLayers = true);
+
+    try {
+      // Public reference layers are prepared independently of account state.
+      // The bundled 2024 ward polygons are reference-only, not statutory boundaries.
+      await Future.wait<void>([
+        if (_showCoimbatoreWardBoundaries) _loadCoimbatoreWardBoundaries(),
+        _loadGroundwaterTelemetryStations(),
+        _loadMapReadiness(),
+      ]);
+
+      final user = supabase.auth.currentUser;
+      Map<String, dynamic>? profile;
+      if (user != null) {
+        profile = await supabase
+            .from('profiles')
+            .select('role,department_id')
+            .eq('id', user.id)
+            .maybeSingle();
+      }
+
+      final role = (profile?['role'] ?? '').toString();
+      final authorised = user != null &&
+          ['admin', 'coordinator', 'department'].contains(role);
+      final departmentAssigned = user != null &&
+          role == 'department' && profile?['department_id'] != null;
+
+      // India reference boundaries are public reference data. Operational
+      // requests and utility assets are loaded only in the authenticated branch.
+      unawaited(_loadIndiaAdministrativeBoundaries());
+
+      if (mounted) {
+        setState(() {
+          // The aggregate RPC itself is staff-role checked in PostgreSQL.
+          // Do not advertise it to guests or Citizen accounts.
+          _canViewUtilityOverview = authorised;
+          _canViewConflictScreening = authorised;
+          _canViewDepartmentAssets = departmentAssigned;
+          _layerStatus = user == null
+              ? 'PUBLIC GIS VIEW: basemap and public reference layers. Utility aggregates, exact assets and case-linked markers require the appropriate authorised account.'
+              : departmentAssigned
+                  ? 'Department GIS view: staff aggregate coverage plus verified assets owned by your department. Other owners’ exact geometry remains withheld.'
+                  : authorised
+                      ? 'Staff GIS view: generalised coverage only; exact utility geometry remains restricted by owner.'
+                      : 'Citizen GIS view: public reference coverage and account-scoped case markers. Staff utility aggregates and all exact routes remain restricted.';
+        });
+      }
+
+      if (user != null) {
+        await _loadVisibleWorkRequests();
+      }
+
+      if (_showUtilityZones && authorised) {
+        await _loadUtilityOverview();
+      }
+      if (_showVerifiedAssets && departmentAssigned) {
+        await _loadDepartmentAssets();
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _layerStatus = 'Public reference layers remain available; one or more account-linked layers could not be loaded.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLayers = false);
+    }
+  }
+
+  Future<void> _loadUtilityOverview() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview || _utilityQueryInFlight) return;
+    _utilityQueryInFlight = true;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final minLon = bounds.southwest.longitude;
+      final minLat = bounds.southwest.latitude;
+      final maxLon = bounds.northeast.longitude;
+      final maxLat = bounds.northeast.latitude;
+
+      if (minLon >= maxLon || minLat >= maxLat) {
+        _showMessage('The current map extent cannot be queried. Adjust the view and retry.');
+        return;
+      }
+
+      // This endpoint returns generalised 250 m aggregate cells, never exact utility routes.
+      final raw = await supabase.rpc(
+        'get_underground_asset_overview',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+
+      final geojson = Map<String, dynamic>.from(raw as Map);
+      final featureList = geojson['features'];
+      final count = featureList is List ? featureList.length : 0;
+
+      final sourceIds = await controller.getSourceIds();
+      if (sourceIds.contains('samanvay-utility-overview')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-overview',
+          geojson,
+        );
+      }
+
+      var layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.addFillLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-cells',
+          const FillLayerProperties(
+            fillColor: '#F59E0B',
+            fillOpacity: 0.30,
+            fillOutlineColor: '#FDE68A',
+          ),
+        );
+      }
+
+      // Generalised 250 m density cells can be extruded in underground 3D mode.
+      // Extrusion height is a relative density index, never physical depth or a pipe route.
+      layerIds = await controller.getLayerIds();
+      if (!layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.addFillExtrusionLayer(
+          'samanvay-utility-overview',
+          'samanvay-utility-overview-3d',
+          FillExtrusionLayerProperties(
+            fillExtrusionColor: '#38BDF8',
+            fillExtrusionHeight: [
+              'interpolate',
+              ['linear'],
+              ['get', 'asset_count'],
+              3, 6,
+              10, 14,
+              25, 24,
+            ],
+            fillExtrusionBase: 0,
+            fillExtrusionOpacity: 0.62,
+          ),
+        );
+      }
+
+      layerIds = await controller.getLayerIds();
+      final showDensityExtrusion =
+          _showUtilityZones && _undergroundMode && _is3D;
+      if (layerIds.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones && !showDensityExtrusion,
+        );
+      }
+      if (layerIds.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          showDensityExtrusion,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = count;
+          _layerStatus = count == 0
+              ? 'No verified aggregate records in this view. This does NOT mean underground infrastructure is absent.'
+              : '$count generalised utility coverage cell(s) returned. Exact utility geometry is not displayed in this overview.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityCellCount = 0;
+          _layerStatus = 'The authorised utility overview is unavailable. No data is not proof of no utility.';
+        });
+      }
+      _showMessage('Unable to load the authorised utility overview.');
+    } finally {
+      _utilityQueryInFlight = false;
+    }
+  }
+
+  Future<void> _refreshUtilityConflictOverlay() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewUtilityOverview) return;
+
+    final activeRequests = _visibleRequests.where((request) {
+      final status = (request['status'] ?? '').toString().toLowerCase();
+      return !['completed', 'resolved', 'rejected', 'cancelled'].contains(status);
+    }).toList();
+
+    final features = <Map<String, dynamic>>[];
+    final detailsById = <String, Map<String, dynamic>>{};
+    var eligibleRequestCount = 0;
+    var verifiedAssetsAvailable = false;
+
+    try {
+      const batchSize = 500;
+      for (var offset = 0; offset < activeRequests.length; offset += batchSize) {
+        final batch = activeRequests.skip(offset).take(batchSize).toList();
+        final requestIds = batch
+            .map((request) => (request['id'] ?? '').toString())
+            .where((id) => id.isNotEmpty)
+            .toList();
+        if (requestIds.isEmpty) continue;
+
+        // The server performs PostGIS screening against verified assets across
+        // departments and returns advisory metadata only, never asset geometry.
+        final raw = await supabase.rpc(
+          'get_map_utility_conflict_advisories',
+          params: {'p_request_ids': requestIds},
+        );
+        final response = Map<String, dynamic>.from(raw as Map);
+        verifiedAssetsAvailable =
+            response['verified_assets_available'] == true || verifiedAssetsAvailable;
+        final rawResults = response['results'];
+        if (rawResults is! List) continue;
+
+        for (final rawResult in rawResults) {
+          if (rawResult is! Map) continue;
+          final result = Map<String, dynamic>.from(rawResult);
+          final screeningStatus = (result['screening_status'] ?? '').toString();
+          if (screeningStatus == 'potential_conflict' ||
+              screeningStatus == 'screened_no_proximity_match') {
+            eligibleRequestCount++;
+          }
+          final rawConflicts = result['conflicts'];
+          if (screeningStatus != 'potential_conflict' ||
+              rawConflicts is! List || rawConflicts.isEmpty) {
+            continue;
+          }
+
+          final requestId = (result['request_id'] ?? '').toString();
+          final request = batch.firstWhere(
+            (item) => item['id']?.toString() == requestId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (request.isEmpty) continue;
+          final lat = (request['latitude'] as num?)?.toDouble();
+          final lon = (request['longitude'] as num?)?.toDouble();
+          if (lat == null || lon == null) continue;
+
+          final conflicts = rawConflicts
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          if (conflicts.isEmpty) continue;
+
+          final requestNumber =
+              (result['request_number'] ?? requestId).toString();
+          final markerId = requestId.replaceAll(
+            RegExp(r'[^A-Za-z0-9_-]'),
+            '_',
+          );
+          detailsById[markerId] = {
+            'request_number': requestNumber,
+            'candidate_count': conflicts.length,
+            'conflicts': conflicts,
+          };
+          features.add({
+            'type': 'Feature',
+            'id': markerId,
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [lon, lat],
+            },
+            'properties': {
+              'request_number': requestNumber,
+              'candidate_count': conflicts.length,
+            },
+          });
+        }
+      }
+
+      final collection = {
+        'type': 'FeatureCollection',
+        'features': features,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-utility-conflict-candidates')) {
+        await controller.setGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-utility-conflict-candidates',
+          collection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-utility-conflict-markers')) {
+        await controller.addCircleLayer(
+          'samanvay-utility-conflict-candidates',
+          'samanvay-utility-conflict-markers',
+          const CircleLayerProperties(
+            circleRadius: 9,
+            circleColor: '#EF4444',
+            circleOpacity: 0.98,
+            circleStrokeColor: '#FFFFFF',
+            circleStrokeWidth: 2.2,
+          ),
+          enableInteraction: true,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-utility-conflict-markers',
+          true,
+        );
+      }
+
+      if (!mounted) return;
+      final status = activeRequests.isEmpty
+          ? 'No active work requests are available in this map area to screen.'
+          : !verifiedAssetsAvailable
+              ? 'No verified underground utility assets are registered. Cross-department screening is unavailable; this does not mean sites are clear.'
+              : eligibleRequestCount == 0
+                  ? 'No active request in the loaded map area has a valid location and an entered 1–500 m work-site radius.'
+                  : features.isEmpty
+                      ? 'No proximity warnings found among verified assets for the screened requests. This is not an excavation clearance.'
+                      : '${features.length} request(s) have potential proximity to verified underground assets across departments. Obtain owner-department clearance and field verification.';
+      final alertSignature = detailsById.keys.toList()..sort();
+      final signature = alertSignature.join('|');
+      final shouldNotify = signature.isNotEmpty &&
+          signature != _lastConflictAlertSignature;
+      _lastConflictAlertSignature = signature;
+      setState(() {
+        _utilityConflictCount = features.length;
+        _utilityConflictStatus = status;
+        _utilityConflictDetails
+          ..clear()
+          ..addAll(detailsById);
+      });
+      if (shouldNotify) {
+        _showMessage(
+          '${features.length} work request(s) have potential proximity to verified underground assets across departments. Tap a red marker for advisory details.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _utilityConflictCount = 0;
+          _utilityConflictStatus = 'Cross-department screening could not be completed. Check staff access and GIS connectivity; do not treat this as a clear site.';
+          _utilityConflictDetails.clear();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDepartmentAssets() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || !_canViewDepartmentAssets) return;
+
+    try {
+      final bounds = await controller.getVisibleRegion();
+      final centerLatitude =
+          (bounds.southwest.latitude + bounds.northeast.latitude) / 2;
+      final latitudeBuffer = 1000 / 110540;
+      final longitudeScale =
+          (math.cos(centerLatitude * math.pi / 180).abs()).clamp(0.01, 1.0);
+      final longitudeBuffer = 1000 / (111320 * longitudeScale);
+      final minLon =
+          (bounds.southwest.longitude - longitudeBuffer).clamp(-180.0, 180.0);
+      final minLat =
+          (bounds.southwest.latitude - latitudeBuffer).clamp(-90.0, 90.0);
+      final maxLon =
+          (bounds.northeast.longitude + longitudeBuffer).clamp(-180.0, 180.0);
+      final maxLat =
+          (bounds.northeast.latitude + latitudeBuffer).clamp(-90.0, 90.0);
+      if (minLon >= maxLon || minLat >= maxLat) return;
+
+      // The 1 km query buffer covers maximum work radius plus survey uncertainty.
+      // This RPC remains scoped by auth.uid() to the signed-in department's own assets.
+      // Only verified features are drawn; unverified records are counted, not mapped.
+      final raw = await supabase.rpc(
+        'get_my_department_verified_assets_geojson',
+        params: {
+          'p_min_lon': minLon,
+          'p_min_lat': minLat,
+          'p_max_lon': maxLon,
+          'p_max_lat': maxLat,
+        },
+      );
+      final collection = Map<String, dynamic>.from(raw as Map);
+      final rawFeatures = collection['features'];
+      final verified = <Map<String, dynamic>>[];
+      final metadata = collection['metadata'] is Map
+          ? Map<String, dynamic>.from(collection['metadata'] as Map)
+          : <String, dynamic>{};
+      final unverified = (metadata['withheld_unverified_count'] as num?)?.toInt() ?? 0;
+
+      if (rawFeatures is List) {
+        for (final item in rawFeatures) {
+          if (item is! Map) continue;
+          final feature = Map<String, dynamic>.from(item);
+          final properties = feature['properties'];
+          if (properties is! Map) continue;
+          final props = Map<String, dynamic>.from(properties);
+          feature['id'] = (props['id'] ?? feature['id'] ?? '').toString();
+          verified.add(feature);
+        }
+      }
+
+      final verifiedCollection = <String, dynamic>{
+        'type': 'FeatureCollection',
+        'features': verified,
+      };
+      final sources = await controller.getSourceIds();
+      if (sources.contains('samanvay-verified-department-assets')) {
+        await controller.setGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      } else {
+        await controller.addGeoJsonSource(
+          'samanvay-verified-department-assets',
+          verifiedCollection,
+        );
+      }
+
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-verified-asset-lines')) {
+        await controller.addLineLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-lines',
+          LineLayerProperties(
+            lineColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            lineWidth: 3.5,
+            lineOpacity: 0.96,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-lines',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (!layers.contains('samanvay-verified-asset-points')) {
+        await controller.addCircleLayer(
+          'samanvay-verified-department-assets',
+          'samanvay-verified-asset-points',
+          CircleLayerProperties(
+            circleRadius: 5.5,
+            circleColor: [
+              'match',
+              ['get', 'asset_type'],
+              'water', '#38BDF8',
+              'sewer', '#A78BFA',
+              'stormwater', '#22D3EE',
+              'electricity', '#FBBF24',
+              'telecom', '#F472B6',
+              'gas', '#FB923C',
+              '#20D6C2',
+            ],
+            circleStrokeColor: '#071827',
+            circleStrokeWidth: 1.8,
+            circleOpacity: 0.98,
+          ),
+          enableInteraction: false,
+        );
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-verified-asset-points',
+          _showVerifiedAssets,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = verified.length;
+          _unverifiedAssetCount = unverified;
+          _layerStatus = verified.isEmpty
+              ? 'No verified assets are registered in this department and map extent. $unverified unverified record(s) are withheld from the map.'
+              : '$verified verified department asset(s) mapped. $unverified unverified record(s) withheld.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _verifiedAssetCount = 0;
+          _layerStatus = 'Department asset layer unavailable. No unverified or estimated geometry is substituted.';
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleVerifiedAssets(bool enabled) async {
+    if (!_canViewDepartmentAssets) {
+      _showMessage('Verified asset geometry is restricted to the owning department.');
+      return;
+    }
+    setState(() => _showVerifiedAssets = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+    if (!enabled) {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-verified-asset-lines')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-lines', false);
+      }
+      if (layers.contains('samanvay-verified-asset-points')) {
+        await controller.setLayerVisibility('samanvay-verified-asset-points', false);
+      }
+      return;
+    }
+    await _loadDepartmentAssets();
+  }
+
+  Future<void> _toggleRequests(bool enabled) async {
+    setState(() => _showRequests = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (!layers.contains('samanvay-work-request-points')) {
+        await _loadMapLayers();
+      } else {
+        await controller.setLayerVisibility(
+          'samanvay-work-request-points',
+          enabled,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the request layer.');
+    }
+  }
+
+  Future<void> _toggleCoimbatoreWardBoundaries(bool enabled) async {
+    setState(() => _showCoimbatoreWardBoundaries = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadCoimbatoreWardBoundaries();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-coimbatore-ward-fill')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-fill',
+          false,
+        );
+      }
+      if (layers.contains('samanvay-coimbatore-ward-lines')) {
+        await controller.setLayerVisibility(
+          'samanvay-coimbatore-ward-lines',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the Coimbatore ward reference layer.');
+    }
+  }
+
+  Future<void> _toggleGroundwaterTelemetry(bool enabled) async {
+    setState(() => _showGroundwaterTelemetry = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (enabled) {
+      await _loadGroundwaterTelemetryStations();
+      return;
+    }
+
+    try {
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-groundwater-telemetry-points')) {
+        await controller.setLayerVisibility(
+          'samanvay-groundwater-telemetry-points',
+          false,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change the groundwater telemetry layer.');
+    }
+  }
+
+  Future<void> _toggleUtilityZones(bool enabled) async {
+    if (!_canViewUtilityOverview) {
+      _showMessage('The public aggregate coverage layer is not ready. Refresh the map and retry.');
+      return;
+    }
+
+    setState(() => _showUtilityZones = enabled);
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    if (!enabled) {
+      try {
+        final layers = await controller.getLayerIds();
+        for (final layerId in [
+          'samanvay-utility-overview-cells',
+          'samanvay-utility-overview-3d',
+        ]) {
+          if (layers.contains(layerId)) {
+            await controller.setLayerVisibility(layerId, false);
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
+    await _loadUtilityOverview();
+  }
+
+
+  Future<void> _setUndergroundMode(bool enabled) async {
+    if (_undergroundMode == enabled) return;
+
+    final controller = _controller;
+    setState(() {
+      _undergroundMode = enabled;
+      if (enabled) {
+        _showUtilityZones = _canViewUtilityOverview;
+        _showVerifiedAssets = _canViewDepartmentAssets;
+      } else {
+        _showUtilityZones = false;
+        _showVerifiedAssets = false;
+      }
+    });
+
+    if (controller == null || !_styleReady) return;
+
+    Future<void> setVisibility(String layerId, bool visible) async {
+      final layerIds = await controller.getLayerIds();
+      if (layerIds.contains(layerId)) {
+        await controller.setLayerVisibility(layerId, visible);
+      }
+    }
+
+    try {
+      if (enabled) {
+        // Hide the surface extrusions and ward outlines to make the
+        // underground operational layer visually distinct.
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-3d-building-outlines', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', false);
+        await setVisibility('samanvay-coimbatore-ward-lines', false);
+
+        if (_canViewUtilityOverview) {
+          await _loadUtilityOverview();
+        }
+        if (_canViewDepartmentAssets) {
+          await _loadDepartmentAssets();
+        }
+
+        if (!_canViewUtilityOverview) {
+          if (mounted) {
+            setState(() {
+              _layerStatus =
+                  'Public underground coverage is temporarily unavailable. No data shown is not proof that utilities are absent.';
+            });
+          }
+        } else if (mounted) {
+          setState(() {
+            _layerStatus = _canViewDepartmentAssets
+                ? 'Underground mode: generalised national/municipal coverage plus verified geometry owned by your department. Other departments’ exact routes remain withheld.'
+                : 'Underground mode: public generalised coverage cells only. Exact utility routes and depths remain withheld.';
+          });
+        }
+      } else {
+        await setVisibility('samanvay-utility-overview-cells', false);
+        await setVisibility('samanvay-utility-overview-3d', false);
+        await setVisibility('samanvay-verified-asset-lines', false);
+        await setVisibility('samanvay-verified-asset-points', false);
+        await setVisibility('samanvay-3d-buildings', _is3D);
+        await setVisibility('samanvay-coimbatore-ward-fill', _showCoimbatoreWardBoundaries);
+        await setVisibility('samanvay-coimbatore-ward-lines', _showCoimbatoreWardBoundaries);
+        if (mounted) {
+          setState(() {
+            _layerStatus = 'Surface mode: 2D/3D basemap, work requests and available public reference layers.';
+          });
+        }
+      }
+    } catch (_) {
+      _showMessage('Unable to switch map mode. Refresh the map layers and retry.');
+    }
+  }
+
+  Future<void> _changeBasemap(bool useSatellite) async {
+    if (_satellite == useSatellite) return;
+
+    try {
+      _pendingBasemapCamera = await _controller?.queryCameraPosition();
+    } catch (_) {
+      _pendingBasemapCamera = null;
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _satellite = useSatellite;
+      _styleReady = false;
+      _controller = null;
+      _requestMarkerCount = 0;
+      _utilityCellCount = 0;
+    });
+  }
+
+  Future<void> _changePerspective(bool use3D) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    try {
+      final current = await controller.queryCameraPosition();
+      final target = current?.target ?? const LatLng(0, 0);
+      final zoom = current?.zoom ?? 13.0;
+
+      setState(() => _is3D = use3D);
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: target,
+            zoom: zoom < 14 ? 14 : zoom,
+            tilt: use3D ? 58 : 0,
+            bearing: use3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1100),
+      );
+      final layers = await controller.getLayerIds();
+      if (layers.contains('samanvay-3d-buildings')) {
+        await controller.setLayerVisibility('samanvay-3d-buildings', use3D && !_undergroundMode);
+      }
+      if (layers.contains('samanvay-utility-overview-cells')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-cells',
+          _showUtilityZones,
+        );
+      }
+      if (layers.contains('samanvay-utility-overview-3d')) {
+        await controller.setLayerVisibility(
+          'samanvay-utility-overview-3d',
+          _showUtilityZones && _undergroundMode && use3D,
+        );
+      }
+    } catch (_) {
+      _showMessage('Unable to change map perspective.');
+    }
+  }
+
+  Future<void> _zoom(bool zoomIn) async {
+    final controller = _controller;
+    if (controller == null || !_styleReady) return;
+
+    await controller.animateCamera(
+      zoomIn ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut(),
+      duration: const Duration(milliseconds: 420),
+    );
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    var permission = await Permission.locationWhenInUse.status;
+    if (!permission.isGranted) {
+      permission = await Permission.locationWhenInUse.request();
+    }
+    if (permission.isGranted) {
+      if (mounted) setState(() => _hasLocationPermission = true);
+      return true;
+    }
+
+    if (permission.isPermanentlyDenied || permission.isRestricted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is blocked. Enable it in Android app settings to use GPS.'),
+            action: SnackBarAction(
+              label: 'SETTINGS',
+              onPressed: () async { await openAppSettings(); },
+            ),
+          ),
+        );
+      }
+    } else {
+      _showMessage('Location permission is required to centre the map on your device. You can continue browsing without GPS.');
+    }
+    return false;
+  }
+
+  Future<void> _goToMyLocation() async {
+    final controller = _controller;
+    if (controller == null || !_styleReady || _locating) return;
+    final granted = await _ensureLocationPermission();
+    if (!granted) return;
+
+    setState(() => _locating = true);
+    try {
+      final location = await controller.requestMyLocationLatLng();
+
+      if (location == null) {
+        _showMessage('Your device did not provide a location. Check GPS and app location permission.');
+        return;
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: location,
+            zoom: 17.0,
+            tilt: _is3D ? 58 : 0,
+            bearing: _is3D ? -22 : 0,
+          ),
+        ),
+        duration: const Duration(milliseconds: 1200),
+      );
+      if (mounted) {
+        setState(() {
+          _deviceCoordinateLabel =
+              '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}';
+        });
+      }
+    } catch (_) {
+      _showMessage('Unable to access device location. You can still navigate the map manually.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _openAttribution() async {
+    final uri = Uri.parse(
+      _satellite
+          ? (_mapTilerKey.isNotEmpty
+              ? 'https://www.maptiler.com/copyright/'
+              : 'https://www.esri.com/')
+          : 'https://openfreemap.org/',
+    );
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      _showMessage('Unable to open the map provider attribution page.');
+    }
+  }
+
+
+  Future<void> _loadMapReadiness() async {
+    var buildingLoaded = false;
+    var utilityLoaded = false;
+    var groundwaterLoaded = false;
+
+    var approvalCount = 0;
+    var approvalMapped = 0;
+    var approvalFloors = 0;
+    var utilityCount = 0;
+    var utilityPending = 0;
+    var utilityUnverified = 0;
+    var utilityOperational = 0;
+    var groundwaterJurisdictions = 0;
+    var groundwaterGaps = 0;
+
+    try {
+      final rawRows = await supabase
+          .from('building_approval_public_register_records')
+          .select('id,geometry_status,approved_floor_count')
+          .limit(2500);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      approvalCount = rows.length;
+      approvalMapped = rows.where((row) => row['geometry_status'] == 'verified_geocoded').length;
+      approvalFloors = rows.where((row) => row['approved_floor_count'] != null).length;
+      buildingLoaded = true;
+    } catch (_) {
+      // A missing permission or unavailable register must not block the map.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('id,coverage_status,operational_use_allowed')
+          .eq('data_domain', 'utility_gis')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      utilityCount = rows.length;
+      utilityPending = rows.where((row) => row['coverage_status'] == 'authority_asset_gis_required').length;
+      utilityOperational = rows.where((row) => row['operational_use_allowed'] == true).length;
+      utilityLoaded = true;
+    } catch (_) {
+      // Metadata-only utility status is optional for requester accounts.
+    }
+
+    try {
+      final rawRows = await supabase
+          .from('india_data_coverage')
+          .select('telemetry_status')
+          .eq('data_domain', 'groundwater')
+          .limit(50);
+      final rows = rawRows.map((raw) => Map<String, dynamic>.from(raw as Map)).toList();
+      groundwaterJurisdictions = rows.length;
+      groundwaterGaps = rows.where((row) {
+        final status = (row['telemetry_status'] ?? '').toString();
+        return status.contains('no_2021_2025_feed') ||
+            status.contains('unverified') ||
+            status.contains('historical');
+      }).length;
+      groundwaterLoaded = true;
+    } catch (_) {
+      // Station rendering continues even if the national coverage summary is unavailable.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _buildingReadinessLoaded = buildingLoaded;
+      _utilityReadinessLoaded = utilityLoaded;
+      _groundwaterReadinessLoaded = groundwaterLoaded;
+      _approvalRecordCount = approvalCount;
+      _approvalMappedCount = approvalMapped;
+      _approvalFloorCount = approvalFloors;
+      _utilityLayerCatalogueCount = utilityCount;
+      _utilityLayersPending = utilityPending;
+      _utilityLayersOperational = utilityOperational;
+      _groundwaterCoverageJurisdictions = groundwaterJurisdictions;
+      _groundwaterTelemetryGaps = groundwaterGaps;
+    });
+  }
+
+  Widget _readinessRow({
+    required IconData icon,
+    required String title,
+    required String detail,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 17),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style:  TextStyle(
+                    color: mutedInk,
+                    fontSize: 10,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openLayerPanel() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: panelNavy,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'GIS LAYERS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                     Text(
+                      'Layers are drawn only from records your account is authorised to access.',
+                      style: TextStyle(color: mutedInk, fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(13, 12, 13, 10),
+                      decoration: BoxDecoration(
+                        color: panelNavy,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x5541BFB4)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'NATIONAL DATA READINESS',
+                            style: TextStyle(
+                              color: Color(0xFF55D9CE),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          _readinessRow(
+                            icon: Icons.water_drop_outlined,
+                            title: 'GROUNDWATER',
+                            color: const Color(0xFFA78BFA),
+                            detail: supabase.auth.currentUser == null
+                                ? 'The retained 2025 station readings are available to signed-in Citizens and staff only. Earlier archive history has not yet been restored; these records are not live telemetry. Public coverage metadata remains visible.'
+                                : _groundwaterReadinessLoaded
+                                    ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · viewport timestamp: $_groundwaterFreshnessLabel · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical archive, not live telemetry · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                    : 'Coverage summary unavailable; station layer remains independently controlled.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.account_balance_outlined,
+                            title: 'BUILDING APPROVALS',
+                            color: const Color(0xFFFBBF24),
+                            detail: _buildingReadinessLoaded
+                                ? '$_approvalRecordCount public-register record(s) · $_approvalMappedCount geocoded · $_approvalFloorCount with approved floor count. Address-only records are not plotted at guessed locations.'
+                                : 'Public approval register summary unavailable.',
+                          ),
+                          _readinessRow(
+                            icon: Icons.hub_outlined,
+                            title: 'UNDERGROUND UTILITY GIS',
+                            color: const Color(0xFF38BDF8),
+                            detail: _utilityReadinessLoaded
+                                ? '$_utilityLayerCatalogueCount State/UT coverage entry(ies) · $_utilityLayersPending awaiting authority asset GIS · $_utilityLayersOperational operationally enabled'
+                                : 'Utility catalogue summary unavailable or access restricted.',
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            '3D buildings use live OpenStreetMap footprints with mapped heights/levels where available; missing heights receive a 6 m visual estimate and must not be used for compliance decisions. Underground 3D cells show relative density in generalised 250 m cells—not physical depth, elevation, dimensions or routes. Exact assets remain access-controlled; an empty layer is not excavation clearance.',
+                            style: TextStyle(
+                              color: Color(0xFFF6C66B),
+                              fontSize: 9,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      value: _showRequests,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('Work request locations',
+                          style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_requestMarkerCount request marker(s) visible to your account',
+                        style:  TextStyle(color: mutedInk, fontSize: 11),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleRequests(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showCoimbatoreWardBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text(
+                        'Coimbatore-only ward reference (2024)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '${_coimbatoreWardCount == 0 ? 'Not loaded' : '$_coimbatoreWardCount polygons'} · OpenCity Public Domain · local reference only; not national or statutory coverage',
+                        style:  TextStyle(
+                          color: mutedInk,
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleCoimbatoreWardBoundaries(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showIndiaStateBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('India State / UT boundaries', style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_indiaStateBoundaryCount areas · vintage $_indiaStateBoundaryVintage · source data updated $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · $_indiaStateBoundaryAttribution · reference only',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleIndiaStateBoundaries(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: _showIndiaDistrictBoundaries,
+                      activeThumbColor: const Color(0xFF20D6C2),
+                      title: const Text('India district boundaries', style: TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        '$_indiaDistrictBoundaryCount districts · vintage $_indiaDistrictBoundaryVintage · source data updated $_indiaDistrictBoundarySourceUpdateDate · provider build $_indiaDistrictBoundaryBuildDate · $_indiaDistrictBoundaryAttribution · optional detail layer',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleIndiaDistrictBoundaries(value);
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Text(
+                        _indiaBoundaryStatus + ' Use the Local Government Directory / competent authority for official jurisdiction codes and decisions.',
+                        style: const TextStyle(color: Color(0xFFF6C66B), fontSize: 9, height: 1.35),
+                      ),
+                    ),
+                    SwitchListTile(
+                      value: _showGroundwaterTelemetry,
+                      activeThumbColor: const Color(0xFFA78BFA),
+                      title: const Text(
+                        'National groundwater monitoring stations (2021–2025)',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical data, not live telemetry · tap for the published reading and timestamp · not a borewell register or complete station inventory',
+                        style:  TextStyle(
+                          color: mutedInk,
+                          fontSize: 11,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setSheetState(() {});
+                        _toggleGroundwaterTelemetry(value);
+                      },
+                    ),
+                    if (_canViewDepartmentAssets)
+                      SwitchListTile(
+                        value: _showVerifiedAssets,
+                        activeThumbColor: const Color(0xFF20D6C2),
+                        title: const Text('Verified department assets',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_verifiedAssetCount verified asset(s) mapped · $_unverifiedAssetCount unverified withheld',
+                          style:  TextStyle(color: mutedInk, fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleVerifiedAssets(value);
+                        },
+                      ),
+                    if (_canViewConflictScreening) ...[
+                       const Divider(color: Color(0x334B647C)),
+                       Row(
+                         children: [
+                           const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 18),
+                           const SizedBox(width: 8),
+                           const Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
+                           Text('$_utilityConflictCount request(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
+                         ],
+                       ),
+                       const SizedBox(height: 6),
+                       Text(_utilityConflictStatus, style:  TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                       ..._utilityConflictDetails.values.take(5).map((detail) {
+                         final conflicts = (detail['conflicts'] as List?) ?? const [];
+                         final summary = conflicts.take(2).map((raw) {
+                           final item = Map<String, dynamic>.from(raw as Map);
+                           return '${item['owner_department']} · ${item['asset_type']} · ${item['distance_m']} m';
+                         }).join(' | ');
+                         return ListTile(
+                           dense: true,
+                           contentPadding: EdgeInsets.zero,
+                           leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
+                           title: Text('${detail['request_number']} · ${detail['candidate_count']} potential match(es)', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                           subtitle: Text(summary, style:  TextStyle(color: mutedInk, fontSize: 10)),
+                         );
+                       }),
+                       if (_utilityConflictDetails.length > 5)
+                         Text('And ${_utilityConflictDetails.length - 5} more. Tap red map markers for details.', style:  TextStyle(color: mutedInk, fontSize: 10)),
+                       const SizedBox(height: 8),
+                       const Text('Cross-department screening runs on the server against verified assets. The phone receives advisory metadata only, never another department’s exact route geometry. No warning is not a safety clearance.', style: TextStyle(color: Color(0xFFF6C66B), fontSize: 10, height: 1.4)),
+                     ],
+                     if (_canViewUtilityOverview)
+                       SwitchListTile(
+                        value: _showUtilityZones,
+                        activeThumbColor: const Color(0xFFF59E0B),
+                        title: const Text('Generalised utility coverage',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          '$_utilityCellCount aggregate cell(s); not individual utility routes',
+                          style:  TextStyle(color: mutedInk, fontSize: 11),
+                        ),
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          _toggleUtilityZones(value);
+                        },
+                      )
+                    else
+                       ListTile(
+                        leading: Icon(Icons.lock_outline, color: Color(0xFFF6C66B)),
+                        title: Text('Utility coverage restricted',
+                            style: TextStyle(color: Colors.white)),
+                        subtitle: Text(
+                          'Only generalised public coverage is shown. Exact infrastructure records remain restricted.',
+                          style: TextStyle(color: mutedInk, fontSize: 11),
+                        ),
+                      ),
+                    const Divider(color: Color(0x334B647C)),
+                    const Text(
+                      'Data integrity',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _layerStatus,
+                      style:  TextStyle(color: mutedInk, fontSize: 11, height: 1.4),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _undergroundModelPanel() {
+    const layers = <({String name, String label, Color color, IconData icon})>[
+      (name: 'Water', label: 'WATER', color: Color(0xFF38BDF8), icon: Icons.water_drop_outlined),
+      (name: 'Sewer', label: 'SEWER', color: Color(0xFF9B7AE8), icon: Icons.water_outlined),
+      (name: 'Stormwater', label: 'DRAINAGE', color: Color(0xFF22C5A5), icon: Icons.grain_rounded),
+      (name: 'Electricity', label: 'POWER', color: Color(0xFFFBBF24), icon: Icons.bolt_outlined),
+      (name: 'Telecom', label: 'TELECOM', color: Color(0xFFE879B8), icon: Icons.cable_rounded),
+      (name: 'Gas', label: 'GAS', color: Color(0xFFFB884F), icon: Icons.local_fire_department_outlined),
+      (name: 'Borewell', label: 'BOREWELL', color: Color(0xFF2DD4BF), icon: Icons.sensors_outlined),
+    ];
+    final panelWidth = math.min(392.0, MediaQuery.sizeOf(context).width - 24).toDouble();
+    return Container(
+      width: panelWidth,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xF20B1B2D),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x9955D9CE)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x44000000), blurRadius: 18, offset: Offset(0, 6)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 18),
+            const SizedBox(width: 7),
+            const Expanded(child: Text(
+              'UNDERGROUND NETWORK CUTAWAY',
+              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .7),
+            )),
+            Text(_is3D ? '3D CUTAWAY' : '2D PLAN', style: const TextStyle(color: Color(0xFF7DE9DE), fontSize: 8, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 4),
+          const Text(
+            'SIMULATED SUBSURFACE SCHEMATIC · NOT GEO-REFERENCED',
+            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .2),
+          ),
+          const SizedBox(height: 7),
+          SizedBox(
+            height: 124,
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: _AnimatedUndergroundCutaway(
+                viewMode: _is3D ? '3D cutaway' : '2D plan',
+                visibleLayers: _undergroundVisibleLayers,
+                isLight: _usesLegacyLightPalette,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 4,
+            runSpacing: 1,
+            children: layers.map((layer) {
+              final selected = _undergroundVisibleLayers.contains(layer.name);
+              return FilterChip(
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                avatar: Icon(layer.icon, color: layer.color, size: 12),
+                label: Text(layer.label, style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800)),
+                selected: selected,
+                selectedColor: layer.color.withValues(alpha: .22),
+                backgroundColor: const Color(0xFF172B3D),
+                side: BorderSide(color: selected ? layer.color.withValues(alpha: .85) : const Color(0x554B647C)),
+                onSelected: (enabled) => setState(() {
+                  if (enabled) {
+                    _undergroundVisibleLayers.add(layer.name);
+                  } else {
+                    _undergroundVisibleLayers.remove(layer.name);
+                  }
+                }),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Illustrative paths only. Not measured routes or depths; never use this schematic as excavation clearance.',
+            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, height: 1.25),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _desktopGisMetric(String label, String value, IconData icon, Color accent) {
+    return Expanded(child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: panelNavy,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: accent, size: 17),
+        const SizedBox(height: 7),
+        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+        Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w700, height: 1.25)),
+      ]),
+    ));
+  }
+
+  Widget _desktopGisLayerToggle({
+    required String title,
+    required String detail,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) => SwitchListTile.adaptive(
+    dense: true,
+    contentPadding: EdgeInsets.zero,
+    activeThumbColor: const Color(0xFF55D9CE),
+    title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+    subtitle: Text(detail, style: TextStyle(color: mutedInk, fontSize: 8, height: 1.3)),
+    value: value,
+    onChanged: onChanged,
+  );
+
+  Widget _desktopGISCommandPanel() => Container(
+    width: 292,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xF20B1B2D),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0x6645D9CE)),
+      boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 18, offset: Offset(0, 7))],
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 31, height: 31,
+          decoration: BoxDecoration(color: const Color(0x2220D6C2), borderRadius: BorderRadius.circular(9)),
+          child: const Icon(Icons.hub_rounded, color: Color(0xFF55D9CE), size: 18)),
+        const SizedBox(width: 9),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('NATIONAL GIS COMMAND', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7)),
+          SizedBox(height: 2),
+          Text('INDIA · AUTHORISED MAP VIEW', style: TextStyle(color: Color(0xFF55D9CE), fontSize: 7, fontWeight: FontWeight.w800, letterSpacing: .55)),
+        ])),
+        IconButton(tooltip: 'Open layer catalogue', visualDensity: VisualDensity.compact,
+          onPressed: _openLayerPanel, icon:  Icon(Icons.tune_rounded, color: mutedInk, size: 18)),
+      ]),
+      const SizedBox(height: 9),
+      Text('LIVE COUNTS · CURRENT MAP EXTENT',
+        style: TextStyle(color: mutedInk, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)),
+      const SizedBox(height: 7),
+      Row(children: [
+        _desktopGisMetric('VISIBLE CASES', '$_requestMarkerCount', Icons.assignment_outlined, const Color(0xFF55D9CE)),
+        const SizedBox(width: 7),
+        _desktopGisMetric('GROUNDWATER POINTS', supabase.auth.currentUser == null ? 'Sign in' : '$_groundwaterStationCount', Icons.water_drop_outlined, const Color(0xFFA78BFA)),
+      ]),
+      const SizedBox(height: 7),
+      Row(children: [
+        _desktopGisMetric('VERIFIED OWNER ASSETS', _canViewDepartmentAssets ? '$_verifiedAssetCount' : 'Restricted',
+          Icons.verified_user_outlined, const Color(0xFF38BDF8)),
+        const SizedBox(width: 7),
+        _desktopGisMetric('GENERAL COVERAGE CELLS', _canViewUtilityOverview ? '$_utilityCellCount' : 'Restricted',
+          Icons.grid_view_rounded, const Color(0xFFFBBF24)),
+      ]),
+      if (_canViewConflictScreening) ...[
+        const SizedBox(height: 8),
+        Text('$_utilityConflictCount advisory conflict candidate(s)',
+          style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 9, fontWeight: FontWeight.w800)),
+      ],
+      const Divider(color: Color(0x334B647C), height: 18),
+      const Text('MAP LAYERS',
+        style: TextStyle(color: Color(0xFF55D9CE), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)),
+      Expanded(child: SingleChildScrollView(child: Column(children: [
+        _desktopGisLayerToggle(title: 'Work request locations',
+          detail: 'Visible cases permitted for this account', value: _showRequests,
+          onChanged: (value) => _toggleRequests(value)),
+        _desktopGisLayerToggle(title: 'Groundwater monitoring archive',
+          detail: supabase.auth.currentUser == null ? 'Sign in to view retained 2025 station readings · earlier archive history not yet restored · not live telemetry' : '2025-only retained subset · latest observation: $_groundwaterArchiveLatestObservation · earlier history not yet restored · not live telemetry', value: _showGroundwaterTelemetry,
+          onChanged: (value) => _toggleGroundwaterTelemetry(value)),
+        _desktopGisLayerToggle(title: 'India State / UT boundaries',
+          detail: 'Vintage $_indiaStateBoundaryVintage · source update $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · non-statutory reference', value: _showIndiaStateBoundaries,
+          onChanged: (value) => _toggleIndiaStateBoundaries(value)),
+        _desktopGisLayerToggle(title: 'India district boundaries',
+          detail: 'Optional detail · vintage $_indiaDistrictBoundaryVintage · source update $_indiaDistrictBoundarySourceUpdateDate · provider build $_indiaDistrictBoundaryBuildDate', value: _showIndiaDistrictBoundaries,
+          onChanged: (value) => _toggleIndiaDistrictBoundaries(value)),
+        _desktopGisLayerToggle(title: 'Coimbatore ward reference',
+          detail: 'Optional Coimbatore-only 2024 reference; not national coverage or legal certification', value: _showCoimbatoreWardBoundaries,
+          onChanged: (value) => _toggleCoimbatoreWardBoundaries(value)),
+        if (_canViewDepartmentAssets)
+          _desktopGisLayerToggle(title: 'Verified department-owned assets',
+            detail: 'Authorised owner-department geometry only', value: _showVerifiedAssets,
+            onChanged: (value) => _toggleVerifiedAssets(value)),
+        if (_canViewUtilityOverview)
+          _desktopGisLayerToggle(title: 'Generalised utility coverage',
+            detail: 'Aggregate cells only; no individual routes or depths', value: _showUtilityZones,
+            onChanged: (value) => _toggleUtilityZones(value)),
+        if (_canViewConflictScreening)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Text(_utilityConflictStatus,
+              style: const TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35))),
+        const Divider(color: Color(0x334B647C), height: 14),
+        Wrap(spacing: 7, runSpacing: 7, children: [
+          OutlinedButton.icon(onPressed: _openJurisdictionNavigator,
+            icon: const Icon(Icons.account_tree_outlined, size: 15), label: const Text('Jurisdiction'),
+            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF8DECE2),
+              side: const BorderSide(color: Color(0x6655D9CE)),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+              textStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+          OutlinedButton.icon(onPressed: _openLayerPanel,
+            icon: const Icon(Icons.layers_outlined, size: 15), label: const Text('All layers'),
+            style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF8DECE2),
+              side: const BorderSide(color: Color(0x6655D9CE)),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+              textStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800))),
+        ]),
+        const SizedBox(height: 7),
+        const Text('Coverage counts are not underground asset counts. Exact utility geometry remains restricted. Missing or unverified data is never excavation clearance.',
+          style: TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35)),
+      ]))),
+    ]),
+  );
+
+  Widget _trustClassRow({
+    required Color color,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(children: [
+        Container(width: 7, height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 7),
+        Expanded(child: Text(label, style: const TextStyle(
+          color: Color(0xFFE5EEF5), fontSize: 7, fontWeight: FontWeight.w800))),
+        const SizedBox(width: 5),
+        Flexible(child: Text(value, textAlign: TextAlign.right,
+          style: TextStyle(color: color, fontSize: 6.5, fontWeight: FontWeight.w900))),
+      ]),
+    );
+  }
+
+  Widget _undergroundStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: mutedInk, fontSize: 6.5, fontWeight: FontWeight.w700, letterSpacing: 0.35)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+
+  Widget _mapButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    String? tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xF2182638),
+        elevation: 5,
+        borderRadius: BorderRadius.circular(12),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, color: Colors.white, size: 21),
+        ),
+      ),
+    );
+  }
+
+  Widget _pill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF13A89E) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLpuPublicSources() async {
+    const sources = <Map<String, String>>[
+      {
+        'title': 'Water conservation infrastructure and campus map',
+        'subtitle': 'LPU published infrastructure overview, including its rainwater-harvesting bore map',
+        'url': 'https://www.lpu.in/SUSTAINABLE/sdg6/lpu-building-plan-strategy.php',
+      },
+      {
+        'title': 'Sustainable water extraction',
+        'subtitle': 'Official information about campus extraction bores and water meters',
+        'url': 'https://www.lpu.in/SUSTAINABLE/sdg6/sustainable-water-extraction.php',
+      },
+      {
+        'title': 'Wastewater treatment',
+        'subtitle': 'Official overview of campus sewage-treatment and water-reuse facilities',
+        'url': 'https://www.lpu.in/SUSTAINABLE/sdg6/waste-water-treatment.php',
+      },
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0D2034),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'LPU OFFICIAL PUBLIC REFERENCES',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
+                ),
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'These LPU pages document public water and wastewater infrastructure. They are reference material, not survey-grade underground utility geometry or excavation clearance.',
+                style: TextStyle(
+                  color: Color(0xFFB9CADA),
+                  fontSize: 10,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              ...sources.map((source) => Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Material(
+                  color: const Color(0xFF142D47),
+                  borderRadius: BorderRadius.circular(12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 4),
+                    title: Text(
+                      source['title']!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    subtitle: Text(
+                      source['subtitle']!,
+                      style: const TextStyle(
+                        color: Color(0xFFB9CADA),
+                        fontSize: 9,
+                        height: 1.3,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.open_in_new_rounded,
+                      color: Color(0xFF55D9CE),
+                      size: 17,
+                    ),
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      final uri = Uri.parse(source['url']!);
+                      try {
+                        final opened = await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                        if (!opened && mounted) {
+                          _showMessage('Unable to open the LPU official reference page.');
+                        }
+                      } catch (_) {
+                        if (mounted) {
+                          _showMessage('Unable to open the LPU official reference page.');
+                        }
+                      }
+                    },
+                  ),
+                ),
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _jumpToIndiaRegion(String region) async {
+    final controller = _controller;
+    if (controller == null) {
+      _showMessage('The GIS map is still initialising. Try again in a moment.');
+      return;
+    }
+
+    final positions = <String, CameraPosition>{
+      'All India': const CameraPosition(target: LatLng(22.5, 79.0), zoom: 3.5),
+      'North': const CameraPosition(target: LatLng(30.2, 78.2), zoom: 4.4),
+      'Northeast': const CameraPosition(target: LatLng(25.8, 93.1), zoom: 4.8),
+      'East': const CameraPosition(target: LatLng(23.7, 86.7), zoom: 4.7),
+      'Central': const CameraPosition(target: LatLng(23.4, 79.0), zoom: 4.7),
+      'West': const CameraPosition(target: LatLng(22.4, 73.0), zoom: 4.7),
+      'South': const CameraPosition(target: LatLng(12.8, 78.3), zoom: 4.5),
+      'Andaman and Nicobar': const CameraPosition(target: LatLng(11.9, 92.7), zoom: 5.1),
+      'Lakshadweep': const CameraPosition(target: LatLng(10.5, 72.6), zoom: 5.3),
+    };
+    final destination = positions[region];
+    if (destination == null) return;
+
+    try {
+      await controller.animateCamera(CameraUpdate.newCameraPosition(destination));
+      if (mounted) _showMessage('GIS view moved to ' + region + '. Available layers remain governed by verified source coverage and your account permissions.');
+    } catch (_) {
+      if (mounted) _showMessage('Unable to move the GIS map to ' + region + '.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final desktopLayout = MediaQuery.sizeOf(context).width >= 1180;
+    return Scaffold(
+      backgroundColor: panelNavy,
+      appBar: AppBar(
+        backgroundColor: navy,
+        foregroundColor: Colors.white,
+        titleSpacing: 16,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.contextLabel == null ? 'SAMANVAY GIS' : 'SAMANVAY GIS · ${widget.contextLabel}',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              widget.contextLabel == null
+                  ? 'PUBLIC BASEMAP · PERMISSION-GATED INFRASTRUCTURE DATA'
+                  : 'CAMPUS BASEMAP · VERIFIED DATA ONLY',
+              style: TextStyle(
+                fontSize: 9,
+                letterSpacing: 1.35,
+                color: mutedInk,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: widget.contextLabel == 'LPU CAMPUS · PHAGWARA'
+                ? 'LPU official public infrastructure references'
+                : 'Open LPU campus in the live GIS map',
+            onPressed: widget.contextLabel == 'LPU CAMPUS · PHAGWARA'
+                ? _openLpuPublicSources
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LpuCampusModelPage()),
+                  ),
+            icon: Icon(
+              widget.contextLabel == 'LPU CAMPUS · PHAGWARA'
+                  ? Icons.account_balance_outlined
+                  : Icons.school_outlined,
+            ),
+          ),
+          if (_canViewDepartmentAssets)
+            IconButton(
+              tooltip: 'Import underground survey GeoJSON',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AssetGeoJsonImportPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.file_upload_outlined),
+            ),
+          IconButton(
+            tooltip: 'Plan a driving route',
+            onPressed: _routing ? null : _showDirectionsDialog,
+            icon: const Icon(Icons.directions_outlined),
+          ),
+          IconButton(
+            tooltip: 'Layer controls',
+            onPressed: _openLayerPanel,
+            icon: const Icon(Icons.layers_outlined),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Jump to an Indian region',
+            icon: const Icon(Icons.explore_outlined),
+            onSelected: _jumpToIndiaRegion,
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'All India', child: Text('All India')),
+              PopupMenuItem(value: 'North', child: Text('North India')),
+              PopupMenuItem(value: 'Northeast', child: Text('Northeast India')),
+              PopupMenuItem(value: 'East', child: Text('East India')),
+              PopupMenuItem(value: 'Central', child: Text('Central India')),
+              PopupMenuItem(value: 'West', child: Text('West India')),
+              PopupMenuItem(value: 'South', child: Text('South India')),
+              PopupMenuItem(value: 'Andaman and Nicobar', child: Text('Andaman & Nicobar Islands')),
+              PopupMenuItem(value: 'Lakshadweep', child: Text('Lakshadweep')),
+            ],
+          ),
+          IconButton(
+            tooltip: 'India-wide data coverage',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()),
+            ),
+            icon: const Icon(Icons.public_outlined),
+          ),
+          IconButton(
+            tooltip: 'My device location',
+            onPressed: _goToMyLocation,
+            icon: const Icon(Icons.my_location),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapLibreMap(
+              key: ValueKey(_satellite ? 'samanvay-satellite' : 'samanvay-vector'),
+              styleString: _mapStyle,
+              // Regional fallback only; a granted device GPS fix immediately
+              // replaces this camera. Never present 0,0 as the user's location.
+              initialCameraPosition: CameraPosition(
+                target: widget.initialCenter ?? const LatLng(22.5, 79.0),
+                zoom: widget.initialZoom,
+                tilt: widget.initialTilt,
+                bearing: 0,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              onCameraIdle: _handleCameraIdle,
+              myLocationEnabled: _hasLocationPermission,
+              myLocationTrackingMode: MyLocationTrackingMode.none,
+              compassEnabled: true,
+              logoEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              trackCameraPosition: true,
+              minMaxZoomPreference: const MinMaxZoomPreference(2, 20),
+            ),
+          ),
+
+          if (!_styleReady)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x66101B29),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF23C5B5)),
+                      SizedBox(height: 14),
+                      Text(
+                        'INITIALISING GIS ENGINE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          letterSpacing: 1.7,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: 12,
+            top: 12,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 218),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xE6102031),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _satellite ? 'SATELLITE HYBRID' : 'VECTOR BASEMAP',
+                    style: TextStyle(
+                      color: mutedInk,
+                      fontSize: 9,
+                      letterSpacing: 1.3,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _undergroundMode
+                        ? 'UNDERGROUND DATA VIEW'
+                        : _is3D ? '3D SURFACE MAP' : '2D SURFACE MAP',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (_deviceCoordinateLabel.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'DEVICE GPS  $_deviceCoordinateLabel',
+                      style: const TextStyle(
+                        color: Color(0xFF55D9CE),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _undergroundMode
+                        ? (_canViewDepartmentAssets
+                            ? 'Own-department verified geometry plus generalised coverage. Other owners’ exact routes are withheld.'
+                            : _canViewUtilityOverview
+                                ? 'Generalised coverage only. Exact utility routes and depths are withheld.'
+                                : 'Illustrative simulated underground layers are visible in demo mode; verified utility geometry remains restricted.')
+                        : _satellite
+                            ? 'Imagery date and resolution vary by location.'
+                            : 'Real OpenStreetMap building footprints are extruded in 3D. Mapped height or floor tags are used where available; otherwise a clearly labelled 6 m visual estimate is used. This is not a statutory building-approval record.',
+                    style:  TextStyle(
+                      color: mutedInk,
+                      fontSize: 9,
+                      height: 1.3,
+                    ),
+                  ),
+                  if (widget.contextLabel == 'LPU CAMPUS · PHAGWARA') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0x33F6C66B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0x88F6C66B)),
+                      ),
+                      child: Text(
+                        _utilityCellCount == 0 && _verifiedAssetCount == 0
+                            ? 'LPU CAMPUS DATA STATUS: No verified underground utility records are currently loaded. This is a basemap-only view, not a utility survey and not proof that underground assets are absent.'
+                            : 'LPU CAMPUS DATA STATUS: $_utilityCellCount generalised coverage cell(s) and $_verifiedAssetCount owner-department verified feature(s) are available in this view. Exact routes remain restricted; this is not an excavation clearance.',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD98B),
+                          fontSize: 8,
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+          if (desktopLayout)
+            Positioned(left: 12, top: 150, bottom: 88, child: _desktopGISCommandPanel()),
+
+          Positioned(
+            left: desktopLayout ? 320 : 12,
+            right: 62,
+            top: desktopLayout ? 12 : 116,
+            child: Container(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x6639BDB0)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search_rounded, color: Color(0xFF55D9CE), size: 20),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _searchPlaces,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: 'Search India: state, district, city, ward or road',
+                        hintStyle: TextStyle(color: mutedInk, fontSize: 11),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Search place',
+                    onPressed: _searching ? null : () => _searchPlaces(_searchController.text),
+                    icon: _searching
+                        ? const SizedBox(
+                            width: 17,
+                            height: 17,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF55D9CE),
+                            ),
+                          )
+                        : const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 19),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_placeResults.isNotEmpty)
+            Positioned(
+              left: desktopLayout ? 320 : 12,
+              right: 62,
+              top: desktopLayout ? 68 : 172,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 240),
+                decoration: BoxDecoration(
+                  color: const Color(0xF2182638),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0x6639BDB0)),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  itemCount: _placeResults.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0x334B647C)),
+                  itemBuilder: (context, index) {
+                    final feature = _placeResults[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.location_on_outlined, color: Color(0xFF55D9CE), size: 20),
+                      title: Text(
+                        (feature['text'] ?? 'Place').toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        (feature['place_name'] ?? '').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style:  TextStyle(color: mutedInk, fontSize: 9),
+                      ),
+                      onTap: () => _selectPlace(feature),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          Positioned(
+            right: 11,
+            top: 12,
+            child: Column(
+              children: [
+                _mapButton(
+                  icon: Icons.account_tree_outlined,
+                  tooltip: 'India jurisdiction navigator',
+                  onPressed: _openJurisdictionNavigator,
+                ),
+                _mapButton(
+                  icon: Icons.add,
+                  tooltip: 'Zoom in',
+                  onPressed: () => _zoom(true),
+                ),
+                _mapButton(
+                  icon: Icons.remove,
+                  tooltip: 'Zoom out',
+                  onPressed: () => _zoom(false),
+                ),
+                _mapButton(
+                  icon: Icons.layers_outlined,
+                  tooltip: 'Map layers',
+                  onPressed: _openLayerPanel,
+                ),
+              ],
+            ),
+          ),
+
+          if (_scaleLabel.isNotEmpty)
+            Positioned(
+              left: 14,
+              bottom: 226,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xE6102031),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: const Color(0x5539BDB0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _scaleLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: _scaleWidth,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF55D9CE),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          Positioned(
+            left: desktopLayout ? 320 : 12,
+            right: 12,
+            bottom: 118,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'SURFACE',
+                        selected: !_undergroundMode,
+                        onTap: () => _setUndergroundMode(false),
+                      ),
+                      const SizedBox(width: 5),
+                      _pill(
+                        label: 'UNDERGROUND',
+                        selected: _undergroundMode,
+                        onTap: () => _setUndergroundMode(true),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Divider(height: 1, color: Color(0x334B647C)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      _pill(
+                        label: 'VECTOR',
+                        selected: !_satellite,
+                        onTap: () => _changeBasemap(false),
+                      ),
+                      _pill(
+                        label: 'SATELLITE',
+                        selected: _satellite,
+                        onTap: () => _changeBasemap(true),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(width: 1, height: 24, color: const Color(0x554B647C)),
+                      const SizedBox(width: 4),
+                      _pill(
+                        label: '2D',
+                        selected: !_is3D,
+                        onTap: () => _changePerspective(false),
+                      ),
+                      _pill(
+                        label: '3D',
+                        selected: _is3D,
+                        onTap: () => _changePerspective(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_undergroundMode)
+            Positioned(
+              left: desktopLayout ? 320 : 12,
+              bottom: 270,
+              child: _undergroundModelPanel(),
+            ),
+
+          Positioned(
+            left: desktopLayout ? 320 : 12,
+            right: 12,
+            bottom: 54,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xF2182638),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0x5539BDB0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.hub_outlined, color: Color(0xFF35C6B5), size: 19),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _loadingLayers
+                          ? 'SYNCING AUTHORISED GIS LAYERS...'
+                          : _layerStatus,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFD4E1EA),
+                        fontSize: 9,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  if (_loadingLayers)
+                    const SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF35C6B5),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Refresh layers',
+                      onPressed: _loadMapLayers,
+                      icon: const Icon(Icons.refresh, color: Colors.white, size: 19),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          Positioned(
+            left: desktopLayout ? 320 : 12,
+            right: 12,
+            bottom: 12,
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _openAttribution,
+                    child: Text(
+                      _satellite
+                          ? '© MapTiler · © OpenStreetMap contributors'
+                          : '© OpenFreeMap · © OpenStreetMap contributors',
+                      style: const TextStyle(
+                        color: Color(0xFFE1EAF1),
+                        fontSize: 8,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_locating)
+                  const Text(
+                    'LOCATING',
+                    style: TextStyle(color: Color(0xFF35C6B5), fontSize: 8),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// AUTHORISED GIS DATA INGESTION
+// ==========================================
+
+class AssetGeoJsonImportPage extends StatefulWidget {
+  const AssetGeoJsonImportPage({super.key});
+
+  @override
+  State<AssetGeoJsonImportPage> createState() => _AssetGeoJsonImportPageState();
+}
+
+class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
+  static const Set<String> _assetTypes = {
+    'water', 'sewer', 'stormwater', 'electricity', 'telecom',
+    'gas', 'borewell', 'drain', 'other', 'unknown',
+  };
+  static const Map<String, String> _sourceTypeLabels = {
+    'utility_owner': 'Utility-owner supplied',
+    'field_survey': 'Field survey',
+    'as_built_drawing': 'Authority as-built drawing',
+  };
+  static const Set<String> _geometryTypes = {
+    'Point', 'MultiPoint', 'LineString', 'MultiLineString',
+  };
+
+  bool _checkingAccess = true;
+  bool _authorised = false;
+  bool _loadingFile = false;
+  bool _importing = false;
+  String _departmentName = '';
+  String _fileName = '';
+  String _sourceType = 'utility_owner';
+  final TextEditingController _sourceTitleController = TextEditingController();
+  final TextEditingController _sourceOrganisationController = TextEditingController();
+  final TextEditingController _authorizationReferenceController = TextEditingController();
+  final TextEditingController _dataSharingBasisController = TextEditingController();
+  final TextEditingController _sourceUrlController = TextEditingController();
+  String _status = 'Select a GeoJSON FeatureCollection from an authorised survey source.';
+  List<Map<String, dynamic>> _records = [];
+  List<String> _errors = [];
+  int _imported = 0;
+  int _failed = 0;
+  int _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+
+  @override
+  void dispose() {
+    _sourceTitleController.dispose();
+    _sourceOrganisationController.dispose();
+    _authorizationReferenceController.dispose();
+    _dataSharingBasisController.dispose();
+    _sourceUrlController.dispose();
+    super.dispose();
+  }
+
+  String? _validateSourceMetadata() {
+    if (_sourceTitleController.text.trim().length < 3 ||
+        _sourceTitleController.text.trim().length > 200) {
+      return 'Enter the official dataset or survey title (3–200 characters).';
+    }
+    if (_sourceOrganisationController.text.trim().length < 3 ||
+        _sourceOrganisationController.text.trim().length > 200) {
+      return 'Enter the responsible utility owner or survey organisation.';
+    }
+    if (_authorizationReferenceController.text.trim().length < 6 ||
+        _authorizationReferenceController.text.trim().length > 200) {
+      return 'Enter the authority permission, MOU or sharing-reference number.';
+    }
+    if (_dataSharingBasisController.text.trim().length < 10 ||
+        _dataSharingBasisController.text.trim().length > 1000) {
+      return 'Describe the data-sharing authority or permission basis (10–1000 characters).';
+    }
+    final sourceUrl = _sourceUrlController.text.trim();
+    if (sourceUrl.isNotEmpty) {
+      final uri = Uri.tryParse(sourceUrl);
+      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+        return 'The source URL must be a valid HTTPS address.';
+      }
+    }
+    return null;
+  }
+
+  Widget _metadataField(
+    TextEditingController controller,
+    String label, {
+    String? hint,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _checkAccess() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw StateError('Sign in to continue.');
+      final profile = await supabase.from('profiles')
+          .select('role,department_id').eq('id', user.id).maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      final departmentId = profile?['department_id']?.toString();
+      if (role != 'department' || departmentId == null || departmentId.isEmpty) {
+        throw StateError('Only an assigned department account can register underground utility records. The database independently enforces this restriction.');
+      }
+      final department = await supabase.from('departments')
+          .select('name').eq('id', departmentId).maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _authorised = true;
+        _departmentName = (department?['name'] ?? 'Assigned department').toString();
+        _status = 'Access confirmed. Imported records will be stored as UNVERIFIED.';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _status = error.toString().replaceFirst('Bad state: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _checkingAccess = false);
+    }
+  }
+
+  bool _validCoordinates(dynamic value) {
+    if (value is! List || value.isEmpty) return false;
+    if (value[0] is num || (value.length > 1 && value[1] is num)) {
+      if (value.length != 2 || value[0] is! num || value[1] is! num) return false;
+      final lon = (value[0] as num).toDouble();
+      final lat = (value[1] as num).toDouble();
+      return lon.isFinite && lat.isFinite &&
+          lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90;
+    }
+    return value.every(_validCoordinates);
+  }
+
+  String? _validate(Map<String, dynamic> feature) {
+    if (feature['geometry'] is! Map || feature['properties'] is! Map) {
+      return 'Geometry and properties objects are required.';
+    }
+    final geometry = Map<String, dynamic>.from(feature['geometry'] as Map);
+    final type = (geometry['type'] ?? '').toString();
+    if (!_geometryTypes.contains(type)) return 'Unsupported geometry type: $type';
+    if (!_validCoordinates(geometry['coordinates'])) return 'Invalid WGS84 coordinates. GeoJSON order must be [longitude, latitude].';
+
+    final p = Map<String, dynamic>.from(feature['properties'] as Map);
+    final code = (p['asset_code'] ?? '').toString().trim();
+    final name = (p['asset_name'] ?? '').toString().trim();
+    final assetType = (p['asset_type'] ?? '').toString().trim().toLowerCase();
+    if (code.length < 2 || code.length > 100) return 'asset_code is required (2–100 characters).';
+    if (name.length < 2 || name.length > 200) return 'asset_name is required (2–200 characters).';
+    if (!_assetTypes.contains(assetType)) return 'Unsupported asset_type.';
+    if (_sourceType == 'field_survey' &&
+        (p['surveyed_at'] ?? '').toString().trim().isEmpty) {
+      return 'surveyed_at is required for a field-survey batch.';
+    }
+
+    for (final key in ['depth_m', 'horizontal_accuracy_m', 'vertical_accuracy_m', 'diameter_mm']) {
+      final raw = p[key];
+      if (raw == null || raw.toString().trim().isEmpty) continue;
+      final value = double.tryParse(raw.toString());
+      if (value == null || !value.isFinite || value < 0) return '$key must be a non-negative number.';
+    }
+    final depth = double.tryParse((p['depth_m'] ?? '').toString());
+    if (depth != null && depth > 100) return 'depth_m cannot exceed 100 metres.';
+    final diameter = double.tryParse((p['diameter_mm'] ?? '').toString());
+    if (diameter != null && (diameter <= 0 || diameter > 10000)) return 'diameter_mm must be 1–10000.';
+    return null;
+  }
+
+  Future<void> _pickFile() async {
+    if (!_authorised || _importing || _loadingFile) return;
+    setState(() {
+      _loadingFile = true;
+      _records = [];
+      _errors = [];
+      _fileName = '';
+      _imported = 0;
+      _failed = 0;
+      _progress = 0;
+    });
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['geojson', 'json'],
+      );
+      if (file == null) return;
+      final fileSize = await file.length();
+      if (fileSize == null || fileSize > 10 * 1024 * 1024) {
+        throw StateError('File size could not be confirmed or exceeds 10 MB.');
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('The selected file is empty. Export it as UTF-8 GeoJSON.');
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
+        throw const FormatException('Expected a GeoJSON FeatureCollection.');
+      }
+      final features = decoded['features'] as List;
+      if (features.isEmpty) throw StateError('No features found in the file.');
+      if (features.length > 500) throw StateError('Maximum 500 features per import batch.');
+      final records = <Map<String, dynamic>>[];
+      final errors = <String>[];
+      final seen = <String>{};
+      for (var i = 0; i < features.length; i++) {
+        final raw = features[i];
+        final feature = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+        var error = raw is Map ? _validate(feature) : 'Feature is not a JSON object.';
+        final props = feature['properties'] is Map
+            ? Map<String, dynamic>.from(feature['properties'] as Map) : <String, dynamic>{};
+        final code = (props['asset_code'] ?? '').toString().trim();
+        if (error == null && !seen.add(code)) error = 'Duplicate asset_code in this file.';
+        records.add({'feature': feature, 'error': error});
+        if (error != null) errors.add('Feature ${i + 1}: $error');
+      }
+      if (!mounted) return;
+      setState(() {
+        _fileName = file.name;
+        _records = records;
+        _errors = errors;
+        _status = 'Preview ready. ${records.length - errors.length} valid feature(s); ${errors.length} invalid feature(s). Nothing has been written yet.';
+      });
+    } catch (error) {
+      if (mounted) setState(() => _status = 'Preview failed: ${error.toString().replaceFirst('Bad state: ', '')}');
+    } finally {
+      if (mounted) setState(() => _loadingFile = false);
+    }
+  }
+
+  Future<void> _register() async {
+    if (!_authorised || _importing) return;
+    final valid = _records.where((r) => r['error'] == null).toList();
+    if (valid.isEmpty) return;
+    final sourceError = _validateSourceMetadata();
+    if (sourceError != null) {
+      setState(() => _status = sourceError);
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Register as unverified?'),
+        content: Text(
+          '${valid.length} records from "$_fileName" will be registered under $_departmentName. '
+          'Your source and permission details will be recorded in an audit log. '
+          'This declaration is not independently verified; the records remain UNVERIFIED and hidden from the map pending owner review.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Register')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() {
+      _importing = true;
+      _progress = 0;
+      _imported = 0;
+      _failed = 0;
+      _errors = [];
+      _status = 'Sending validated batch to the secured server-side registry…';
+    });
+
+    try {
+      final features = valid
+          .map((record) => Map<String, dynamic>.from(record['feature'] as Map))
+          .toList(growable: false);
+      final response = await supabase.functions.invoke(
+        'samanvay-asset-registry',
+        body: {
+          'action': 'import',
+          'source': {
+            'source_title': _sourceTitleController.text.trim(),
+            'source_organisation': _sourceOrganisationController.text.trim(),
+            'source_type': _sourceType,
+            'authorization_reference': _authorizationReferenceController.text.trim(),
+            'data_sharing_basis': _dataSharingBasisController.text.trim(),
+            'source_url': _sourceUrlController.text.trim().isEmpty
+                ? null : _sourceUrlController.text.trim(),
+            'declared_srid': 4326,
+          },
+          'features': features,
+        },
+      );
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final imported = (data['imported'] as num?)?.toInt() ?? 0;
+      final failed = (data['rejected'] as num?)?.toInt() ?? (valid.length - imported);
+      final runId = (data['run_id'] ?? '').toString();
+      final errorText = (data['error'] ?? '').toString();
+      final errors = <String>[];
+      if (errorText.isNotEmpty) errors.add(errorText);
+
+      if (!mounted) return;
+      setState(() {
+        _imported = imported;
+        _failed = failed;
+        _progress = valid.length;
+        _errors = errors;
+        _status = 'Import run ' + (runId.isEmpty ? '(ID unavailable)' : runId) +
+            ': $_imported registered; $_failed rejected. All accepted geometry remains UNVERIFIED and hidden from the map pending independent owner review.';
+        _records = [];
+        _fileName = '';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registry import: $_imported registered; $_failed failed.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failed = valid.length;
+        _progress = 0;
+        _errors = [error.toString()];
+        _status = 'Server-side import failed. No success has been assumed; check the session and retry after resolving the error.';
+        _importing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GIS import failed. No records were confirmed as registered.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final validCount = _records.where((r) => r['error'] == null).length;
+    final invalidCount = _records.length - validCount;
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(title: const Text('GIS Data Ingestion'), backgroundColor: navy),
+      body: _checkingAccess
+          ? const Center(child: CircularProgressIndicator())
+          : !_authorised
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                     Icon(Icons.lock_outline, size: 52, color: mutedInk),
+                    const SizedBox(height: 14),
+                     Text('Department authorisation required',
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: ink)),
+                    const SizedBox(height: 8),
+                    Text(_status, textAlign: TextAlign.center),
+                  ]),
+                ))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(18)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('AUTHORISED DATA SOURCE',
+                            style: TextStyle(color: Color(0xFF8EDFD6), fontSize: 10, letterSpacing: 1.2, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 7),
+                        Text(_departmentName,
+                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 8),
+                        const Text('Owner-supplied and field-surveyed geometry only. Imported records remain UNVERIFIED.',
+                            style: TextStyle(color: Color(0xFFD3E0EA), height: 1.4, fontSize: 12)),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                         Text('SOURCE AUTHORITY & PROVENANCE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: ink, letterSpacing: 0.7)),
+                        const SizedBox(height: 6),
+                         Text('These fields create an audit declaration. They do not independently prove that the submitter has permission. The receiving authority must review the source before the records are verified.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 12),
+                        _metadataField(_sourceTitleController, 'Official source / dataset title'),
+                        _metadataField(_sourceOrganisationController, 'Utility owner / survey organisation'),
+                        DropdownButtonFormField<String>(
+                          value: _sourceType,
+                          decoration: const InputDecoration(
+                            labelText: 'Source category',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _sourceTypeLabels.entries.map((entry) =>
+                            DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          ).toList(),
+                          onChanged: _importing ? null : (value) {
+                            if (value != null) setState(() => _sourceType = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _metadataField(
+                          _authorizationReferenceController,
+                          'Authority permission / MOU reference',
+                          hint: 'Reference number only; do not enter credentials',
+                        ),
+                        _metadataField(
+                          _dataSharingBasisController,
+                          'Data-sharing authority / permission basis',
+                          hint: 'Identify the written approval, agreement or owner authorisation',
+                          maxLines: 3,
+                        ),
+                        _metadataField(
+                          _sourceUrlController,
+                          'Official source URL (optional)',
+                          hint: 'https://…',
+                        ),
+                         Text('Coordinate reference system: EPSG:4326 only. Reproject the source file before upload; the server does not guess or transform CRSs.',
+                            style: TextStyle(color: ink, fontSize: 11, height: 1.4, fontWeight: FontWeight.w600)),
+                      ]),
+                    )),
+                    const SizedBox(height: 12),
+                    Card(child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                         Text('SUPPORTED FILE',
+                            style: TextStyle(fontWeight: FontWeight.w800, color: ink, letterSpacing: 0.7)),
+                        const SizedBox(height: 8),
+                         Text('GeoJSON FeatureCollection (.geojson / .json), WGS84 EPSG:4326. Point, MultiPoint, LineString and MultiLineString. Maximum 10 MB / 500 features.',
+                            style: TextStyle(color: mutedInk, height: 1.45, fontSize: 12)),
+                        const SizedBox(height: 8),
+                         Text('Required properties: asset_code, asset_name and asset_type. Source type and permission details are entered in the audit form below.',
+                            style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                         Text('Optional: depth_m, horizontal_accuracy_m, vertical_accuracy_m, material, diameter_mm and surveyed_at. Field-survey batches must include surveyed_at.',
+                            style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4)),
+                        const SizedBox(height: 14),
+                        SizedBox(width: double.infinity, child: FilledButton.icon(
+                          onPressed: _loadingFile || _importing ? null : _pickFile,
+                          icon: _loadingFile
+                              ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.folder_open_outlined),
+                          label: Text(_loadingFile ? 'READING FILE…' : 'SELECT GEOJSON SURVEY FILE'),
+                          style: FilledButton.styleFrom(backgroundColor: navy, padding: const EdgeInsets.symmetric(vertical: 14)),
+                        )),
+                      ]),
+                    )),
+                    if (_fileName.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                           Text('PRE-IMPORT VALIDATION',
+                              style: TextStyle(fontWeight: FontWeight.w800, color: ink)),
+                          const SizedBox(height: 6),
+                          Text(_fileName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            Expanded(child: _countTile('VALID', validCount, teal)),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('INVALID', invalidCount, Colors.red)),
+                            const SizedBox(width: 7),
+                            Expanded(child: _countTile('TOTAL', _records.length, navy)),
+                          ]),
+                          const SizedBox(height: 8),
+                          ..._records.asMap().entries.take(20).map((entry) {
+                            final item = entry.value;
+                            final f = item['feature'] as Map<String, dynamic>;
+                            final p = f['properties'] is Map
+                                ? Map<String, dynamic>.from(f['properties'] as Map) : <String, dynamic>{};
+                            final error = item['error']?.toString();
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(error == null ? Icons.check_circle_outline : Icons.error_outline,
+                                  color: error == null ? teal : Colors.red),
+                              title: Text((p['asset_code'] ?? 'Feature ${entry.key + 1}').toString(), 
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              subtitle: Text(error ?? '${p['asset_name'] ?? ''} · ${p['asset_type'] ?? ''} · ${(f['geometry'] as Map?)?['type'] ?? ''}',
+                                  style: const TextStyle(fontSize: 10)),
+                            );
+                          }),
+                          if (_records.length > 20)
+                            Text('Showing first 20 of ${_records.length} features.',
+                                style:  TextStyle(color: mutedInk, fontSize: 11)),
+                          if (_importing) ...[
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(value: _records.isEmpty ? null : _progress / validCount),
+                            Text('Processed $_progress of $validCount'),
+                          ],
+                          const SizedBox(height: 12),
+                          SizedBox(width: double.infinity, child: FilledButton.icon(
+                            onPressed: !_importing && validCount > 0 ? _register : null,
+                            icon: const Icon(Icons.cloud_upload_outlined),
+                            label: Text('REGISTER $validCount VALID RECORD(S) AS UNVERIFIED'),
+                            style: FilledButton.styleFrom(backgroundColor: teal, padding: const EdgeInsets.symmetric(vertical: 14)),
+                          )),
+                        ]),
+                      )),
+                    ],
+                    if (_errors.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('VALIDATION / IMPORT ERRORS',
+                              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 8),
+                          ..._errors.take(30).map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text('• $e', style: const TextStyle(fontSize: 11, color: Colors.red)), 
+                          )),
+                        ]),
+                      )),
+                    ],
+                    const SizedBox(height: 12),
+                    Card(color: const Color(0xFFFFF7E6), child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Icon(Icons.verified_user_outlined, color: Color(0xFF9A6700)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(_status,
+                            style: const TextStyle(color: Color(0xFF664B16), fontSize: 12, height: 1.45))),
+                      ]),
+                    )),
+                    const SizedBox(height: 10),
+                     Text('Only import records your department is authorised to submit. This tool does not independently verify geometry and does not issue excavation clearance or safety certification.',
+                        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+                  ],
+                ),
+    );
+  }
+
+  Widget _countTile(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text(value.toString(), style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// PROFILE
+// ==========================================
+
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() { super.initState(); _future = _loadProfile(); }
+
+  Future<Map<String, dynamic>> _loadProfile() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) throw StateError('Your session has expired. Sign in again.');
+    final row = await supabase.from('profiles')
+        .select('role,department_id,display_name').eq('id', user.id).maybeSingle();
+    if (row == null) throw StateError('Your SAMANVAY profile could not be found.');
+
+    var department = 'Not assigned';
+    final id = row['department_id']?.toString();
+    if (id != null && id.isNotEmpty) {
+      try {
+        final d = await supabase.from('departments').select('name').eq('id', id).maybeSingle();
+        department = (d?['name'] ?? 'Assigned department').toString();
+      } catch (_) { department = 'Assigned department'; }
+    }
+
+    final role = (row['role'] ?? 'unknown').toString();
+    var requestRows = <Map<String, dynamic>>[];
+    var requestsAvailable = true;
+    var evidenceCount = 0, unreadCount = 0;
+    var evidenceAvailable = true, notificationsAvailable = true;
+    try {
+      // Citizens see their own submissions. Staff counts are based on the
+      // cases already visible under their database-enforced RLS policies.
+      final rawRequests = role == 'requester'
+          ? await supabase.from('excavation_requests')
+              .select('id,status').eq('requester_id', user.id).limit(1000)
+          : await supabase.from('excavation_requests')
+              .select('id,status').limit(1000);
+      requestRows = List<Map<String, dynamic>>.from(rawRequests);
+    } catch (_) {
+      requestsAvailable = false;
+    }
+    try {
+      evidenceCount = List.from(await supabase.from('case_attachments')
+          .select('id').eq('uploaded_by', user.id).limit(1000)).length;
+    } catch (_) {
+      evidenceAvailable = false;
+    }
+    try {
+      unreadCount = List.from(await supabase.from('user_notifications')
+          .select('id').eq('recipient_id', user.id)
+          .filter('read_at', 'is', null).limit(1000)).length;
+    } catch (_) {
+      notificationsAvailable = false;
+    }
+
+    final completedCount = requestRows.where((item) {
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      return status == 'completed' || status == 'resolved';
+    }).length;
+    final inactiveStatuses = {'completed', 'resolved', 'rejected', 'cancelled'};
+    final activeCount = requestRows.where((item) {
+      final status = (item['status'] ?? '').toString().toLowerCase();
+      return status.isNotEmpty && !inactiveStatuses.contains(status);
+    }).length;
+
+    return {
+      'name': (row['display_name'] ?? user.userMetadata?['display_name'] ?? 'SAMANVAY user').toString(),
+      'email': user.email ?? '', 'phone': user.phone ?? '', 'role': role,
+      'department': department, 'department_id': id,
+      'requests_label': role == 'requester' ? 'My requests' : 'Visible cases',
+      'requests': requestsAvailable ? requestRows.length : null,
+      'active': requestsAvailable ? activeCount : null,
+      'completed': requestsAvailable ? completedCount : null,
+      'evidence': evidenceAvailable ? evidenceCount : null,
+      'unread': notificationsAvailable ? unreadCount : null,
+    };
+  }
+
+  Future<void> _switchProfiles() async {
+    // Keep the profile switcher aligned with the signed-in account rather
+    // than assuming every account opening this page is a Citizen.
+    final profile = await _future;
+    if (!mounted) return;
+    final currentRole = (profile['role'] ?? 'requester').toString();
+    final selected = await _showProfileSwitcher(
+      context,
+      currentRole: currentRole,
+    );
+    if (!mounted || selected == null || selected == currentRole) return;
+    final navigator = Navigator.of(context);
+    await navigator.push<void>(MaterialPageRoute<void>(
+      builder: (previewContext) => _StaffDemoPreview(
+        role: selected,
+        staffId: _publicDemoStaffIds[selected]!,
+        onExit: () => Navigator.of(previewContext).pop(),
+      ),
+    ));
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+  }
+
+  Future<void> _changePassword() async {
+    final password = TextEditingController();
+    final confirm = TextEditingController();
+    String? errorText;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: const Text('Change password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'New password'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: confirm,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Confirm new password'),
+              ),
+              if (errorText != null) ...[
+                const SizedBox(height: 8),
+                Text(errorText!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (password.text.length < 8) {
+                  refresh(() => errorText = 'Use at least 8 characters.');
+                } else if (password.text != confirm.text) {
+                  refresh(() => errorText = 'The passwords do not match.');
+                } else {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Update password'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted == true) {
+      try {
+        await supabase.auth.updateUser(UserAttributes(password: password.text));
+        _toast('Password updated successfully.');
+      } on AuthException catch (e) {
+        _toast(e.message);
+      } catch (_) {
+        _toast('Unable to update the password. Please try again.');
+      }
+    }
+    password.dispose();
+    confirm.dispose();
+  }
+
+  Future<void> _passwordReset() async {
+    final email = supabase.auth.currentUser?.email;
+    if (email == null || email.isEmpty) { _toast('No account email is available.'); return; }
+    try {
+      await supabase.auth.resetPasswordForEmail(email);
+      _toast('Password reset instructions requested. Check your email.');
+    } on AuthException catch (e) { _toast(e.message); }
+    catch (_) { _toast('Unable to request a password reset right now.'); }
+  }
+
+  Future<void> _showEvidence() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) { _toast('Sign in to view your evidence submissions.'); return; }
+    try {
+      final rows = await supabase.from('case_attachments')
+        .select('request_id,storage_path,file_name,content_type,file_size_bytes,created_at')
+        .eq('uploaded_by', user.id)
+        .order('created_at', ascending: false)
+        .limit(100);
+      if (!mounted) return;
+      final files = List<Map<String, dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context, isScrollControlled: true, backgroundColor: panelNavy,
+        builder: (sheet) => SafeArea(child: SizedBox(
+          height: MediaQuery.of(sheet).size.height * .62,
+          child: files.isEmpty
+            ? const Center(child: Text('No evidence submissions are linked to this account.'))
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                   Text('MY PRIVATE EVIDENCE',
+                    style: TextStyle(fontWeight: FontWeight.w800, color: ink)),
+                  const SizedBox(height: 10),
+                  ...files.map((item) {
+                    final bytes = (item['file_size_bytes'] as num?)?.toInt() ?? 0;
+                    final sizeLabel = bytes >= 1024 * 1024
+                      ? (bytes / (1024 * 1024)).toStringAsFixed(1) + ' MB'
+                      : (bytes / 1024).toStringAsFixed(0) + ' KB';
+                    return ListTile(
+                      leading:  Icon(Icons.attach_file_rounded, color: electricBlue),
+                      title: Text((item['file_name'] ?? 'Evidence file').toString(),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(sizeLabel + ' · Private file · Case ' +
+                        item['request_id'].toString().substring(0, 8)),
+                      trailing: IconButton(
+                        tooltip: 'Open secure evidence link',
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        onPressed: () async {
+                          try {
+                            final signed = await supabase.storage
+                              .from('samanvay-case-evidence')
+                              .createSignedUrl(item['storage_path'].toString(), 600);
+                            await launchUrl(Uri.parse(signed), mode: LaunchMode.externalApplication);
+                          } catch (_) {
+                            _toast('Unable to open this private evidence file. Check your case access.');
+                          }
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
+        )),
+      );
+    } catch (_) {
+      _toast('Unable to load private evidence submitted by this account.');
+    }
+  }
+
+  Future<void> _logout() async {
+    try { await supabase.auth.signOut(); }
+    on AuthException catch (e) { _toast(e.message); }
+  }
+
+  void _help() {
+    showDialog<void>(context: context, builder: (dialog) => AlertDialog(
+      title: const Text('SAMANVAY help'),
+      content: const Text(
+        'Use Cases to submit and follow requests, GIS to inspect available map layers, and Public works for authority-published notices or obstruction reports. '
+        'Exact underground utility geometry is restricted to authorised owner departments. An empty or unverified layer is never excavation clearance.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close'))],
+    ));
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    if (kIsWeb) {
+      _toast('Browser notifications are controlled by your browser site permissions.');
+      return;
+    }
+    final status = await Permission.notification.request();
+    if (!mounted) return;
+    if (status.isGranted || status.isProvisional) {
+      _toast('Notifications are enabled for SAMANVAY on this device.');
+    } else {
+      _toast('Notification permission was not granted. You can change it in Android app settings.');
+      if (status.isPermanentlyDenied) await openAppSettings();
+    }
+  }
+
+  Future<void> _openSettings() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Settings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: samanvayThemeMode,
+              builder: (context, mode, _) => SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Light mode'),
+                subtitle: Text(mode == ThemeMode.light ? 'Light appearance enabled' : 'Dark appearance enabled'),
+                value: mode == ThemeMode.light,
+                onChanged: (enabled) async {
+                  samanvayThemeMode.value = enabled ? ThemeMode.light : ThemeMode.dark;
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('samanvay_light_mode', enabled);
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Device notifications'),
+              subtitle: const Text('Request permission to show SAMANVAY alerts'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                _requestNotificationPermission();
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _aboutSamanvay() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('About SAMANVAY'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'SAMANVAY — Towards Our Development.\n\n'
+            'Brief: SAMANVAY is a citizen-facing, nationwide platform for transparent public infrastructure planning and coordination across government departments. It helps people understand published works, public underground-infrastructure coverage, service requests and government outcomes.\n\n'
+            'Detailed overview: The platform connects urban development, municipal bodies, water supply, sewerage, stormwater drainage, electricity, telecommunications, gas, groundwater and borewell regulation, building planning and approvals, public health engineering, roads, transport and other public services. It is designed to provide public GIS layers, 2D/3D map views, published excavation and no-dig notices, request tracking, obstruction reporting, department workflows, joint-work coordination, AI-assisted risk insights, public progress dashboards, notifications and accountable audit trails.\n\nPublic accountability: avoided excavations, public funds saved and coordination percentages are displayed only after competent authorities publish verifiable baselines and outcome evidence. Demonstration figures are not shown as live government results.\n\n'
+            'Data integrity: Official records are distinguished from public reference datasets, owner-authorised verified utility geometry, aggregate coverage and illustrative estimates. Missing data is shown as a gap. An empty map or absence of a warning is never excavation clearance. Final approvals remain with the competent public authority.',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Widget _tile(IconData icon, String title, String subtitle, VoidCallback action,
+      {Color? color}) {
+    final tileColor = color ?? electricBlue;
+    return Card(
+      color: panelNavy,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: tileColor.withValues(alpha: .12),
+          child: Icon(icon, color: tileColor),
+        ),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: ink)),
+        subtitle: Text(subtitle, style: TextStyle(fontSize: 11, color: mutedInk)),
+        trailing: Icon(Icons.chevron_right_rounded, color: mutedInk),
+        onTap: action,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: background,
+    appBar: AppBar(title: const Text('My profile'), actions: [
+      IconButton(
+        tooltip: 'Switch profiles',
+        onPressed: _switchProfiles,
+        icon: const Icon(Icons.switch_account_rounded),
+      ),
+      IconButton(
+        tooltip: 'Settings',
+        onPressed: _openSettings,
+        icon: const Icon(Icons.settings_outlined),
+      ),
+      IconButton(tooltip: 'Refresh profile',
+        onPressed: () => setState(() => _future = _loadProfile()),
+        icon: const Icon(Icons.refresh_rounded)),
+    ]),
+    body: FutureBuilder<Map<String, dynamic>>(future: _future, builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+        return const Center(child: CircularProgressIndicator());
+      if (snapshot.hasError) return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+           Icon(Icons.account_circle_outlined, size: 44, color: electricBlue),
+          const Text('Profile details unavailable', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(snapshot.error.toString(), textAlign: TextAlign.center,
+            style:  TextStyle(color: mutedInk, fontSize: 12)),
+          const SizedBox(height: 12),
+          FilledButton(onPressed: () => setState(() => _future = _loadProfile()),
+            child: const Text('Retry')),
+        ]),
+      ));
+
+      final data = snapshot.data!;
+      final accountRole = data['role'].toString();
+      final departmentId = data['department_id']?.toString();
+      final workspaceTitle = switch (accountRole) {
+        'requester' => 'My requests',
+        'department' => 'Department cases',
+        'coordinator' => 'Coordination workspace',
+        'admin' => 'Administration workspace',
+        _ => 'Assigned workspace',
+      };
+      final workspaceSubtitle = switch (accountRole) {
+        'requester' => 'Review your submitted requests and their status',
+        'department' => 'Review requests and evidence assigned to your department',
+        'coordinator' => 'Coordinate cases across departments',
+        'admin' => 'Open platform operations and administration',
+        _ => 'Open the workspace available to your account',
+      };
+      final Widget workspacePage = switch (accountRole) {
+        'requester' => const RequestsPage(),
+        'department' => departmentId == null || departmentId.isEmpty
+            ? const _PortalError(message: 'No department is assigned to this account.')
+            : DepartmentPortal(departmentId: departmentId),
+        'coordinator' => const CoordinatorPortal(),
+        'admin' => const AdminPortal(),
+        _ => const RequestsPage(),
+      };
+      return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [
+        Container(
+          padding: const EdgeInsets.all(21),
+          decoration: BoxDecoration(
+            gradient:  LinearGradient(colors: [navy, Color(0xFF123B65), Color(0xFF075E72)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: cyanAccent.withValues(alpha: .25))),
+          child: Column(children: [
+             CircleAvatar(
+              radius: 38,
+              backgroundColor: cyanAccent,
+              child: ClipOval(
+                child: SvgPicture.asset(
+                  'assets/brand/samanvay_profile_avatar.svg',
+                  width: 70,
+                  height: 70,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(data['name'].toString(), textAlign: TextAlign.center,
+              style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(data['email'].toString(), textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFD6E6F2), fontSize: 12)),
+            const SizedBox(height: 4),
+            Text(
+              (data['phone'] ?? '').toString().isEmpty
+                  ? 'No verified mobile number linked'
+                  : 'Verified mobile: ' + data['phone'].toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFFD6E6F2), fontSize: 11),
+            ),
+            const SizedBox(height: 12),
+            Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
+              _badge(_displayRoleName(data['role'].toString()), cyanAccent),
+              _badge(data['department'].toString(), const Color(0xFFB9D4FF)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        Card(
+          color: Theme.of(context).colorScheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: teal.withValues(alpha: .12),
+                  child: Icon(Icons.switch_account_rounded, color: teal),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Switch profiles',
+                        style: TextStyle(
+                          color: ink,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Open Citizen, Officer, Coordinator or Administrator demo workspaces.',
+                        style: TextStyle(color: mutedInk, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _switchProfiles,
+                  child: const Text('Switch'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+         Text('Account activity', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        LayoutBuilder(builder: (context, constraints) {
+          const spacing = 8.0;
+          final columns = constraints.maxWidth >= 640 ? 5 : 3;
+          final tileWidth = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+          return Wrap(spacing: spacing, runSpacing: spacing, children: [
+            SizedBox(width: tileWidth, child: _metric(
+              data['requests_label'].toString(),
+              data['requests']?.toString() ?? '—',
+              Icons.assignment_outlined)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Active', data['active']?.toString() ?? '—',
+              Icons.pending_actions_outlined)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Completed', data['completed']?.toString() ?? '—',
+              Icons.task_alt_rounded)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Evidence', data['evidence']?.toString() ?? '—',
+              Icons.attach_file_rounded)),
+            SizedBox(width: tileWidth, child: _metric(
+              'Unread', data['unread']?.toString() ?? '—',
+              Icons.notifications_active_outlined)),
+          ]);
+        }),
+        const SizedBox(height: 20),
+         Text('Workspace and support', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        _tile(Icons.assignment_outlined, workspaceTitle, workspaceSubtitle,
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => workspacePage))),
+        _tile(Icons.attach_file_rounded, 'Evidence submissions', 'View files you uploaded to private case records',
+          _showEvidence),
+        _tile(Icons.campaign_outlined, 'Public works tracker', 'Published excavation and no-dig notices',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()))),
+        _tile(Icons.calendar_month_outlined, 'Coordinated works calendar', 'Compare planned works across departments and identify possible schedule overlaps',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CoordinatedWorkCalendarPage())),
+          color: const Color(0xFF35C6B5)),
+        _tile(Icons.notifications_none_rounded, 'Notifications', 'Read assignment, review and case updates',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage()))),
+        _tile(Icons.public_rounded, 'India data coverage', 'Explore imported coverage and data gaps',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()))),
+        _tile(Icons.phone_android_rounded, 'Link mobile number', 'Verify your mobile number to enable OTP sign-in by phone',
+          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PhoneNumberLinkPage())),
+          color: const Color(0xFF0E8A78)),
+        _tile(Icons.lock_outline_rounded, 'Change password', 'Set a new password for your signed-in account',
+          _changePassword, color: const Color(0xFF0E8A78)),
+        _tile(Icons.mark_email_read_outlined, 'Forgot password / recovery', 'Request a secure password reset email',
+          _passwordReset, color: const Color(0xFF0E8A78)),
+        _tile(Icons.info_outline_rounded, 'About SAMANVAY', 'Platform purpose, departments, data integrity and governance',
+          _aboutSamanvay, color: const Color(0xFF35B6C8)),
+        _tile(Icons.help_outline_rounded, 'Help and guidance', 'Understand modules and data-safety limits',
+          _help, color: const Color(0xFF8A62C7)),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(onPressed: _logout, icon: const Icon(Icons.logout_rounded),
+          label: const Text('Sign out'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFB33B45),
+            side: const BorderSide(color: Color(0xFFE7B9BD)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)))),
+        const SizedBox(height: 10),
+         Text('Account identity and activity are loaded from authenticated records. Evidence remains in private storage.',
+          textAlign: TextAlign.center, style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4)),
+        const SizedBox(height: 18),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: SvgPicture.asset(
+            'assets/brand/samanvay_profile_footer.svg',
+            width: double.infinity,
+            height: 59,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ]);
+    }),
+  );
+
+  Widget _badge(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(color: color.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(30),
+      border: Border.all(color: color.withValues(alpha: .45))),
+    child: Text(text, style: TextStyle(color: color, fontSize: 9,
+      letterSpacing: .5, fontWeight: FontWeight.w800)),
+  );
+
+  Widget _metric(String label, String value, IconData icon) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+    decoration: BoxDecoration(color: panelNavy, borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: borderColor)),
+    child: Column(children: [
+      Icon(icon, color: electricBlue, size: 19), const SizedBox(height: 8),
+      Text(value, style: GoogleFonts.robotoMono(color: ink, fontSize: 19, fontWeight: FontWeight.w800)),
+      Text(label, textAlign: TextAlign.center,
+        maxLines: 2, overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+    ]),
+  );
+}
+
+// ==========================================
+// VERIFIED MOBILE NUMBER LINKING
+// Existing email accounts add a phone only after an authenticated session
+// and successful phone-change OTP verification.
+// ==========================================
+
+class PhoneNumberLinkPage extends StatefulWidget {
+  const PhoneNumberLinkPage({super.key});
+  @override
+  State<PhoneNumberLinkPage> createState() => _PhoneNumberLinkPageState();
+}
+
+class _PhoneNumberLinkPageState extends State<PhoneNumberLinkPage> {
+  final _phone = TextEditingController();
+  final _code = TextEditingController();
+  String? _pendingPhone;
+  bool _sent = false;
+  bool _busy = false;
+  int _resend = 0;
+  Timer? _timer;
+  String? _message;
+  bool _success = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _phone.text = supabase.auth.currentUser?.phone ?? '';
+  }
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    _code.dispose();
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _say(String value, {bool success = false}) {
+    if (!mounted) return;
+    setState(() {
+      _message = value;
+      _success = success;
+    });
+  }
+
+  void _countdown() {
+    _timer?.cancel();
+    setState(() => _resend = 60);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+      } else if (_resend <= 1) {
+        timer.cancel();
+        setState(() => _resend = 0);
+      } else {
+        setState(() => _resend--);
+      }
+    });
+  }
+
+  bool _isE164(String value) {
+    if (!value.startsWith('+') || value.length < 9 || value.length > 16) {
+      return false;
+    }
+    return value.substring(1).codeUnits.every((unit) => unit >= 48 && unit <= 57);
+  }
+
+  Future<void> _send() async {
+    if (_busy) return;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _say('Your session expired. Sign in with your email OTP first.');
+      return;
+    }
+    final number = _normalisePhoneForAuth(_phone.text);
+    if (!_isE164(number)) {
+      _say('Enter a valid mobile number. Indian 10-digit numbers are supported.');
+      return;
+    }
+    if (user.phone == number) {
+      _say('This number is already verified on your account.', success: true);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await supabase.auth.updateUser(UserAttributes(phone: number));
+      _pendingPhone = number;
+      _code.clear();
+      setState(() {
+        _sent = true;
+      });
+      _say('The verification request was accepted. After the platform administrator activates dual-channel delivery, the same code will be sent by SMS and WhatsApp to ' + number + '.', success: true);
+      _countdown();
+    } on AuthException catch (error) {
+      _say(error.message);
+    } catch (_) {
+      _say('Unable to request a verification code. The SMS + WhatsApp Auth Hook and its provider secrets must be configured first.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _resendCode() async {
+    if (_busy || _resend > 0 || _pendingPhone == null) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await supabase.auth.resend(
+        type: OtpType.phoneChange,
+        phone: _pendingPhone,
+      );
+      _say('A new verification request was accepted. After dual-channel delivery is activated, the same code will be sent by SMS and WhatsApp.', success: true);
+      _countdown();
+    } on AuthException catch (error) {
+      _say(error.message);
+    } catch (_) {
+      _say('Unable to resend the code. Check the SMS + WhatsApp delivery configuration and try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _verify() async {
+    if (_busy || _pendingPhone == null) return;
+    final token = _code.text.trim();
+    if (token.length != 6 || int.tryParse(token) == null) {
+      _say('Enter the six-digit verification code.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await supabase.auth.verifyOTP(
+        phone: _pendingPhone,
+        token: token,
+        type: OtpType.phoneChange,
+      );
+      final refreshed = await supabase.auth.getUser();
+      if (refreshed.user?.phone != _pendingPhone) {
+        _say('The new number is not yet confirmed by Supabase. Complete any additional verification requested by your account settings.');
+        return;
+      }
+      _timer?.cancel();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mobile number verified and linked.')),
+      );
+      Navigator.of(context).pop(true);
+    } on AuthException catch (error) {
+      _say(error.message);
+    } catch (_) {
+      _say('Unable to verify the code. Check the latest SMS code and try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _changeNumber() {
+    _timer?.cancel();
+    setState(() {
+      _sent = false;
+      _pendingPhone = null;
+      _code.clear();
+      _resend = 0;
+      _message = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = supabase.auth.currentUser?.phone ?? '';
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(title: const Text('Link mobile number')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Card(
+              color: panelNavy,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.verified_user_outlined, color: cyanAccent, size: 28),
+                    const SizedBox(height: 10),
+                    Text('Verify a number for phone sign-in',
+                      style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 18)),
+                    const SizedBox(height: 8),
+                    Text(
+                      current.isEmpty
+                          ? 'Your account has no verified mobile number. Sign in with email first, then verify a number here. Your role and account records will remain unchanged.'
+                          : 'A verified mobile number is already linked. You can verify a replacement number.',
+                      style: TextStyle(color: mutedInk, fontSize: 12, height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _phone,
+              enabled: !_sent && !_busy,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Mobile number',
+                hintText: '+91 9876543210 or 9876543210',
+                prefixIcon: Icon(Icons.phone_android_rounded),
+                border: OutlineInputBorder(),
+                helperText: 'Indian 10-digit numbers are automatically prefixed with +91.',
+              ),
+            ),
+            if (_sent) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _code,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Six-digit verification code',
+                  hintText: '000000',
+                  prefixIcon: Icon(Icons.sms_outlined),
+                  border: OutlineInputBorder(),
+                  counterText: '',
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _busy || _resend > 0 ? null : _resendCode,
+                      child: Text(_resend > 0 ? 'Resend in ' + _resend.toString() + 's' : 'Resend code'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _busy ? null : _changeNumber,
+                      child: const Text('Change number'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (_message != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _success ? const Color(0xFFE2F4EB) : const Color(0xFFFFE9E8),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _message!,
+                  style: TextStyle(
+                    color: _success ? const Color(0xFF145B3B) : const Color(0xFF8A2525),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _busy ? null : (_sent ? _verify : _send),
+              style: FilledButton.styleFrom(
+                backgroundColor: electricBlue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: _busy
+                  ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_sent ? 'VERIFY MOBILE NUMBER' : 'SEND VERIFICATION CODE'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CaseWorkspacePage extends StatefulWidget {
+  final String requestId;
+  final String requestTitle;
+  const CaseWorkspacePage({super.key, required this.requestId, required this.requestTitle});
+  @override
+  State<CaseWorkspacePage> createState() => _CaseWorkspacePageState();
+}
+
+class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
+  final _message = TextEditingController();
+  late final Stream<List<Map<String, dynamic>>> _messages;
+  bool _sending = false, _uploading = false, _aiBusy = false, _staff = false;
+  String _role = '';
+  static const _bucket = 'samanvay-case-evidence';
+
+  @override
+  void initState() {
+    super.initState();
+    _messages = supabase.from('case_messages').stream(primaryKey: ['id'])
+      .eq('request_id', widget.requestId).order('created_at', ascending: true);
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await supabase.from('profiles').select('role')
+        .eq('id', user.id).maybeSingle();
+      final role = (row?['role'] ?? '').toString();
+      if (mounted) {
+        setState(() {
+          _role = role;
+          _staff = ['admin','coordinator','department'].contains(role);
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  void _toast(String value) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
+
+  Future<void> _send() async {
+    final user = supabase.auth.currentUser;
+    final body = _message.text.trim();
+    if (user == null || body.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await supabase.from('case_messages').insert({
+        'request_id': widget.requestId, 'sender_id': user.id, 'body': body,
+      });
+      _message.clear();
+    } on PostgrestException catch (e) {
+      _toast('Message not sent: ${e.message}');
+    } catch (_) {
+      _toast('Unable to send message. Check your case access and connection.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _upload() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || _uploading) return;
+
+    // Require an explicit document class rather than inferring it from the
+    // file extension. The database still enforces the allowed type values.
+    final attachmentType = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Choose evidence document type'),
+        children: [
+          ('site_photo', 'Site photograph'),
+          ('survey_evidence', 'Survey evidence'),
+          ('permit', 'Permit or approval'),
+          ('drawing', 'Plan or technical drawing'),
+          ('inspection_report', 'Inspection report'),
+          ('other', 'Other case document'),
+        ].map((item) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(dialogContext, item.$1),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(item.$2),
+          ),
+        )).toList(),
+      ),
+    );
+    if (attachmentType == null || !mounted) return;
+
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
+      );
+      if (file == null) return;
+      final fileSize = file.lengthSync() ?? await file.length();
+      if (fileSize == null || fileSize <= 0) {
+        _toast('Unable to read that file. Select it again.');
+        return;
+      }
+      if (fileSize > 20 * 1024 * 1024) {
+        _toast('Evidence files must be 20 MB or smaller.');
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || bytes.length != fileSize) {
+        throw StateError('The selected evidence file could not be read completely.');
+      }
+      // This local checksum fingerprints the uploaded bytes. It does not
+      // independently verify document authorship, source or legal validity.
+      final checksum = sha256.convert(bytes).toString();
+      final ext = (file.extension ?? '').toLowerCase();
+      final mime = switch (ext) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        'pdf' => 'application/pdf',
+        _ => '',
+      };
+      if (mime.isEmpty) {
+        _toast('Only JPG, PNG, WEBP and PDF are supported.');
+        return;
+      }
+      final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').replaceAll('..', '_');
+      final path = '${widget.requestId}/${user.id}/${DateTime.now().microsecondsSinceEpoch}_$safeName';
+      setState(() => _uploading = true);
+      await supabase.storage.from(_bucket).uploadBinary(
+        path, bytes, fileOptions: FileOptions(contentType: mime, upsert: false));
+      try {
+        await supabase.from('case_attachments').insert({
+          'request_id': widget.requestId,
+          'storage_path': path,
+          'file_name': file.name,
+          'content_type': mime,
+          'file_size_bytes': fileSize,
+          'attachment_type': attachmentType,
+          'uploaded_by': user.id,
+          'sha256': checksum,
+        });
+      } catch (_) {
+        try { await supabase.storage.from(_bucket).remove([path]); } catch (_) {}
+        rethrow;
+      }
+      _toast('Evidence uploaded privately. Document type and local SHA-256 fingerprint were recorded.');
+    } on StateError catch (e) {
+      _toast(e.message.toString());
+    } on PostgrestException catch (e) {
+      _toast('Evidence was not recorded: ${e.message}');
+    } catch (_) {
+      _toast('Upload failed. Check case access and supported file type.');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _viewEvidence() async {
+    try {
+      final rows = await supabase.from('case_attachments')
+        .select('storage_path,file_name,content_type,file_size_bytes,attachment_type,inspection_id,captured_at,captured_latitude,captured_longitude,location_accuracy_m,sha256')
+        .eq('request_id', widget.requestId).order('created_at', ascending: false);
+      if (!mounted) return;
+      final files = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context, isScrollControlled: true, backgroundColor: panelNavy,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .65,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('PRIVATE CASE EVIDENCE', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: files.isEmpty
+                    ? const Center(child: Text('No evidence has been uploaded.'))
+                    : ListView.builder(
+                        itemCount: files.length,
+                        itemBuilder: (context, index) {
+                          final item = files[index];
+                          final kb = ((item['file_size_bytes'] as num?) ?? 0) / 1024;
+                          final captureTime = item['captured_at']?.toString();
+                          final lat = item['captured_latitude'];
+                          final lon = item['captured_longitude'];
+                          final accuracy = item['location_accuracy_m'];
+                          final locationText = lat is num && lon is num
+                              ? 'Device GPS: ${lat.toStringAsFixed(6)}, ${lon.toStringAsFixed(6)}'
+                                  '${accuracy is num ? ' · ±${accuracy.toStringAsFixed(1)} m' : ''}'
+                              : 'No GPS metadata captured';
+                          final inspectionId = item['inspection_id']?.toString();
+                          final checksum = (item['sha256'] ?? '').toString();
+                          final attachmentType = (item['attachment_type'] ?? 'other')
+                              .toString().replaceAll('_', ' ');
+                          final subtitle = <String>[
+                            '${kb.toStringAsFixed(1)} KB · Private file',
+                            'Document type: $attachmentType',
+                            if (captureTime != null && captureTime.isNotEmpty) 'Captured: $captureTime',
+                            locationText,
+                            if (inspectionId != null) 'Inspection: ${inspectionId.substring(0, inspectionId.length > 8 ? 8 : inspectionId.length)}',
+                            if (checksum.isNotEmpty) 'Local SHA-256: $checksum',
+                            if (checksum.isEmpty) 'SHA-256: Not recorded for this older file',
+                          ].join('\\n');
+                          return ListTile(
+                            leading: Icon(item['content_type'] == 'application/pdf'
+                              ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
+                            title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(subtitle, maxLines: 7, overflow: TextOverflow.ellipsis),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                try {
+                                  final url = await supabase.storage.from(_bucket)
+                                    .createSignedUrl(item['storage_path'].toString(), 600);
+                                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                                } catch (_) { _toast('Unable to open secure evidence link.'); }
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to list case evidence. Check your case permissions.');
+    }
+  }
+
+  Future<void> _addInspection() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !_staff) return;
+    var type = 'progress';
+    var outcome = 'pass';
+    var capturingLocation = false;
+    var capturingPhoto = false;
+    Position? capturedPosition;
+    XFile? capturedPhoto;
+    final notes = TextEditingController();
+
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialog) => AlertDialog(
+          title: const Text('Record site inspection'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<String>(
+                  initialValue: type, isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Inspection type'),
+                  items: const [
+                    DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
+                    DropdownMenuItem(value: 'progress', child: Text('Work progress')),
+                    DropdownMenuItem(value: 'post_work', child: Text('Post-work')),
+                    DropdownMenuItem(value: 'utility_verification', child: Text('Utility verification')),
+                    DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
+                    DropdownMenuItem(value: 'other', child: Text('Other')),
+                  ],
+                  onChanged: (v) { if (v != null) setDialog(() => type = v); },
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: outcome, isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Outcome'),
+                  items: const [
+                    DropdownMenuItem(value: 'pass', child: Text('Pass')),
+                    DropdownMenuItem(value: 'issue_found', child: Text('Issue found')),
+                    DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
+                    DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
+                  ],
+                  onChanged: (v) { if (v != null) setDialog(() => outcome = v); },
+                ),
+                const SizedBox(height: 10),
+                TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
+                  onChanged: (_) => setDialog(() {}),
+                  decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: capturingLocation ? null : () async {
+                      setDialog(() => capturingLocation = true);
+                      try {
+                        if (!await Geolocator.isLocationServiceEnabled()) {
+                          throw StateError('Turn on device location services and try again.');
+                        }
+                        var permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied || permission == LocationPermission.unableToDetermine) {
+                          permission = await Geolocator.requestPermission();
+                        }
+                        if (permission == LocationPermission.deniedForever) {
+                          throw StateError('Location permission is blocked. Enable it in app settings.');
+                        }
+                        if (permission == LocationPermission.denied) {
+                          throw StateError('Location permission was not granted.');
+                        }
+                        final position = await Geolocator.getCurrentPosition(
+                          locationSettings: const LocationSettings(
+                            accuracy: LocationAccuracy.high,
+                            timeLimit: Duration(seconds: 20),
+                          ),
+                        );
+                        if (!dialogContext.mounted) return;
+                        setDialog(() => capturedPosition = position);
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          _toast(error is StateError
+                            ? error.message.toString()
+                            : 'GPS capture failed. You can still save the inspection without location.');
+                        }
+                      } finally {
+                        if (dialogContext.mounted) setDialog(() => capturingLocation = false);
+                      }
+                    },
+                    icon: capturingLocation
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location_outlined),
+                    label: Text(capturingLocation ? 'Capturing GPS…'
+                      : capturedPosition == null ? 'Capture device GPS' : 'Refresh device GPS'),
+                  ),
+                ),
+                if (capturedPosition != null) ...[
+                  const SizedBox(height: 5),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'GPS: ${capturedPosition!.latitude.toStringAsFixed(6)}, '
+                      '${capturedPosition!.longitude.toStringAsFixed(6)} · '
+                      '±${capturedPosition!.accuracy.toStringAsFixed(1)} m',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: capturingPhoto ? null : () async {
+                      setDialog(() => capturingPhoto = true);
+                      try {
+                        final photo = await ImagePicker().pickImage(
+                          source: ImageSource.camera,
+                          imageQuality: 82,
+                          maxWidth: 1920,
+                          maxHeight: 1920,
+                        );
+                        if (photo != null) {
+                          final size = await photo.length();
+                          if (size <= 0 || size > 20 * 1024 * 1024) {
+                            throw StateError('Photo must be non-empty and no larger than 20 MB.');
+                          }
+                          if (!dialogContext.mounted) return;
+                          setDialog(() => capturedPhoto = photo);
+                        }
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          _toast(error is StateError
+                            ? error.message
+                            : 'Camera capture is unavailable. You can still save the inspection without a photo.');
+                        }
+                      } finally {
+                        if (dialogContext.mounted) setDialog(() => capturingPhoto = false);
+                      }
+                    },
+                    icon: capturingPhoto
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.photo_camera_outlined),
+                    label: Text(capturingPhoto ? 'Opening camera…'
+                      : capturedPhoto == null ? 'Take site photo' : 'Retake site photo'),
+                  ),
+                ),
+                if (capturedPhoto != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Photo ready: ${capturedPhoto!.name}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                const SizedBox(height: 10),
+                const Text(
+                  'GPS is device-reported and may be inaccurate indoors or near tall structures. '
+                  'A photo and GPS tag do not independently verify a utility location, depth, permit or site safety.',
+                  style: TextStyle(fontSize: 10, color: Colors.black54),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: capturingLocation || capturingPhoto
+                ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: capturingLocation || capturingPhoto || notes.text.trim().isEmpty
+                ? null : () => Navigator.pop(dialogContext, true),
+              child: const Text('Save inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (submit != true) {
+      notes.dispose();
+      return;
+    }
+
+    String? uploadedPath;
+    try {
+      final photoBytes = capturedPhoto == null ? null : await capturedPhoto!.readAsBytes();
+      if (photoBytes != null && (photoBytes.isEmpty || photoBytes.length > 20 * 1024 * 1024)) {
+        throw StateError('The captured photo is empty or exceeds the 20 MB limit.');
+      }
+      final photoHash = photoBytes == null ? null : sha256.convert(photoBytes).toString();
+      final position = capturedPosition;
+      final inspection = await supabase.from('case_inspections').insert({
+        'request_id': widget.requestId,
+        'inspection_type': type,
+        'outcome': outcome,
+        'notes': notes.text.trim(),
+        'inspected_by': user.id,
+        'location_latitude': position?.latitude,
+        'location_longitude': position?.longitude,
+        'location_accuracy_m': position?.accuracy,
+        'location_captured_at': position?.timestamp.toUtc().toIso8601String(),
+        'location_capture_method': position == null ? 'not_captured' : 'device_gps',
+      }).select('id').single();
+      final inspectionId = inspection['id'].toString();
+
+      if (capturedPhoto != null && photoBytes != null && photoHash != null) {
+        final filename = 'inspection_${DateTime.now().microsecondsSinceEpoch}_${photoHash.substring(0, 12)}.jpg';
+        uploadedPath = '${widget.requestId}/${user.id}/$filename';
+        try {
+          await supabase.storage.from(_bucket).uploadBinary(
+            uploadedPath!,
+            photoBytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false),
+          );
+          await supabase.from('case_attachments').insert({
+            'request_id': widget.requestId,
+            'storage_path': uploadedPath,
+            'file_name': capturedPhoto!.name.isEmpty ? filename : capturedPhoto!.name,
+            'content_type': 'image/jpeg',
+            'file_size_bytes': photoBytes.length,
+            'attachment_type': 'site_photo',
+            'uploaded_by': user.id,
+            'inspection_id': inspectionId,
+            'captured_at': DateTime.now().toUtc().toIso8601String(),
+            'captured_latitude': position?.latitude,
+            'captured_longitude': position?.longitude,
+            'location_accuracy_m': position?.accuracy,
+            'sha256': photoHash,
+          });
+          uploadedPath = null;
+        } catch (_) {
+          if (uploadedPath != null) {
+            try { await supabase.storage.from(_bucket).remove([uploadedPath!]); } catch (_) {}
+          }
+          _toast('Inspection saved, but the photo could not be attached. Retry the photo upload from the case evidence panel.');
+          return;
+        }
+      }
+      _toast(position == null
+        ? 'Inspection saved. No device GPS was attached.'
+        : 'Inspection saved with device-reported GPS${capturedPhoto == null ? '' : ' and private photo evidence'}.');
+    } on PostgrestException catch (error) {
+      _toast('Inspection was not saved: ${error.message}');
+    } catch (error) {
+      _toast(error is StateError ? error.message.toString() : 'Unable to save the inspection. Check case access and connectivity.');
+    } finally {
+      notes.dispose();
+    }
+  }
+
+  Future<void> _runAi(String purpose) async {
+    if (!_staff || _aiBusy) return;
+    setState(() => _aiBusy = true);
+    try {
+      final result = await supabase.functions.invoke('samanvay-case-assistant',
+        body: {'request_id': widget.requestId, 'purpose': purpose});
+      final data = result.data;
+      if (data is! Map || data['assessment'] is! Map) {
+        _toast(data is Map && data['error'] == 'AI_NOT_CONFIGURED'
+          ? 'AI is deployed but needs the OPENAI_API_KEY secret.'
+          : 'No valid assessment returned by the AI service.');
+        return;
+      }
+      final assessment = Map<String,dynamic>.from(data['assessment'] as Map);
+      final assessmentId = data['assessment_id']?.toString();
+      final category = (assessment['category'] ?? 'Not provided').toString();
+      final priority = (assessment['priority_band'] ?? 'Not provided').toString();
+      final confidence = (assessment['confidence'] ?? 'Not provided').toString();
+      final assessmentTitle = switch (purpose) {
+        'summary' => 'AI case summary',
+        'coordination' => 'AI coordination analysis',
+        _ => 'AI case triage',
+      };
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(assessmentTitle),
+          content: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text((assessment['summary'] ?? 'No summary returned.').toString(),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Text('Category: $category'),
+              Text('Priority suggestion: $priority'),
+              Text('Confidence: $confidence'),
+              _arrayText('Suggested departments', assessment['suggested_departments']),
+              _arrayText('Coordination flags', assessment['coordination_flags']),
+              _arrayText('Missing information', assessment['missing_information']),
+              _arrayText('Recommended checks', assessment['recommended_checks']),
+              const SizedBox(height: 10),
+               Text('Advisory only. Authorised officers must verify information and make official decisions.',
+                style: TextStyle(fontSize: 11, color: mutedInk)),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Close')),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'dismissed');
+                },
+                child: const Text('Dismiss suggestion'),
+              ),
+            if (assessmentId != null && ['admin', 'coordinator'].contains(_role))
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(dialog);
+                  _reviewAiAssessment(assessmentId, 'accepted');
+                },
+                child: const Text('Accept suggestion'),
+              ),
+          ],
+        ),
+      );
+    } on FunctionException catch (e) {
+      _toast('AI service unavailable: ${e.reasonPhrase ?? e.status.toString()}');
+    } catch (_) {
+      _toast('AI assessment failed. Check Edge Function and provider configuration.');
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  Future<void> _runCoordinationCheck() async {
+    try {
+      final raw = await supabase.rpc(
+        'run_request_coordination_check',
+        params: {'p_request_id': widget.requestId},
+      );
+      final result = Map<String, dynamic>.from(raw as Map);
+      final possibleOverlap = result['possible_overlap'] == true;
+      final status = (result['assessment_status'] ?? '').toString();
+      final advisory = (result['advisory'] ?? 'No assessment details returned.').toString();
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            possibleOverlap ? Icons.warning_amber_rounded : Icons.info_outline,
+            color: possibleOverlap ? Colors.deepOrange : teal,
+            size: 34,
+          ),
+          title: Text(
+            possibleOverlap
+                ? 'Possible recorded utility proximity'
+                : status == 'completed'
+                    ? 'No recorded overlap detected'
+                    : 'Coordination check incomplete',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(advisory),
+                const SizedBox(height: 12),
+                 Text(
+                  'This check uses only the records currently available to SAMANVAY. It is not a utility-location certificate, permit, site clearance or guarantee of safety. Obtain clearance from utility owners and complete required field verification before work.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Understood'),
+            ),
+          ],
+        ),
+      );
+    } on PostgrestException catch (e) {
+      _toast('Coordination check unavailable: ${e.message}');
+    } catch (_) {
+      _toast('Unable to run the coordination check. Confirm the case location, work radius and access permissions.');
+    }
+  }
+
+  Future<void> _viewCoordinationChecks() async {
+    try {
+      final raw = await supabase.from('case_coordination_checks')
+          .select('assessment_status,possible_overlap,advisory,checked_at')
+          .eq('request_id', widget.requestId)
+          .order('checked_at', ascending: false);
+      if (!mounted) return;
+      final checks = List<Map<String, dynamic>>.from(raw);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: panelNavy,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * 0.62,
+            child: checks.isEmpty
+                ? const Center(child: Text('No coordination checks have been run for this case.'))
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const Text('COORDINATION CHECK HISTORY',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      ...checks.map((item) {
+                        final overlap = item['possible_overlap'] == true;
+                        final date = DateTime.tryParse(item['checked_at']?.toString() ?? '');
+                        final dateLabel = date == null
+                            ? ''
+                            : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+                        return Card(
+                          child: ListTile(
+                            leading: Icon(
+                              overlap ? Icons.warning_amber_rounded : Icons.fact_check_outlined,
+                              color: overlap ? Colors.deepOrange : teal,
+                            ),
+                            title: Text(overlap
+                                ? 'Possible recorded overlap'
+                                : (item['assessment_status'] == 'completed'
+                                    ? 'No recorded overlap detected'
+                                    : 'Check incomplete')),
+                            subtitle: Text('${item['advisory'] ?? ''}\n$dateLabel'),
+                            isThreeLine: true,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load coordination-check history.');
+    }
+  }
+
+  Future<void> _reviewAiAssessment(String assessmentId, String decision) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || !['admin', 'coordinator'].contains(_role)) return;
+    try {
+      await supabase.from('case_ai_assessments').update({
+        'review_status': decision,
+        'reviewed_by': user.id,
+        'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', assessmentId).eq('review_status', 'suggested');
+      _toast(decision == 'accepted'
+        ? 'AI suggestion marked as reviewed and accepted.'
+        : 'AI suggestion dismissed.');
+    } on PostgrestException catch (e) {
+      _toast('Unable to save the review decision: ${e.message}');
+    } catch (_) {
+      _toast('Unable to save the AI review decision.');
+    }
+  }
+
+  Future<void> _viewInspections() async {
+    try {
+      final rows = await supabase.from('case_inspections')
+        .select('inspection_type,outcome,notes,inspected_at')
+        .eq('request_id', widget.requestId)
+        .order('inspected_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: panelNavy,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .62,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('INSPECTION RECORDS', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Expanded(
+                  child: items.isEmpty
+                    ? const Center(child: Text('No inspection records are available.'))
+                    : ListView.builder(
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final date = DateTime.tryParse(item['inspected_at']?.toString() ?? '');
+                          final day = date?.day.toString().padLeft(2, '0') ?? '';
+                          final month = date?.month.toString().padLeft(2, '0') ?? '';
+                          final year = date?.year.toString() ?? '';
+                          final dateLabel = date == null ? '' : '$day/$month/$year';
+                          final outcome = (item['outcome'] ?? '').toString().replaceAll('_', ' ');
+                          final notes = (item['notes'] ?? '').toString();
+                          return ListTile(
+                            leading:  Icon(Icons.fact_check_outlined, color: teal),
+                            title: Text((item['inspection_type'] ?? 'Inspection').toString().replaceAll('_', ' ').toUpperCase()),
+                            subtitle: Text(
+                              '$outcome${dateLabel.isEmpty ? '' : ' · $dateLabel'}\n$notes',
+                            ),
+                            isThreeLine: true,
+                          );
+                        },
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load inspections for this case.');
+    }
+  }
+
+  Future<void> _viewTimeline() async {
+    try {
+      final rows = await supabase.from('request_status_history')
+        .select('old_status,new_status,remarks,created_at')
+        .eq('request_id', widget.requestId)
+        .order('created_at', ascending: false);
+      if (!mounted) return;
+      final items = List<Map<String,dynamic>>.from(rows);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: panelNavy,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * .55,
+            child: items.isEmpty
+              ? const Center(child: Text('No status history has been recorded yet.'))
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    const Text('CASE ACTIVITY', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    ...items.map((item) {
+                      final oldStatus = (item['old_status'] ?? 'Created').toString().replaceAll('_', ' ');
+                      final newStatus = (item['new_status'] ?? '').toString().replaceAll('_', ' ');
+                      return ListTile(
+                        leading:  Icon(Icons.timeline, color: teal),
+                        title: Text('$oldStatus → $newStatus'),
+                        subtitle: Text((item['remarks'] ?? 'No remarks').toString()),
+                      );
+                    }),
+                  ],
+                ),
+          ),
+        ),
+      );
+    } catch (_) {
+      _toast('Unable to load case activity history.');
+    }
+  }
+
+  Widget _arrayText(String label, dynamic raw) {
+    final items = raw is List ? raw.map((x) => x.toString()).toList() : <String>[];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ...items.map((x) => Padding(padding: const EdgeInsets.only(left: 8, top: 3), child: Text('• $x'))),
+      ]),
+    );
+  }
+
+  Widget _bubble(Map<String,dynamic> item, String? uid) {
+    final mine = item['sender_id']?.toString() == uid;
+    final when = DateTime.tryParse(item['created_at']?.toString() ?? '');
+    final hour = when?.hour.toString().padLeft(2,'0') ?? '';
+    final minute = when?.minute.toString().padLeft(2,'0') ?? '';
+    final time = when == null ? '' : '$hour:$minute';
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 310),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+        decoration: BoxDecoration(
+          color: mine ? const Color(0xFF123C4A) : panelNavy,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: mine ? const Color(0xFF286B72) : borderColor),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(mine ? 'You' : 'Case participant',
+            style:  TextStyle(fontSize: 9, color: mutedInk, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(item['body']?.toString() ?? '', style:  TextStyle(color: ink)),
+          if (time.isNotEmpty) Align(alignment: Alignment.bottomRight,
+            child: Text(time, style:  TextStyle(fontSize: 9, color: mutedInk))),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = supabase.auth.currentUser?.id;
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        title: Text(widget.requestTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(tooltip: 'View evidence', onPressed: _viewEvidence, icon: const Icon(Icons.attach_file)),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'upload') _upload();
+              if (v == 'view') _viewEvidence();
+              if (v == 'run_check') _runCoordinationCheck();
+              if (v == 'check_history') _viewCoordinationChecks();
+              if (v == 'inspection') _addInspection();
+              if (v == 'inspections') _viewInspections();
+              if (v == 'timeline') _viewTimeline();
+              if (v == 'ai_triage') _runAi('triage');
+              if (v == 'ai_summary') _runAi('summary');
+              if (v == 'ai_coordination') _runAi('coordination');
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'upload', child: Text('Upload evidence')),
+              const PopupMenuItem(value: 'view', child: Text('View evidence')),
+              const PopupMenuItem(value: 'run_check', child: Text('Run utility coordination check')),
+              const PopupMenuItem(value: 'check_history', child: Text('View coordination-check history')),
+              const PopupMenuItem(value: 'inspections', child: Text('View inspections')),
+              const PopupMenuItem(value: 'timeline', child: Text('Case activity history')),
+              if (_staff) ...[
+                const PopupMenuItem(value: 'inspection', child: Text('Record inspection')),
+                const PopupMenuItem(value: 'ai_triage', child: Text('AI: classify and prioritise case')),
+                const PopupMenuItem(value: 'ai_summary', child: Text('AI: summarise case')),
+                const PopupMenuItem(value: 'ai_coordination', child: Text('AI: coordination risks and missing information')),
+              ],
+            ],
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(10),
+          color: panelNavy,
+          child: Row(children: [
+             Icon(Icons.shield_outlined, color: teal, size: 18),
+            const SizedBox(width: 8),
+             Expanded(child: Text(
+              'Case messages and evidence are restricted to authenticated participants.',
+              style: TextStyle(fontSize: 10, color: mutedInk))),
+            if (_uploading || _aiBusy) const SizedBox(width: 15, height: 15,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          ]),
+        ),
+        Expanded(
+          child: StreamBuilder<List<Map<String,dynamic>>>(
+            stream: _messages,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return const Center(child: Text('Discussion is unavailable for this account.'));
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final rows = snapshot.data!;
+              if (rows.isEmpty) return const Center(child: Text('No messages yet. Start the case discussion.'));
+              return ListView.builder(
+                padding: const EdgeInsets.all(14), itemCount: rows.length,
+                itemBuilder: (context, index) => _bubble(rows[index], uid));
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+            color: panelNavy,
+            child: Row(children: [
+              IconButton(tooltip: 'Upload evidence', onPressed: _uploading ? null : _upload,
+                icon:  Icon(Icons.attach_file, color: teal)),
+              Expanded(child: TextField(
+                controller: _message, minLines: 1, maxLines: 4, maxLength: 4000,
+                decoration: const InputDecoration(
+                  hintText: 'Write a case message…', counterText: '', isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 13, vertical: 10)),
+              )),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                onPressed: _sending ? null : _send,
+                icon: _sending
+                  ? const SizedBox(width: 17, height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.send_rounded)),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ==========================================
+// REALTIME USER NOTIFICATIONS
+// ==========================================
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key});
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  late final Stream<List<Map<String,dynamic>>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = supabase.auth.currentUser;
+    _stream = user == null
+      ? Stream.value(<Map<String,dynamic>>[])
+      : supabase.from('user_notifications').stream(primaryKey: ['id'])
+        .eq('recipient_id', user.id).order('created_at', ascending: false);
+  }
+
+  Future<void> _openNotification(Map<String,dynamic> item) async {
+    await _markRead(item);
+    if (item['notification_type'] == 'public_work') {
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()),
+      );
+      return;
+    }
+    final requestId = item['request_id']?.toString();
+    if (requestId == null || requestId.isEmpty || !mounted) return;
+    var title = 'Infrastructure case';
+    try {
+      final row = await supabase.from('excavation_requests')
+        .select('title').eq('id', requestId).maybeSingle();
+      title = (row?['title'] ?? title).toString();
+    } catch (_) {}
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaseWorkspacePage(
+          requestId: requestId,
+          requestTitle: title,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _markRead(Map<String,dynamic> item) async {
+    final user = supabase.auth.currentUser;
+    if (user == null || item['read_at'] != null) return;
+    try {
+      await supabase.from('user_notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', item['id'].toString()).eq('recipient_id', user.id);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to mark notification as read.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(title: const Text('Notifications')),
+      body: StreamBuilder<List<Map<String,dynamic>>>(
+        stream: _stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text('Notifications could not be loaded.',
+                style: TextStyle(color: Colors.white)),
+            );
+          }
+          if (!snapshot.hasData) {
+            return  Center(
+              child: CircularProgressIndicator(color: cyanAccent),
+            );
+          }
+          final rows = snapshot.data!;
+          final unread = rows.where((x) => x['read_at'] == null).length;
+          if (rows.isEmpty) {
+            return const Center(
+              child: Text('You are all caught up.',
+                style: TextStyle(color: Colors.white)),
+            );
+          }
+          final total = rows.length;
+          return ListView(padding: const EdgeInsets.all(14), children: [
+            Text('$unread unread · $total total',
+              style:  TextStyle(color: mutedInk, fontSize: 12, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            ...rows.map((item) {
+              final fresh = item['read_at'] == null;
+              final date = DateTime.tryParse(item['created_at']?.toString() ?? '');
+              final day = date?.day.toString().padLeft(2,'0') ?? '';
+              final month = date?.month.toString().padLeft(2,'0') ?? '';
+              final year = date?.year.toString() ?? '';
+              final dateText = date == null ? '' : '$day/$month/$year';
+              final notificationBody = (item['body'] ?? '').toString();
+              final type = (item['notification_type'] ?? '').toString();
+              final icon = switch (type) {
+                'assignment' => Icons.account_tree_outlined,
+                'review' => Icons.rate_review_outlined,
+                'status' => Icons.sync_alt,
+                'message' => Icons.forum_outlined,
+                'public_work' => Icons.campaign_outlined,
+                _ => Icons.notifications_outlined,
+              };
+              return Card(
+                color: fresh ? const Color(0xFF123C4A) : panelNavy,
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0x3320D6C2),
+                    child: Icon(icon, color: cyanAccent)),
+                  title: Text(item['title']?.toString() ?? 'SAMANVAY update',
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                  subtitle: Text('$notificationBody\n$dateText', style:  TextStyle(color: mutedInk)),
+                  isThreeLine: true,
+                  trailing: fresh
+                    ? const Icon(Icons.circle, color: Color(0xFF13A89E), size: 10)
+                    :  Icon(Icons.check, color: mutedInk, size: 18),
+                  onTap: () => _openNotification(item),
+                ),
+              );
+            }),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
+// ==========================================
+// ADMINISTRATION CONSOLE
+// ==========================================
+class AdminManagementPage extends StatefulWidget {
+  const AdminManagementPage({super.key});
+  @override
+  State<AdminManagementPage> createState() => _AdminManagementPageState();
+}
+
+class _AdminManagementPageState extends State<AdminManagementPage> {
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _audit = [];
+  List<Map<String, dynamic>> _routes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _toast(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final userRows = await supabase.rpc('admin_user_directory');
+      final departmentRows = await supabase.from('departments')
+          .select('id,name,description').order('name');
+      final auditRows = await supabase.from('admin_audit_events')
+          .select('event_type,details,created_at')
+          .order('created_at', ascending: false).limit(40);
+      final routeRows = await supabase.from('department_service_domains')
+          .select('department_id,case_category,route_priority')
+          .order('case_category');
+      if (!mounted) return;
+      setState(() {
+        _users = List<Map<String, dynamic>>.from(userRows as List);
+        _departments = List<Map<String, dynamic>>.from(departmentRows);
+        _audit = List<Map<String, dynamic>>.from(auditRows);
+        _routes = List<Map<String, dynamic>>.from(routeRows);
+        _loading = false;
+      });
+    } on PostgrestException catch (error) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = error.message; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load administration records. Verify administrator permissions.';
+      });
+    }
+  }
+
+  Future<void> _editUser(Map<String, dynamic> user) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final userId = user['user_id'].toString();
+    if (userId == currentUserId) {
+      _toast('Your own administrator role cannot be changed here.');
+      return;
+    }
+
+    String selectedRole = (user['role'] ?? 'requester').toString();
+    String? selectedDepartment = user['department_id']?.toString();
+    if (selectedRole == 'department' && selectedDepartment == null && _departments.isNotEmpty) {
+      selectedDepartment = _departments.first['id'].toString();
+    }
+
+    final result = await showDialog<Map<String, String?>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Update account access'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((user['display_name'] ?? 'SAMANVAY user').toString(),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(
+                  'Account reference: ${userId.substring(0, userId.length > 8 ? 8 : userId.length)}',
+                  style:  TextStyle(fontSize: 10, color: mutedInk),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedRole,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Platform role', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'requester', child: Text('Citizen')),
+                    DropdownMenuItem(value: 'department', child: Text('Department officer')),
+                    DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                    DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setDialogState(() {
+                      selectedRole = value;
+                      if (value != 'department') selectedDepartment = null;
+                      if (value == 'department' && _departments.isNotEmpty) {
+                        selectedDepartment ??= _departments.first['id'].toString();
+                      }
+                    });
+                  },
+                ),
+                if (selectedRole == 'department') ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedDepartment,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Assigned department', border: OutlineInputBorder()),
+                    items: _departments.map((item) => DropdownMenuItem<String>(
+                      value: item['id'].toString(),
+                      child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (value) => setDialogState(() => selectedDepartment = value),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                 Text(
+                  'Changes are checked and recorded by the database. Users cannot assign roles to themselves.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: selectedRole == 'department' && selectedDepartment == null
+                ? null
+                : () => Navigator.pop(dialogContext, {
+                    'role': selectedRole,
+                    'department_id': selectedDepartment,
+                  }),
+              child: const Text('Save access'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    try {
+      await supabase.rpc('admin_update_profile_role', params: {
+        'p_user_id': userId,
+        'p_role': result['role'],
+        'p_department_id': result['department_id'],
+      });
+      _toast('Account access updated and audit entry recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Access update rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to update account access.');
+    }
+  }
+
+  Future<void> _addDepartment() async {
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add department / routing group'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'Department name', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(labelText: 'Description / responsibility', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+               Text(
+                'Use the official department name for the relevant city/state jurisdiction. Creating a routing group does not establish statutory authority.',
+                style: TextStyle(fontSize: 11, color: mutedInk),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, nameController.text.trim().isNotEmpty),
+            child: const Text('Create department'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        await supabase.rpc('admin_create_department', params: {
+          'p_name': nameController.text.trim(),
+          'p_description': descriptionController.text.trim(),
+        });
+        _toast('Department added.');
+        await _load();
+      } on PostgrestException catch (error) {
+        _toast('Department not created: ${error.message}');
+      } catch (_) {
+        _toast('Unable to create department.');
+      }
+    }
+    nameController.dispose();
+    descriptionController.dispose();
+  }
+
+
+  Future<void> _manageServiceRoute() async {
+    if (_departments.isEmpty) {
+      _toast('Create a department before configuring a service route.');
+      return;
+    }
+    const categories = <String, String>{
+      'road_reconstruction': 'Road reconstruction',
+      'water_supply': 'Water supply',
+      'sewerage': 'Sewerage',
+      'stormwater_drainage': 'Stormwater and drainage',
+      'electricity': 'Electricity',
+      'telecom': 'Telecommunications',
+      'gas': 'Gas network',
+      'borewell_groundwater': 'Borewell and groundwater',
+      'building_planning': 'Building planning / regulation',
+      'public_health_engineering': 'Public health engineering',
+      'other': 'Other infrastructure issue',
+    };
+    String category = categories.keys.first;
+    String departmentId = _departments.first['id'].toString();
+    String priority = 'primary';
+    bool enabled = true;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Configure service routing'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Infrastructure domain'),
+                  items: categories.entries.map((entry) => DropdownMenuItem<String>(
+                    value: entry.key, child: Text(entry.value),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => category = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: departmentId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Department / routing group'),
+                  items: _departments.map((item) => DropdownMenuItem<String>(
+                    value: item['id'].toString(),
+                    child: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => departmentId = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(labelText: 'Suggestion level'),
+                  items: const [
+                    DropdownMenuItem(value: 'primary', child: Text('Primary suggestion')),
+                    DropdownMenuItem(value: 'supporting', child: Text('Supporting department')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => priority = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: enabled,
+                  title: const Text('Enable this routing suggestion'),
+                  onChanged: (value) => setDialogState(() => enabled = value),
+                ),
+                 Text(
+                  'This configures a suggestion only. It does not automatically assign a case or establish statutory authority.',
+                  style: TextStyle(fontSize: 11, color: mutedInk),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save routing')),
+          ],
+        ),
+      ),
+    );
+    if (save != true) return;
+    try {
+      await supabase.rpc('admin_set_service_domain_route', params: {
+        'p_department_id': departmentId,
+        'p_case_category': category,
+        'p_route_priority': priority,
+        'p_enabled': enabled,
+      });
+      _toast('Service routing updated and audit event recorded.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Routing update rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to update service routing.');
+    }
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style:  TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ink)),
+          const SizedBox(height: 3),
+          Text(subtitle, style:  TextStyle(fontSize: 11, color: mutedInk)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Administration'),
+        actions: [IconButton(onPressed: _loading ? null : _load, icon: const Icon(Icons.refresh))],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [navy, Color(0xFF14515E)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 30),
+                  SizedBox(height: 10),
+                  Text('PLATFORM GOVERNANCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                  SizedBox(height: 5),
+                  Text(
+                    'Manage platform access, routing groups and audit history. Statutory authority remains with the responsible government organisation.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (_error != null)
+              Card(child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              )),
+            if (_loading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(28), child: CircularProgressIndicator(),
+              ))
+            else ...[
+              _sectionTitle('User and access directory', '${_users.length} account(s)'),
+              ..._users.map((user) {
+                final isSelf = user['user_id']?.toString() == currentUserId;
+                final role = (user['role'] ?? 'requester').toString();
+                final name = (user['display_name'] ?? 'SAMANVAY user').toString();
+                final dept = user['department_name']?.toString();
+                final subtitle = '${_displayRoleName(role).toUpperCase()}'
+                  '${dept == null ? '' : ' · $dept'}'
+                  '${isSelf ? ' · CURRENT ACCOUNT' : ''}';
+                final icon = role == 'admin' ? Icons.admin_panel_settings_outlined :
+                  role == 'coordinator' ? Icons.hub_outlined :
+                  role == 'department' ? Icons.account_tree_outlined : Icons.person_outline;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFE7F8F6),
+                      child: Icon(icon, color: teal),
+                    ),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(subtitle, style: const TextStyle(fontSize: 10)),
+                    trailing: IconButton(
+                      tooltip: isSelf ? 'Own role is locked' : 'Edit role and department',
+                      onPressed: isSelf ? null : () => _editUser(user),
+                      icon: Icon(isSelf ? Icons.lock_outline : Icons.edit_outlined),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Departments and routing groups', '${_departments.length} group(s)')),
+                  FilledButton.icon(
+                    onPressed: _addDepartment,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                  ),
+                ],
+              ),
+              ..._departments.map((department) => Card(
+                margin: const EdgeInsets.only(bottom: 7),
+                child: ListTile(
+                  leading:  Icon(Icons.account_tree_outlined, color: teal),
+                  title: Text(department['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(
+                    (department['description'] ?? 'No description recorded').toString(),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(child: _sectionTitle('Case-domain routing', '${_routes.length} suggestion(s)')),
+                  FilledButton.icon(
+                    onPressed: _manageServiceRoute,
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: const Text('Configure'),
+                  ),
+                ],
+              ),
+              ..._routes.map((route) {
+                final department = _departments.firstWhere(
+                  (item) => item['id'].toString() == route['department_id'].toString(),
+                  orElse: () => {'name': 'Unknown department'},
+                );
+                final categoryName = route['case_category'].toString().replaceAll('_', ' ').toUpperCase();
+                final priorityName = route['route_priority'] == 'primary' ? 'PRIMARY' : 'SUPPORTING';
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    dense: true,
+                    leading:  Icon(Icons.route_outlined, color: teal),
+                    title: Text(department['name'].toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('$categoryName · $priorityName',
+                      style: const TextStyle(fontSize: 10)),
+                  ),
+                );
+              }),
+              const SizedBox(height: 18),
+              _sectionTitle('Administrative audit trail', '${_audit.length} recent event(s)'),
+              if (_audit.isEmpty)
+                const Card(child: Padding(
+                  padding: EdgeInsets.all(15),
+                  child: Text('No administrative changes have been recorded yet.'),
+                ))
+              else
+                ..._audit.map((event) {
+                  final details = event['details'] is Map
+                    ? Map<String, dynamic>.from(event['details'] as Map)
+                    : <String, dynamic>{};
+                  final when = DateTime.tryParse(event['created_at']?.toString() ?? '');
+                  final dateText = when == null ? '' :
+                    '${when.day.toString().padLeft(2, '0')}/${when.month.toString().padLeft(2, '0')}/${when.year}';
+                  final type = (event['event_type'] ?? '').toString();
+                  final label = type == 'profile_role_changed'
+                    ? 'Account role / department updated'
+                    : 'Department routing group created';
+                  final detail = (details['department_name'] ?? details['new_role'] ?? '').toString();
+                  return Card(
+                    child: ListTile(
+                      leading:  Icon(Icons.history, color: mutedInk),
+                      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('$detail${dateText.isEmpty ? '' : ' · $dateText'}'),
+                    ),
+                  );
+                }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+).hasMatch(input)
+                              ? null : 'Enter a valid email address';
+                        }
                         final phone = _normalisePhoneForAuth(input);
-                        return phone.startsWith('+') && phone.length >= 9 && phone.length <= 16 ? null : 'Enter a valid email address or mobile number';
+                        return phone.startsWith('+') && phone.length >= 9 && phone.length <= 16
+                            ? null : 'Enter a valid mobile number with country code';
                       }
                       return _validateLoginIdentifier(value);
                     },
@@ -5063,7 +23194,7 @@ class _AuthPageState extends State<AuthPage> {
                             ? (usePasswordLogin
                                 ? submit
                                 : (otpSent ? verifyLoginOtp : sendLoginOtp))
-                            : submit),
+                            : (isPhoneSignupOtp && otpSent ? verifyLoginOtp : submit)),
                     style: FilledButton.styleFrom(
                       backgroundColor: electricBlue,
                       padding:
