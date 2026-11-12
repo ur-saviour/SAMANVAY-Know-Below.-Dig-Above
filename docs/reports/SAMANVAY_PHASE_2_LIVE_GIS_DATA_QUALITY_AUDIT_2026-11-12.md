@@ -158,3 +158,22 @@ The authenticated security-definer RPC audit confirmed that the 15 app-facing fu
 - Test limitation: the underground-asset and survey-evidence tables currently contain zero records. Admin and Citizen SQL sessions both returned zero verification-queue rows, which verifies query execution but is not a meaningful non-empty positive/negative data-access test. Full role regression must be repeated after owner-authorised test records exist.
 
 This hardening reduces the view-owner privilege boundary and makes internal logs explicitly server-managed. It does not replace external security review, field/device QA or utility-owner data validation.
+
+### Authenticated role smoke tests (12 November 2026)
+
+All tests ran as the `authenticated` database role with controlled JWT subject claims inside transactions that were rolled back:
+
+| Session | Test | Result |
+|---|---|---|
+| Citizen | `admin_create_department` | Denied |
+| Citizen | `admin_user_directory` | Denied |
+| Citizen | `assign_request_department` | Denied |
+| Citizen | `get_map_utility_conflict_advisories` | Denied |
+| Citizen | `get_my_department_verified_assets_geojson` | Denied |
+| Citizen | `submit_department_review` | Denied |
+| Admin | `admin_user_directory` | Allowed; 6 profiles returned |
+| Coordinator | empty-list utility advisory | Allowed; no results, no geometry disclosure |
+| Department Officer | owner-scoped GeoJSON endpoint | Allowed; empty FeatureCollection |
+| Citizen | generalised 250 m GIS overview | Allowed; empty FeatureCollection |
+
+The six Citizen negative checks passed; the positive calls returned the expected role-specific shape. No write operation succeeded and no test data was retained. Because `gis.underground_assets` and `gis.asset_survey_evidence` still contain zero rows, these are function/role-gate smoke tests, not a positive-data row-visibility test and not a production penetration test.
