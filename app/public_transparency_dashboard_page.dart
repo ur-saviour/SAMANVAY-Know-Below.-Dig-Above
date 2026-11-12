@@ -18,7 +18,6 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
   bool loading = true;
   String? error;
   List<Map<String, dynamic>> notices = [];
-  List<Map<String, dynamic>> departments = [];
   Color get ink => Theme.of(context).brightness == Brightness.light ? Colors.black : const Color(0xFFEAF2FA);
   Color get muted => Theme.of(context).brightness == Brightness.light ? const Color(0xFF242424) : const Color(0xFFA9BACB);
   Color get panel => Theme.of(context).colorScheme.surface;
@@ -30,17 +29,13 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
   Future<void> load() async {
     if (mounted) setState(() { loading = true; error = null; });
     try {
-      final result = await Future.wait([
-        widget.client.from('public_excavation_notices')
-          .select('notice_code,title,notice_type,summary,city,starts_on,ends_on,progress_percent,notice_status,responsible_department_name,source_reference,source_url,published_at')
-          .inFilter('notice_status', ['published', 'active', 'completed'])
-          .order('starts_on', ascending: false).limit(250),
-        widget.client.from('departments').select('name').order('name'),
-      ]);
+      final result = await widget.client.from('public_excavation_notices')
+        .select('notice_code,title,notice_type,summary,city,starts_on,ends_on,progress_percent,notice_status,responsible_department_name,source_reference,source_url,published_at')
+        .inFilter('notice_status', ['published', 'active', 'completed'])
+        .order('starts_on', ascending: false).limit(250);
       if (!mounted) return;
       setState(() {
-        notices = List<Map<String, dynamic>>.from(result[0]);
-        departments = List<Map<String, dynamic>>.from(result[1]);
+        notices = List<Map<String, dynamic>>.from(result);
         loading = false;
       });
     } catch (_) {
@@ -60,6 +55,10 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
     }
     return result;
   }
+
+  int get publicDepartmentCount => activity.keys
+    .where((name) => name.trim().isNotEmpty && name != 'Department not stated')
+    .length;
 
   Widget heading(String title, String subtitle) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
@@ -120,12 +119,12 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
               const Text('TOWARDS OUR DEVELOPMENT 📈',
                 style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
               const SizedBox(height: 7),
-              const Text('Published projects, departmental activity and verified outcomes — across services and regions, not roads alone.',
+              const Text('Published project notices, responsible-department names and source-linked progress — across services and regions, not roads alone.',
                 style: TextStyle(color: Color(0xFFD6E7F2), fontSize: 11, height: 1.45)),
               const SizedBox(height: 12),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 OutlinedButton.icon(onPressed: widget.onOpenMap, icon: const Icon(Icons.layers_outlined, size: 16),
-                  label: const Text('PUBLIC 3D UNDERGROUND MAP'),
+                  label: const Text('OPEN PUBLIC 3D GIS MAP'),
                   style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Color(0x887FE7E0)))),
                 OutlinedButton.icon(onPressed: widget.onOpenNotices, icon: const Icon(Icons.campaign_outlined, size: 16),
                   label: const Text('PUBLIC NOTICES'),
@@ -149,11 +148,11 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
               ]);
             }),
             const SizedBox(height: 20),
-            heading('Department coordination & activity', 'Published public notices grouped by responsible department.'),
+            heading('Department coordination & activity', 'Published public notices grouped by department as named in each notice.'),
             panelCard(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(child: Text('Departments connected', style: TextStyle(color: ink, fontWeight: FontWeight.w900))),
-                Text(departments.length.toString(), style: GoogleFonts.robotoMono(color: ink, fontSize: 19, fontWeight: FontWeight.w900)),
+                Text(publicDepartmentCount.toString(), style: GoogleFonts.robotoMono(color: ink, fontSize: 19, fontWeight: FontWeight.w900)),
               ]),
               const SizedBox(height: 10),
               if (items.isEmpty)
@@ -174,7 +173,7 @@ class _PublicTransparencyDashboardPageState extends State<PublicTransparencyDash
                 ]),
               )),
               const SizedBox(height: 9),
-              Text('Department count is the current registry size. Activity bars represent published notices only.',
+              Text('Department count is derived only from published notices shown here. Internal department records and draft notices are excluded.',
                 style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w600)),
             ])),
             const SizedBox(height: 20),
