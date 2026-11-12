@@ -23,6 +23,17 @@ Current active LGD-code-bearing reference records in `public.india_administrativ
 
 The ULB directory is therefore present; it is not yet an authoritative boundary layer. The counts above are distinct non-null LGD codes after filtering active records. They are not counts of current verified administrative units, and the community mirrors must not be labelled as official government certification.
 
+### Import-batch reconciliation
+
+The live `public.india_directory_import_batches` ledger currently reports:
+- Districts: 784 community-mirror rows imported; separate authorised-export tasks remain queued for all 36 State/UTs.
+- Sub-districts: 7,092 imported from the 21 Oct 2026 community mirror.
+- Blocks: 7,342 source rows received; 7,312 inserted; 30 rejected because 15 LGD block codes appeared under two different district parents. Both sides of each conflicting code were rejected rather than arbitrarily selecting one parent.
+- Urban local bodies: 5,050 imported from the 23 Sep 2026 community/API mirror, with no district-parent fields supplied by the source; 36 authorised-export tasks remain queued for official LGD reconciliation.
+- District name/reference imports from older DataMeet sources remain separate, code-less and non-authoritative.
+
+A completed mirror import does not close the separate authorised-export task. The 36 queued district tasks and 36 queued ULB tasks remain open until an official LGD export is supplied, validated and imported.
+
 ### District boundary reference geometry
 
 The separate `public.india_district_boundary_reference` table contains 733 district-name geometries across 37 state/UT labels. The live QA query found:
