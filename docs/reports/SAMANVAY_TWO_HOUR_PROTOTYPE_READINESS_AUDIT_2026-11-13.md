@@ -151,3 +151,13 @@ References:
 - [Multiple permissive policies guidance](https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies)
 
 The 16 RPC warnings are not automatically evidence of exploitable access: the inspected routines use fixed search paths, deny `anon` execution, and authenticated-callable function bodies reference the caller identity. However, each function still needs an individual privilege and role-path review before a production security sign-off. No production database writes were performed.
+
+### Focused review of GIS RPCs flagged by the advisor
+
+Three GIS-related callable routines were inspected directly:
+
+- `get_underground_asset_overview` checks that the caller has an authenticated profile with one of the four supported platform roles, returns only verified asset records, and generalises them into 250 m cells with a minimum of three assets per cell. It does not expose individual asset geometries.
+- `get_my_department_verified_assets_geojson` requires an authenticated Department Officer profile with a non-null department assignment, then restricts the result to verified assets owned by that department. Unverified records are counted as withheld; their geometry is not returned.
+- `is_department_assigned_to_request` returns true only when the authenticated profile is a Department Officer and that department has a review assignment for the supplied request.
+
+These controls reduce the immediate risk indicated by the generic advisor warning, but they do not replace an end-to-end API test with separate Citizen, Officer, Coordinator and Administrator sessions. The live GIS asset table currently has no verified assets, so geometry confidentiality and rendering still require a populated, authorised test fixture before production acceptance.
