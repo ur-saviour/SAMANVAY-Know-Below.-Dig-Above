@@ -27,6 +27,7 @@ These are acquisition plans. They do not imply that government datasets, survey 
 - [Phase 3 Security and Phase 4 Evidence Update — 12 November 2026](docs/security/SAMANVAY_PHASE_3_SECURITY_AND_EVIDENCE_UPDATE_2026-11-12.md)
 - [Groundwater Data Recovery Incident — 9 November 2026](docs/security/SAMANVAY_GROUNDWATER_DATA_RECOVERY_INCIDENT_2026-11-09.md)
 - [Phase 6 Administrative Hierarchy Integrity Audit — 13 November 2026](docs/reports/SAMANVAY_PHASE_6_HIERARCHY_INTEGRITY_AUDIT_2026-11-13.md)
+- [Five-Minute Jury Demonstration Runbook](docs/demo/SAMANVAY_FIVE_MINUTE_JURY_DEMO_RUNBOOK.md)
 - [Security Hardening and Containment Record](docs/SECURITY_HARDENING_2026-11-12.md)
 - [Utility Proximity Conflict Screening](docs/features/UTILITY_PROXIMITY_CONFLICT_SCREENING.md)
 - [Road-Cut Permit Compliance & Restoration Deadlines](docs/features/ROAD_CUT_PERMIT_COMPLIANCE_AND_DEADLINES.md)
