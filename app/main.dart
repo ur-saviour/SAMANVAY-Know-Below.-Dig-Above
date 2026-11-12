@@ -4574,33 +4574,7 @@ class _AuthPageState extends State<AuthPage> {
 
                   const SizedBox(height: 14),
 
-                  Text(
-                    'SAMANVAY',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: ink,
-                      letterSpacing: 2.2,
-                    ),
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  const _AnimatedDevelopmentTagline(fontSize: 10),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    'National Infrastructure Coordination Platform',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: mutedInk,
-                      fontSize: 12,
-                    ),
-                  ),
-
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 18),
 
                   Text(
                     isLogin
@@ -4681,12 +4655,6 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  OutlinedButton.icon(
-                    onPressed: loading ? null : chooseDemoWorkspace,
-                    icon: const Icon(Icons.dashboard_customize_outlined),
-                    label: const Text('Explore demo workspaces'),
-                  ),
-                  const SizedBox(height: 14),
                   if (isLogin) ...[
                     Text(
                       'CHOOSE YOUR SIGN-IN METHOD',
@@ -4765,12 +4733,10 @@ class _AuthPageState extends State<AuthPage> {
                       border: const OutlineInputBorder(),
                       helperText: isLogin
                           ? (usePasswordLogin
-                              ? 'Use your registered email address and password. Existing staff IDs resolve to their saved email. Email OTP is disabled and mobile OTP is not configured for this project.'
-                              : (usePhoneLogin
-                                  ? 'No mobile number is currently linked to existing accounts. Use your registered email until a mobile number is linked and verified in My Profile.'
-                                  : 'A six-digit code will be sent to your registered inbox. Existing staff IDs resolve to their saved email.'))
-                          : null,
-                      helperMaxLines: 3,
+                              ? 'Use your registered email or verified mobile number.'
+                              : 'A six-digit SMS code will be sent to your mobile number.')
+                          : 'A verification code will be sent to your email or mobile number.',
+                      helperMaxLines: 2,
                     ),
                     onFieldSubmitted: (_) {
                       if (isLogin && !usePasswordLogin && !otpSent && !loading) {
@@ -4885,20 +4851,6 @@ class _AuthPageState extends State<AuthPage> {
                         child: const Text('Forgot password?'),
                       ),
                     ),
-                  ],
-
-                  if (isLogin) ...[
-                    OutlinedButton.icon(
-                      onPressed: loading ? null : openStaffDemoPreview,
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('OPEN OFFICIAL DEMO PORTAL'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: cyanAccent,
-                        side: const BorderSide(color: Color(0xFF2D6A87)),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
                   ],
 
                   const SizedBox(height: 20),
