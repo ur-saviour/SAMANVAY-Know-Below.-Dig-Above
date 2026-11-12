@@ -98,6 +98,8 @@ jobs:
           flutter pub add http
           flutter pub add crypto:3.0.8
           flutter pub add shared_preferences
+          # Flutter 3.50 moved Material widgets into the standalone package.
+          flutter pub add material_ui
           python3 - <<'PY'
           from pathlib import Path
           path = Path("pubspec.yaml")
