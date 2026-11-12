@@ -812,22 +812,6 @@ class _SamanvayOpeningScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: 34,
-                    right: 8,
-                    child: IgnorePointer(
-                      child: Opacity(
-                        opacity: .76,
-                        child: SizedBox(
-                          width: 150,
-                          height: 100,
-                          child: CustomPaint(
-                            painter: _IndianFlagWavePainter(progress: ambient),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                   SafeArea(
                     child: Center(
                       child: ConstrainedBox(
