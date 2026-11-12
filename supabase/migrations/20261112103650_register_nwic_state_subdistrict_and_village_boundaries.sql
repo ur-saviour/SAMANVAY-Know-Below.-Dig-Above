@@ -1,0 +1,51 @@
+-- Register additional GSI/NWIC administrative boundary references.
+-- Metadata only: no files, geometry, LGD codes or legal boundary status are imported.
+
+insert into public.official_data_sources
+  (source_key, agency, dataset_name, source_url, geography, data_theme,
+   access_mode, integration_status, format, last_checked_at, notes)
+values
+  ('india_nwic_state_boundary_gsi',
+   'Geological Survey of India / National Water Informatics Centre',
+   'India State and Union Territory Boundary reference layer',
+   'https://nwdp.nwic.gov.in/en/dataset/state-boundary/resource/f039e721-132c-4a24-9e5e-07af03064b4d',
+   'India — State and Union Territory boundary reference features',
+   'Administrative GIS boundary reference',
+   'public_download',
+   'metadata_registered',
+   'GeoJSON ZIP, KML/KMZ, Shapefile',
+   now(),
+   'NWIC resource metadata identifies GSI as producer, GeoJSON format, an open-but-unspecified licence label, and a source data date of 2025-05-01. Metadata registration only: the file has not been downloaded, checksum-verified, CRS/topology-validated or reconciled to current LGD codes. Not statutory boundary certification and not underground utility data.'),
+  ('india_nwic_subdistrict_boundary_gsi',
+   'Geological Survey of India / National Water Informatics Centre',
+   'India Sub-district Boundary — 6,312-feature reference layer',
+   'https://nwdp.nwic.gov.in/en/dataset/sub-district-boundary',
+   'India — 6,312 sub-district boundary reference features',
+   'Administrative GIS boundary reference',
+   'public_download',
+   'metadata_registered',
+   'GeoJSON ZIP, KML, Shapefile',
+   now(),
+   'NWIC dataset metadata identifies GSI as producer and reports 6,312 sub-districts, with source data last updated 2025-05-05 and an open-but-unspecified licence label. This differs from the 7,092 LGD-code-bearing community-mirror directory rows; the mismatch must be reconciled by source codes and jurisdiction before joining or displaying as current. Metadata registration only: no file download, checksum validation, CRS/topology QA or LGD reconciliation is claimed.'),
+  ('india_nwic_village_boundary_gsi',
+   'Geological Survey of India / National Water Informatics Centre',
+   'India State-wise Village Boundary reference layers',
+   'https://nwdp.nwic.gov.in/dataset/village-boundary',
+   'India — State/UT-wise village boundary resource collection',
+   'Administrative GIS boundary reference',
+   'public_download',
+   'metadata_registered',
+   'State-wise GeoJSON ZIP, KML, Shapefile',
+   now(),
+   'NWIC dataset catalogue lists State/UT-wise village boundary resources and identifies GSI as producer; the Tamil Nadu KML resource reports a source data date of 2025-05-02 and an open-but-unspecified licence label. Catalogue presence does not prove complete 36-jurisdiction coverage or current statutory validity. Metadata registration only: download, resource-by-resource completeness, checksum, CRS/topology and LGD-code reconciliation remain pending.')
+on conflict (source_key) do update set
+  agency = excluded.agency,
+  dataset_name = excluded.dataset_name,
+  source_url = excluded.source_url,
+  geography = excluded.geography,
+  data_theme = excluded.data_theme,
+  access_mode = excluded.access_mode,
+  integration_status = 'metadata_registered',
+  format = excluded.format,
+  last_checked_at = now(),
+  notes = excluded.notes;
