@@ -5157,7 +5157,7 @@ class _AuthPageState extends State<AuthPage> {
                                 ? (usePasswordLogin
                                     ? 'SIGN IN'
                                     : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
-                                : 'CREATE ACCOUNT',
+                                : (isPhoneSignupOtp && otpSent ? 'VERIFY MOBILE NUMBER' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
@@ -21105,6 +21105,9 @@ class _ProfilePageState extends State<ProfilePage> {
           ]);
         }),
         const SizedBox(height: 20),
+         Text('Account security', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        const SizedBox(height: 20),
          Text('Workspace and support', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
         _tile(Icons.assignment_outlined, workspaceTitle, workspaceSubtitle,
@@ -21120,13 +21123,6 @@ class _ProfilePageState extends State<ProfilePage> {
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage()))),
         _tile(Icons.public_rounded, 'India data coverage', 'Explore imported coverage and data gaps',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()))),
-        _tile(Icons.phone_android_rounded, 'Link mobile number', 'Verify your mobile number to enable OTP sign-in by phone',
-          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PhoneNumberLinkPage())),
-          color: const Color(0xFF0E8A78)),
-        _tile(Icons.lock_outline_rounded, 'Change password', 'Set a new password for your signed-in account',
-          _changePassword, color: const Color(0xFF0E8A78)),
-        _tile(Icons.mark_email_read_outlined, 'Forgot password / recovery', 'Request a secure password reset email',
-          _passwordReset, color: const Color(0xFF0E8A78)),
         _tile(Icons.info_outline_rounded, 'About SAMANVAY', 'Platform purpose, departments, data integrity and governance',
           _aboutSamanvay, color: const Color(0xFF35B6C8)),
         _tile(Icons.help_outline_rounded, 'Help and guidance', 'Understand modules and data-safety limits',
@@ -23217,7 +23213,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                                 ? (usePasswordLogin
                                     ? 'SIGN IN'
                                     : (otpSent ? 'VERIFY & SIGN IN' : 'SEND LOGIN OTP'))
-                                : 'CREATE ACCOUNT',
+                                : (isPhoneSignupOtp && otpSent ? 'VERIFY MOBILE NUMBER' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
@@ -39145,6 +39141,9 @@ class _ProfilePageState extends State<ProfilePage> {
           ]);
         }),
         const SizedBox(height: 20),
+         Text('Account security', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        const SizedBox(height: 20),
          Text('Workspace and support', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
         _tile(Icons.assignment_outlined, workspaceTitle, workspaceSubtitle,
@@ -39160,13 +39159,6 @@ class _ProfilePageState extends State<ProfilePage> {
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsPage()))),
         _tile(Icons.public_rounded, 'India data coverage', 'Explore imported coverage and data gaps',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const IndiaCoverageExplorerPage()))),
-        _tile(Icons.phone_android_rounded, 'Link mobile number', 'Verify your mobile number to enable OTP sign-in by phone',
-          () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PhoneNumberLinkPage())),
-          color: const Color(0xFF0E8A78)),
-        _tile(Icons.lock_outline_rounded, 'Change password', 'Set a new password for your signed-in account',
-          _changePassword, color: const Color(0xFF0E8A78)),
-        _tile(Icons.mark_email_read_outlined, 'Forgot password / recovery', 'Request a secure password reset email',
-          _passwordReset, color: const Color(0xFF0E8A78)),
         _tile(Icons.info_outline_rounded, 'About SAMANVAY', 'Platform purpose, departments, data integrity and governance',
           _aboutSamanvay, color: const Color(0xFF35B6C8)),
         _tile(Icons.help_outline_rounded, 'Help and guidance', 'Understand modules and data-safety limits',
