@@ -6999,6 +6999,27 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                 'All 20,238 imported district / sub-district / block / ULB directory records remain marked imported_unverified. The ULB snapshot is a third-party mirror dated 23 September 2026; district, sub-district and block mirrors are dated 21 October 2026. The 2024 Coimbatore ward polygons are separate reference geometry.',
                 style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
               ),
+              const SizedBox(height: 10),
+              Text(
+                'HIERARCHY INTEGRITY CHECKS',
+                style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .5),
+              ),
+              const SizedBox(height: 7),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _metricCard('0', 'Duplicate LGD codes'),
+                  _metricCard('0', 'Orphan parent IDs'),
+                  _metricCard('1,467', 'Historical district refs without LGD codes'),
+                  _metricCard('5,050', 'ULBs awaiting district mapping'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'All block and sub-district records link to a district. The ULB source supplied state labels and ULB LGD codes but no district-code field, so no ULB-to-district parent is inferred. The 1,467 names-only district references are kept separate from the 784 LGD-coded districts. Every imported hierarchy row remains unverified.',
+                style: TextStyle(color: mutedInk, fontSize: 9, height: 1.35),
+              ),
             ],
           ),
         ),
