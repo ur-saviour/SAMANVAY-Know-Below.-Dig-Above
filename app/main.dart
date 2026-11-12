@@ -12861,7 +12861,7 @@ class _MapPageState extends State<MapPage> {
               final datedSuffix = sourceDate.isEmpty ? '' : ' · report ' + sourceDate;
               final sourceSystem = (row['source_system'] ?? '').toString();
               final sourceSuffix = sourceSystem.startsWith('DataMeet')
-                  ? ' · 2019 reference only'
+                  ? ' · reference only'
                   : '';
               return name + (code.isEmpty ? '' : ' · LGD ' + code) +
                   suffix + datedSuffix + sourceSuffix;
@@ -12914,7 +12914,7 @@ class _MapPageState extends State<MapPage> {
                     directoryMessage =
                         'No district reference rows are available for this State/UT yet. State-level map search is still available.';
                   } else if (districts.any((row) =>
-                      (row['source_system'] ?? '').toString().startsWith('Datameet'))) {
+                      (row['source_system'] ?? '').toString().startsWith('DataMeet'))) {
                     directoryMessage =
                         'Showing the DataMeet national district reference snapshot for map navigation only. Feature vintages vary; these are not current LGD records, carry no LGD codes, and must not be used as statutory or utility-clearance evidence.';
                   }
