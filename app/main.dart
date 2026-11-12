@@ -6556,27 +6556,49 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
       setState(() => saving = true);
       try {
         final sourceValue = source.text.trim();
+        final progressValue = progress.text.trim().isEmpty ? null : int.parse(progress.text.trim());
         final publishedNow = firstPublication && status != 'draft';
-        final updated = await supabase.from('public_excavation_notices').update({
-          'notice_status': status,
-          'source_reference': sourceValue.isEmpty ? null : sourceValue,
-          'progress_percent': progress.text.trim().isEmpty ? null : int.parse(progress.text.trim()),
-          if (publishedNow) 'published_at': DateTime.now().toUtc().toIso8601String(),
-          if (publishedNow) 'published_by': user.id,
-        }).eq('id', notice['id'].toString()).select('id').maybeSingle();
-        if (updated == null) throw StateError('The database did not confirm the authorised update.');
-        final eventType = publishedNow ? 'published'
-          : status == 'completed' ? 'work_completed'
-          : status == 'cancelled' ? 'notice_cancelled'
-          : status == 'active' ? 'work_started' : 'progress_update';
-        await supabase.from('public_excavation_notice_events').insert({
-          'notice_id': notice['id'].toString(), 'event_type': eventType,
-          'title': publishedNow ? 'Notice published' : 'Notice updated: ' + pretty(status),
-          'details': 'Recorded by an authorised department account. Source reference: ' + (sourceValue.isEmpty ? 'not provided' : sourceValue),
-          'progress_percent': progress.text.trim().isEmpty ? null : int.parse(progress.text.trim()),
-          'created_by': user.id,
-        });
-        toast(publishedNow ? 'Notice published with its source reference.' : 'Notice and timeline updated.');
+        final responsibleDepartment = (notice['responsible_department_name'] ?? '').toString().trim().toLowerCase();
+        final isHighwayNotice = responsibleDepartment == 'highway department' ||
+          responsibleDepartment == 'roads & highways';
+
+        if (publishedNow && isHighwayNotice) {
+          final response = await supabase.rpc('publish_highway_work_notice', params: {
+            'p_notice_id': notice['id'].toString(),
+            'p_notice_status': status,
+            'p_source_reference': sourceValue,
+            'p_progress_percent': progressValue,
+          });
+          final result = Map<String, dynamic>.from(response as Map);
+          if (result['already_published'] == true) {
+            toast('This notice was already published. Duplicate notifications were not sent.');
+          } else {
+            final citizens = (result['citizen_notifications'] as num?)?.toInt() ?? 0;
+            final municipal = (result['municipal_notifications'] as num?)?.toInt() ?? 0;
+            toast('Highway notice published. In-app alerts sent to $citizens Citizen account(s) and $municipal Municipal Corporation officer account(s).');
+          }
+        } else {
+          final updated = await supabase.from('public_excavation_notices').update({
+            'notice_status': status,
+            'source_reference': sourceValue.isEmpty ? null : sourceValue,
+            'progress_percent': progressValue,
+            if (publishedNow) 'published_at': DateTime.now().toUtc().toIso8601String(),
+            if (publishedNow) 'published_by': user.id,
+          }).eq('id', notice['id'].toString()).select('id').maybeSingle();
+          if (updated == null) throw StateError('The database did not confirm the authorised update.');
+          final eventType = publishedNow ? 'published'
+            : status == 'completed' ? 'work_completed'
+            : status == 'cancelled' ? 'notice_cancelled'
+            : status == 'active' ? 'work_started' : 'progress_update';
+          await supabase.from('public_excavation_notice_events').insert({
+            'notice_id': notice['id'].toString(), 'event_type': eventType,
+            'title': publishedNow ? 'Notice published' : 'Notice updated: ' + pretty(status),
+            'details': 'Recorded by an authorised department account. Source reference: ' + (sourceValue.isEmpty ? 'not provided' : sourceValue),
+            'progress_percent': progressValue,
+            'created_by': user.id,
+          });
+          toast(publishedNow ? 'Notice published with its source reference.' : 'Notice and timeline updated.');
+        }
         await refresh();
       } catch (e) {
         toast('Notice update failed: ' + e.toString());
@@ -6677,6 +6699,9 @@ class _PublicWorksOperationsBoardState extends State<PublicWorksOperationsBoard>
       ]),
        Text('Create department-owned drafts, publish source-backed notices, update work timelines and review reports using existing RLS rules.',
         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+      const SizedBox(height: 5),
+      Text('Highway Department first publication sends in-app alerts to Citizen accounts and Municipal Corporation officers. The published notice is also visible in the Citizen-facing Public works tab.',
+        style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35, fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
       SizedBox(width: double.infinity, child: FilledButton.icon(
         onPressed: saving || loading ? null : createNotice,
@@ -18886,6 +18911,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _openNotification(Map<String,dynamic> item) async {
     await _markRead(item);
+    if (item['notification_type'] == 'public_work') {
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const PublicExcavationTrackerPage()),
+      );
+      return;
+    }
     final requestId = item['request_id']?.toString();
     if (requestId == null || requestId.isEmpty || !mounted) return;
     var title = 'Infrastructure case';
@@ -18967,6 +18999,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 'review' => Icons.rate_review_outlined,
                 'status' => Icons.sync_alt,
                 'message' => Icons.forum_outlined,
+                'public_work' => Icons.campaign_outlined,
                 _ => Icons.notifications_outlined,
               };
               return Card(
