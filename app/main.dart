@@ -11172,6 +11172,16 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
                 label: const Text('Import official CSV'),
               ),
               OutlinedButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const IndiaUlbDistrictReconciliationPage(),
+                  ));
+                  if (mounted) _load();
+                },
+                icon: const Icon(Icons.account_tree_outlined, size: 15),
+                label: const Text('ULB-to-district reconciliation queue'),
+              ),
+              OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const UtilityAssetVerificationPage(),
                 )),
@@ -11426,6 +11436,561 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
 }
 
 
+
+class IndiaUlbDistrictReconciliationPage extends StatefulWidget {
+  const IndiaUlbDistrictReconciliationPage({super.key});
+
+  @override
+  State<IndiaUlbDistrictReconciliationPage> createState() =>
+      _IndiaUlbDistrictReconciliationPageState();
+}
+
+class _IndiaUlbDistrictReconciliationPageState
+    extends State<IndiaUlbDistrictReconciliationPage> {
+  static const int _pageSize = 100;
+
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _authorised = false;
+  bool _hasMore = true;
+  String _error = '';
+  String _status = 'unmapped';
+  int _page = 0;
+  final List<Map<String, dynamic>> _rows = [];
+
+  static const Map<String, String> _statusLabels = {
+    'unmapped': 'Unmapped',
+    'candidate': 'Candidate proposed',
+    'verified': 'Verified with evidence',
+    'rejected': 'Rejected',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load(reset: true);
+  }
+
+  Future<void> _load({required bool reset}) async {
+    if (!mounted) return;
+    if (reset) {
+      setState(() {
+        _loading = true;
+        _error = '';
+        _rows.clear();
+        _page = 0;
+        _hasMore = true;
+      });
+    } else {
+      setState(() => _loadingMore = true);
+    }
+
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw StateError('Sign in as an administrator or coordinator to use this queue.');
+      }
+      final profile = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+      final role = (profile?['role'] ?? '').toString();
+      if (role != 'admin' && role != 'coordinator') {
+        throw StateError('Administrator or coordinator access is required.');
+      }
+
+      final start = _page * _pageSize;
+      final end = start + _pageSize - 1;
+      final raw = await supabase
+          .from('india_ulb_district_reconciliation')
+          .select(
+            'id,ulb_unit_id,state_ut_id,source_system,source_vintage,'
+            'resolution_status,proposed_district_unit_id,mapping_source,'
+            'mapping_source_url,mapping_source_reference,rationale,'
+            'last_verified_at,'
+            'ulb:india_administrative_units!india_ulb_district_reconciliation_ulb_unit_id_fkey(name,lgd_code),'
+            'state:india_state_uts!india_ulb_district_reconciliation_state_ut_id_fkey(name),'
+            'district:india_administrative_units!india_ulb_district_reconciliation_proposed_district_unit_id_fkey(name,lgd_code)',
+          )
+          .eq('resolution_status', _status)
+          .order('created_at')
+          .range(start, end);
+
+      final rows = List<Map<String, dynamic>>.from(raw);
+      if (!mounted) return;
+      setState(() {
+        _authorised = true;
+        _rows.addAll(rows);
+        _hasMore = rows.length == _pageSize;
+        if (!_hasMore) _page = _page;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _error = error is StateError
+            ? error.message
+            : 'The reconciliation queue could not be loaded. Check access and network connectivity.';
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _districtsForState(String stateId) async {
+    final raw = await supabase
+        .from('india_administrative_units')
+        .select('id,name,lgd_code,verification_status')
+        .eq('unit_type', 'district')
+        .eq('state_ut_id', stateId)
+        .not('lgd_code', 'is', null)
+        .order('name')
+        .limit(300);
+    return List<Map<String, dynamic>>.from(raw);
+  }
+
+  Future<void> _reviewRow(Map<String, dynamic> row) async {
+    List<Map<String, dynamic>> districts;
+    try {
+      districts = await _districtsForState(row['state_ut_id'].toString());
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('District candidates could not be loaded.')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    final sourceController = TextEditingController(
+      text: (row['mapping_source'] ?? '').toString(),
+    );
+    final urlController = TextEditingController(
+      text: (row['mapping_source_url'] ?? '').toString(),
+    );
+    final referenceController = TextEditingController(
+      text: (row['mapping_source_reference'] ?? '').toString(),
+    );
+    final rationaleController = TextEditingController(
+      text: (row['rationale'] ?? '').toString(),
+    );
+    String? districtId = row['proposed_district_unit_id']?.toString();
+    var saving = false;
+
+    Future<void> saveResolution(
+      BuildContext dialogContext,
+      StateSetter setDialogState,
+      String resolution,
+    ) async {
+      if (saving) return;
+      if (resolution == 'candidate' || resolution == 'verified') {
+        if (districtId == null || districtId!.isEmpty) {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(content: Text('Select a district from the same State/UT.')),
+          );
+          return;
+        }
+      }
+      if (resolution == 'candidate' || resolution == 'verified' || resolution == 'rejected') {
+        if (rationaleController.text.trim().length < 10) {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(content: Text('Enter a mapping rationale of at least 10 characters.')),
+          );
+          return;
+        }
+      }
+      if (resolution == 'verified') {
+        final uri = Uri.tryParse(urlController.text.trim());
+        if (sourceController.text.trim().isEmpty ||
+            uri == null ||
+            uri.scheme != 'https') {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(content: Text('A source name and HTTPS evidence URL are required for verification.')),
+          );
+          return;
+        }
+      }
+
+      setDialogState(() => saving = true);
+      try {
+        final payload = <String, dynamic>{
+          'resolution_status': resolution,
+          'proposed_district_unit_id':
+              resolution == 'rejected' ? null : districtId,
+          'mapping_source': sourceController.text.trim().isEmpty
+              ? null
+              : sourceController.text.trim(),
+          'mapping_source_url': urlController.text.trim().isEmpty
+              ? null
+              : urlController.text.trim(),
+          'mapping_source_reference': referenceController.text.trim().isEmpty
+              ? null
+              : referenceController.text.trim(),
+          'rationale': rationaleController.text.trim().isEmpty
+              ? null
+              : rationaleController.text.trim(),
+        };
+        await supabase
+            .from('india_ulb_district_reconciliation')
+            .update(payload)
+            .eq('id', row['id'].toString());
+
+        if (!dialogContext.mounted) return;
+        Navigator.of(dialogContext).pop(true);
+      } catch (_) {
+        setDialogState(() => saving = false);
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          const SnackBar(
+            content: Text('The database rejected this mapping. Check the district, State/UT and evidence requirements.'),
+          ),
+        );
+      }
+    }
+
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final ulb = (row['ulb'] as Map?) ?? const {};
+          final state = (row['state'] as Map?) ?? const {};
+          return AlertDialog(
+            title: const Text('Review ULB district mapping'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      (ulb['name'] ?? 'Urban local body').toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'LGD code: ' + (ulb['lgd_code'] ?? 'not recorded').toString(),
+                      style: TextStyle(color: mutedInk, fontSize: 11),
+                    ),
+                    Text(
+                      'State / UT: ' + (state['name'] ?? 'Unknown').toString(),
+                      style: TextStyle(color: mutedInk, fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: districtId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'District candidate',
+                        helperText: 'Only LGD-coded districts from the same State/UT are listed.',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: districts.map((district) {
+                        final id = district['id'].toString();
+                        final code = (district['lgd_code'] ?? '').toString();
+                        return DropdownMenuItem<String>(
+                          value: id,
+                          child: Text(
+                            district['name'].toString() +
+                                (code.isEmpty ? '' : ' · LGD ' + code),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: saving
+                          ? null
+                          : (value) => setDialogState(() => districtId = value),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: sourceController,
+                      enabled: !saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Mapping source / authority',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: urlController,
+                      enabled: !saving,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Evidence URL (HTTPS)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: referenceController,
+                      enabled: !saving,
+                      decoration: const InputDecoration(
+                        labelText: 'Source record / document reference',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: rationaleController,
+                      enabled: !saving,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Rationale and jurisdiction evidence',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'A candidate is not verified. Verification requires an authoritative or explicitly authorised source URL and rationale. The database rejects cross-State/UT mappings.',
+                      style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              OutlinedButton(
+                onPressed: saving
+                    ? null
+                    : () => saveResolution(dialogContext, setDialogState, 'rejected'),
+                child: const Text('Reject mapping'),
+              ),
+              OutlinedButton(
+                onPressed: saving
+                    ? null
+                    : () => saveResolution(dialogContext, setDialogState, 'candidate'),
+                child: const Text('Save candidate'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () => saveResolution(dialogContext, setDialogState, 'verified'),
+                child: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Verify with evidence'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    sourceController.dispose();
+    urlController.dispose();
+    referenceController.dispose();
+    rationaleController.dispose();
+
+    if (changed == true && mounted) {
+      await _load(reset: true);
+    }
+  }
+
+  Widget _statusChip(String status) {
+    final colour = status == 'verified'
+        ? const Color(0xFF1B8A58)
+        : status == 'candidate'
+            ? const Color(0xFFB7791F)
+            : status == 'rejected'
+                ? const Color(0xFFB54747)
+                : const Color(0xFF64748B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        _statusLabels[status] ?? status,
+        style: TextStyle(color: colour, fontSize: 9, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+
+  Widget _queueCard(Map<String, dynamic> row) {
+    final ulb = (row['ulb'] as Map?) ?? const {};
+    final state = (row['state'] as Map?) ?? const {};
+    final district = (row['district'] as Map?) ?? const {};
+    final status = (row['resolution_status'] ?? 'unmapped').toString();
+    final districtName = (district['name'] ?? '').toString();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    (ulb['name'] ?? 'Unnamed ULB').toString(),
+                    style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _statusChip(status),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              (state['name'] ?? 'Unknown State/UT').toString() +
+                  ' · LGD ' + (ulb['lgd_code'] ?? 'not recorded').toString(),
+              style: TextStyle(color: mutedInk, fontSize: 10),
+            ),
+            if (districtName.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Proposed district: ' + districtName +
+                    ' · LGD ' + (district['lgd_code'] ?? 'not recorded').toString(),
+                style: TextStyle(color: mutedInk, fontSize: 10),
+              ),
+            ],
+            const SizedBox(height: 5),
+            Text(
+              'Source: ' + (row['source_system'] ?? 'not recorded').toString() +
+                  (row['source_vintage'] == null
+                      ? ''
+                      : ' · ' + row['source_vintage'].toString()),
+              style: TextStyle(color: mutedInk, fontSize: 9),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: () => _reviewRow(row),
+                icon: const Icon(Icons.fact_check_outlined, size: 16),
+                label: const Text('Review mapping'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = _rows.length;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ULB-to-district reconciliation'),
+        actions: [
+          IconButton(
+            onPressed: _loading ? null : () => _load(reset: true),
+            tooltip: 'Refresh queue',
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(_error, textAlign: TextAlign.center),
+                  ),
+                )
+              : !_authorised
+                  ? const Center(child: Text('Authorised administrator or coordinator access is required.'))
+                  : ListView(
+                      padding: const EdgeInsets.all(14),
+                      children: [
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(13),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '5,050 ULB records seeded as unmapped',
+                                  style: TextStyle(color: ink, fontWeight: FontWeight.w900, fontSize: 14),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  'The source mirror supplies ULB codes and State/UT labels, but no district-code field. No district parent has been inferred. Only administrators and coordinators can review this queue.',
+                                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'A mapping is marked verified only with source name, HTTPS evidence URL, rationale and a same-State/UT district match. The database records the reviewer and timestamp.',
+                                  style: TextStyle(color: mutedInk, fontSize: 10, height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          value: _status,
+                          decoration: const InputDecoration(
+                            labelText: 'Queue status',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _statusLabels.entries.map((entry) =>
+                            DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          ).toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _status = value);
+                            _load(reset: true);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Showing ' + count.toString() +
+                              (_hasMore ? ' loaded rows · more available' : ' rows in this status'),
+                          style: TextStyle(color: mutedInk, fontSize: 10),
+                        ),
+                        const SizedBox(height: 7),
+                        if (_rows.isEmpty)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(18),
+                              child: Text('No records are present in this queue status.'),
+                            ),
+                          )
+                        else
+                          ..._rows.map(_queueCard),
+                        if (_hasMore)
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _loadingMore
+                                  ? null
+                                  : () {
+                                      _page += 1;
+                                      _load(reset: false);
+                                    },
+                              icon: _loadingMore
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.expand_more),
+                              label: const Text('Load more'),
+                            ),
+                          ),
+                      ],
+                    ),
+    );
+  }
+}
 
 class IndiaAdministrativeHierarchyPage extends StatefulWidget {
   const IndiaAdministrativeHierarchyPage({super.key});
