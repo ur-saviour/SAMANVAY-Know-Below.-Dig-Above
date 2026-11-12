@@ -4995,7 +4995,13 @@ class _AuthPageState extends State<AuthPage> {
                       if (!isLogin) {
                         final input = (value ?? '').trim();
                         if (!usePhoneSignup) {
-                          return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+
+                          return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(input)
+                              ? null : 'Enter a valid email address';
+                        }
+                        final phone = _normalisePhoneForAuth(input);
+                        return phone.startsWith('+') && phone.length >= 9 && phone.length <= 16
+                            ? null : 'Enter a valid mobile number with country code';
+                      }
                       return _validateLoginIdentifier(value);
                     },
                   ),
@@ -13247,15 +13253,16 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
       return;
     }
 
-    final picked = await FilePicker.pickFile(
+    final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
+      withData: true,
     );
-    if (picked == null) return;
-    final selectedFile = picked;
+    if (picked == null || picked.files.isEmpty) return;
+    final selectedFile = picked.files.single;
     const maxCsvBytes = 25 * 1024 * 1024;
-    final bytes = await selectedFile.readAsBytes();
-    if (bytes.isEmpty) {
+    final bytes = selectedFile.bytes;
+    if (bytes == null || bytes.isEmpty) {
       setState(() => statusMessage = 'The selected CSV could not be read completely.');
       return;
     }
@@ -13271,7 +13278,7 @@ class _IndiaLgdCsvImportPageState extends State<IndiaLgdCsvImportPage> {
     try {
       var csvText = utf8.decode(bytes, allowMalformed: true);
       if (csvText.startsWith('\uFEFF')) csvText = csvText.substring(1);
-      final parsed = csv.decode(csvText);
+      final parsed = CsvToListConverter().convert(csvText);
       if (parsed.length < 2) throw Exception('The CSV contains no data rows.');
       final headers = parsed.first.map((v) => _key(v.toString())).toList();
       final codeAliases = switch (unitType) {
@@ -20228,17 +20235,17 @@ class _AssetGeoJsonImportPageState extends State<AssetGeoJsonImportPage> {
       _progress = 0;
     });
     try {
-      final file = await FilePicker.pickFile(
+      final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['geojson', 'json'],
+        withData: true,
       );
-      if (file == null) return;
-      final fileSize = await file.length();
-      if (fileSize == null || fileSize > 10 * 1024 * 1024) {
-        throw StateError('File size could not be confirmed or exceeds 10 MB.');
+      if (picked == null || picked.files.isEmpty) return;
+      final file = picked.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty || bytes.length > 10 * 1024 * 1024) {
+        throw StateError('The selected GeoJSON is empty, unreadable or exceeds 10 MB.');
       }
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) throw StateError('The selected file is empty. Export it as UTF-8 GeoJSON.');
       final decoded = jsonDecode(utf8.decode(bytes));
       if (decoded is! Map || decoded['type'] != 'FeatureCollection' || decoded['features'] is! List) {
         throw const FormatException('Expected a GeoJSON FeatureCollection.');
@@ -21576,13 +21583,16 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
     if (attachmentType == null || !mounted) return;
 
     try {
-      final file = await FilePicker.pickFile(
+      final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg','jpeg','png','webp','pdf'],
+        withData: true,
       );
-      if (file == null) return;
-      final fileSize = file.lengthSync() ?? await file.length();
-      if (fileSize == null || fileSize <= 0) {
+      if (picked == null || picked.files.isEmpty) return;
+      final file = picked.files.single;
+      final bytes = file.bytes;
+      final fileSize = bytes?.length ?? 0;
+      if (bytes == null || fileSize <= 0) {
         _toast('Unable to read that file. Select it again.');
         return;
       }
@@ -21590,7 +21600,6 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         _toast('Evidence files must be 20 MB or smaller.');
         return;
       }
-      final bytes = await file.readAsBytes();
       if (bytes.isEmpty || bytes.length != fileSize) {
         throw StateError('The selected evidence file could not be read completely.');
       }
