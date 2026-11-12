@@ -6278,6 +6278,42 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
             Text(item['id'].toString() + ' · ' + item['domain'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
             const SizedBox(height: 4),
             Text(item['location'].toString() + ' · ' + item['department'].toString(), style: TextStyle(color: mutedInk, fontSize: 10)),
+            if (jointStatus != 'Not proposed') ...[
+              const SizedBox(height: 7),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: teal.withValues(alpha: .07),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: teal.withValues(alpha: .22)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('JOINT WORK · ' + jointStatus.toUpperCase(),
+                      style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w900)),
+                    if (item['scheduledStartOn'] != null && item['scheduledEndOn'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('Shared window: ' + item['scheduledStartOn'].toString() + ' to ' + item['scheduledEndOn'].toString(),
+                          style: TextStyle(color: mutedInk, fontSize: 9, fontWeight: FontWeight.w700)),
+                      ),
+                    if (jointResponses.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      ...jointResponses.map((row) => Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          row['department'].toString() + ' · ' + row['status'].toString() +
+                              (((row['remarks'] ?? '').toString().trim().isEmpty) ? '' : ' · ' + row['remarks'].toString()),
+                          style: TextStyle(color: mutedInk, fontSize: 9, height: 1.3),
+                        ),
+                      )),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             _caseWorkflowProgress(item),
             const SizedBox(height: 10),
