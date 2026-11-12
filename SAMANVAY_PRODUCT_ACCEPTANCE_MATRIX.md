@@ -390,3 +390,16 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Complete physical-device and authenticated browser runtime acceptance; static checks do not replace interaction tests.
 
 **Status boundary:** The prototype engineering completion estimate is 82%. This is not production readiness. Android release packaging is pending in the linked workflow, and physical-device/browser role, GPS, camera, map and upload acceptance remains outstanding.
+
+## 26. Android package contract and release configuration guard — 13 November 2026
+
+- [x] Add `scripts/validate_android_package.py` to validate generated Android manifest XML, app label, INTERNET/location permissions, Supabase callback deep link, Gradle namespace/application ID, five density icons and adaptive icon resources.
+- [x] Execute the Android package validator after project generation and before dependency/build steps.
+- [x] Fail the Android release build early when the Supabase URL or publishable key is absent, or when the URL is not HTTPS.
+- [x] Current Android CI run `43298615743`: contract gate, generated Android package validator, dependency installation and Dart analysis passed.
+- [x] Current browser CI run `43298587461`: contract gate, project generation, dependency installation and Dart analysis passed.
+- [ ] Await final Android APK compilation, package/signature/alignment checks and artifact publication.
+- [ ] Await final browser compile, GIS smoke checks and artifact upload.
+- [ ] Physical-device and authenticated multi-role runtime acceptance remains outstanding.
+
+**Progress checkpoint:** 89% engineering completion estimate, with the release jobs still in progress. This does not imply physical-device acceptance or production readiness.
