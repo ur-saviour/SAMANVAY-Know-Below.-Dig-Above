@@ -102,6 +102,14 @@ All four destructive legacy recovery workflows have been removed from the active
 5. Obtain actual owner-department utility geometry and survey evidence before claiming underground asset coverage.
 6. Run a measured pilot only after an authorised municipal cohort, baseline and evidence protocol exist.
 
+
+## Final sprint UI corrections — 13 November 2026
+
+- Corrected the GIS initial map-mode state: the initial camera has zero pitch and now correctly starts with the 2D control active. Selecting 3D animates the camera and enables the building-extrusion layers.
+- Corrected map layer and toggle descriptions: groundwater is shown as the 2025-only retained subset (446,068 rows), with the prior 1,465,058-row historical portion explicitly described as not restored. The app no longer claims the map layer is a complete 2021–2025 archive.
+- Replaced the last user-visible English comment occurrence of “Requester” with “Citizen”; the underlying database role remains `requester` for schema compatibility, while the interface uses Citizen terminology.
+- These app changes are being rebuilt by Android run [43294840781](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840781) and browser run [43294840751](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43294840751), on commit `f7e06f5b64371e0533c6a11f705298d5739f30ef`. Dart analysis passed on the earlier preceding source commit; the final build results for this commit are pending.
+
 ## Completion estimate
 
 The engineering planning estimate remains **74% prototype completion**. The two successful release pipelines, ULB reconciliation interface and demo runbook improve demonstrability, but the percentage is not raised for actions that still require external authorisation, manual GitHub dispatch or physical-device acceptance.
