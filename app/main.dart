@@ -5344,6 +5344,16 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     );
   }
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _metricCard(String value, String label) => SizedBox(
     width: 145,
     child: Card(
