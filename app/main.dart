@@ -11,7 +11,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:crypto/crypto.dart';
 import 'package:geolocator/geolocator.dart';
@@ -6157,6 +6156,31 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     var kind = kinds.first;
     String? selectedFileName;
     int? selectedFileSize;
+    String? selectedFileKind;
+
+    Future<void> selectLocalMedia({
+      required bool video,
+      required StateSetter setDialogState,
+    }) async {
+      try {
+        final picker = ImagePicker();
+        final selected = video
+            ? await picker.pickVideo(source: ImageSource.gallery)
+            : await picker.pickImage(source: ImageSource.gallery);
+        if (selected == null) return;
+        final size = await selected.length();
+        setDialogState(() {
+          selectedFileName = selected.name;
+          selectedFileSize = size;
+          selectedFileKind = video ? 'Video' : 'Photo';
+        });
+      } catch (_) {
+        if (mounted) {
+          _showMessage('Unable to select local media on this device.');
+        }
+      }
+    }
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -6179,37 +6203,26 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   },
                 ),
                 const SizedBox(height: 9),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    try {
-                      final picked = await FilePicker.platform.pickFiles(
-                        type: FileType.custom,
-                        allowedExtensions: [
-                          'jpg', 'jpeg', 'png', 'webp',
-                          'mp4', 'mov', 'pdf',
-                        ],
-                        allowMultiple: false,
-                        withData: false,
-                      );
-                      if (picked == null || picked.files.isEmpty) return;
-                      final selected = picked.files.single;
-                      setDialogState(() {
-                        selectedFileName = selected.name;
-                        selectedFileSize = selected.size;
-                      });
-                    } catch (_) {
-                      if (mounted) {
-                        _showMessage('Unable to select a local file on this device.');
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.attach_file_rounded, size: 16),
-                  label: Text(selectedFileName == null ? 'Choose local file (demo only)' : 'Change selected file'),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 6,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => selectLocalMedia(video: false, setDialogState: setDialogState),
+                      icon: const Icon(Icons.photo_outlined, size: 15),
+                      label: const Text('Choose photo'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => selectLocalMedia(video: true, setDialogState: setDialogState),
+                      icon: const Icon(Icons.video_library_outlined, size: 15),
+                      label: const Text('Choose video'),
+                    ),
+                  ],
                 ),
                 if (selectedFileName != null) ...[
                   const SizedBox(height: 5),
                   Text(
-                    'Selected: ' + selectedFileName! + ' · ' +
+                    'Selected ' + (selectedFileKind ?? 'media') + ': ' + selectedFileName! + ' · ' +
                         ((selectedFileSize ?? 0) / 1024).toStringAsFixed(1) + ' KB',
                     style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w800),
                   ),
@@ -6255,6 +6268,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   'reference': referenceController.text.trim(),
                   'description': descriptionController.text.trim(),
                   'file_name': selectedFileName,
+                  'file_kind': selectedFileKind,
                   'file_size_bytes': selectedFileSize,
                 });
               },
@@ -6282,6 +6296,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       'reference': reference.isEmpty ? generatedReference : reference,
       'description': result['description'],
       'file_name': result['file_name'],
+      'file_kind': result['file_kind'],
       'file_size_bytes': result['file_size_bytes'],
       'recorded_at': recordedAt,
       'recorded_by': _roleTitle,
