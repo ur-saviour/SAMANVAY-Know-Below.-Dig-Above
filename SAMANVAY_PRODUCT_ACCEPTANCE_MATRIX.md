@@ -415,3 +415,14 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 ## Progress checkpoint — browser artifact accepted
 
 The browser release pipeline has completed end-to-end, including compiled bundle smoke tests for both Coimbatore GIS reference assets and required brand assets. The packaged artifact digest is recorded in the readiness audit. Overall engineering estimate advances from 89% to **90%**; Android release compilation, runtime role tests and physical-device acceptance remain open.
+
+
+## Android build runner recovery — 13 November 2026
+
+- [x] Bound Android workflow duration: 35-minute job timeout and 25-minute APK build-step timeout.
+- [x] Stale Android run `43298615743` cancelled by the branch concurrency policy after the workflow hardening commit.
+- [x] New build run `43299842122` started on commit `e5dc6a24bdae20aa43bcfa8db5d4f7d4468c4a44`.
+- [ ] Await APK compilation, ABI packaging, package/signature/alignment checks and artifact publication.
+- [ ] Physical-device installation and runtime acceptance remain outstanding.
+
+No completion percentage increase is recorded for this CI retry.
