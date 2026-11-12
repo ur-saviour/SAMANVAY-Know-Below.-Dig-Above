@@ -148,7 +148,7 @@ class _SamanvayAiChatPageState extends State<SamanvayAiChatPage> {
         setState(() {
           _messages.add({
             'role': 'assistant',
-            'content': '$fallback\\n\\n[Built-in offline guidance; live assistant service unavailable.]',
+            'content': '$fallback\n\n[Built-in offline guidance; live assistant service unavailable.]',
           });
           _error = null;
         });
