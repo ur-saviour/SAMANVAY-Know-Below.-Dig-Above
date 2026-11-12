@@ -20430,6 +20430,67 @@ class _ProfilePageState extends State<ProfilePage> {
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
+  Future<void> _changePassword() async {
+    final password = TextEditingController();
+    final confirm = TextEditingController();
+    String? errorText;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: const Text('Change password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'New password'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: confirm,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Confirm new password'),
+              ),
+              if (errorText != null) ...[
+                const SizedBox(height: 8),
+                Text(errorText!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (password.text.length < 8) {
+                  refresh(() => errorText = 'Use at least 8 characters.');
+                } else if (password.text != confirm.text) {
+                  refresh(() => errorText = 'The passwords do not match.');
+                } else {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Update password'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted == true) {
+      try {
+        await supabase.auth.updateUser(UserAttributes(password: password.text));
+        _toast('Password updated successfully.');
+      } on AuthException catch (e) {
+        _toast(e.message);
+      } catch (_) {
+        _toast('Unable to update the password. Please try again.');
+      }
+    }
+    password.dispose();
+    confirm.dispose();
+  }
+
   Future<void> _passwordReset() async {
     final email = supabase.auth.currentUser?.email;
     if (email == null || email.isEmpty) { _toast('No account email is available.'); return; }
@@ -20799,7 +20860,9 @@ class _ProfilePageState extends State<ProfilePage> {
         _tile(Icons.phone_android_rounded, 'Link mobile number', 'Verify your mobile number to enable OTP sign-in by phone',
           () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PhoneNumberLinkPage())),
           color: const Color(0xFF0E8A78)),
-        _tile(Icons.lock_outline_rounded, 'Security settings', 'Request a password reset through Supabase Auth',
+        _tile(Icons.lock_outline_rounded, 'Change password', 'Set a new password for your signed-in account',
+          _changePassword, color: const Color(0xFF0E8A78)),
+        _tile(Icons.mark_email_read_outlined, 'Forgot password / recovery', 'Request a secure password reset email',
           _passwordReset, color: const Color(0xFF0E8A78)),
         _tile(Icons.info_outline_rounded, 'About SAMANVAY', 'Platform purpose, departments, data integrity and governance',
           _aboutSamanvay, color: const Color(0xFF35B6C8)),
