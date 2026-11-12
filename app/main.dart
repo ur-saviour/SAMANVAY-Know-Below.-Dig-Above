@@ -5528,6 +5528,18 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               Text('Status: ' + item['status'].toString()),
               Text('Assigned departments: ' + (item['assigned'] as List).join(' + ')),
               Text('Joint work: ' + (item['jointWorkStatus'] ?? 'Not proposed').toString()),
+              if (item['jointResponses'] is List) ...[
+                const SizedBox(height: 5),
+                Text('Department responses:', style: TextStyle(color: ink, fontWeight: FontWeight.w800, fontSize: 10)),
+                ...((item['jointResponses'] as List).map((row) {
+                  final response = Map<String, dynamic>.from(row as Map);
+                  return Text(
+                    response['department'].toString() + ': ' + response['status'].toString() +
+                        ((response['remarks'] ?? '').toString().isEmpty ? '' : ' · ' + response['remarks'].toString()),
+                    style: TextStyle(color: mutedInk, fontSize: 9),
+                  );
+                })),
+              ],
               if (item['coordinationWindow'] != null)
                 Text('Coordination note: ' + item['coordinationWindow'].toString()),
               const SizedBox(height: 8),
@@ -5711,7 +5723,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
               ),
               const SizedBox(height: 10),
               Text(
-                'The proposal is tentative. This demo does not book a real work window or authorise excavation.',
+                'Both participating departments must respond before the coordinator can finalise this proposal. This is a session-only simulation.',
                 style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
               ),
             ],
@@ -5727,37 +5739,158 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     setState(() {
       final assigned = List<String>.from(item['assigned'] as List);
       if (!assigned.contains(result)) assigned.add(result);
+      final participants = assigned.toSet().toList();
       item['assigned'] = assigned;
-      item['jointDepartments'] = [item['department'], result];
-      item['jointWorkStatus'] = 'Proposed';
+      item['jointDepartments'] = participants;
+      item['jointResponses'] = participants.map((department) => <String, dynamic>{
+        'department': department,
+        'status': 'Pending',
+        'remarks': '',
+        'responded_at': null,
+      }).toList();
+      item['jointWorkStatus'] = 'Awaiting department responses';
       item['coordinationWindow'] = 'Not scheduled · awaiting department agreement';
       item['status'] = 'Under coordination';
       _appendCaseEvent(item, 'Coordinator proposed joint work with ' + result);
     });
-    _record(item['id'].toString() + ' joint-work proposal created with ' + result);
+    _record(item['id'].toString() + ' joint-work proposal created; department responses pending');
+  }
+
+  Future<void> _respondToDemoJointWork(Map<String, dynamic> item) async {
+    final current = ((item['jointResponses'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final responseIndex = current.indexWhere((row) =>
+        row['department'] == _selectedDepartment && row['status'] == 'Pending');
+    if (responseIndex < 0) {
+      _showMessage('No pending joint-work response is assigned to this department.');
+      return;
+    }
+    final remarksController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Department joint-work response'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Department: ' + _selectedDepartment),
+              Text('Case: ' + item['id'].toString()),
+              const SizedBox(height: 9),
+              TextField(
+                controller: remarksController,
+                maxLength: 300,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Department remarks (optional)',
+                  hintText: 'Explain constraints, dependencies or conditions.',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('A decline keeps the proposal from being scheduled. All responses are synthetic and remain in this demo session.',
+                style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop({
+              'status': 'Declined',
+              'remarks': remarksController.text.trim(),
+            }),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop({
+              'status': 'Accepted',
+              'remarks': remarksController.text.trim(),
+            }),
+            child: const Text('Accept proposal'),
+          ),
+        ],
+      ),
+    );
+    final remarks = remarksController.text.trim();
+    remarksController.dispose();
+    if (!mounted || result == null) return;
+
+    current[responseIndex] = {
+      ...current[responseIndex],
+      'status': result['status'],
+      'remarks': result['remarks'] ?? remarks,
+      'responded_at': DateTime.now().toIso8601String(),
+    };
+    final declined = current.any((row) => row['status'] == 'Declined');
+    final allAccepted = current.isNotEmpty && current.every((row) => row['status'] == 'Accepted');
+    final nextStatus = declined
+        ? 'Department declined'
+        : allAccepted
+            ? 'Ready for coordinator'
+            : 'Awaiting department responses';
+    setState(() {
+      item['jointResponses'] = current;
+      item['jointWorkStatus'] = nextStatus;
+      _appendCaseEvent(
+        item,
+        _selectedDepartment + ' ' + (result['status'] ?? 'responded').toLowerCase() + ' the joint-work proposal',
+      );
+    });
+    _record(_selectedDepartment + ' response recorded: ' + (result['status'] ?? ''));
   }
 
   Future<void> _recordCoordinationDecision(Map<String, dynamic> item) async {
-    const choices = [
+    final responses = ((item['jointResponses'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final pending = responses.where((row) => row['status'] == 'Pending').toList();
+    final declined = responses.where((row) => row['status'] == 'Declined').toList();
+    if (pending.isNotEmpty) {
+      _showMessage('Awaiting response from: ' + pending.map((row) => row['department'].toString()).join(', '));
+      return;
+    }
+    if (responses.isNotEmpty && declined.isEmpty &&
+        !responses.every((row) => row['status'] == 'Accepted')) {
+      _showMessage('All participating departments must accept before finalisation.');
+      return;
+    }
+    final terminal = <String>{
       'Schedule agreed (demo)',
       'Conflict resolved (demo)',
       'Escalated for authority review',
-    ];
+      'Proposal closed after decline',
+    };
+    if (terminal.contains((item['jointWorkStatus'] ?? '').toString())) {
+      _showMessage('A final demonstration outcome is already recorded for this proposal.');
+      return;
+    }
+    final choices = declined.isNotEmpty
+        ? const ['Proposal closed after decline', 'Escalated for authority review']
+        : const ['Schedule agreed (demo)', 'Conflict resolved (demo)', 'Escalated for authority review'];
     var selected = choices.first;
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Record coordination outcome'),
+          title: const Text('Record coordinator decision'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Partner departments: ' + ((item['jointDepartments'] as List?)?.join(' + ') ?? (item['assigned'] as List).join(' + '))),
+              Text('Participating departments: ' + ((item['jointDepartments'] as List?)?.join(' + ') ?? (item['assigned'] as List).join(' + '))),
+              const SizedBox(height: 8),
+              ...responses.map((row) => Text(
+                row['department'].toString() + ': ' + row['status'].toString(),
+                style: TextStyle(color: mutedInk, fontSize: 10),
+              )),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: selected,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Outcome'),
+                decoration: const InputDecoration(labelText: 'Coordinator outcome'),
                 items: choices.map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
                 onChanged: (value) {
                   if (value != null) setDialogState(() => selected = value);
@@ -5772,7 +5905,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save demo outcome')),
+            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(selected), child: const Text('Save outcome')),
           ],
         ),
       ),
@@ -6015,6 +6148,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     final isOfficer = _activeRole == 'department';
     final isCoordinator = _activeRole == 'coordinator';
     final isCitizen = _activeRole == 'requester';
+    final jointResponses = ((item['jointResponses'] as List?) ?? const [])
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    final hasMyPendingJointResponse = jointResponses.any((row) =>
+        row['department'] == _selectedDepartment && row['status'] == 'Pending');
+    final jointStatus = (item['jointWorkStatus'] ?? 'Not proposed').toString();
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
       child: Padding(
@@ -6066,6 +6205,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                     icon: const Icon(Icons.attach_file_rounded, size: 15),
                     label: const Text('Evidence log'),
                   ),
+                  if (hasMyPendingJointResponse)
+                    OutlinedButton.icon(
+                      onPressed: () => _respondToDemoJointWork(item),
+                      icon: const Icon(Icons.how_to_vote_outlined, size: 15),
+                      label: const Text('Joint-work response'),
+                    ),
                 ],
                 if (isCoordinator)
                   FilledButton.tonalIcon(
@@ -6080,13 +6225,15 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                     label: const Text('Route department'),
                   ),
                   FilledButton.tonalIcon(
-                    onPressed: () => (item['jointWorkStatus'] == null || item['jointWorkStatus'] == 'Not proposed')
-                        ? _proposeJointWork(item)
-                        : _recordCoordinationDecision(item),
+                    onPressed: jointStatus == 'Not proposed'
+                        ? () => _proposeJointWork(item)
+                        : () => _recordCoordinationDecision(item),
                     icon: const Icon(Icons.hub_outlined, size: 15),
-                    label: Text((item['jointWorkStatus'] == null || item['jointWorkStatus'] == 'Not proposed')
+                    label: Text(jointStatus == 'Not proposed'
                         ? 'Propose joint work'
-                        : 'Record outcome'),
+                        : jointStatus == 'Ready for coordinator'
+                            ? 'Finalise joint work'
+                            : 'Review responses'),
                   ),
                 ],
               ],
