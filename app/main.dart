@@ -9680,7 +9680,13 @@ class _IndiaCoverageExplorerPageState extends State<IndiaCoverageExplorerPage> {
   };
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    selectedRegion = regionOrder.contains(widget.initialRegion)
+        ? widget.initialRegion
+        : 'All India';
+    _load();
+  }
 
   Future<void> _load() async {
     if (!mounted) return;
@@ -14028,7 +14034,9 @@ class _MapPageState extends State<MapPage> {
   String _scaleLabel = '';
   double _scaleWidth = 80;
   bool _is3D = true;
-  bool _undergroundMode = true;
+  // Start in public surface mode. Underground layers remain opt-in and
+  // continue to obey owner-department permissions.
+  bool _undergroundMode = false;
   bool _styleReady = false;
   bool _buildingReadinessLoaded = false;
   bool _utilityReadinessLoaded = false;
@@ -17583,7 +17591,7 @@ class _MapPageState extends State<MapPage> {
             SizedBox(height: 2),
             Text(
               widget.contextLabel == null
-                  ? 'GEOSPATIAL INFRASTRUCTURE WORKSPACE'
+                  ? 'PUBLIC BASEMAP · PERMISSION-GATED INFRASTRUCTURE DATA'
                   : 'CAMPUS BASEMAP · VERIFIED DATA ONLY',
               style: TextStyle(
                 fontSize: 9,
@@ -17609,17 +17617,18 @@ class _MapPageState extends State<MapPage> {
                   : Icons.school_outlined,
             ),
           ),
-          IconButton(
-            tooltip: 'Import underground survey GeoJSON',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const AssetGeoJsonImportPage(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.file_upload_outlined),
-          ),
+          if (_canViewDepartmentAssets)
+            IconButton(
+              tooltip: 'Import underground survey GeoJSON',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AssetGeoJsonImportPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.file_upload_outlined),
+            ),
           IconButton(
             tooltip: 'Plan a driving route',
             onPressed: _routing ? null : _showDirectionsDialog,
