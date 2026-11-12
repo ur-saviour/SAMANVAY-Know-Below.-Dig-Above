@@ -106,10 +106,10 @@ A rollback-only authenticated regression test used two existing assigned departm
 - Case inspections now support device-reported GPS coordinates, timestamp and horizontal accuracy, with coordinate-range and capture-state checks.
 - Private site-photo evidence can be linked to an inspection and stores capture time, optional GPS metadata and a SHA-256 byte-integrity hash.
 - The Case Workspace inspection form now offers optional GPS capture and camera photo capture; Android/browser workflows install the required Geolocator and Image Picker packages. GPS and camera permissions are requested at runtime where applicable.
-- Case-attachment RLS requires the authenticated uploader, request-scoped storage path and a matching inspection owned by the submitting staff member when an inspection link is supplied.
+- Case-attachment RLS requires the authenticated uploader, request-scoped storage path and a matching inspection owned by the submitting staff member when an inspection link is supplied. Follow-up migration `20261112114823_require_complete_gps_capture_metadata.sql` explicitly requires non-null coordinates, accuracy and timestamp for `device_gps` rows; the no-GPS state requires all GPS fields to remain null.
 
 ### Live operational status
-There are currently **0 case inspection rows**, **0 registered GIS survey-evidence rows**, **0 road-restoration records** and **0 drainage-inspection records**. The case-attachment table has 1 pre-existing row; no new evidence was persisted by the tests. The Phase 4 GPS/photo flow passed a rollback-only database RLS test, but no physical-device camera/GPS capture has yet been performed.
+There are currently **0 case inspection rows**, **0 registered GIS survey-evidence rows**, **0 road-restoration records** and **0 drainage-inspection records**. The case-attachment table has 1 pre-existing row; no new evidence was persisted by the tests. The Phase 4 GPS/photo flow passed a rollback-only database RLS test: one complete GPS inspection, one optional no-GPS inspection and one linked private attachment all passed, and the transaction was rolled back. No physical-device camera/GPS capture has yet been performed.
 
 ### Phase status
 **Software foundation:** present; geotagged inspection schema deployed, private photo-link policy and UI capture path implemented. Android and browser automated release builds passed on app commit `174e05ce6b4082b00faf2061d308307f804c7c73`.  
