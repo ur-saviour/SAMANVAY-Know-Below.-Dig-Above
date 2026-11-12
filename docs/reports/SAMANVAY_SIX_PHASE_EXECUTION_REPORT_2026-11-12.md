@@ -171,6 +171,7 @@ The Phase 3/4 Flutter code and workflow dependency changes were built from app c
 - Both downloaded ZIPs matched the GitHub artifact digests and passed archive integrity checks. The browser inner deployment ZIP also passed integrity checks.
 - ARM64 APK extracted from the Android bundle: SHA-256 `0a1652732781f42e761fc05dea0c365037744e8c925789a1a5a4fe3b502f49e6`; APK archive integrity passed.
 - Automated builds do not validate a real handset's GPS/camera permissions, GPS accuracy, camera capture, network upload or offline recovery. Those remain physical-device acceptance tests.
+- The four Phase 3/4 migrations (`20261112112501`, `20261112112804`, `20261112114405`, `20261112114823`) are exact version matches between repository files and the live Supabase ledger. Broader historical migration reconciliation remains: repository has 66 migration files versus 82 live ledger entries; prefix comparison finds 23 local-only and 39 remote-only versions. This older drift was not altered as part of Phases 3/4.
 
 ## Final status
 
