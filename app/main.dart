@@ -13409,7 +13409,6 @@ class _MapPageState extends State<MapPage> {
                       .from('india_administrative_units')
                       .select('id,name,lgd_code,verification_status,parent_unit_id,source_system,source_updated_at')
                       .eq('state_ut_id', stateId!)
-                      .eq('parent_unit_id', null)
                       .eq('unit_type', 'urban_local_body')
                       .eq('source_system', 'India Cities & Administrative Data API mirror 23Sep2026 — Urban Local Bodies')
                       .eq('is_active', true)
