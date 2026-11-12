@@ -14,6 +14,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:crypto/crypto.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18469,7 +18471,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
   Future<void> _viewEvidence() async {
     try {
       final rows = await supabase.from('case_attachments')
-        .select('storage_path,file_name,content_type,file_size_bytes')
+        .select('storage_path,file_name,content_type,file_size_bytes,inspection_id,captured_at,captured_latitude,captured_longitude,location_accuracy_m,sha256')
         .eq('request_id', widget.requestId).order('created_at', ascending: false);
       if (!mounted) return;
       final files = List<Map<String,dynamic>>.from(rows);
@@ -18477,7 +18479,7 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
         context: context, isScrollControlled: true, backgroundColor: panelNavy,
         builder: (sheet) => SafeArea(
           child: SizedBox(
-            height: MediaQuery.of(sheet).size.height * .55,
+            height: MediaQuery.of(sheet).size.height * .65,
             child: Column(
               children: [
                 const Padding(
@@ -18492,11 +18494,26 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
                         itemBuilder: (context, index) {
                           final item = files[index];
                           final kb = ((item['file_size_bytes'] as num?) ?? 0) / 1024;
+                          final captureTime = item['captured_at']?.toString();
+                          final lat = item['captured_latitude'];
+                          final lon = item['captured_longitude'];
+                          final accuracy = item['location_accuracy_m'];
+                          final locationText = lat is num && lon is num
+                              ? 'Device GPS: \${lat.toStringAsFixed(6)}, \${lon.toStringAsFixed(6)}'
+                                  '\${accuracy is num ? ' · ±\${accuracy.toStringAsFixed(1)} m' : ''}'
+                              : 'No GPS metadata captured';
+                          final inspectionId = item['inspection_id']?.toString();
+                          final subtitle = <String>[
+                            '\${kb.toStringAsFixed(1)} KB · Private file',
+                            if (captureTime != null && captureTime.isNotEmpty) 'Captured: $captureTime',
+                            locationText,
+                            if (inspectionId != null) 'Inspection: \${inspectionId.substring(0, inspectionId.length > 8 ? 8 : inspectionId.length)}',
+                          ].join('\n');
                           return ListTile(
                             leading: Icon(item['content_type'] == 'application/pdf'
                               ? Icons.picture_as_pdf_outlined : Icons.image_outlined, color: teal),
                             title: Text(item['file_name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('$kb KB · Private file'),
+                            subtitle: Text(subtitle, maxLines: 4, overflow: TextOverflow.ellipsis),
                             trailing: IconButton(
                               icon: const Icon(Icons.open_in_new),
                               onPressed: () async {
@@ -18526,65 +18543,242 @@ class _CaseWorkspacePageState extends State<CaseWorkspacePage> {
     if (user == null || !_staff) return;
     var type = 'progress';
     var outcome = 'pass';
+    var capturingLocation = false;
+    var capturingPhoto = false;
+    Position? capturedPosition;
+    XFile? capturedPhoto;
     final notes = TextEditingController();
+
     final submit = await showDialog<bool>(
       context: context,
-      builder: (dialog) => StatefulBuilder(
-        builder: (context, setDialog) => AlertDialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialog) => AlertDialog(
           title: const Text('Record site inspection'),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              DropdownButtonFormField<String>(
-                initialValue: type, isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Inspection type'),
-                items: const [
-                  DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
-                  DropdownMenuItem(value: 'progress', child: Text('Work progress')),
-                  DropdownMenuItem(value: 'post_work', child: Text('Post-work')),
-                  DropdownMenuItem(value: 'utility_verification', child: Text('Utility verification')),
-                  DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<String>(
+                  initialValue: type, isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Inspection type'),
+                  items: const [
+                    DropdownMenuItem(value: 'pre_work', child: Text('Pre-work')),
+                    DropdownMenuItem(value: 'progress', child: Text('Work progress')),
+                    DropdownMenuItem(value: 'post_work', child: Text('Post-work')),
+                    DropdownMenuItem(value: 'utility_verification', child: Text('Utility verification')),
+                    DropdownMenuItem(value: 'safety_check', child: Text('Safety check')),
+                    DropdownMenuItem(value: 'other', child: Text('Other')),
+                  ],
+                  onChanged: (v) { if (v != null) setDialog(() => type = v); },
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: outcome, isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Outcome'),
+                  items: const [
+                    DropdownMenuItem(value: 'pass', child: Text('Pass')),
+                    DropdownMenuItem(value: 'issue_found', child: Text('Issue found')),
+                    DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
+                    DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
+                  ],
+                  onChanged: (v) { if (v != null) setDialog(() => outcome = v); },
+                ),
+                const SizedBox(height: 10),
+                TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
+                  decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: capturingLocation ? null : () async {
+                      setDialog(() => capturingLocation = true);
+                      try {
+                        if (!await Geolocator.isLocationServiceEnabled()) {
+                          throw StateError('Turn on device location services and try again.');
+                        }
+                        var permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied) {
+                          permission = await Geolocator.requestPermission();
+                        }
+                        if (permission == LocationPermission.deniedForever) {
+                          throw StateError('Location permission is blocked. Enable it in app settings.');
+                        }
+                        if (permission == LocationPermission.denied) {
+                          throw StateError('Location permission was not granted.');
+                        }
+                        final position = await Geolocator.getCurrentPosition(
+                          locationSettings: const LocationSettings(
+                            accuracy: LocationAccuracy.high,
+                            timeLimit: Duration(seconds: 20),
+                          ),
+                        );
+                        if (!dialogContext.mounted) return;
+                        setDialog(() => capturedPosition = position);
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          _toast(error is StateError
+                            ? error.message
+                            : 'GPS capture failed. You can still save the inspection without location.');
+                        }
+                      } finally {
+                        if (dialogContext.mounted) setDialog(() => capturingLocation = false);
+                      }
+                    },
+                    icon: capturingLocation
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location_outlined),
+                    label: Text(capturingLocation ? 'Capturing GPS…'
+                      : capturedPosition == null ? 'Capture device GPS' : 'Refresh device GPS'),
+                  ),
+                ),
+                if (capturedPosition != null) ...[
+                  const SizedBox(height: 5),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'GPS: \${capturedPosition!.latitude.toStringAsFixed(6)}, '
+                      '\${capturedPosition!.longitude.toStringAsFixed(6)} · '
+                      '±\${capturedPosition!.accuracy.toStringAsFixed(1)} m',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ),
                 ],
-                onChanged: (v) { if (v != null) { setDialog(() => type = v); } },
-              ),
-              DropdownButtonFormField<String>(
-                initialValue: outcome, isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Outcome'),
-                items: const [
-                  DropdownMenuItem(value: 'pass', child: Text('Pass')),
-                  DropdownMenuItem(value: 'issue_found', child: Text('Issue found')),
-                  DropdownMenuItem(value: 'follow_up_required', child: Text('Follow-up required')),
-                  DropdownMenuItem(value: 'not_applicable', child: Text('Not applicable')),
-                ],
-                onChanged: (v) { if (v != null) { setDialog(() => outcome = v); } },
-              ),
-              const SizedBox(height: 10),
-              TextField(controller: notes, minLines: 3, maxLines: 5, maxLength: 6000,
-                decoration: const InputDecoration(labelText: 'Inspection findings', border: OutlineInputBorder())),
-            ]),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: capturingPhoto ? null : () async {
+                      setDialog(() => capturingPhoto = true);
+                      try {
+                        final photo = await ImagePicker().pickImage(
+                          source: ImageSource.camera,
+                          imageQuality: 82,
+                          maxWidth: 1920,
+                          maxHeight: 1920,
+                        );
+                        if (photo != null) {
+                          final size = await photo.length();
+                          if (size <= 0 || size > 20 * 1024 * 1024) {
+                            throw StateError('Photo must be non-empty and no larger than 20 MB.');
+                          }
+                          if (!dialogContext.mounted) return;
+                          setDialog(() => capturedPhoto = photo);
+                        }
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          _toast(error is StateError
+                            ? error.message
+                            : 'Camera capture is unavailable. You can still save the inspection without a photo.');
+                        }
+                      } finally {
+                        if (dialogContext.mounted) setDialog(() => capturingPhoto = false);
+                      }
+                    },
+                    icon: capturingPhoto
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.photo_camera_outlined),
+                    label: Text(capturingPhoto ? 'Opening camera…'
+                      : capturedPhoto == null ? 'Take site photo' : 'Retake site photo'),
+                  ),
+                ),
+                if (capturedPhoto != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Photo ready: \${capturedPhoto!.name}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                const SizedBox(height: 10),
+                const Text(
+                  'GPS is device-reported and may be inaccurate indoors or near tall structures. '
+                  'A photo and GPS tag do not independently verify a utility location, depth, permit or site safety.',
+                  style: TextStyle(fontSize: 10, color: Colors.black54),
+                ),
+              ]),
+            ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(dialog, notes.text.trim().isNotEmpty),
-              child: const Text('Save inspection')),
+            TextButton(
+              onPressed: capturingLocation || capturingPhoto
+                ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: capturingLocation || capturingPhoto || notes.text.trim().isEmpty
+                ? null : () => Navigator.pop(dialogContext, true),
+              child: const Text('Save inspection'),
+            ),
           ],
         ),
       ),
     );
+
     if (submit != true) {
       notes.dispose();
       return;
     }
+
+    String? uploadedPath;
     try {
-      await supabase.from('case_inspections').insert({
-        'request_id': widget.requestId, 'inspection_type': type,
-        'outcome': outcome, 'notes': notes.text.trim(), 'inspected_by': user.id,
-      });
-      _toast('Inspection saved.');
-    } on PostgrestException catch (e) {
-      _toast('Inspection not saved: ${e.message}');
-    } catch (_) {
-      _toast('Unable to save inspection. Confirm the case is assigned to your department.');
+      final photoBytes = capturedPhoto == null ? null : await capturedPhoto!.readAsBytes();
+      if (photoBytes != null && (photoBytes.isEmpty || photoBytes.length > 20 * 1024 * 1024)) {
+        throw StateError('The captured photo is empty or exceeds the 20 MB limit.');
+      }
+      final photoHash = photoBytes == null ? null : sha256.convert(photoBytes).toString();
+      final position = capturedPosition;
+      final inspection = await supabase.from('case_inspections').insert({
+        'request_id': widget.requestId,
+        'inspection_type': type,
+        'outcome': outcome,
+        'notes': notes.text.trim(),
+        'inspected_by': user.id,
+        'location_latitude': position?.latitude,
+        'location_longitude': position?.longitude,
+        'location_accuracy_m': position?.accuracy,
+        'location_captured_at': position?.timestamp.toUtc().toIso8601String(),
+        'location_capture_method': position == null ? 'not_captured' : 'device_gps',
+      }).select('id').single();
+      final inspectionId = inspection['id'].toString();
+
+      if (capturedPhoto != null && photoBytes != null && photoHash != null) {
+        final filename = 'inspection_\${DateTime.now().microsecondsSinceEpoch}_\${photoHash.substring(0, 12)}.jpg';
+        uploadedPath = '\${widget.requestId}/\${user.id}/$filename';
+        try {
+          await supabase.storage.from(_bucket).uploadBinary(
+            uploadedPath!,
+            photoBytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false),
+          );
+          await supabase.from('case_attachments').insert({
+            'request_id': widget.requestId,
+            'storage_path': uploadedPath,
+            'file_name': capturedPhoto!.name.isEmpty ? filename : capturedPhoto!.name,
+            'content_type': 'image/jpeg',
+            'file_size_bytes': photoBytes.length,
+            'attachment_type': 'site_photo',
+            'uploaded_by': user.id,
+            'inspection_id': inspectionId,
+            'captured_at': DateTime.now().toUtc().toIso8601String(),
+            'captured_latitude': position?.latitude,
+            'captured_longitude': position?.longitude,
+            'location_accuracy_m': position?.accuracy,
+            'sha256': photoHash,
+          });
+          uploadedPath = null;
+        } catch (_) {
+          if (uploadedPath != null) {
+            try { await supabase.storage.from(_bucket).remove([uploadedPath!]); } catch (_) {}
+          }
+          _toast('Inspection saved, but the photo could not be attached. Retry the photo upload from the case evidence panel.');
+          return;
+        }
+      }
+      _toast(position == null
+        ? 'Inspection saved. No device GPS was attached.'
+        : 'Inspection saved with device-reported GPS\${capturedPhoto == null ? '' : ' and private photo evidence'}.');
+    } on PostgrestException catch (error) {
+      _toast('Inspection was not saved: \${error.message}');
+    } catch (error) {
+      _toast(error is StateError ? error.message : 'Unable to save the inspection. Check case access and connectivity.');
     } finally {
       notes.dispose();
     }
