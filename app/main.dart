@@ -5136,6 +5136,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   String _selectedDepartment = 'Water Supply / PHED';
   String _adminCaseQuery = '';
   String _adminStatusFilter = 'All statuses';
+  bool _pilotScenarioExecuted = false;
   int _citizenRequestCounter = 1;
   final List<Map<String, dynamic>> _cases = [];
   final List<String> _activity = ['Demo workspace opened'];
@@ -7338,6 +7339,124 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
+  void _runPilotScenario() {
+    setState(() => _pilotScenarioExecuted = true);
+    _record('Pilot simulation run · three illustrative work packages grouped into one shared access window');
+  }
+
+  void _resetPilotScenario() {
+    setState(() => _pilotScenarioExecuted = false);
+    _record('Pilot simulation reset');
+  }
+
+  Widget _pilotImpact() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _panel(
+        'Coimbatore corridor pilot simulation',
+        'A synthetic demonstration of how road, water and telecommunications work packages could be coordinated before a road is opened.',
+        Icons.insights_outlined,
+        status: 'PHASE 5 · PROTOTYPE SCENARIO ONLY',
+      ),
+      Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ILLUSTRATIVE SCENARIO INPUT',
+                style: TextStyle(
+                  color: teal,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .6,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Avinashi Road demonstration corridor · Coimbatore',
+                style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Three assumed work packages: water-pipeline renewal, telecom duct maintenance and road resurfacing / restoration.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              Text(
+                'UNCOORDINATED BASELINE',
+                style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '3 separate road-access windows are assumed when each work package is planned independently.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.35),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'COORDINATED SAMANVAY SCENARIO',
+                style: TextStyle(color: ink, fontSize: 10, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '1 shared access window is modelled, subject to all three owners agreeing to the schedule and granting their own clearances.',
+                style: TextStyle(color: mutedInk, fontSize: 11, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _metricCard('3', 'Assumed work packages'),
+          _metricCard('3', 'Baseline access windows'),
+          _metricCard(_pilotScenarioExecuted ? '1' : '—', 'Modelled shared window'),
+          _metricCard(_pilotScenarioExecuted ? '2' : '—', 'Potential repeat openings avoided'),
+        ],
+      ),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _runPilotScenario,
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: Text(_pilotScenarioExecuted ? 'RERUN PILOT SCENARIO' : 'RUN ILLUSTRATIVE PILOT SCENARIO'),
+        ),
+      ),
+      if (_pilotScenarioExecuted) ...[
+        const SizedBox(height: 8),
+        _panel(
+          'Scenario calculation completed',
+          'The local demo grouped three assumed work packages into one shared access window. The difference of two windows is a modelled opportunity only; it is not an observed reduction or a verified saving.',
+          Icons.check_circle_outline_rounded,
+          status: 'LOCAL SESSION RESULT · NOT MEASURED',
+        ),
+      ],
+      TextButton.icon(
+        onPressed: _pilotScenarioExecuted ? _resetPilotScenario : null,
+        icon: const Icon(Icons.restart_alt_rounded, size: 17),
+        label: const Text('RESET SCENARIO'),
+      ),
+      _panel(
+        'Conditions before a real shared work window',
+        'Each utility owner must confirm asset records and clearance; each work package must have a valid permit; traffic and public-safety plans must be compatible; and the road authority must approve the common schedule. A missing owner response blocks the combined plan.',
+        Icons.fact_check_outlined,
+        status: 'AUTHORITY APPROVAL REQUIRED',
+      ),
+      _panel(
+        'Pilot measurement discipline',
+        'A real pilot must compare a pre-agreed baseline with timestamped request, review, permit, work-start and restoration records. Measure repeat road openings, median and p90 review time, owner response time, restoration defects and evidence-complete closures. Do not report simulated values as savings, prevention rates or measured impact.',
+        Icons.analytics_outlined,
+        status: 'NO REAL-WORLD KPI CLAIMS',
+      ),
+    ],
+  );
+
   Widget _governance() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -7369,6 +7488,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       case 'AI insights': return _aiInsights();
       case 'Governance': return _governance();
       case 'Admin oversight': return _adminOverview();
+      case 'Pilot & impact': return _pilotImpact();
       default: return _activeRole == 'admin' ? _adminOverview() : _overview();
     }
   }
@@ -7442,10 +7562,10 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                     ? <String>['Overview', 'My requests', 'Service guide', 'Public works', 'GIS & coverage']
                     : _activeRole == 'admin'
                         ? <String>[
-                            'Overview', 'Case queue', 'Admin oversight', 'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
+                            'Overview', 'Case queue', 'Admin oversight', 'Pilot & impact', 'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
                           ]
                         : <String>[
-                            'Overview', 'Case queue', 'Coordination', 'Roadworks',
+                            'Overview', 'Case queue', 'Coordination', 'Roadworks', 'Pilot & impact',
                             'GIS & coverage', 'Groundwater', 'Buildings', 'AI insights', 'Governance',
                           ]).map(_sectionChip).toList(),
               ),
