@@ -19721,57 +19721,6 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
-          // Clearly labelled illustrative subsurface model. It is intentionally
-          // separate from georeferenced utility records so demo geometry is
-          // visible to every map viewer without implying survey verification.
-          if (_undergroundMode)
-            Positioned(
-              right: 12,
-              bottom: 42,
-              width: desktopLayout ? 286 : 226,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xEE0B1B2B),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF39BDB0), width: 1),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x55000000), blurRadius: 14, offset: Offset(0, 5)),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.layers_rounded, color: Color(0xFF55D9CE), size: 14),
-                        SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'UNDERGROUND NETWORK · DEMO',
-                            style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7),
-                          ),
-                        ),
-                        Text('SCHEMATIC', style: TextStyle(color: Color(0xFFFFD166), fontSize: 7, fontWeight: FontWeight.w900)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    const SizedBox(
-                      height: 88,
-                      width: double.infinity,
-                      child: CustomPaint(painter: _DemoUndergroundCrossSectionPainter()),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'Illustrative utility routes only — not georeferenced, surveyed, or safe for excavation decisions. Verified asset records load separately when authorised data exists.',
-                      style: TextStyle(color: Color(0xFFD4E1EA), fontSize: 7.5, height: 1.25),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
           Positioned(
             left: desktopLayout ? 320 : 12,
             right: 12,
