@@ -327,7 +327,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Verify the returned map metadata includes boundary ID, boundary year, source, licence, source URL and unit count.
 - [x] Confirm the map labels show feature count, boundary vintage, source/licence and reference-only status.
 - [x] Record that geoBoundaries ADM1 represents 2011 and ADM2 represents 2021; the provider build/source data dates are 2023.
-- [ ] Add `sourceDataUpdateDate` and `buildDate` to the Edge Function payload and visible map layer labels.
+- [x] Add `sourceDataUpdateDate` and `buildDate` to the Edge Function payload and visible map layer labels (deployed as Edge Function version 2; Android/browser release rebuild running).
 - [ ] Reconcile the 736 ADM2 polygon references with the active 784 district LGD-code-bearing directory rows using stable identifiers and administrative effective dates; no fuzzy-name joins.
 - [ ] Replace or supplement stale references only after an authoritative, licensed boundary source has been downloaded and validated.
 
