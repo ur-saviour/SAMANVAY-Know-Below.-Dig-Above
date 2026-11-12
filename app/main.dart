@@ -12419,6 +12419,7 @@ class _MapPageState extends State<MapPage> {
   bool _showGroundwaterTelemetry = true;
   int _groundwaterStationCount = 0;
   String _groundwaterFreshnessLabel = 'Not loaded';
+  String _groundwaterArchiveLatestObservation = 'Not checked';
   String _groundwaterLatestAgency = 'Not reported';
   final Map<String, Map<String, dynamic>> _groundwaterStationDetails = {};
   String _deviceCoordinateLabel = '';
@@ -13994,6 +13995,27 @@ class _MapPageState extends State<MapPage> {
           .order('district_name')
           .limit(1000);
 
+      // Report the source-wide archive cutoff separately from the current
+      // viewport's newest loaded point. This prevents an old archive from
+      // being mistaken for live groundwater telemetry.
+      var archiveLatestObservation = 'Unavailable';
+      try {
+        final archiveLatestRow = await supabase
+            .from('latest_groundwater_station_observations')
+            .select('observed_at_local')
+            .order('observed_at_local', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        final archiveLatestTime = DateTime.tryParse(
+          (archiveLatestRow?['observed_at_local'] ?? '').toString(),
+        );
+        archiveLatestObservation = archiveLatestTime == null
+            ? 'No published timestamp'
+            : archiveLatestTime.toString().split('.').first;
+      } catch (_) {
+        archiveLatestObservation = 'Unavailable (source query failed)';
+      }
+
       final features = <Map<String, dynamic>>[];
       final stationDetails = <Map<String, dynamic>>[];
       DateTime? latestObservationTime;
@@ -14078,6 +14100,7 @@ class _MapPageState extends State<MapPage> {
           _groundwaterLatestAgency = latestObservationAgency.isEmpty
               ? 'Publisher not stated'
               : latestObservationAgency;
+          _groundwaterArchiveLatestObservation = archiveLatestObservation;
           _groundwaterStationDetails
             ..clear()
             ..addEntries(stationDetails.map((properties) => MapEntry(
@@ -14091,6 +14114,7 @@ class _MapPageState extends State<MapPage> {
         setState(() {
           _groundwaterStationCount = 0;
           _groundwaterFreshnessLabel = 'Observation layer unavailable';
+          _groundwaterArchiveLatestObservation = 'Unavailable';
           _groundwaterLatestAgency = 'Publisher unavailable';
           _groundwaterStationDetails.clear();
         });
@@ -15146,7 +15170,7 @@ class _MapPageState extends State<MapPage> {
                             title: 'GROUNDWATER',
                             color: const Color(0xFFA78BFA),
                             detail: _groundwaterReadinessLoaded
-                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · latest timestamp among loaded records (max 1,000): $_groundwaterFreshnessLabel · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
+                                ? '$_groundwaterStationCount station point(s) in this map extent · up to 1,000 displayed · viewport timestamp: $_groundwaterFreshnessLabel · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical archive, not live telemetry · publisher: $_groundwaterLatestAgency · $_groundwaterTelemetryGaps of $_groundwaterCoverageJurisdictions State/UT coverage entries still lack a verified 2021–2025 telemetry feed'
                                 : 'Coverage summary unavailable; station layer remains independently controlled.',
                           ),
                           _readinessRow(
@@ -15252,7 +15276,7 @@ class _MapPageState extends State<MapPage> {
                         style: TextStyle(color: Colors.white),
                       ),
                       subtitle: Text(
-                        '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · tap for the published reading and timestamp · not a borewell register or complete station inventory',
+                        '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical data, not live telemetry · tap for the published reading and timestamp · not a borewell register or complete station inventory',
                         style:  TextStyle(
                           color: mutedInk,
                           fontSize: 11,
@@ -15437,6 +15461,8 @@ class _MapPageState extends State<MapPage> {
           const SizedBox(height: 4),
           Text('Latest timestamp among loaded records (up to 1,000 in this map extent): $_groundwaterFreshnessLabel',
             style: const TextStyle(color: Color(0xFFE5EEF5), fontSize: 8, height: 1.35)),
+          Text('Latest observation in the full source archive: $_groundwaterArchiveLatestObservation. Historical monitoring data only; this is not live telemetry.',
+            style: const TextStyle(color: Color(0xFFF6C66B), fontSize: 8, height: 1.35)),
           Text('Publisher: $_groundwaterLatestAgency · source-reported values; coordinate accuracy is not independently validated here.',
             style: TextStyle(color: mutedInk, fontSize: 7.5, height: 1.35)),
           const Divider(height: 9, color: Color(0x334B647C)),
@@ -15549,8 +15575,8 @@ class _MapPageState extends State<MapPage> {
         _desktopGisLayerToggle(title: 'Work request locations',
           detail: 'Visible cases permitted for this account', value: _showRequests,
           onChanged: (value) => _toggleRequests(value)),
-        _desktopGisLayerToggle(title: 'Groundwater monitoring',
-          detail: 'Published observations in the current extent', value: _showGroundwaterTelemetry,
+        _desktopGisLayerToggle(title: 'Groundwater monitoring archive',
+          detail: '2021–2025 source archive · latest observation: $_groundwaterArchiveLatestObservation · not live telemetry', value: _showGroundwaterTelemetry,
           onChanged: (value) => _toggleGroundwaterTelemetry(value)),
         _desktopGisLayerToggle(title: 'India State / UT boundaries',
           detail: 'Vintage $_indiaStateBoundaryVintage · non-statutory reference', value: _showIndiaStateBoundaries,
