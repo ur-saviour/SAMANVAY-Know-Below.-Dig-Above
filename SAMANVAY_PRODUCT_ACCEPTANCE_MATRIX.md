@@ -305,7 +305,8 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Run rollback-only positive/negative RLS tests with three synthetic asset/evidence rows: Admin/Coordinator saw all 3 in the registry and verification queue; Department Officer/Citizen saw zero direct-table/queue rows. The assigned Department Officer received 3 exact GeoJSON features through the owner-only RPC; Citizen received one 250 m generalised cell with aggregate count 3 and no exact feature geometry. The transaction was rolled back.
 - [ ] Repeat end-to-end tests with real owner-authorised utility records and evidence; the production registry remains empty, so real dataset acceptance is still pending.
 - [ ] Enable Supabase Auth leaked-password protection in the project Auth settings; this setting is not exposed by the connected database migration interface.
-- [ ] Re-run Android/browser CI and complete real-device/browser role regression after the current migration commits.
+- [x] Re-run Android/browser CI after the current source changes: Android and browser builds, Dart analysis, artifact creation and integrity/smoke checks passed.
+- [ ] Complete real-device/browser role regression; CI does not replace GPS, WebGL, touch, sign-in or live interaction testing.
 
 **Live security advisor result:** The `security_definer_view` finding is cleared and the six `rls_enabled_no_policy` findings are cleared. Remaining notices: 15 authenticated-executable security-definer RPC warnings (these are intentional app endpoints and remain subject to their internal role checks), plus one Auth warning because leaked-password protection is disabled. One RPC search-path exception identified in the audit has been corrected. This does not constitute a full penetration test or production-security certification.
 
