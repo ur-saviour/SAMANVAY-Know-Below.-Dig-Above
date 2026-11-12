@@ -67,7 +67,7 @@ For the row-level audit, source hashes, import batch IDs, polygon validity check
 - Multi-domain work request categories and department routing suggestions exist.
 - Department review, coordinator checks, status history and protected RPC-based status changes exist.
 - Road-cut permit, deadline/compliance, schedule advisory, drainage inspection and road-restoration quality-gate schemas/functions are present.
-- The joint-work proposal workflow is now deployed: proposal, department-response and event-history tables; participant-scoped RLS; and role-gated create/respond/finalise RPCs. The existing browser/mobile coordination page now has its expected live backend.
+- The joint-work proposal workflow is now deployed: proposal, department-response and event-history tables; participant-scoped RLS; and role-gated create/respond/finalise RPCs. Its boolean read-guard helper was moved to a non-API `private` schema so it is not exposed as a public PostgREST function. The existing browser/mobile coordination page now has its expected live backend.
 
 ### Live operational data
 - Excavation requests: 4 rows.
@@ -94,7 +94,7 @@ Migration `20261112112501_add_joint_work_proposal_workflow.sql` was applied to t
 A rollback-only authenticated regression test used two existing assigned department-review records. A coordinator created a proposal; the participating department account accepted each department response in turn; and the coordinator finalised a shared schedule. The observed result was `scheduled`, 2 response rows, 2 accepted responses and 4 event-history rows. The entire transaction was rolled back; no real proposal or operational schedule was created.
 
 ### Phase status
-**Workflow foundation:** present; duplicate-assignment failure fixed and transaction-tested; joint-work backend deployed and rollback-tested.  
+**Workflow foundation:** present; duplicate-assignment failure fixed and transaction-tested; joint-work backend deployed, private read-guard hardened and end-to-end role-tested in a rollback-only transaction.  
 **Operational status:** incomplete until participating authorities exercise the permit, acknowledgement, rejection, escalation, joint-work and emergency-exception paths against authorised cases and statutory rules.
 
 ## Phase 4 — Field verification
@@ -112,7 +112,7 @@ A rollback-only authenticated regression test used two existing assigned departm
 There are currently **0 case inspection rows**, **0 registered GIS survey-evidence rows**, **0 road-restoration records** and **0 drainage-inspection records**. The case-attachment table has 1 pre-existing row; no new evidence was persisted by the tests. The Phase 4 GPS/photo flow passed a rollback-only database RLS test, but no physical-device camera/GPS capture has yet been performed.
 
 ### Phase status
-**Software foundation:** present; geotagged inspection schema deployed, private photo-link policy and UI capture path implemented.  
+**Software foundation:** present; geotagged inspection schema deployed, private photo-link policy and UI capture path implemented. Android and browser automated release builds passed on app commit `174e05ce6b4082b00faf2061d308307f804c7c73`.  
 **Operational status:** incomplete until physical Android/browser GPS and camera behaviour is tested and a department/contractor team performs field capture, records source drawings and positional confidence, uploads genuine evidence, reports discrepancies, and completes authorised restoration inspections. Offline behaviour remains untested.
 
 ## Phase 5 — Controlled pilot
@@ -153,9 +153,24 @@ Required KPIs: repeat cuts per road segment; request-review median and p90; aler
 
 ## Security and release controls
 
-Supabase security advisories include a SECURITY DEFINER verification-queue view, authenticated-executable SECURITY DEFINER RPCs, tables with RLS enabled but no policies, and disabled leaked-password protection. These findings require a routine-by-routine and table-by-table permission review; they must not be “fixed” by indiscriminately granting access or removing RLS. The current profile read policy is owner-scoped (`id = auth.uid()`).
+Current Supabase security-advisor findings after the Phase 3/4 migrations are 18 authenticated-callable SECURITY DEFINER function warnings and one Auth warning for disabled leaked-password protection. The 18 includes three intentional joint-work RPC endpoints with explicit role checks; the joint-work RLS read guard is in the non-API `private` schema. Each SECURITY DEFINER routine still requires individual review; do not “fix” warnings by indiscriminately granting access or removing RLS. Leaked-password protection remains an outstanding Auth setting.
 
 The application must be revalidated after this patch on a physical Android device. A successful CI build is necessary but not sufficient for release acceptance.
+
+## Phase 3/4 automated release verification — 12 November 2026
+
+The Phase 3/4 Flutter code and workflow dependency changes were built from app commit `174e05ce6b4082b00faf2061d308307f804c7c73`.
+
+| Target | Workflow | Result | Artifact |
+|---|---|---|---|
+| Android Alpha 0.3 | [43210697754](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43210697754) | Success: analysis, release build, ABI split, package/signature/alignment checks and publication | [Artifact 13941566669](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13941566669/zip) |
+| Browser portal | [43210698178](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43210698178) | Success: analysis, browser release build, GIS asset smoke tests and packaging | [Artifact 13941171647](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/13941171647/zip) |
+
+- Android artifact SHA-256: `1106cc8031077c2c37c535cd2e5e950ee9c49eebf0b0ef60c8ce5b673eb50f79` (44,563,969 bytes).
+- Browser artifact SHA-256: `29c040ce34c6c27cba906eb58451279b5e912534a0542150490424681a5bfa09` (14,988,268 bytes).
+- Both downloaded ZIPs matched the GitHub artifact digests and passed archive integrity checks. The browser inner deployment ZIP also passed integrity checks.
+- ARM64 APK extracted from the Android bundle: SHA-256 `0a1652732781f42e761fc05dea0c365037744e8c925789a1a5a4fe3b502f49e6`; APK archive integrity passed.
+- Automated builds do not validate a real handset's GPS/camera permissions, GPS accuracy, camera capture, network upload or offline recovery. Those remain physical-device acceptance tests.
 
 ## Final status
 
