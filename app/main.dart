@@ -7339,6 +7339,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
+  // Prototype-only calculation: assumptions are never written to Supabase or presented as measured impact.
   void _runPilotScenario() {
     setState(() => _pilotScenarioExecuted = true);
     _record('Pilot simulation run · three illustrative work packages grouped into one shared access window');
