@@ -228,8 +228,25 @@ The Phase 3/4 Flutter code and workflow dependency changes were built from app c
 **Conclusion:** Phase 1 source fixes are committed and both CI pipelines passed; the Phase 3 duplicate-assignment RPC fix is deployed and transaction-tested. Phases 2–6 cannot truthfully be marked 100% operationally complete until official asset owners, municipal authorities, field teams, integration credentials and a measured pilot are available. No synthetic utility geometry, fake approval, false field evidence or unmeasured savings has been introduced by this execution.
 
 
+## Latest Phase 5/6 release build verification — 13 November 2026
+
+Both CI pipelines passed for app commit `01ad3154f501b409a1376626bb14d1f80ddf0197` on `feature/alpha-03-integrated-platform`.
+
+| Target | Workflow | Result | Artifact |
+|---|---|---|---|
+| Android Alpha 0.3 | [43288750400](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43288750400) | Success: Dart analysis, release build, APK packaging, signature/alignment checks, upload and release publication | [Artifact 14008402117](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/14008402117/zip) |
+| Browser portal | [43288750376](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43288750376) | Success: Dart analysis, browser build, bundled GIS smoke tests, packaging and upload | [Artifact 14008402492](https://api.github.com/repos/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/artifacts/14008402492/zip) |
+
+- Android workflow artifact: 44,786,312 bytes; SHA-256 `399a6dc16b3109483a1d110a8894a3de6d687099e83fda0637b2b0917cc71cc8`.
+- Browser workflow artifact: 15,017,720 bytes; SHA-256 `3e40e93611c9d452e86d065e9a8ed401990405e9b47187f378533bcc43df77fd`.
+- Published Android ARM64 APK: 33,824,275 bytes; SHA-256 `928232f04b848d4ef476010de0a632a33f9f39bccf4f7b8e68a615b0864f58c5`.
+- Published Android ARMv7 APK: 28,913,277 bytes; SHA-256 `3b365a9726e10b4e89e31b202f02693b79bc270e6668be305a4aa6175f2c616a`.
+- Published Android x86_64 APK: 35,610,484 bytes; SHA-256 `62121afbe864e37f326976f07d9f9eeab986b04a08d97490d4f036a445045bba`.
+
+These CI results establish successful build and packaging, not physical-device acceptance. Login, account switching, GPS, camera, map tile loading, upload and offline behaviour still require testing on a real device.
+
 ## Prototype completion estimate — 13 November 2026
 
-For the requested **prototype-only** scope (working screens, navigable role demonstrations, local synthetic records and backend foundations), the current engineering estimate is **about 73% complete**. This is an equal-weight, phase-based planning estimate, not an automated test-coverage statistic. The six phase estimates are approximately: Phase 1 85%, Phase 2 65%, Phase 3 85%, Phase 4 75%, Phase 5 65%, and Phase 6 65%. Their equal-weight mean is 73.3%, rounded to **73%**. Phase 5 increased for the new interactive, local-only pilot scenario; Phase 6 increased for the audited India readiness dashboard and live database re-audit.
+For the requested **prototype-only** scope (working screens, navigable role demonstrations, local synthetic records and backend foundations), the current engineering estimate is **about 74% complete**. This is an equal-weight, phase-based planning estimate, not an automated test-coverage statistic. The six phase estimates are approximately: Phase 1 85%, Phase 2 65%, Phase 3 85%, Phase 4 75%, Phase 5 65%, and Phase 6 68%. Their equal-weight mean is 73.8%, rounded to **74%**. Phase 5 increased for the new interactive, local-only pilot scenario; Phase 6 increased for the audited India readiness dashboard, hierarchy integrity checks, and the evidence-gated ULB reconciliation workspace. Both Android and browser CI pipelines now pass for the latest Phase 5/6 app source.
 
 This estimate does not represent production readiness. Real authority integrations, owner-authorised utility geometry, physical-device acceptance, field evidence, production-safe recovery of the groundwater history, and a measured municipal pilot remain open. The currently live groundwater telemetry table contains 446,068 2025 rows after the confirmed 9 November data-reduction incident; the pre-change encrypted archive is available, but the historical delta has not been restored.
