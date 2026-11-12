@@ -261,3 +261,20 @@ The prior Android run [43298615743](https://github.com/ur-saviour/SAMANVAY-Know-
 - New Android run: [43299842122](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43299842122).
 - Latest check: runner started; checkout was in progress. No APK artifact exists yet.
 - This retry does not change the 90% engineering estimate. The release is credited only after APK package, signature and alignment checks plus artifact publication pass.
+
+
+## Alpha 0.3 release build close-out — 13 November 2026
+
+The bounded Android retry completed successfully. The earlier "in progress" statements in this report are superseded by this close-out.
+
+- Android workflow: [43299842122](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43299842122), success.
+- Source commit: `e5dc6a24bdae20aa43bcfa8db5d4f7d4468c4a44`.
+- Passed: source-contract validator (25 checks), Android package-contract validator, dependency installation, Dart analysis, release APK compilation, ABI extraction, package/signature/alignment verification, artifact upload and Alpha 0.3 prerelease publication.
+- ARM64 APK: [download](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/releases/download/samanvay-alpha-0.3/SAMANVAY-Alpha-0.3-arm64-v8a.apk), SHA-256 `05b3a7870cad6bf99b2ee1385e3cb084f8015e69519d736a64a88c5579d1fbf5`.
+- ARMv7 APK: [download](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/releases/download/samanvay-alpha-0.3/SAMANVAY-Alpha-0.3-armeabi-v7a.apk), SHA-256 `cedf132527ce049ad175838748e1d5647a5905458482fa284d58fb42522f4ad2`.
+- x86_64 APK: [download](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/releases/download/samanvay-alpha-0.3/SAMANVAY-Alpha-0.3-x86_64.apk), SHA-256 `271d4424091a72a6beaa9388c33338c783d099d435dd81e64e206e14ea57fce2`.
+- Browser workflow: [43298587461](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298587461), success; artifact upload and GIS asset smoke tests passed.
+
+**Remaining acceptance gates:** physical Android install/runtime testing; authenticated multi-role end-to-end tests; browser HTTPS/WebGL runtime tests; real operational lifecycle and notification verification; authorised underground asset/survey data; and AI service runtime configuration/testing. These cannot be inferred from static source checks or successful CI builds. The connected live GIS registry was previously audited with zero underground asset records and zero survey-evidence records; this must not be represented as verified utility coverage or site clearance.
+
+**Release conclusion:** Alpha 0.3 build and packaging are complete. The overall project is not 100% accepted and is not production-ready until the remaining runtime, security and data-owner gates are evidenced.
