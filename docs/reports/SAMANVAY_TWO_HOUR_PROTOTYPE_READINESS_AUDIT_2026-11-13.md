@@ -251,3 +251,13 @@ The browser portal workflow `43298587461` completed successfully. Its source-con
 - Workflow: https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298587461
 
 The Android workflow `43298615743` remains in progress at the release APK compilation step. The 25-check contract gate, Android package validator, dependency installation and Dart analysis have passed; no failed step is reported. APK publication, signature/alignment verification and physical-device testing remain unconfirmed.
+
+
+## Android runner recovery and bounded-build retry — 13 November 2026
+
+The prior Android run [43298615743](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298615743) remained unchanged at the release compilation step for an extended period and exposed no downloadable artifacts. The Android workflow was hardened with a 35-minute job timeout and a 25-minute release-build step timeout. This workflow-file change triggered a fresh build and, through the existing branch concurrency policy, the stale run was cancelled.
+
+- Workflow hardening commit: `e5dc6a24bdae20aa43bcfa8db5d4f7d4468c4a44`.
+- New Android run: [43299842122](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43299842122).
+- Latest check: runner started; checkout was in progress. No APK artifact exists yet.
+- This retry does not change the 90% engineering estimate. The release is credited only after APK package, signature and alignment checks plus artifact publication pass.
