@@ -256,8 +256,8 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] State explicitly that an empty map, missing warning or generalised coverage cell is not excavation clearance.
 - [ ] Implement true volumetric underground 3D / subsurface cutaway rendering using owner-authorised depth, vertical datum, geometry and survey-accuracy metadata. The current underground mode is an authorised 2D GIS overlay on a navigable map, not a fabricated 3D utility model.
 - [ ] Receive and validate asset-owner utility GIS, survey evidence and data-sharing permission before enabling operational asset layers.
-- [ ] Complete Android APK compilation, package/signature checks and release artifact publication for this commit.
-- [ ] Run real-device Android map tests and browser GIS regression tests for requester, department, coordinator and admin roles.
+- [x] Complete Android APK compilation, package/signature/alignment checks and release artifact publication on integrated commit `e05753da08285c4cee4fb16bdf6aa5b22c12309a`; the ULB browser correction is included in that tree.
+- [ ] Run real-device Android map tests and browser GIS regression tests for Citizen, Department Officer, Coordinator and Administrator roles.
 - [ ] Receive geocoded building approvals and approved floor/height values before plotting approval records or performing map-based compliance analysis.
 
 **Implementation commit:** `2a13790554d32cd4bc6b963b8dea554d98746d70` on `feature/alpha-03-integrated-platform`. Follow-up map-style visibility fix: `5e3ebe1bd430f00c56632765db216c5f19fee4ee`. Dart analysis passed on Android and browser workflows; browser compilation and packaging completed. Android APK compilation was still running at the time of this matrix update. The 3D basemap building extrusions are contextual OSM-derived massing, not statutory approval heights. Utility coverage metadata and empty registries do not establish that underground infrastructure is absent.
@@ -274,3 +274,19 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [ ] Validate notice event updates, assignment and moderation workflow in the browser and Android app.
 
 **Implementation boundary:** No public notices or obstruction reports are preloaded. The tracker is intentionally empty until an authorised publisher supplies a source reference and publishes a record. A no-dig notice or empty search is not excavation clearance.
+
+
+## 19. GSI / NWIC administrative boundary reference catalogue — 12 November 2026
+
+- [x] Register GSI/NWIC State and Union Territory boundary metadata.
+- [x] Register GSI/NWIC sub-district boundary metadata with its published 6,312-feature count and 5 May 2025 source date.
+- [x] Register the State/UT-wise village boundary catalogue, including the Tamil Nadu resource link and its published 2 May 2025 source date.
+- [x] Preserve each resource as metadata-only and explicitly record that the open licence label is not a complete licence/permission review.
+- [x] Record the 6,312 NWIC sub-district feature count versus 7,092 LGD community-mirror rows as a mandatory reconciliation issue.
+- [ ] Download each relevant State/UT archive through the published access route and retain archive hashes.
+- [ ] Validate file format, CRS, geometry validity, topology, coverage and source attributes.
+- [ ] Reconcile boundary features to current LGD codes using stable source identifiers; do not use fuzzy name matching as an authority link.
+- [ ] Import only the validated reference geometry with source lineage, vintage and non-statutory status.
+- [ ] Confirm complete State/UT coverage, especially State-wise village resource availability.
+
+**Live validation:** Three GSI/NWIC source rows are present in `public.official_data_sources` with `integration_status = 'metadata_registered'`. No NWIC boundary geometry has been imported. The persisted 733 district polygons remain DataMeet-derived historical references. The active directory contains 784 district, 7,092 sub-district, 7,312 block and 5,050 ULB LGD-code-bearing community-mirror rows; every one remains unverified. ULB district-parent links: 0; ward rows: 0; village rows: 0. The Phase 2 software must preserve these distinctions.
