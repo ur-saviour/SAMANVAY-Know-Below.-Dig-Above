@@ -15763,9 +15763,10 @@ class _MapPageState extends State<MapPage> {
   // Initial camera pitch is zero; begin in honest 2D state. The 3D control
   // animates to a pitched camera and enables the extrusion layers.
   bool _is3D = false;
-  // Start in public surface mode. Underground layers remain opt-in and
-  // continue to obey owner-department permissions.
-  bool _undergroundMode = false;
+  // Start in the underground presentation so the subsurface model is
+  // immediately visible to Citizens and officials. Verified operational
+  // geometry remains permission-gated; the public schematic is illustrative.
+  bool _undergroundMode = true;
   bool _styleReady = false;
   bool _buildingReadinessLoaded = false;
   bool _utilityReadinessLoaded = false;
