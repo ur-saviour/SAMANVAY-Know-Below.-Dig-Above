@@ -5134,6 +5134,8 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   late String _activeStaffId;
   String _section = 'Overview';
   String _selectedDepartment = 'Water Supply / PHED';
+  String _adminCaseQuery = '';
+  String _adminStatusFilter = 'All statuses';
   int _citizenRequestCounter = 1;
   final List<Map<String, dynamic>> _cases = [];
   final List<String> _activity = ['Demo workspace opened'];
@@ -6304,6 +6306,124 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
     ],
   );
 
+  Widget _adminCaseRegister() {
+    final statuses = <String>[
+      'All statuses',
+      'Submitted',
+      'Assigned',
+      'Under review',
+      'Clarification required',
+      'Technical recommendation submitted',
+      'Site inspection scheduled',
+      'Under coordination',
+      'Approved',
+      'Completed',
+      'Escalated for authority review',
+    ];
+    final query = _adminCaseQuery.trim().toLowerCase();
+    final filtered = _cases.where((item) {
+      final status = (item['status'] ?? 'Submitted').toString();
+      final matchesStatus = _adminStatusFilter == 'All statuses' || status == _adminStatusFilter;
+      final searchable = [
+        item['id'], item['title'], item['location'], item['department'],
+        (item['assigned'] as List).join(' '), item['status'],
+      ].join(' ').toLowerCase();
+      return matchesStatus && (query.isEmpty || searchable.contains(query));
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CASE OVERSIGHT REGISTER', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        TextField(
+          onChanged: (value) => setState(() => _adminCaseQuery = value),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search_rounded),
+            hintText: 'Search ID, case, location or department',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _adminStatusFilter,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'Filter by workflow status',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          items: statuses.map((status) => DropdownMenuItem<String>(
+            value: status,
+            child: Text(status, overflow: TextOverflow.ellipsis),
+          )).toList(),
+          onChanged: (value) => setState(() => _adminStatusFilter = value ?? 'All statuses'),
+        ),
+        const SizedBox(height: 7),
+        Text('${filtered.length} of ${_cases.length} session cases · local demo data',
+          style: TextStyle(color: mutedInk, fontSize: 10, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        if (filtered.isEmpty)
+          _panel('No matching cases', 'Try a different search term or status filter.', Icons.search_off_rounded)
+        else
+          ...filtered.map(_caseCard),
+      ],
+    );
+  }
+
+  Widget _adminStatusSummary() {
+    const statuses = <String>[
+      'Submitted', 'Assigned', 'Under review', 'Clarification required',
+      'Technical recommendation submitted', 'Site inspection scheduled',
+      'Under coordination', 'Approved', 'Completed', 'Escalated for authority review',
+    ];
+    final total = _cases.length;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('WORKFLOW DISTRIBUTION', style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text('Counts are calculated from the current demonstration session.', style: TextStyle(color: mutedInk, fontSize: 9)),
+            const SizedBox(height: 10),
+            ...statuses.map((status) {
+              final count = _cases.where((item) => item['status'] == status).length;
+              final fraction = total == 0 ? 0.0 : count / total;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(status, style: TextStyle(color: ink, fontSize: 9, fontWeight: FontWeight.w700))),
+                        Text('$count', style: TextStyle(color: teal, fontSize: 9, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: fraction,
+                        minHeight: 5,
+                        backgroundColor: borderColor.withValues(alpha: .4),
+                        valueColor: AlwaysStoppedAnimation<Color>(teal),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _adminOverview() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -6326,13 +6446,12 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
         Icons.lock_outline_rounded,
         status: 'LIVE AUTHORIZATION UNCHANGED',
       ),
+      _adminStatusSummary(),
       Text('RECENT SESSION AUDIT', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
       const SizedBox(height: 8),
-      ..._activity.take(8).map((entry) => _panel(entry, 'Recorded in this local demonstration session.', Icons.history_rounded)),
+      ..._activity.map((entry) => _panel(entry, 'Recorded in this local demonstration session.', Icons.history_rounded)),
       const SizedBox(height: 8),
-      Text('CASE OVERSIGHT', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 8),
-      ..._cases.map(_caseCard),
+      _adminCaseRegister(),
     ],
   );
 
