@@ -997,6 +997,7 @@ class _AdminAccountEditorState extends State<AdminAccountEditor> {
         .toList();
     final currentDepartmentExists = departmentItems
         .any((item) => item.value == selectedDepartment);
+    final isSelf = userId == supabase.auth.currentUser?.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1013,6 +1014,14 @@ class _AdminAccountEditorState extends State<AdminAccountEditor> {
                 style: const TextStyle(
                     color: Colors.blueGrey, fontSize: 10)),
             const SizedBox(height: 10),
+            if (isSelf)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Your own administrator role is locked against self-change.',
+                  style: TextStyle(color: Colors.blueGrey, fontSize: 11),
+                ),
+              ),
             DropdownButtonFormField<String>(
               value: selectedRole,
               decoration: const InputDecoration(
@@ -1028,7 +1037,7 @@ class _AdminAccountEditorState extends State<AdminAccountEditor> {
                     value: 'coordinator', child: Text('Coordinator')),
                 DropdownMenuItem(value: 'admin', child: Text('Administrator')),
               ],
-              onChanged: saving
+              onChanged: saving || isSelf
                   ? null
                   : (value) {
                       if (value != null) setState(() => selectedRole = value);
@@ -1053,7 +1062,7 @@ class _AdminAccountEditorState extends State<AdminAccountEditor> {
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.tonalIcon(
-                onPressed: saving ? null : save,
+                onPressed: saving || isSelf ? null : save,
                 icon: saving
                     ? const SizedBox(
                         width: 16,
