@@ -51,8 +51,8 @@ class _SamanvayUndergroundTwinPanelState
 
   @override
   Widget build(BuildContext context) {
-    final width = math.min(430.0, MediaQuery.sizeOf(context).width - 24);
-    final maxHeight = math.min(350.0, MediaQuery.sizeOf(context).height * .43);
+    final width = math.min(430.0, MediaQuery.sizeOf(context).width - 24).toDouble();
+    final maxHeight = math.min(350.0, MediaQuery.sizeOf(context).height * .43).toDouble();
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
@@ -656,8 +656,8 @@ class _SamanvayTwinPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout(maxWidth: 100);
-    final left = at.dx.clamp(2.0, math.max(2.0, 430 - text.width - 4));
-    final top = at.dy.clamp(1.0, 148.0);
+    final left = at.dx.clamp(2.0, math.max(2.0, 430 - text.width - 4).toDouble()).toDouble();
+    final top = at.dy.clamp(1.0, 148.0).toDouble();
     text.paint(canvas, Offset(left, top));
   }
 
