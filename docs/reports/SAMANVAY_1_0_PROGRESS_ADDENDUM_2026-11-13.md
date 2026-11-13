@@ -76,11 +76,18 @@ SECURITY DEFINER is not automatically a vulnerability. A read-only review of rep
 
 Leaked-password protection remains disabled. Its Auth provider setting has not been changed.
 
-## 4. Profile editing database constraint
+## 4. Profile editing database constraint — migration applied
 
-The live `public.profiles` table has columns `id`, `display_name`, `role`, `department_id` and `created_at`. The authenticated role currently has SELECT only; the only observed row policy is a self-row SELECT policy. There is no authenticated UPDATE grant or UPDATE RLS policy.
+A narrowly scoped migration, `20261113065528_profile_display_name_self_update`, was successfully applied to the live Supabase project and is committed in `supabase/migrations/20261113065528_profile_display_name_self_update.sql`.
 
-A client-side profile Save button would therefore be non-functional. Do not grant broad UPDATE rights on the profile row. A future, version-controlled migration may permit only `display_name` updates with a self-row `USING` and `WITH CHECK` policy, while leaving `role` and `department_id` non-updatable by normal clients. No live schema change was made in this increment.
+The migration grants column-level UPDATE on `public.profiles.display_name` only and adds an UPDATE RLS policy requiring `id = auth.uid()` for both `USING` and `WITH CHECK`. A follow-up privilege query confirmed:
+- authenticated can UPDATE `display_name`;
+- authenticated cannot UPDATE `role`;
+- authenticated cannot UPDATE `department_id`;
+- authenticated has no unrestricted table-level UPDATE;
+- the self-row UPDATE policy is installed.
+
+The Profile page now includes an Edit name action with 2-character minimum, 80-character maximum, database persistence and refreshed profile data. The build and static checks verify this implementation; a live authenticated save attempt by a test user is still required before marking profile editing end-to-end accepted.
 
 ## 5. Remaining release blockers
 
@@ -100,3 +107,17 @@ A client-side profile Save button would therefore be non-functional. Do not gran
 The latest source is improved and a new Alpha 0.3 APK is verified at the build/package level. The original integration branch remains untouched.
 
 **Do not call this SAMANVAY 1.0 yet.** The current release still lacks physical-device acceptance, verified mobile OTP/recovery, safe profile editing, operational verified underground asset coverage, full authorization review, accessibility/performance evidence and production signing. Continue from this branch and close the acceptance gates in the baseline report before declaring 1.0.
+
+
+## 7. GIS light-mode layer-sheet remediation
+
+The GIS layer bottom sheet uses the theme's `panelNavy` surface, which is white in the legacy light palette. Its readiness headings, data integrity heading, switch titles and utility-screening text now use the active semantic foreground (`ink`) rather than fixed white. Deliberately dark map overlays retain white text. The first attempt introduced five invalid constant expressions; Android run #620 caught the issue during Dart analysis. Those five constant declarations were corrected in commit `5d45318`.
+
+**Latest successful GIS-light-mode build:** [Android run #621](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43381818460), commit `5d453184a21fe68717044856b269d0ed4295fc19`. All configured build, analyzer, APK package, signature, alignment and artifact-publishing steps passed.
+
+- Artifact ID: `14017640919`
+- Artifact ZIP SHA-256: `3ad74e3a2433e75914bcd290841f3bccfa3cd412e1c87cd8cda88225bd1c9bb4`
+- ARM64 APK SHA-256: `80912abd77db82f82a1882073423faf3627960dc48095e23d7f3e678dcb26cdb`
+- Logo Git blob SHA within the built APK: `17c2db21509cfb59109cd413e8cb0f24d3f66524`, matching the original asset exactly.
+
+This remains an Alpha 0.3 package and does not replace physical-device light/dark visual acceptance.

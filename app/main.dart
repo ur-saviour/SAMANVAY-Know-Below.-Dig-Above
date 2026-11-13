@@ -20892,6 +20892,93 @@ class _ProfilePageState extends State<ProfilePage> {
     ));
   }
 
+  Future<void> _editDisplayName(String currentName) async {
+    final controller = TextEditingController(text: currentName);
+    String? validationError;
+
+    try {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, refresh) => AlertDialog(
+            title: const Text('Edit profile name'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 80,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'Display name',
+                hintText: 'Enter your name',
+                errorText: validationError,
+              ),
+              onSubmitted: (_) {
+                final value = controller.text.trim();
+                if (value.length < 2) {
+                  refresh(() => validationError = 'Enter at least 2 characters.');
+                } else {
+                  Navigator.of(dialogContext).pop(true);
+                }
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final value = controller.text.trim();
+                  if (value.length < 2) {
+                    refresh(() => validationError = 'Enter at least 2 characters.');
+                  } else {
+                    Navigator.of(dialogContext).pop(true);
+                  }
+                },
+                child: const Text('Save name'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (accepted != true) return;
+      final value = controller.text.trim();
+      if (value == currentName.trim()) {
+        _toast('Your profile name is unchanged.');
+        return;
+      }
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        _toast('Your session has expired. Sign in again.');
+        return;
+      }
+
+      final updated = await supabase
+          .from('profiles')
+          .update({'display_name': value})
+          .eq('id', user.id)
+          .select('display_name')
+          .maybeSingle();
+
+      if (updated == null) {
+        throw StateError('The profile name was not updated for this account.');
+      }
+      if (!mounted) return;
+
+      setState(() {
+        _future = _loadProfile();
+      });
+      _toast('Profile name updated successfully.');
+    } catch (_) {
+      _toast('Unable to update your profile name. Check your connection and try again.');
+    } finally {
+      controller.dispose();
+    }
+  }
+
   void _toast(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -21228,6 +21315,14 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 12),
             Text(data['name'].toString(), textAlign: TextAlign.center,
               style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 2),
+            TextButton.icon(
+              onPressed: () => _editDisplayName(data['name'].toString()),
+              icon: const Icon(Icons.edit_outlined, size: 15),
+              label: const Text('Edit name'),
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+            ),
+            const SizedBox(height: 2),
             const SizedBox(height: 4),
             Text(data['email'].toString(), textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFFD6E6F2), fontSize: 12)),

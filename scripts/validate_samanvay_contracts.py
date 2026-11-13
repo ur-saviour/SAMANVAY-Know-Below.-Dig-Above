@@ -57,6 +57,19 @@ check("redirectTo: redirectUrl" in main
       and "redirectTo: _samanvayAuthRedirectUrl" in main,
       "Signed-out and signed-in password-recovery entry points share the app callback URL.")
 
+check("Future<void> _editDisplayName(String currentName)" in main
+      and ".update({'display_name': value})" in main
+      and "Edit name" in main,
+      "Profile editing persists only the authenticated user's display name.")
+
+profile_migration = source(ROOT / "supabase" / "migrations" /
+                           "20261113065528_profile_display_name_self_update.sql").lower()
+check("grant update (display_name)" in profile_migration
+      and "for update" in profile_migration
+      and "using (id = (select auth.uid()))" in profile_migration
+      and "with check (id = (select auth.uid()))" in profile_migration,
+      "Profile-name migration is self-row scoped and grants no role/department column updates.")
+
 # Phone OTP verification must distinguish new-account signup from existing-account login.
 check("isPhoneSignupOtp ? OtpType.signup : OtpType.sms" in main,
       "Phone registration verifies with Supabase signup OTP type; phone login uses SMS OTP type.")
