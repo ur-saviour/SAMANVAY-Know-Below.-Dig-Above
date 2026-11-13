@@ -7843,215 +7843,115 @@ class _DemoSubsurfacePainter extends CustomPainter {
   final Set<String> visibleLayers;
   final bool isLight;
   final double phase;
-
-  const _DemoSubsurfacePainter({
-    required this.viewMode,
-    required this.visibleLayers,
-    required this.isLight,
-    this.phase = 0,
-  });
+  const _DemoSubsurfacePainter({required this.viewMode, required this.visibleLayers, required this.isLight, this.phase = 0});
 
   static const Map<String, Color> _colours = {
-    'Water': Color(0xFF258AD6),
-    'Sewer': Color(0xFF8B5BC7),
-    'Stormwater': Color(0xFF18A6A0),
-    'Electricity': Color(0xFFE1A928),
-    'Telecom': Color(0xFFD65A9E),
-    'Gas': Color(0xFFE47C32),
-    'Borewell': Color(0xFF26B7A8),
+    'Water': Color(0xFF38BDF8), 'Sewer': Color(0xFFB48AE8),
+    'Stormwater': Color(0xFF22C5A5), 'Electricity': Color(0xFFFBBF24),
+    'Telecom': Color(0xFFF472B6), 'Gas': Color(0xFFFB884F),
+    'Borewell': Color(0xFF2DD4BF),
   };
 
-  void _drawPath(Canvas canvas, Size size, String layer, double y, double bend,
-      {double width = 5, bool tube = false}) {
-    if (!visibleLayers.contains(layer)) return;
-    final path = Path()
-      ..moveTo(size.width * .06, y)
-      ..cubicTo(size.width * .28, y - bend, size.width * .62, y + bend,
-          size.width * .94, y - bend * .25);
-    final colour = _colours[layer]!;
-    canvas.drawPath(path, Paint()
-      ..color = colour.withValues(alpha: .24)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width + 5
-      ..strokeCap = StrokeCap.round);
-    canvas.drawPath(path, Paint()
-      ..color = colour
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width
-      ..strokeCap = StrokeCap.round);
-    if (tube) {
-      canvas.drawPath(path, Paint()
-        ..color = Colors.white.withValues(alpha: .55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..strokeCap = StrokeCap.round);
-    }
-    final metric = path.computeMetrics().first;
-    for (var pulse = 0; pulse < 3; pulse++) {
-      final distance = ((phase + pulse / 3) % 1.0) * metric.length;
-      final tangent = metric.getTangentForOffset(distance);
-      if (tangent == null) continue;
-      canvas.drawCircle(
-        tangent.position,
-        width * 1.05,
-        Paint()
-          ..color = colour.withValues(alpha: .28)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-      canvas.drawCircle(
-        tangent.position,
-        math.max(1.5, width * .30).toDouble(),
-        Paint()..color = Colors.white.withValues(alpha: .92),
-      );
-    }
+  void _text(Canvas canvas, String value, Offset at, Color color, {double size = 7}) {
+    final tp = TextPainter(
+      text: TextSpan(text: value, style: TextStyle(color: color, fontSize: size, fontWeight: FontWeight.w900, letterSpacing: .2)),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 150);
+    tp.paint(canvas, at);
   }
 
-  void _drawBorewellMarkers(Canvas canvas, Size size, {required bool plan}) {
-    if (!visibleLayers.contains('Borewell')) return;
-    final colour = _colours['Borewell']!;
-    final positions = plan
-        ? <Offset>[
-            Offset(size.width * .36, size.height * .49),
-            Offset(size.width * .68, size.height * .49),
-          ]
-        : <Offset>[
-            Offset(size.width * .37, size.height * .40),
-            Offset(size.width * .68, size.height * .40),
-          ];
+  void _tree(Canvas canvas, double x, double y) {
+    canvas.drawLine(Offset(x,y), Offset(x,y-9), Paint()..color=const Color(0xFF72543A)..strokeWidth=2);
+    canvas.drawCircle(Offset(x,y-13), 6, Paint()..color=const Color(0xFF477D55));
+    canvas.drawCircle(Offset(x-3,y-15), 4, Paint()..color=const Color(0xFF6B9B5E));
+  }
 
-    for (final point in positions) {
-      if (plan) {
-        canvas.drawCircle(point, 8, Paint()..color = colour.withValues(alpha: .22));
-        canvas.drawCircle(point, 5, Paint()..color = colour);
-        canvas.drawCircle(point, 2, Paint()..color = Colors.white);
-      } else {
-        final bottom = Offset(point.dx, size.height * .88);
-        canvas.drawLine(
-          point,
-          bottom,
-          Paint()
-            ..color = colour.withValues(alpha: .28)
-            ..strokeWidth = 12
-            ..strokeCap = StrokeCap.round,
-        );
-        canvas.drawLine(
-          point,
-          bottom,
-          Paint()
-            ..color = colour
-            ..strokeWidth = 5
-            ..strokeCap = StrokeCap.round,
-        );
-        canvas.drawCircle(point, 6, Paint()..color = colour);
-        canvas.drawCircle(bottom, 4, Paint()..color = Colors.white);
-      }
-    }
+  void _utility(Canvas canvas, Size size, String key, double y, {double width=6, bool cable=false}) {
+    if (!visibleLayers.contains(key)) return;
+    final color = _colours[key]!;
+    final path = Path()..moveTo(size.width*.04,y)
+      ..cubicTo(size.width*.3,y-3,size.width*.68,y+3,size.width*.96,y);
+    canvas.drawPath(path, Paint()..color=Colors.black.withValues(alpha:.35)
+      ..style=PaintingStyle.stroke..strokeWidth=width+4..strokeCap=StrokeCap.round);
+    canvas.drawPath(path, Paint()..color=color..style=PaintingStyle.stroke
+      ..strokeWidth=cable?3:width..strokeCap=StrokeCap.round);
+    if (!cable) canvas.drawPath(path, Paint()..color=Colors.white.withValues(alpha:.45)
+      ..style=PaintingStyle.stroke..strokeWidth=1);
+    final metric=path.computeMetrics().first;
+    final t=metric.getTangentForOffset((phase*metric.length)%metric.length);
+    if(t!=null) canvas.drawCircle(t.position,2,Paint()..color=Colors.white);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final ground = isLight ? const Color(0xFFD5E2D0) : const Color(0xFF263E3B);
-    final soil = isLight ? const Color(0xFFD9B98E) : const Color(0xFF574735);
-    final deepSoil = isLight ? const Color(0xFFB99A76) : const Color(0xFF3E392F);
-    final road = isLight ? const Color(0xFF52616C) : const Color(0xFF263747);
-    final block = isLight ? const Color(0xFFB9C9D2) : const Color(0xFF506579);
-    final paint = Paint()..isAntiAlias = true;
+    final w=size.width, h=size.height;
+    final road=Paint()..color=isLight?const Color(0xFF354653):const Color(0xFF182633);
+    if(viewMode=='2D plan') {
+      canvas.drawRect(Offset.zero&size,Paint()..color=isLight?const Color(0xFFE2EBDD):const Color(0xFF203B39));
+      canvas.drawRect(Rect.fromLTWH(0,h*.28,w,h*.44),road);
+      final dash=Paint()..color=Colors.white.withValues(alpha:.75)..strokeWidth=1.4;
+      for(double x=8;x<w;x+=28) canvas.drawLine(Offset(x,h*.5),Offset(x+13,h*.5),dash);
+      _utility(canvas,size,'Electricity',h*.40,cable:true);
+      _utility(canvas,size,'Telecom',h*.48,cable:true);
+      _utility(canvas,size,'Water',h*.56,width:5);
+      _utility(canvas,size,'Gas',h*.64,width:4);
+      _utility(canvas,size,'Stormwater',h*.72,width:6);
+      _utility(canvas,size,'Sewer',h*.82,width:7);
+      return;
+    }
 
-    if (viewMode == '2D plan') {
-      paint.color = ground;
-      canvas.drawRect(Offset.zero & size, paint);
-      paint.color = road;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, size.height * .30, size.width, size.height * .42),
-          const Radius.circular(3),
-        ),
-        paint,
-      );
-      paint
-        ..color = Colors.white.withValues(alpha: .72)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      for (var x = 8.0; x < size.width; x += 31) {
-        canvas.drawLine(Offset(x, size.height * .51),
-            Offset(x + 15, size.height * .51), paint);
-      }
-      paint
-        ..style = PaintingStyle.fill
-        ..color = block;
-      canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(8, 10, size.width * .20, size.height * .17),
-        const Radius.circular(5)), paint);
-      canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * .73, 10, size.width * .22, size.height * .17),
-        const Radius.circular(5)), paint);
-      canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(8, size.height * .79, size.width * .25, size.height * .15),
-        const Radius.circular(5)), paint);
-      canvas.drawRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * .70, size.height * .79, size.width * .25, size.height * .15),
-        const Radius.circular(5)), paint);
-      _drawPath(canvas, size, 'Water', size.height * .39, 13, width: 5);
-      _drawPath(canvas, size, 'Sewer', size.height * .61, 15, width: 5);
-      _drawPath(canvas, size, 'Stormwater', size.height * .68, 8, width: 4);
-      _drawPath(canvas, size, 'Electricity', size.height * .45, 4, width: 3);
-      _drawPath(canvas, size, 'Telecom', size.height * .56, 6, width: 3);
-      _drawPath(canvas, size, 'Gas', size.height * .64, 10, width: 3);
-      _drawBorewellMarkers(canvas, size, plan: true);
-    } else {
-      paint.color = isLight ? const Color(0xFFB9D7E7) : const Color(0xFF16364C);
-      canvas.drawRect(Offset.zero & size, paint);
-      final skyline = Path()
-        ..moveTo(0, size.height * .36)
-        ..lineTo(size.width, size.height * .36)
-        ..lineTo(size.width, size.height)
-        ..lineTo(0, size.height)
-        ..close();
-      paint.color = soil;
-      canvas.drawPath(skyline, paint);
-      paint.color = deepSoil.withValues(alpha: .72);
-      canvas.drawRect(Rect.fromLTWH(0, size.height * .72, size.width, size.height * .28), paint);
+    // Roadside city context and divided carriageway, based on supplied reference.
+    canvas.drawRect(Offset.zero&size,Paint()..color=isLight?const Color(0xFFB8D7E6):const Color(0xFF18394D));
+    canvas.drawRect(Rect.fromLTWH(0,h*.27,w,h*.13),Paint()..color=const Color(0xFF47734B));
+    final buildings=Paint()..color=isLight?const Color(0xFF9AAEB8):const Color(0xFF607887);
+    canvas.drawRect(Rect.fromLTWH(w*.02,h*.08,w*.12,h*.19),buildings);
+    canvas.drawRect(Rect.fromLTWH(w*.16,h*.13,w*.09,h*.14),buildings);
+    canvas.drawRect(Rect.fromLTWH(w*.82,h*.09,w*.15,h*.18),buildings);
+    canvas.drawRect(Rect.fromLTWH(w*.69,h*.14,w*.10,h*.13),buildings);
+    canvas.drawRect(Rect.fromLTWH(w*.20,h*.18,w*.60,h*.22),road);
+    canvas.drawRect(Rect.fromLTWH(w*.485,h*.18,w*.03,h*.22),Paint()..color=const Color(0xFF628451));
+    final lane=Paint()..color=Colors.white.withValues(alpha:.82)..strokeWidth=1.1;
+    for(double x=w*.23;x<w*.47;x+=22) canvas.drawLine(Offset(x,h*.29),Offset(x+10,h*.29),lane);
+    for(double x=w*.54;x<w*.78;x+=22) canvas.drawLine(Offset(x,h*.29),Offset(x+10,h*.29),lane);
+    for(double x=w*.08;x<w*.94;x+=42) _tree(canvas,x,h*.39);
 
-      // Surface context is schematic, not a measured building or road model.
-      paint.color = block;
-      canvas.drawRect(Rect.fromLTWH(size.width * .04, size.height * .11,
-          size.width * .18, size.height * .24), paint);
-      paint.color = isLight ? const Color(0xFFE8EFF3) : const Color(0xFF8197A9);
-      canvas.drawRect(Rect.fromLTWH(size.width * .78, size.height * .15,
-          size.width * .17, size.height * .20), paint);
-      paint.color = road;
-      final roadTop = Path()
-        ..moveTo(size.width * .25, size.height * .27)
-        ..lineTo(size.width * .77, size.height * .27)
-        ..lineTo(size.width * .84, size.height * .39)
-        ..lineTo(size.width * .18, size.height * .39)
-        ..close();
-      canvas.drawPath(roadTop, paint);
-      paint
-        ..color = Colors.white.withValues(alpha: .72)
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke;
-      canvas.drawLine(Offset(size.width * .34, size.height * .33),
-          Offset(size.width * .67, size.height * .33), paint);
-      paint.style = PaintingStyle.fill;
-      _drawPath(canvas, size, 'Water', size.height * .51, 12, width: 9, tube: true);
-      _drawPath(canvas, size, 'Sewer', size.height * .82, 8, width: 11, tube: true);
-      _drawPath(canvas, size, 'Stormwater', size.height * .68, 12, width: 8, tube: true);
-      _drawPath(canvas, size, 'Electricity', size.height * .57, 4, width: 4);
-      _drawPath(canvas, size, 'Telecom', size.height * .62, 5, width: 4);
-      _drawPath(canvas, size, 'Gas', size.height * .74, 6, width: 5);
-      _drawBorewellMarkers(canvas, size, plan: false);
+    // Exposed road formation and layered earth.
+    canvas.drawRect(Rect.fromLTWH(0,h*.40,w,h*.035),Paint()..color=const Color(0xFFB9A184));
+    canvas.drawRect(Rect.fromLTWH(0,h*.435,w,h*.565),Paint()..color=isLight?const Color(0xFFC99D6C):const Color(0xFF795638));
+    canvas.drawRect(Rect.fromLTWH(0,h*.77,w,h*.23),Paint()..color=isLight?const Color(0xFFAD8056):const Color(0xFF563F2D));
+    final strata=Paint()..color=Colors.white.withValues(alpha:.13)..strokeWidth=1;
+    for(double y=h*.52;y<h*.96;y+=19) canvas.drawLine(Offset(0,y),Offset(w,y+2),strata);
+    _text(canvas,'SURFACE ROAD',Offset(w*.025,h*.045),Colors.white);
+    _text(canvas,'UNDERGROUND UTILITY CORRIDORS',Offset(w*.025,h*.455),Colors.white);
+
+    // Separate colour-coded corridors; illustrative only, never survey geometry.
+    _utility(canvas,size,'Electricity',h*.56,cable:true);
+    _utility(canvas,size,'Telecom',h*.62,cable:true);
+    _utility(canvas,size,'Water',h*.69,width:9);
+    _utility(canvas,size,'Gas',h*.76,width:6);
+    _utility(canvas,size,'Stormwater',h*.84,width:10);
+    _utility(canvas,size,'Sewer',h*.92,width:11);
+    if(visibleLayers.contains('Borewell')) {
+      final x=w*.84;
+      canvas.drawLine(Offset(x,h*.52),Offset(x,h*.96),Paint()..color=_colours['Borewell']!..strokeWidth=5);
+      canvas.drawCircle(Offset(x,h*.52),5,Paint()..color=_colours['Borewell']!);
+      _text(canvas,'BOREWELL',Offset(x+5,h*.54),_colours['Borewell']!,size:6);
+    }
+
+    var x=w*.035;
+    for(final entry in <String,String>{'Electricity':'POWER','Telecom':'ICT','Water':'WATER','Gas':'GAS','Stormwater':'STORM','Sewer':'SEWER'}.entries) {
+      if(!visibleLayers.contains(entry.key)) continue;
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x,h*.485,39,11),const Radius.circular(3)),Paint()..color=const Color(0xDD101B29));
+      _text(canvas,entry.value,Offset(x+4,h*.487),_colours[entry.key]!,size:6);
+      x+=43;
     }
   }
 
   @override
   bool shouldRepaint(covariant _DemoSubsurfacePainter oldDelegate) =>
-      oldDelegate.viewMode != viewMode ||
-      oldDelegate.isLight != isLight ||
-      oldDelegate.visibleLayers != visibleLayers ||
-      oldDelegate.phase != phase;
+    oldDelegate.viewMode!=viewMode || oldDelegate.isLight!=isLight ||
+    oldDelegate.visibleLayers!=visibleLayers || oldDelegate.phase!=phase;
 }
-
 // ==========================================
 // MAIN APPLICATION
 // ==========================================
@@ -19074,7 +18974,7 @@ class _MapPageState extends State<MapPage> {
           ),
           const SizedBox(height: 7),
           SizedBox(
-            height: 124,
+            height: 184,
             width: double.infinity,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(9),
