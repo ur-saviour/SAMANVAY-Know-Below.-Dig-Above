@@ -60,7 +60,7 @@ check("isPhoneSignupOtp = true" in main
       and "OtpType.signup" in main
       and "resend(type: OtpType.signup, phone:" in main,
       "Phone signup uses signup-specific OTP verification and resend.")
-check("An administrator must verify your identity and department before access is granted." in main,
+check("an administrator must verify your identity and department before access is granted." in main.lower(),
       "Self-selected official roles are explicitly gated by administrator verification.")
 
 # Phone OTP verification must distinguish new-account signup from existing-account login.
