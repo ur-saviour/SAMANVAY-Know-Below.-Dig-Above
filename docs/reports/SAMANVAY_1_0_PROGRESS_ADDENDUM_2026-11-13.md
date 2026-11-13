@@ -121,3 +121,26 @@ The GIS layer bottom sheet uses the theme's `panelNavy` surface, which is white 
 - Logo Git blob SHA within the built APK: `17c2db21509cfb59109cd413e8cb0f24d3f66524`, matching the original asset exactly.
 
 This remains an Alpha 0.3 package and does not replace physical-device light/dark visual acceptance.
+
+
+## 8. Profile-editor build #622 — package verification
+
+**Source commit:** `d17f235dea3552037b06e2bb7bef89e92fe0f07e`  
+**Workflow:** [Android run #622](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43383107121) — all configured steps completed successfully, including contract validation, Dart analysis, release APK compilation, package/signature/alignment checks and artifact publication.
+
+**Artifact:** `SAMANVAY-Alpha-0.3-APK`  
+**Artifact ID:** `14017059773`  
+**Artifact ZIP SHA-256:** `c00fc77b048cba15d24a7bacdbebddf697f45259804b8af02ab07110eb6a4a99`
+
+The downloaded artifact ZIP passed independent SHA-256 and ZIP CRC verification. All three ABI APKs passed independent ZIP CRC verification and contain the expected DEX and Flutter runtime libraries.
+
+| ABI | APK size | SHA-256 |
+|---|---:|---|
+| ARM64 | 33,583,252 bytes | `ec101c510a1f79ddaaec1e07a288e74294d69792131eb1695acfafd163b8ea4d` |
+| x86_64 | 35,435,001 bytes | `990eb1e617485b58832ac093f652a191573de844b4671fb2bae55e245ff842cd` |
+| armeabi-v7a | 28,524,798 bytes | `3d1dffb356050076a7374b92a9c8c413c6ffc8b4b05164d5b563daff9f5c584a` |
+
+The original logo asset inside all three APKs has Git blob SHA `17c2db21509cfb59109cd413e8cb0f24d3f66524`, matching the original source logo exactly.
+
+**What this proves:** the profile-editor source revision compiles and its APK packages are structurally intact; the original logo is preserved.  
+**What this does not prove:** actual installation, UI rendering, authenticated profile save, device compatibility, production signing or full application acceptance. These remain explicit QA gates.
