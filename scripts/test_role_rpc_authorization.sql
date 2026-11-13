@@ -25,6 +25,18 @@ BEGIN
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',citizen_id,'role','authenticated')::text,true);
 
+  BEGIN PERFORM public.admin_access_request_directory();
+    RAISE EXCEPTION 'TEST FAILURE: Citizen accessed admin_access_request_directory';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='TEST FAILURE: Citizen accessed admin_access_request_directory' THEN RAISE;
+    ELSIF SQLERRM<>'Administrator access required' THEN RAISE EXCEPTION 'Unexpected Citizen access queue result: %',SQLERRM; END IF;
+  END;
+  BEGIN PERFORM public.admin_review_access_request(gen_random_uuid(),'approve',NULL);
+    RAISE EXCEPTION 'TEST FAILURE: Citizen reviewed an access request';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='TEST FAILURE: Citizen reviewed an access request' THEN RAISE;
+    ELSIF SQLERRM<>'Administrator access required' THEN RAISE EXCEPTION 'Unexpected Citizen access review result: %',SQLERRM; END IF;
+  END;
   BEGIN PERFORM public.admin_user_directory();
     RAISE EXCEPTION 'TEST FAILURE: Citizen accessed admin_user_directory';
   EXCEPTION WHEN OTHERS THEN
@@ -87,6 +99,18 @@ BEGIN
   -- Coordinator: coordination role does not grant administrator privileges.
   PERFORM set_config('request.jwt.claim.sub',coordinator_id::text,true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',coordinator_id,'role','authenticated')::text,true);
+  BEGIN PERFORM public.admin_access_request_directory();
+    RAISE EXCEPTION 'TEST FAILURE: Coordinator accessed admin_access_request_directory';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='TEST FAILURE: Coordinator accessed admin_access_request_directory' THEN RAISE;
+    ELSIF SQLERRM<>'Administrator access required' THEN RAISE EXCEPTION 'Unexpected Coordinator access queue result: %',SQLERRM; END IF;
+  END;
+  BEGIN PERFORM public.admin_review_access_request(gen_random_uuid(),'approve',NULL);
+    RAISE EXCEPTION 'TEST FAILURE: Coordinator reviewed an access request';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='TEST FAILURE: Coordinator reviewed an access request' THEN RAISE;
+    ELSIF SQLERRM<>'Administrator access required' THEN RAISE EXCEPTION 'Unexpected Coordinator access review result: %',SQLERRM; END IF;
+  END;
   BEGIN PERFORM public.admin_user_directory();
     RAISE EXCEPTION 'TEST FAILURE: Coordinator accessed admin_user_directory';
   EXCEPTION WHEN OTHERS THEN
@@ -112,6 +136,6 @@ BEGIN
   SELECT count(*) INTO admin_visible_users FROM public.admin_user_directory();
   IF admin_visible_users=0 THEN RAISE EXCEPTION 'TEST FAILURE: Administrator could not read the account directory'; END IF;
 
-  RAISE NOTICE 'PASS: Citizen denied 6 protected RPCs; Officer denied 3; Coordinator denied 3; Administrator read-only directory path passed.';
+  RAISE NOTICE 'PASS: Citizen denied 8 protected RPCs; Officer denied 3; Coordinator denied 5; Administrator read-only directory path passed.';
 END
 $samanvay_role_rpc_tests$;

@@ -259,3 +259,20 @@ Published artifact:
 The downloaded artifact and all three APK archives passed ZIP CRC testing. The ARM64 APK contains the expected Flutter runtime, and its packaged `samanvay_logo.svg` Git blob hash is `17c2db21509cfb59109cd413e8cb0f24d3f66524`, matching the original logo asset exactly. The successful CI run is the evidence for Android signature and alignment checks; no local `apksigner` binary was available in the inspection container.
 
 This verifies build/package integrity, not physical-device rendering, sign-in, OTP delivery or measured post-cache latency.
+
+
+## 15. Official-role registration workflow gap found
+
+The live database already contained `account_access_requests`, an RLS-protected pending request table and two administrator-only RPCs (`admin_access_request_directory`, `admin_review_access_request`). The profile-creation trigger correctly creates every new account with role `requester`; it does not copy the user-supplied `requested_role` metadata into the privileged profile role.
+
+The previous mobile app stored requested role/department metadata during signup but never inserted a row into `account_access_requests`, and its Admin Management page did not load or review that queue. Consequently, official-role applications could remain invisible to administrators.
+
+This code increment closes that path:
+- Official-role signup asks for a reason (minimum 10 characters) and a department for Department Officer requests.
+- Department choices now match the live `departments.name` catalogue; the app resolves the selected name to a department UUID only after authentication.
+- On the first authenticated profile load, the app creates one pending access request under the signed-in user's identity. A unique-pending conflict is treated as an already-submitted request.
+- Existing rejected requests are not silently re-created on every login.
+- The user's profile remains `requester` until an Administrator uses the existing review RPC.
+- Admin Management now displays pending requests and exposes explicit Approve / Reject actions. The existing database function performs the role update, review state change, audit entry and user notification.
+
+The addition does not change the database profile trigger or grant role-update privileges to ordinary users. The updated role regression test additionally asserts that Citizens and Coordinators cannot read or review the administrator access-request queue. CI and a live database execution are required before this feature is treated as complete.

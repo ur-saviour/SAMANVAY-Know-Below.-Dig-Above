@@ -2170,6 +2170,7 @@ class RoleGate extends StatefulWidget {
 
 class _RoleGateState extends State<RoleGate> {
   late Future<Map<String, dynamic>> _profileFuture;
+  bool _accessRequestNoticeShown = false;
 
   @override
   void initState() {
@@ -2203,7 +2204,19 @@ class _RoleGateState extends State<RoleGate> {
           );
         }
 
-        return Map<String, dynamic>.from(row);
+        final profile = Map<String, dynamic>.from(row);
+        if ((profile['role'] ?? '').toString().toLowerCase() == 'requester') {
+          try {
+            profile['_official_access_request_notice'] =
+                await _ensurePendingOfficialAccessRequest(user);
+          } catch (_) {
+            // Never block Citizen access when an optional staff-access request
+            // cannot be queued. The account keeps its requester role.
+            profile['_official_access_request_notice'] =
+                'Your account is active as Citizen, but the official-access request could not be submitted. Your permissions have not changed. Contact a platform administrator or sign out and retry after connectivity is restored.';
+          }
+        }
+        return profile;
       } catch (error) {
         if (attempt == 2) rethrow;
         await Future.delayed(Duration(milliseconds: 350 * (attempt + 1)));
@@ -2211,6 +2224,74 @@ class _RoleGateState extends State<RoleGate> {
     }
 
     throw StateError('Unable to load the account profile. Please retry.');
+  }
+
+  Future<String?> _ensurePendingOfficialAccessRequest(User user) async {
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    final requestedRole = (metadata['requested_role'] ?? '')
+        .toString().trim().toLowerCase();
+    if (!const {'department', 'coordinator', 'admin'}.contains(requestedRole)) {
+      return null;
+    }
+
+    // A rejected request must not be silently re-submitted at every login.
+    final previousRows = await supabase
+        .from('account_access_requests')
+        .select('id,status')
+        .eq('user_id', user.id)
+        .order('requested_at', ascending: false)
+        .limit(1);
+    final previous = previousRows.isEmpty
+        ? null
+        : Map<String, dynamic>.from(previousRows.first as Map);
+    if (previous != null) {
+      final status = (previous['status'] ?? '').toString();
+      if (status == 'pending') {
+        return 'Your official-access request is pending administrator review. Your account remains in the Citizen workspace until it is approved.';
+      }
+      if (status == 'rejected') {
+        return 'Your previous official-access request was not approved. Your account remains in the Citizen workspace; contact an administrator for clarification.';
+      }
+      return null;
+    }
+
+    String? departmentId;
+    if (requestedRole == 'department') {
+      final departmentName = (metadata['requested_department'] ?? '')
+          .toString().trim();
+      if (departmentName.isEmpty) {
+        throw StateError('A department must be selected for Officer access.');
+      }
+      final department = await supabase
+          .from('departments')
+          .select('id')
+          .eq('name', departmentName)
+          .maybeSingle();
+      if (department == null) {
+        throw StateError('The selected department is not available in the platform directory.');
+      }
+      departmentId = department['id'].toString();
+    }
+
+    final suppliedReason = (metadata['access_request_reason'] ?? '')
+        .toString().trim();
+    final reason = suppliedReason.length >= 10
+        ? suppliedReason
+        : 'Official platform access requested during SAMANVAY account registration.';
+    try {
+      await supabase.from('account_access_requests').insert({
+        'user_id': user.id,
+        'requested_role': requestedRole,
+        'department_id': departmentId,
+        'reason': reason,
+        'status': 'pending',
+      });
+    } on PostgrestException catch (error) {
+      // A parallel auth/profile refresh may have submitted the same request.
+      if (error.code != '23505') rethrow;
+    }
+
+    return 'Your official-access request has been submitted for administrator review. Your account remains in the Citizen workspace until approval.';
   }
 
   void _retryProfileLoad() {
@@ -2238,6 +2319,21 @@ class _RoleGateState extends State<RoleGate> {
         }
 
         final profile = snapshot.data!;
+        final accessRequestNotice =
+            (profile['_official_access_request_notice'] ?? '').toString();
+        if (accessRequestNotice.isNotEmpty && !_accessRequestNoticeShown) {
+          _accessRequestNoticeShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(accessRequestNotice),
+                duration: const Duration(seconds: 7),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          });
+        }
         final role = (profile['role'] ?? '').toString().toLowerCase();
         final departmentId = profile['department_id']?.toString();
 
@@ -4390,6 +4486,7 @@ class _AuthPageState extends State<AuthPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _otpController = TextEditingController();
+  final _accessRequestReasonController = TextEditingController();
 
   bool isLogin = true;
   bool loading = false;
@@ -4401,16 +4498,20 @@ class _AuthPageState extends State<AuthPage> {
   bool isPhoneSignupOtp = false;
   String requestedSignupRole = 'requester';
   String requestedSignupDepartment = 'Water Supply / PHED';
+  // Values match the live departments table so a request can be linked
+  // to a real department UUID after the account is authenticated.
   static const List<String> _signupDepartments = [
-    'Water Supply / PHED',
-    'Roads and Highways',
-    'Urban Local Bodies',
-    'Sewerage and Drainage',
-    'Electricity Distribution',
+    'Water Supply',
+    'Public Health Engineering',
+    'Highway Department',
+    'Municipal Corporation',
+    'Sewage and Drainage',
+    'Stormwater Management',
+    'Electricity',
     'Telecommunications',
-    'Town Planning',
-    'Gas Distribution',
-    'Groundwater / CGWB',
+    'Town Planning & Building Regulation',
+    'Gas',
+    'Groundwater & Borewell Regulation',
   ];
   int otpResendSeconds = 0;
   Timer? _otpResendTimer;
@@ -4426,6 +4527,7 @@ class _AuthPageState extends State<AuthPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _otpController.dispose();
+    _accessRequestReasonController.dispose();
     _otpResendTimer?.cancel();
     super.dispose();
   }
@@ -4815,6 +4917,9 @@ class _AuthPageState extends State<AuthPage> {
             'requested_department': requestedSignupRole == 'department'
                 ? requestedSignupDepartment
                 : null,
+            'access_request_reason': requestedSignupRole == 'requester'
+                ? null
+                : _accessRequestReasonController.text.trim(),
           },
         );
         _pendingOtpPhone = phone;
@@ -4841,6 +4946,9 @@ class _AuthPageState extends State<AuthPage> {
             'requested_department': requestedSignupRole == 'department'
                 ? requestedSignupDepartment
                 : null,
+            'access_request_reason': requestedSignupRole == 'requester'
+                ? null
+                : _accessRequestReasonController.text.trim(),
           },
         );
         isPhoneSignupOtp = false;
@@ -5064,6 +5172,28 @@ class _AuthPageState extends State<AuthPage> {
                         )).toList(),
                         onChanged: loading ? null : (value) {
                           if (value != null) setState(() => requestedSignupDepartment = value);
+                        },
+                      ),
+                    ],
+                    if (requestedSignupRole != 'requester') ...[
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _accessRequestReasonController,
+                        minLines: 2,
+                        maxLines: 3,
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason for official access',
+                          hintText: 'Describe your department or coordination responsibilities',
+                          prefixIcon: Icon(Icons.assignment_ind_outlined),
+                        ),
+                        validator: (value) {
+                          if (requestedSignupRole == 'requester') return null;
+                          final reason = (value ?? '').trim();
+                          if (reason.length < 10) {
+                            return 'Enter at least 10 characters explaining the access request.';
+                          }
+                          return null;
                         },
                       ),
                     ],
@@ -22889,6 +23019,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _accessRequests = [];
   List<Map<String, dynamic>> _departments = [];
   List<Map<String, dynamic>> _audit = [];
   List<Map<String, dynamic>> _routes = [];
@@ -22910,6 +23041,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
       final userRows = await supabase.rpc('admin_user_directory');
+      final accessRequestRows = await supabase.rpc('admin_access_request_directory');
       final departmentRows = await supabase.from('departments')
           .select('id,name,description').order('name');
       final auditRows = await supabase.from('admin_audit_events')
@@ -22921,6 +23053,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
       if (!mounted) return;
       setState(() {
         _users = List<Map<String, dynamic>>.from(userRows as List);
+        _accessRequests = List<Map<String, dynamic>>.from(accessRequestRows as List);
         _departments = List<Map<String, dynamic>>.from(departmentRows);
         _audit = List<Map<String, dynamic>>.from(auditRows);
         _routes = List<Map<String, dynamic>>.from(routeRows);
@@ -22935,6 +23068,60 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
         _loading = false;
         _error = 'Unable to load administration records. Verify administrator permissions.';
       });
+    }
+  }
+
+  Future<void> _reviewAccessRequest(
+    Map<String, dynamic> request,
+    String decision,
+  ) async {
+    final requestId = request['request_id']?.toString();
+    if (requestId == null || requestId.isEmpty) {
+      _toast('This access request has no valid reference.');
+      return;
+    }
+    final userName = (request['display_name'] ?? 'SAMANVAY user').toString();
+    final roleName = _displayRoleName(
+      (request['requested_role'] ?? '').toString(),
+    );
+    final approved = decision == 'approve';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(approved ? 'Approve official access?' : 'Reject access request?'),
+        content: Text(
+          approved
+              ? 'Approve $roleName access for $userName? This will update the account role using the administrator-only database function.'
+              : 'Reject $roleName access for $userName? The account will remain a Citizen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(approved ? 'Approve request' : 'Reject request'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await supabase.rpc('admin_review_access_request', params: {
+        'p_request_id': requestId,
+        'p_decision': decision,
+        'p_review_notes': null,
+      });
+      _toast(approved
+          ? 'Official access approved. The user can now sign in to the authorised portal.'
+          : 'Access request rejected. The user remains a Citizen.');
+      await _load();
+    } on PostgrestException catch (error) {
+      _toast('Access review rejected: ${error.message}');
+    } catch (_) {
+      _toast('Unable to review this access request.');
     }
   }
 
@@ -23269,6 +23456,69 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                 padding: EdgeInsets.all(28), child: CircularProgressIndicator(),
               ))
             else ...[
+              _sectionTitle(
+                'Pending official-access requests',
+                '${_accessRequests.length} request(s) awaiting review',
+              ),
+              if (_accessRequests.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(14),
+                    child: Text('No official-access requests are waiting for review.'),
+                  ),
+                )
+              else
+                ..._accessRequests.map((request) {
+                  final name = (request['display_name'] ?? 'SAMANVAY user').toString();
+                  final requestedRole = _displayRoleName(
+                    (request['requested_role'] ?? '').toString(),
+                  );
+                  final departmentName =
+                      (request['department_name'] ?? '').toString();
+                  final reason = (request['reason'] ?? '').toString();
+                  final requestedAt = DateTime.tryParse(
+                    request['requested_at']?.toString() ?? '',
+                  );
+                  final dateLabel = requestedAt == null
+                      ? 'Date not available'
+                      : '${requestedAt.day.toString().padLeft(2, '0')}/${requestedAt.month.toString().padLeft(2, '0')}/${requestedAt.year}';
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 9),
+                    child: Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${requestedRole.toUpperCase()}${departmentName.isEmpty ? '' : ' · $departmentName'} · $dateLabel',
+                            style: TextStyle(fontSize: 10, color: mutedInk),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(reason, style: TextStyle(fontSize: 12, color: ink, height: 1.35)),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: () => _reviewAccessRequest(request, 'approve'),
+                                icon: const Icon(Icons.verified_outlined, size: 16),
+                                label: const Text('Approve'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () => _reviewAccessRequest(request, 'reject'),
+                                icon: const Icon(Icons.block_outlined, size: 16),
+                                label: const Text('Reject'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              const SizedBox(height: 18),
               _sectionTitle('User and access directory', '${_users.length} account(s)'),
               ..._users.map((user) {
                 final isSelf = user['user_id']?.toString() == currentUserId;

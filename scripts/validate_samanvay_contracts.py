@@ -71,6 +71,23 @@ check("role='requester'" in role_rpc_tests
       and "change_request_status" in role_rpc_tests,
       "Repeatable SQL regression test covers all four role RPC gates.")
 
+# Official access requested at signup is inserted only after authentication; the
+# user's database role remains requester until an administrator reviews it.
+check("account_access_requests" in main
+      and "_ensurePendingOfficialAccessRequest(user)" in main
+      and "admin_access_request_directory" in main
+      and "admin_review_access_request" in main
+      and "access_request_reason" in main,
+      "Official-role signup feeds the admin access-request queue after sign-in.")
+check("Your account remains in the Citizen workspace until approval" in main
+      and "requested_role" in main
+      and "requested_department" in main,
+      "Requested staff roles remain pending and cannot self-activate.")
+check("Pending official-access requests" in main
+      and "_reviewAccessRequest(request, 'approve')" in main
+      and "_reviewAccessRequest(request, 'reject')" in main,
+      "Admin management UI exposes approve/reject actions for pending access requests.")
+
 # Password recovery must route the deep-link session into an actual password update form.
 check("authState?.event == AuthChangeEvent.passwordRecovery" in main
       and "class PasswordRecoveryPage extends StatefulWidget" in main
