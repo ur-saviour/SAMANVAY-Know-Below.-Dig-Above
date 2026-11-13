@@ -1578,26 +1578,12 @@ class _MapPageState extends State<MapPage> {
   bool showTelecom = true;
   bool showDrainage = true;
   bool showUnderground = true;
-  bool threeDimensional = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Infrastructure GIS'),
-        actions: [
-          IconButton(
-            tooltip: 'Switch map presentation',
-            onPressed: () => setState(
-              () => threeDimensional = !threeDimensional,
-            ),
-            icon: Icon(
-              threeDimensional
-                  ? Icons.view_in_ar_outlined
-                  : Icons.layers_outlined,
-            ),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
@@ -1641,7 +1627,8 @@ class _MapPageState extends State<MapPage> {
           const SizedBox(height: 12),
           TextField(
             decoration: InputDecoration(
-              hintText: 'Search state, district, city or ward',
+              hintText: 'Location search — live integration pending',
+              enabled: false,
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.white,
@@ -1652,14 +1639,17 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
           const SizedBox(height: 12),
-          Wrap(
+          const Text(
+            'Administrative levels • navigation integration pending',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+          ),
+          const Wrap(
             spacing: 8,
-            runSpacing: 2,
             children: [
-              _scopeChip('India', true),
-              _scopeChip('State', false),
-              _scopeChip('District', false),
-              _scopeChip('City / Ward', false),
+              Chip(label: Text('India')),
+              Chip(label: Text('State')),
+              Chip(label: Text('District')),
+              Chip(label: Text('City / Ward')),
             ],
           ),
           const SizedBox(height: 14),
@@ -1724,27 +1714,9 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  threeDimensional
-                      ? 'Perspective presentation'
-                      : 'Plan presentation',
-                  style: const TextStyle(
-                    color: navy,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => setState(
-                  () => threeDimensional = !threeDimensional,
-                ),
-                icon: const Icon(Icons.swap_horiz),
-                label: const Text('Change view'),
-              ),
-            ],
+          const Text(
+            'Schematic surface preview',
+            style: TextStyle(color: navy, fontWeight: FontWeight.bold),
           ),
           if (showUnderground) ...[
             Container(
@@ -1769,9 +1741,7 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ),
                       Icon(
-                        threeDimensional
-                            ? Icons.view_in_ar
-                            : Icons.view_agenda_outlined,
+                        Icons.layers_outlined,
                         color: Colors.white70,
                       ),
                     ],
@@ -1779,7 +1749,8 @@ class _MapPageState extends State<MapPage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Conceptual separation of utility categories. '
-                    'No surveyed alignment, depth or clearance is represented.',
+                    'This is not a surveyed 3D model; no alignment, depth '
+                    'or clearance is represented.',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
@@ -1834,26 +1805,14 @@ class _MapPageState extends State<MapPage> {
           const SizedBox(height: 8),
           const Text(
             'Data status: illustrative demonstration geometry only. '
-            'Verified utility asset records are not available in this view.',
+            'Satellite tiles, geographic navigation and verified utility '
+            'asset records are not connected in this prototype view.',
             style: TextStyle(
               color: Colors.blueGrey,
               fontSize: 12,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _scopeChip(String label, bool selected) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) {},
-      selectedColor: teal.withValues(alpha: 0.2),
-      labelStyle: TextStyle(
-        color: selected ? navy : Colors.blueGrey,
-        fontWeight: FontWeight.w600,
       ),
     );
   }
