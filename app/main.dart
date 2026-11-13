@@ -32,6 +32,8 @@ const String supabaseUrl =
 const String supabasePublishableKey =
     String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 
+const String _samanvayAuthRedirectUrl = 'in.samanvay://login-callback/';
+
 // Render the branded opening immediately. Backend startup runs in parallel,
 // so slow storage/network initialization cannot hide the opening animation.
 Future<void> _samanvayBootFuture = Future<void>.value();
@@ -1940,16 +1942,210 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<AuthState>(
       stream: supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
+        final authState = snapshot.data;
         final session = snapshot.hasData
-            ? snapshot.data!.session
+            ? authState!.session
             : supabase.auth.currentSession;
 
         if (session == null) {
           return const AuthPage();
         }
 
+        // A recovery deep link creates a valid session and emits this event.
+        // Do not send the user straight to their dashboard before choosing a
+        // new password.
+        if (authState?.event == AuthChangeEvent.passwordRecovery) {
+          return const PasswordRecoveryPage();
+        }
+
         return const RoleGate();
       },
+    );
+  }
+}
+
+class PasswordRecoveryPage extends StatefulWidget {
+  const PasswordRecoveryPage({super.key});
+
+  @override
+  State<PasswordRecoveryPage> createState() => _PasswordRecoveryPageState();
+}
+
+class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _newPassword = TextEditingController();
+  final _confirmPassword = TextEditingController();
+
+  bool _busy = false;
+  bool _hidePassword = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _newPassword.dispose();
+    _confirmPassword.dispose();
+    super.dispose();
+  }
+
+  Future<void> _savePassword() async {
+    if (_busy || !(_formKey.currentState?.validate() ?? false)) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    try {
+      await supabase.auth.updateUser(
+        UserAttributes(password: _newPassword.text),
+      );
+      // AuthGate receives USER_UPDATED and returns the authenticated user to
+      // the correct role portal. The root ScaffoldMessenger survives the
+      // route transition and displays this confirmation on the next screen.
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Password updated successfully.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on AuthException catch (authError) {
+      if (mounted) setState(() => _error = authError.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error =
+            'Unable to update the password. Check your connection and try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset password')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(22),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Card(
+                elevation: 0,
+                color: colors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(color: colors.outlineVariant),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.lock_reset_rounded,
+                          size: 42,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Choose a new password',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Set a new password for your SAMANVAY account to continue.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        TextFormField(
+                          controller: _newPassword,
+                          obscureText: _hidePassword,
+                          enabled: !_busy,
+                          autofillHints: const [AutofillHints.newPassword],
+                          decoration: InputDecoration(
+                            labelText: 'New password',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              tooltip: _hidePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () => setState(
+                                () => _hidePassword = !_hidePassword,
+                              ),
+                              icon: Icon(
+                                _hidePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.length < 8) {
+                              return 'Use at least 8 characters.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _confirmPassword,
+                          obscureText: _hidePassword,
+                          enabled: !_busy,
+                          autofillHints: const [AutofillHints.newPassword],
+                          decoration: const InputDecoration(
+                            labelText: 'Confirm new password',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value != _newPassword.text) {
+                              return 'The passwords do not match.';
+                            }
+                            return null;
+                          },
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _error!,
+                            style: TextStyle(color: colors.error),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        FilledButton(
+                          onPressed: _busy ? null : _savePassword,
+                          child: _busy
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Update password'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -4179,8 +4375,7 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  static const String redirectUrl =
-      'in.samanvay://login-callback/';
+  static const String redirectUrl = _samanvayAuthRedirectUrl;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -20768,7 +20963,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final email = supabase.auth.currentUser?.email;
     if (email == null || email.isEmpty) { _toast('No account email is available.'); return; }
     try {
-      await supabase.auth.resetPasswordForEmail(email);
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: _samanvayAuthRedirectUrl,
+      );
       _toast('Password reset instructions requested. Check your email.');
     } on AuthException catch (e) { _toast(e.message); }
     catch (_) { _toast('Unable to request a password reset right now.'); }
