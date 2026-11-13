@@ -276,3 +276,21 @@ This code increment closes that path:
 - Admin Management now displays pending requests and exposes explicit Approve / Reject actions. The existing database function performs the role update, review state change, audit entry and user notification.
 
 The addition does not change the database profile trigger or grant role-update privileges to ordinary users. The updated role regression test additionally asserts that Citizens and Coordinators cannot read or review the administrator access-request queue. CI and a live database execution are required before this feature is treated as complete.
+
+
+## 16. Access-request audit constraint fix and rollback-only workflow test
+
+The database check constraint mismatch was fixed with migration `20261113092540_allow_access_request_audit_events`, now present in the Supabase migration history. Its source file uses the matching migration version. The existing strict allowlist now contains exactly the three existing event names plus:
+- `account_access_request_approve`
+- `account_access_request_reject`
+
+After applying the migration, a transaction-only end-to-end test passed:
+1. Two existing Citizen identities inserted pending access requests using authenticated RLS (one Coordinator request, one Department Officer request linked to the live Water Supply department UUID).
+2. The Administrator queue RPC returned both pending requests.
+3. The Administrator review RPC approved both requests.
+4. The temporary profile state became Coordinator for the first identity and Department Officer + Water Supply for the second; both request statuses became approved.
+5. The entire transaction was rolled back.
+
+A post-rollback check confirmed zero rows in `account_access_requests` and the original profile role counts remained unchanged (1 Administrator, 1 Coordinator, 1 Department Officer and 3 Citizens). No real account was promoted and no test request was retained.
+
+The repeatable role-regression script now also checks that Department Officers cannot access the administrator request queue or review RPC; the Administrator positive path reads the queue. Android build #627 still validates the client code from commit `c8b98d5`; the next CI run is required for the subsequent test/migration-file synchronization commit.

@@ -67,9 +67,18 @@ check("role='requester'" in role_rpc_tests
       and "role='coordinator'" in role_rpc_tests
       and "role='admin'" in role_rpc_tests
       and "admin_user_directory" in role_rpc_tests
+      and "admin_access_request_directory" in role_rpc_tests
+      and "admin_review_access_request" in role_rpc_tests
       and "assign_request_department" in role_rpc_tests
       and "change_request_status" in role_rpc_tests,
-      "Repeatable SQL regression test covers all four role RPC gates.")
+      "Repeatable SQL regression test covers all four role RPC gates and admin-only access request review.")
+
+access_audit_migration = source(ROOT / "supabase" / "migrations" /
+                                "20261113092540_allow_access_request_audit_events.sql").lower()
+check("account_access_request_approve" in access_audit_migration
+      and "account_access_request_reject" in access_audit_migration
+      and "admin_audit_events_event_type_check" in access_audit_migration,
+      "Access-request review audit event types are explicitly allowed by the database migration.")
 
 # Official access requested at signup is inserted only after authentication; the
 # user's database role remains requester until an administrator reviews it.

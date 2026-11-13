@@ -20,7 +20,7 @@ BEGIN
     RAISE EXCEPTION 'TEST INCONCLUSIVE: all four role fixtures are required';
   END IF;
 
-  -- Citizen: six privileged operations must be denied.
+  -- Citizen: eight privileged operations must be denied.
   PERFORM set_config('request.jwt.claim.sub',citizen_id::text,true);
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',citizen_id,'role','authenticated')::text,true);
@@ -77,6 +77,18 @@ BEGIN
   -- Department Officer: coordinator/admin RPCs must be denied.
   PERFORM set_config('request.jwt.claim.sub',officer_id::text,true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',officer_id,'role','authenticated')::text,true);
+  BEGIN PERFORM public.admin_access_request_directory();
+    RAISE EXCEPTION 'TEST FAILURE: Officer accessed admin_access_request_directory';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='TEST FAILURE: Officer accessed admin_access_request_directory' THEN RAISE;
+    ELSIF SQLERRM<>'Administrator access required' THEN RAISE EXCEPTION 'Unexpected Officer access queue result: %',SQLERRM; END IF;
+  END;
+  BEGIN PERFORM public.admin_review_access_request(gen_random_uuid(),'approve',NULL);
+    RAISE EXCEPTION 'TEST FAILURE: Officer reviewed an access request';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='TEST FAILURE: Officer reviewed an access request' THEN RAISE;
+    ELSIF SQLERRM<>'Administrator access required' THEN RAISE EXCEPTION 'Unexpected Officer access review result: %',SQLERRM; END IF;
+  END;
   BEGIN PERFORM public.admin_user_directory();
     RAISE EXCEPTION 'TEST FAILURE: Officer accessed admin_user_directory';
   EXCEPTION WHEN OTHERS THEN
@@ -133,9 +145,10 @@ BEGIN
   -- Administrator: positive, read-only directory path.
   PERFORM set_config('request.jwt.claim.sub',administrator_id::text,true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',administrator_id,'role','authenticated')::text,true);
+  PERFORM public.admin_access_request_directory();
   SELECT count(*) INTO admin_visible_users FROM public.admin_user_directory();
   IF admin_visible_users=0 THEN RAISE EXCEPTION 'TEST FAILURE: Administrator could not read the account directory'; END IF;
 
-  RAISE NOTICE 'PASS: Citizen denied 8 protected RPCs; Officer denied 3; Coordinator denied 5; Administrator read-only directory path passed.';
+  RAISE NOTICE 'PASS: Citizen denied 8 protected RPCs; Officer denied 5; Coordinator denied 5; Administrator read-only directory path passed.';
 END
 $samanvay_role_rpc_tests$;
