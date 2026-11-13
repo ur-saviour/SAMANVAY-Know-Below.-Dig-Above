@@ -38,6 +38,8 @@ DECLARE
   status_three text;
   audit_count integer;
   notification_count integer;
+  own_request_visible integer;
+  other_requests_visible integer;
 BEGIN
   IF citizen_one IS NULL OR citizen_two IS NULL OR citizen_three IS NULL
      OR admin_id IS NULL OR water_supply_id IS NULL THEN
@@ -62,6 +64,19 @@ BEGIN
   INSERT INTO public.account_access_requests(user_id,requested_role,department_id,reason,status)
   VALUES(citizen_three,'admin',NULL,'Rollback-only test requesting Administrator workspace access.','pending')
   RETURNING id INTO admin_request_id;
+
+  -- Applicants can read their own status but not another Citizen's request row.
+  PERFORM set_config('request.jwt.claim.sub',citizen_one::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',citizen_one,'role','authenticated')::text,true);
+  SELECT count(*) INTO own_request_visible
+  FROM public.account_access_requests WHERE id=coordinator_request_id;
+  SELECT count(*) INTO other_requests_visible
+  FROM public.account_access_requests
+  WHERE id IN (officer_request_id,admin_request_id);
+  IF own_request_visible<>1 OR other_requests_visible<>0 THEN
+    RAISE EXCEPTION 'TEST FAILURE: applicant own-row visibility is %, other-row visibility is %',
+      own_request_visible,other_requests_visible;
+  END IF;
 
   PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',admin_id,'role','authenticated')::text,true);

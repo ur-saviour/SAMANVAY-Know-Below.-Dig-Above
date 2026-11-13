@@ -20978,6 +20978,40 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final role = (row['role'] ?? 'unknown').toString();
+    Map<String, dynamic>? accessRequest;
+    try {
+      final rawAccessRequests = await supabase
+          .from('account_access_requests')
+          .select(
+            'requested_role,department_id,reason,status,requested_at,reviewed_at,review_notes',
+          )
+          .eq('user_id', user.id)
+          .order('requested_at', ascending: false)
+          .limit(1);
+      if (rawAccessRequests.isNotEmpty) {
+        accessRequest = Map<String, dynamic>.from(rawAccessRequests.first as Map);
+        final requestedDepartmentId =
+            accessRequest['department_id']?.toString();
+        if (requestedDepartmentId != null && requestedDepartmentId.isNotEmpty) {
+          try {
+            final requestedDepartment = await supabase
+                .from('departments')
+                .select('name')
+                .eq('id', requestedDepartmentId)
+                .maybeSingle();
+            accessRequest['department_name'] =
+                requestedDepartment?['name'] ?? 'Department not listed';
+          } catch (_) {
+            accessRequest['department_name'] = 'Department name unavailable';
+          }
+        }
+      }
+    } catch (_) {
+      // Access status is supplemental profile information; a temporary
+      // request-table failure must not block the user's workspace.
+      accessRequest = null;
+    }
+
     var requestRows = <Map<String, dynamic>>[];
     var requestsAvailable = true;
     var evidenceCount = 0, unreadCount = 0;
@@ -21022,6 +21056,7 @@ class _ProfilePageState extends State<ProfilePage> {
       'name': (row['display_name'] ?? user.userMetadata?['display_name'] ?? 'SAMANVAY user').toString(),
       'email': user.email ?? '', 'phone': user.phone ?? '', 'role': role,
       'department': department, 'department_id': id,
+      'access_request': accessRequest,
       'requests_label': role == 'requester' ? 'My requests' : 'Visible cases',
       'requests': requestsAvailable ? requestRows.length : null,
       'active': requestsAvailable ? activeCount : null,
@@ -21567,6 +21602,13 @@ class _ProfilePageState extends State<ProfilePage> {
               Icons.notifications_active_outlined)),
           ]);
         }),
+        if (data['access_request'] is Map) ...[
+          const SizedBox(height: 16),
+          _accessRequestCard(
+            Map<String, dynamic>.from(data['access_request'] as Map),
+            accountRole,
+          ),
+        ],
         const SizedBox(height: 20),
          Text('Account security', style: TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
@@ -21621,6 +21663,118 @@ class _ProfilePageState extends State<ProfilePage> {
       ]);
     }),
   );
+
+  Widget _accessRequestCard(
+    Map<String, dynamic> request,
+    String currentRole,
+  ) {
+    final status = (request['status'] ?? 'unknown').toString().toLowerCase();
+    final requestedRole = (request['requested_role'] ?? '').toString();
+    final requestedDepartment =
+        (request['department_name'] ?? '').toString();
+    final requestedAt = DateTime.tryParse(
+      request['requested_at']?.toString() ?? '',
+    );
+    final reviewedAt = DateTime.tryParse(
+      request['reviewed_at']?.toString() ?? '',
+    );
+    final reason = (request['reason'] ?? '').toString().trim();
+    final reviewNotes = (request['review_notes'] ?? '').toString().trim();
+    final roleIsActive = currentRole == requestedRole &&
+        currentRole != 'requester';
+    final Color statusColor = switch (status) {
+      'pending' => const Color(0xFFE6A23C),
+      'approved' => const Color(0xFF0E8A78),
+      'rejected' => const Color(0xFFB33B45),
+      _ => mutedInk,
+    };
+    final statusLabel = switch (status) {
+      'pending' => 'PENDING REVIEW',
+      'approved' => roleIsActive ? 'APPROVED · ACTIVE' : 'APPROVED',
+      'rejected' => 'NOT APPROVED',
+      _ => status.toUpperCase(),
+    };
+    final statusMessage = switch (status) {
+      'pending' =>
+        'Your request is in the administrator review queue. Your current account permissions remain unchanged until approval.',
+      'approved' => roleIsActive
+          ? 'Your requested access is active on this account.'
+          : 'Approved. Sign out and sign in again to load the newly authorised workspace.',
+      'rejected' =>
+        'Your account remains in its existing workspace. Contact a platform administrator if you need clarification.',
+      _ => 'The latest access-request status is not recognised. Contact a platform administrator.',
+    };
+    final dateLabel = requestedAt == null
+        ? 'Submission date unavailable'
+        : 'Submitted ${requestedAt.day.toString().padLeft(2, '0')}/${requestedAt.month.toString().padLeft(2, '0')}/${requestedAt.year}';
+
+    return Card(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: statusColor.withValues(alpha: .12),
+                  child: Icon(Icons.assignment_ind_outlined, color: statusColor),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Official access request',
+                    style: TextStyle(
+                      color: ink,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                _badge(statusLabel, statusColor),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '${_displayRoleName(requestedRole)} access${requestedDepartment.isEmpty ? '' : ' · $requestedDepartment'}',
+              style: TextStyle(color: ink, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(dateLabel, style: TextStyle(color: mutedInk, fontSize: 10)),
+            const SizedBox(height: 9),
+            Text(
+              statusMessage,
+              style: TextStyle(color: ink, fontSize: 11, height: 1.4),
+            ),
+            if (reason.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              Text('Reason submitted', style: TextStyle(
+                color: mutedInk, fontSize: 10, fontWeight: FontWeight.w800,
+              )),
+              const SizedBox(height: 3),
+              Text(reason, style: TextStyle(color: ink, fontSize: 11, height: 1.35)),
+            ],
+            if (reviewedAt != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Reviewed ${reviewedAt.day.toString().padLeft(2, '0')}/${reviewedAt.month.toString().padLeft(2, '0')}/${reviewedAt.year}',
+                style: TextStyle(color: mutedInk, fontSize: 10),
+              ),
+            ],
+            if (reviewNotes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Administrator note', style: TextStyle(
+                color: mutedInk, fontSize: 10, fontWeight: FontWeight.w800,
+              )),
+              const SizedBox(height: 3),
+              Text(reviewNotes, style: TextStyle(color: ink, fontSize: 11, height: 1.35)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _badge(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

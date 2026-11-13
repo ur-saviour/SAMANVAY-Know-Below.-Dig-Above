@@ -308,3 +308,16 @@ Added `scripts/test_official_access_request_workflow.sql`, a rollback-only integ
 ### CI contract correction
 
 Build #629 caught an overbroad source assertion that scanned the entire application for the retired department label even though the read-only demo preview intentionally retains it. The assertion is now scoped to the registration form only; it still verifies that the Officer signup default is an actual live department option.
+
+
+## 18. My Profile official-access request status
+
+Added a self-service status panel to My Profile. It reads the most recent `account_access_requests` row filtered to the signed-in user's own ID, relying on the existing own-row RLS policy. It displays:
+- requested role and department;
+- submission date and reason;
+- pending, approved/active, approved/re-sign-in-required, or rejected state;
+- review date and administrator note when present.
+
+The status query is supplemental and fails closed: an error does not block profile loading or change the user's role. The panel does not add any write permissions or expose another applicant's request.
+
+The rollback-only integration test now explicitly asserts that a Citizen can read their own request row and receives zero rows for two other Citizens' request IDs. It then switches to the Administrator identity for the review queue tests.

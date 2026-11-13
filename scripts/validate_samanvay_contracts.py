@@ -106,6 +106,14 @@ check("Pending official-access requests" in main
       and "_reviewAccessRequest(request, 'approve')" in main
       and "_reviewAccessRequest(request, 'reject')" in main,
       "Admin management UI exposes approve/reject actions for pending access requests.")
+check(".from('account_access_requests')" in main
+      and ".eq('user_id', user.id)" in main
+      and "'access_request': accessRequest" in main
+      and "Official access request" in main
+      and "APPROVED · ACTIVE" in main
+      and "PENDING REVIEW" in main
+      and "NOT APPROVED" in main,
+      "My Profile displays only the signed-in user's official-access request status and outcome.")
 
 official_access_workflow_test = source(ROOT / "scripts" / "test_official_access_request_workflow.sql").lower()
 check("rollback;" in official_access_workflow_test
