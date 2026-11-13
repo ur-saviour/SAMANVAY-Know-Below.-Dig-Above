@@ -830,6 +830,246 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
+class AdminAccountsPanel extends StatefulWidget {
+  const AdminAccountsPanel({super.key});
+
+  @override
+  State<AdminAccountsPanel> createState() => _AdminAccountsPanelState();
+}
+
+class _AdminAccountsPanelState extends State<AdminAccountsPanel> {
+  late Future<Map<String, dynamic>> directoryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    directoryFuture = loadDirectory();
+  }
+
+  Future<Map<String, dynamic>> loadDirectory() async {
+    final results = await Future.wait([
+      supabase.rpc('admin_user_directory'),
+      supabase.from('departments').select('id, name').order('name'),
+    ]);
+    return {
+      'users': List<Map<String, dynamic>>.from(results[0] as List),
+      'departments': List<Map<String, dynamic>>.from(results[1] as List),
+    };
+  }
+
+  Future<void> reload() async {
+    setState(() => directoryFuture = loadDirectory());
+    await directoryFuture;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        const Text('Account and role administration',
+            style: TextStyle(
+                color: navy, fontSize: 19, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 6),
+        const Text(
+          'Role changes are submitted to the protected administrator RPC and recorded in the audit log. You cannot change your own role.',
+          style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+        ),
+        const SizedBox(height: 10),
+        FutureBuilder<Map<String, dynamic>>(
+          future: directoryFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: CircularProgressIndicator()));
+            }
+            if (snapshot.hasError || !snapshot.hasData) {
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(
+                      'Administrator directory unavailable: ${snapshot.error}'),
+                ),
+              );
+            }
+            final users =
+                snapshot.data!['users'] as List<Map<String, dynamic>>;
+            final departments =
+                snapshot.data!['departments'] as List<Map<String, dynamic>>;
+            if (users.isEmpty) {
+              return const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Text('No registered accounts found.'),
+                ),
+              );
+            }
+            return Column(
+              children: users
+                  .map((user) => AdminAccountEditor(
+                        key: ValueKey(user['user_id']),
+                        user: user,
+                        departments: departments,
+                        onSaved: reload,
+                      ))
+                  .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class AdminAccountEditor extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final List<Map<String, dynamic>> departments;
+  final Future<void> Function() onSaved;
+
+  const AdminAccountEditor({
+    super.key,
+    required this.user,
+    required this.departments,
+    required this.onSaved,
+  });
+
+  @override
+  State<AdminAccountEditor> createState() => _AdminAccountEditorState();
+}
+
+class _AdminAccountEditorState extends State<AdminAccountEditor> {
+  late String selectedRole;
+  String? selectedDepartment;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedRole = (widget.user['role'] ?? 'requester').toString();
+    selectedDepartment = widget.user['department_id']?.toString();
+  }
+
+  Future<void> save() async {
+    if (selectedRole == 'department' && selectedDepartment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a department for this officer.')),
+      );
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      await supabase.rpc('admin_update_profile_role', params: {
+        'p_user_id': widget.user['user_id'],
+        'p_role': selectedRole,
+        'p_department_id':
+            selectedRole == 'department' ? selectedDepartment : null,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account role updated and audit recorded.')),
+      );
+      await widget.onSaved();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Role update rejected: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userId = widget.user['user_id']?.toString() ?? '';
+    final name = widget.user['display_name']?.toString().trim().isNotEmpty == true
+        ? widget.user['display_name'].toString()
+        : 'Unnamed account';
+    final departmentItems = widget.departments
+        .map((d) => DropdownMenuItem<String>(
+              value: d['id'].toString(),
+              child: Text(d['name'].toString(),
+                  overflow: TextOverflow.ellipsis),
+            ))
+        .toList();
+    final currentDepartmentExists = departmentItems
+        .any((item) => item.value == selectedDepartment);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(name,
+                style: const TextStyle(
+                    color: navy, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 4),
+            Text('Account ID: $userId',
+                style: const TextStyle(
+                    color: Colors.blueGrey, fontSize: 10)),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: selectedRole,
+              decoration: const InputDecoration(
+                labelText: 'Platform role',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'requester', child: Text('Citizen')),
+                DropdownMenuItem(
+                    value: 'department', child: Text('Department Officer')),
+                DropdownMenuItem(
+                    value: 'coordinator', child: Text('Coordinator')),
+                DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+              ],
+              onChanged: saving
+                  ? null
+                  : (value) {
+                      if (value != null) setState(() => selectedRole = value);
+                    },
+            ),
+            if (selectedRole == 'department') ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: currentDepartmentExists ? selectedDepartment : null,
+                decoration: const InputDecoration(
+                  labelText: 'Assigned department',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: departmentItems,
+                onChanged: saving
+                    ? null
+                    : (value) => setState(() => selectedDepartment = value),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.tonalIcon(
+                onPressed: saving ? null : save,
+                icon: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save_outlined),
+                label: Text(saving ? 'SAVING' : 'SAVE ROLE'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // Official workspaces use the role already assigned in the protected
 // profiles table. The app never lets a user select or promote their own role.
 class RoleWorkspacePage extends StatefulWidget {
@@ -1008,18 +1248,7 @@ class _RoleWorkspacePageState extends State<RoleWorkspacePage> {
                 );
               },
             ),
-            if (role == 'admin') ...[
-              const SizedBox(height: 12),
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.admin_panel_settings, color: teal),
-                  title: Text('Secure account administration'),
-                  subtitle: Text(
-                    'Role changes are performed only through the database administrator function, which checks the caller role and writes an audit event. A self-service role switch is intentionally unavailable.',
-                  ),
-                ),
-              ),
-            ],
+            if (role == 'admin') const AdminAccountsPanel(),
           ],
         ),
       ),
