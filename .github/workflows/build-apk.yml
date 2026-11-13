@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: samanvay-beta-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build, Diagnose and Publish APK
