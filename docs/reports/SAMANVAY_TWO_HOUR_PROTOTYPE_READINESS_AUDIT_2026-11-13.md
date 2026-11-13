@@ -278,3 +278,43 @@ The bounded Android retry completed successfully. The earlier "in progress" stat
 **Remaining acceptance gates:** physical Android install/runtime testing; authenticated multi-role end-to-end tests; browser HTTPS/WebGL runtime tests; real operational lifecycle and notification verification; authorised underground asset/survey data; and AI service runtime configuration/testing. These cannot be inferred from static source checks or successful CI builds. The connected live GIS registry was previously audited with zero underground asset records and zero survey-evidence records; this must not be represented as verified utility coverage or site clearance.
 
 **Release conclusion:** Alpha 0.3 build and packaging are complete. The overall project is not 100% accepted and is not production-ready until the remaining runtime, security and data-owner gates are evidenced.
+
+## Continuation verification — 13 November 2026, 15:34 IST
+
+This section supersedes the earlier pending-status note for Android run `43298615743`.
+
+### Android release pipeline result
+
+The connected GitHub Actions records now show the following for run [43298615743](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43298615743), source commit `d86124cc74379b515a8c39f6b74afc9a23f8439c`:
+
+- 25 SAMANVAY source-contract checks: passed.
+- Generated Android package contract validator: passed.
+- Flutter dependency installation: passed.
+- Dart analysis: passed.
+- Release APK compilation: passed.
+- ABI APK preparation: passed.
+- Package, signing-certificate and zip-alignment verification: passed.
+- Artifact upload: passed.
+- Alpha 0.3 release publication step: passed.
+- Workflow artifact `SAMANVAY-Alpha-0.3-APK`, ID `13981067247`, size 44,786,050 bytes, SHA-256 `db235d18de525bf1b40dab7cac81c2041990c0b828e8506f835dd390d6bc4ce9`.
+
+**Important status distinction:** GitHub reports the overall job conclusion as `cancelled`, despite all listed build, validation, upload and publication steps reporting `success`. The artifact record exists and is not expired. Therefore the APK pipeline's substantive build and package-verification steps are evidenced, but this run must not be described as an overall green workflow.
+
+The build was generated from source commit `d86124cc74379b515a8c39f6b74afc9a23f8439c`. The documented branch head `34a326ec44416d5a52c1172bf987bed004fc2d01` is later and documentation-only; it does not change the APK source contents.
+
+### Current acceptance blockers — unchanged
+
+- Physical installation and runtime acceptance on an Android device are not evidenced by CI.
+- Live sign-in, password recovery, role-specific navigation and phone OTP are not verified end-to-end on a device. The inventory still records 0/6 users with confirmed phone numbers.
+- GIS satellite tiles, GPS, camera capture, evidence upload, notifications and offline behaviour still need runtime testing.
+- Live utility registry remains at 0 verified underground assets and 0 operationally authorised utility layers. Public map aggregates must not be described as verified underground utility coverage.
+- Groundwater archive verification remains a manual-only workflow and has not been dispatched. Historical rows must not be restored to production before isolated archive verification and an approved additive recovery plan.
+- 5,050 ULB-to-district reconciliation rows remain unmapped; reference hierarchy remains unverified.
+- Security closure remains incomplete: leaked-password protection is disabled, and the 16 authenticated SECURITY DEFINER findings plus performance-advisor findings require individual review and regression evidence.
+- Permit, inspection, restoration and joint-work operational records remain absent or incomplete in the live database; the local demo lifecycle is not a substitute for persisted operational records.
+
+### Reporting rule
+
+Do not combine older percentage estimates in this report into a single claimed completion percentage. Earlier figures were recorded at different checkpoints and use inconsistent scopes. Until a single weighted acceptance matrix is reconciled, report milestone evidence and outstanding blockers instead of presenting an unsupported overall percentage.
+
+No production Supabase rows, policies, grants, authentication settings or utility geometry were modified during this continuation.
