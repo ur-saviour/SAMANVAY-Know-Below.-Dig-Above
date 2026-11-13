@@ -231,3 +231,12 @@ A transaction-level test was run with `SET LOCAL ROLE authenticated` and a Citiz
 - A corresponding attempt to update `role` was rejected by PostgreSQL with SQLSTATE `42501` (permission denied for table `profiles`).
 
 This verifies the active RLS/column-grant path for the display-name editor and confirms normal authenticated clients cannot update the protected role column.
+
+
+### Profile row-visibility check
+
+A separate transaction under `SET LOCAL ROLE authenticated` returned:
+- own profile rows visible: 1;
+- other users' profile rows visible: 0.
+
+The transaction was rolled back after the check. Together with the own-display-name update test and the denied `role` update, this confirms the current self-row profile RLS path and least-privilege column grant at the database layer.
