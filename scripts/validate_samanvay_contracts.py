@@ -51,7 +51,7 @@ check("PUBLIC-ADMIN-DEMO" in main and "PUBLIC-COORDINATOR-DEMO" in main
 # Phone registration must use Supabase's real signup OTP path, not a local demo code.
 check("usePhoneSignup" in main and "'Mobile number'" in main,
       "Registration UI exposes a mobile-number signup choice.")
-check(re.search(r"supabase\\.auth\\.signUp\\(\\s*phone:\\s*phone", main) is not None,
+check("await supabase.auth.signUp(" in main and "phone: phone," in main,
       "Mobile registration creates the account through Supabase phone sign-up.")
 check("'requested_role': requestedSignupRole" in main
       and "'requested_department': requestedSignupRole == 'department'" in main,
