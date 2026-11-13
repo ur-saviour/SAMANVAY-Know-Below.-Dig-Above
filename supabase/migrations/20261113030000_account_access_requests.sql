@@ -143,3 +143,38 @@ revoke all on function public.admin_review_access_request(uuid, text, text) from
 grant execute on function public.admin_review_access_request(uuid, text, text) to authenticated;
 
 grant select, insert on public.account_access_requests to authenticated;
+
+-- Administrator-only view of pending official access applications.
+create or replace function public.admin_access_request_directory()
+returns table(
+  request_id uuid,
+  user_id uuid,
+  display_name text,
+  requested_role text,
+  department_id uuid,
+  department_name text,
+  reason text,
+  requested_at timestamptz
+)
+language plpgsql
+security definer
+set search_path=''
+as $function$
+begin
+  if (select auth.uid()) is null or not exists (
+    select 1 from public.profiles p
+    where p.id=(select auth.uid()) and p.role='admin'
+  ) then
+    raise exception 'Administrator access required';
+  end if;
+  return query
+  select r.id,r.user_id,p.display_name,r.requested_role,r.department_id,d.name,r.reason,r.requested_at
+  from public.account_access_requests r
+  join public.profiles p on p.id=r.user_id
+  left join public.departments d on d.id=r.department_id
+  where r.status='pending'
+  order by r.requested_at asc;
+end;
+$function$;
+revoke all on function public.admin_access_request_directory() from public,anon;
+grant execute on function public.admin_access_request_directory() to authenticated;
