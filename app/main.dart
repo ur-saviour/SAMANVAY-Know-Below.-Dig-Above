@@ -657,7 +657,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
     super.initState();
     _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4600),
+      duration: const Duration(milliseconds: 2200),
     );
     _ambientController = AnimationController(
       vsync: this,
@@ -665,7 +665,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
     )..repeat();
     _flagController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 1400),
     )..addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         setState(() => _showOpeningScreen = true);
@@ -674,7 +674,7 @@ class _OpeningExperienceState extends State<OpeningExperience>
     });
     _splashController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 7000),
+      duration: const Duration(milliseconds: 2800),
     )..addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         setState(() => _splashFinished = true);
@@ -966,7 +966,7 @@ class _SamanvayOpeningScreen extends StatelessWidget {
               final progress = introController.value;
               final ambient = ambientController.value;
               final logoReveal = _reveal(progress, 0.04, 0.54);
-              final buttonReveal = _reveal(progress, 0.76, 1.0);
+              final buttonReveal = _reveal(progress, 0.64, 0.82);
 
               return Stack(
                 fit: StackFit.expand,
@@ -8336,7 +8336,18 @@ class _MainScreenState extends State<MainScreen> {
             ),
             VerticalDivider(width: 1, thickness: 1, color: borderColor),
           ],
-          Expanded(child: IndexedStack(index: selectedIndex, children: pages)),
+          Expanded(
+            child: IndexedStack(
+              index: selectedIndex,
+              children: List<Widget>.generate(
+                pages.length,
+                (index) => TickerMode(
+                  enabled: selectedIndex == index,
+                  child: pages[index],
+                ),
+              ),
+            ),
+          ),
         ]),
         floatingActionButton: FloatingActionButton.extended(
           heroTag: 'samanvay-switch-profile',
@@ -18935,7 +18946,7 @@ class _MapPageState extends State<MapPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: ink,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
@@ -18977,7 +18988,7 @@ class _MapPageState extends State<MapPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'GIS LAYERS',
                       style: TextStyle(
                         color: ink,
@@ -19069,7 +19080,7 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showCoimbatoreWardBoundaries,
                       activeThumbColor: const Color(0xFF20D6C2),
-                      title: const Text(
+                      title: Text(
                         'Coimbatore-only ward reference (2024)',
                         style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                       ),
@@ -19121,7 +19132,7 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showGroundwaterTelemetry,
                       activeThumbColor: const Color(0xFFA78BFA),
-                      title: const Text(
+                      title: Text(
                         'National groundwater monitoring stations (2021–2025)',
                         style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                       ),
@@ -19209,7 +19220,7 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ),
                     const Divider(color: Color(0x334B647C)),
-                    const Text(
+                    Text(
                       'Data integrity',
                       style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                     ),
