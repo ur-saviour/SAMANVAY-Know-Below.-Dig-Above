@@ -52,7 +52,7 @@ class _SamanvayUndergroundTwinPanelState
   @override
   Widget build(BuildContext context) {
     final width = math.min(430.0, MediaQuery.sizeOf(context).width - 24).toDouble();
-    final maxHeight = math.min(350.0, MediaQuery.sizeOf(context).height * .43).toDouble();
+    final maxHeight = math.min(430.0, MediaQuery.sizeOf(context).height * .52).toDouble();
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
@@ -132,7 +132,7 @@ class _SamanvayUndergroundTwinPanelState
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: SizedBox(
-                  height: 154,
+                  height: 196,
                   width: double.infinity,
                   child: AnimatedBuilder(
                     animation: _flow,
@@ -366,9 +366,9 @@ class _SamanvayTwinPainter extends CustomPainter {
     }
 
     // Foreground building masses.
-    _building(canvas, Rect.fromLTWH(w * .045, groundY - h * .23, w * .17, h * .225), const Color(0xFF466B7C));
-    _building(canvas, Rect.fromLTWH(w * .79, groundY - h * .27, w * .16, h * .265), const Color(0xFF3B6075));
-    _building(canvas, Rect.fromLTWH(w * .29, groundY - h * .15, w * .11, h * .145), const Color(0xFF36586A));
+    _building(canvas, Rect.fromLTWH(w * .045, groundY - h * .23, w * .17, h * .225), const Color(0xFF466B7C), extruded: is3D);
+    _building(canvas, Rect.fromLTWH(w * .79, groundY - h * .27, w * .16, h * .265), const Color(0xFF3B6075), extruded: is3D);
+    _building(canvas, Rect.fromLTWH(w * .29, groundY - h * .15, w * .11, h * .145), const Color(0xFF36586A), extruded: is3D);
 
     // Subsurface strata.
     final bands = [
@@ -438,8 +438,8 @@ class _SamanvayTwinPainter extends CustomPainter {
       Rect.fromLTWH(0, 0, w, roadBottom),
       Paint()..color = const Color(0xFF18364A),
     );
-    _building(canvas, Rect.fromLTWH(w * .04, h * .015, w * .18, h * .25), const Color(0xFF466B7C));
-    _building(canvas, Rect.fromLTWH(w * .78, h * .035, w * .17, h * .23), const Color(0xFF3B6075));
+    _building(canvas, Rect.fromLTWH(w * .04, h * .015, w * .18, h * .25), const Color(0xFF466B7C), extruded: is3D);
+    _building(canvas, Rect.fromLTWH(w * .78, h * .035, w * .17, h * .23), const Color(0xFF3B6075), extruded: is3D);
 
     // Road slab, asphalt and footpaths.
     canvas.drawRect(
@@ -563,12 +563,28 @@ class _SamanvayTwinPainter extends CustomPainter {
     _tag(canvas, layer.toUpperCase(), Offset(w * .77, y - 8), color);
   }
 
-  void _building(Canvas canvas, Rect r, Color color) {
+  void _building(Canvas canvas, Rect r, Color color, {bool extruded = false}) {
     final shadow = Rect.fromLTWH(r.left + 4, r.top + 5, r.width, r.height);
     canvas.drawRRect(
       RRect.fromRectAndRadius(shadow, const Radius.circular(2)),
       Paint()..color = const Color(0xFF07111B).withValues(alpha: .45),
     );
+    if (extruded) {
+      final side = Path()
+        ..moveTo(r.right, r.top)
+        ..lineTo(r.right + 8, r.top - 5)
+        ..lineTo(r.right + 8, r.bottom - 5)
+        ..lineTo(r.right, r.bottom)
+        ..close();
+      canvas.drawPath(side, Paint()..color = color.withValues(alpha: .48));
+      final roof = Path()
+        ..moveTo(r.left, r.top)
+        ..lineTo(r.left + 8, r.top - 5)
+        ..lineTo(r.right + 8, r.top - 5)
+        ..lineTo(r.right, r.top)
+        ..close();
+      canvas.drawPath(roof, Paint()..color = color.withValues(alpha: .82));
+    }
     canvas.drawRRect(
       RRect.fromRectAndRadius(r, const Radius.circular(2)),
       Paint()
@@ -656,8 +672,9 @@ class _SamanvayTwinPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout(maxWidth: 100);
-    final left = at.dx.clamp(2.0, math.max(2.0, 430 - text.width - 4).toDouble()).toDouble();
-    final top = at.dy.clamp(1.0, 148.0).toDouble();
+    final bounds = canvas.getLocalClipBounds();
+    final left = at.dx.clamp(2.0, math.max(2.0, bounds.width - text.width - 4).toDouble()).toDouble();
+    final top = at.dy.clamp(1.0, math.max(1.0, bounds.height - 10).toDouble()).toDouble();
     text.paint(canvas, Offset(left, top));
   }
 
