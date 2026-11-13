@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - feature/alpha-03-integrated-platform
+      - feature/gis-digital-twin-redesign
     paths:
       - 'app/**'
       - 'scripts/**'
