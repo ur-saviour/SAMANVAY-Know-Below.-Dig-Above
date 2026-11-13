@@ -144,4 +144,21 @@ A milestone is complete only when its evidence is recorded.
 - [GIS asset ingestion and verification rules](../data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
 - [Alpha 0.3 delivery record](../release/SAMANVAY_ALPHA_0_3_COIMBATORE_PILOT_DELIVERY.md)
 
+
+## 9. Android analyzer regression and background-animation optimisation — 13 November 2026
+
+The professionalisation branch advanced to commit 94305fe06e4db21ede0a898a544d917a34836ba7 with targeted light-mode text changes in the GIS layer sheet. Its Android workflow failed during Dart analysis, before APK compilation. The five reported Invalid constant value errors came from marking widgets/styles as const while supplying the runtime theme getter ink. The corrective branch removes only those invalid const declarations; theme-aware text remains intact.
+
+The same increment carries forward the faster branded opening:
+- logo reveal: 2.8 seconds;
+- Indian-flag transition: 1.4 seconds;
+- intro stage: 2.2 seconds;
+- Get Started becomes interactive at 82% of the intro stage (approximately 6.0 seconds from launch);
+- the root ambient animation controller stops on transition to AuthGate.
+
+A further performance change wraps each page inside the existing Citizen IndexedStack with TickerMode(enabled: selectedIndex == index). State and page instances remain in the stack, but off-screen pages no longer tick their repeating AnimationController animations. This specifically avoids background animation work from the map's underground cutaway while the Citizen is on Home, Cases, Public works or Profile. It does not stop page streams or network refreshes; those have separate lifecycle controls and remain under review.
+
+Regression checks now require the three opening durations, CTA reveal threshold, ambient-animation shutdown and selected-tab ticker gate. Android CI must pass on the rebased review branch before the change is accepted.
+
+
 **Baseline decision:** preserve the existing application and backend. Begin remediation on the professionalisation branch, starting with brand/tagline correctness, theme contrast, opening performance, reproducible build configuration and device-authentication/GIS acceptance. Do not promote Alpha 0.3 to SAMANVAY 1.0 until the gates above have evidence.
