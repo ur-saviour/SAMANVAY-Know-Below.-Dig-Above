@@ -822,12 +822,13 @@ class _MainScreenState extends State<MainScreen> {
           .eq('status', 'pending')
           .maybeSingle();
       if (existing != null) return;
+      final reason = (metadata['access_reason']?.toString() ?? '').trim();
       await supabase.from('account_access_requests').insert({
         'user_id': user.id,
         'requested_role': requested,
         'department_id': requested == 'department' ? departmentId : null,
-        'reason': (metadata['access_reason']?.toString() ?? 'Official account access request').trim().length >= 10
-            ? metadata['access_reason'].toString().trim()
+        'reason': reason.length >= 10
+            ? reason
             : 'Official account access request submitted during registration.',
       });
     } catch (_) {
