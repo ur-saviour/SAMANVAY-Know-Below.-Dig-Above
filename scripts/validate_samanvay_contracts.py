@@ -48,6 +48,21 @@ check("PUBLIC-ADMIN-DEMO" in main and "PUBLIC-COORDINATOR-DEMO" in main
       "All four demo workspaces use separate public demo identifiers.")
 
 
+# Phone registration must use Supabase's real signup OTP path, not a local demo code.
+check("usePhoneSignup" in main and "'Mobile number'" in main,
+      "Registration UI exposes a mobile-number signup choice.")
+check(re.search(r"supabase\\.auth\\.signUp\\(\\s*phone:\\s*phone", main) is not None,
+      "Mobile registration creates the account through Supabase phone sign-up.")
+check("'requested_role': requestedSignupRole" in main
+      and "'requested_department': requestedSignupRole == 'department'" in main,
+      "Registration records requested role and department as metadata, not trusted permissions.")
+check("isPhoneSignupOtp = true" in main
+      and "OtpType.signup" in main
+      and "resend(type: OtpType.signup, phone:" in main,
+      "Phone signup uses signup-specific OTP verification and resend.")
+check("An administrator must verify your identity and department before access is granted." in main,
+      "Self-selected official roles are explicitly gated by administrator verification.")
+
 # Phone OTP verification must distinguish new-account signup from existing-account login.
 check("isPhoneSignupOtp ? OtpType.signup : OtpType.sms" in main,
       "Phone registration verifies with Supabase signup OTP type; phone login uses SMS OTP type.")
