@@ -220,4 +220,21 @@ This is migration-ledger drift, not permission to replay missing SQL. Some entri
 **Release gate:** prove on a disposable database that the checked-in migration set reproduces the live schema without changing production data.
 
 
+
+## 9. Opening experience and animation workload optimisation
+
+The existing branded splash, original SVG logo reveal, Indian-flag transition and opening screen are retained. Their controller durations are bounded to:
+
+- Logo reveal: 2.8 seconds.
+- Indian-flag transition: 1.4 seconds.
+- Intro screen: 2.2 seconds.
+- The Get Started control becomes interactive at 82% of the final intro stage, approximately 6.0 seconds after launch.
+
+The ambient root opening animation is stopped when the application switches to AuthGate. The Citizen navigation uses the existing IndexedStack, now with a \`TickerMode\` per child. Only the currently selected tab has tickers enabled. This preserves each page's mounted state while pausing repeating animations in hidden tabs, including the animated underground schematic when the Citizen is outside GIS.
+
+This is a source-level reduction in avoidable animation work. It does not stop hidden-page network subscriptions, realtime streams or polling, and it does not establish measured CPU, battery, frame-pacing or startup performance. Those require physical-device profiling and separate lifecycle review.
+
+The corresponding Android PR build must pass source-contract validation, Dart analysis, release compilation, APK package/signature/alignment checks and artifact upload before this optimisation is accepted.
+
+
 **Baseline decision:** preserve the existing application and backend. Begin remediation on the professionalisation branch, starting with brand/tagline correctness, theme contrast, opening performance, reproducible build configuration and device-authentication/GIS acceptance. Do not promote Alpha 0.3 to SAMANVAY 1.0 until the gates above have evidence.
