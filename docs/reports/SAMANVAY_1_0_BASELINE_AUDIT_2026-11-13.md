@@ -144,4 +144,80 @@ A milestone is complete only when its evidence is recorded.
 - [GIS asset ingestion and verification rules](../data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
 - [Alpha 0.3 delivery record](../release/SAMANVAY_ALPHA_0_3_COIMBATORE_PILOT_DELIVERY.md)
 
+
+## 8. Live backend, profile permissions and migration reconciliation — 13 November 2026
+
+The following is a read-only snapshot of the connected Supabase project \`zhtotivedvkmclerdnlf\` (PostgreSQL 17.11, \`ap-south-1\`). The only production schema change discussed here is the separately committed and applied display-name-only profile migration. No user records or utility assets were inserted or modified during this audit.
+
+### Live table inventory
+
+| Relation | Rows | RLS | Interpretation |
+|---|---:|---|---|
+| \`public.departments\` | 11 | Enabled | Department registry populated |
+| \`public.profiles\` | 6 | Enabled | Six user profiles |
+| \`public.excavation_requests\` | 4 | Enabled | Small pilot/test queue |
+| \`public.request_department_reviews\` | 3 | Enabled | Department-review records exist |
+| \`gis.underground_assets\` | 0 | Enabled | No verified underground asset rows |
+| \`gis.asset_survey_evidence\` | 0 | Enabled | No registered survey evidence rows |
+| \`public.case_inspections\` | 0 | Enabled | No inspection records |
+| \`public.road_cut_permit_records\` | 0 | Enabled | No permit records |
+| \`public.road_restoration_records\` | 0 | Enabled | No road-restoration records |
+| \`public.groundwater_station_observations\` | 446,068 | Enabled | Groundwater archive; not underground utility alignment data |
+| \`public.building_approval_records\` | 2,015 | Enabled | Building-approval source records |
+| \`public.india_state_uts\` | 36 | Enabled | State/UT reference set |
+| \`public.india_administrative_units\` | 21,705 | Enabled | Administrative reference records; not proof of complete statutory ward coverage |
+| \`public.india_ulb_district_reconciliation\` | 5,050 | Enabled | Requires evidence-backed parent resolution |
+
+RLS is enabled on all 52 inspected \`public\` and \`gis\` relations. This does not replace independent positive and negative role-session tests.
+
+### Profile editing permission verification
+
+Migration \`20261113065528_profile_display_name_self_update\` is present in the repository and recorded as applied in the live Supabase migration history. A read-only PostgreSQL privilege/policy query confirmed:
+
+- \`authenticated\` can UPDATE \`public.profiles.display_name\`;
+- \`authenticated\` cannot UPDATE \`role\` or \`department_id\`;
+- \`authenticated\` has no unrestricted table-level UPDATE privilege;
+- the self-row UPDATE policy is installed and applies both \`USING\` and \`WITH CHECK\` against \`auth.uid()\`.
+
+This is a least-privilege update path for a user's display name. A live authenticated save attempt and reload on an actual user account remain unverified, so profile editing is implemented and privilege-verified but not yet end-to-end accepted.
+
+### Security advisor and RPC review
+
+The latest Supabase security advisor snapshot reports:
+
+- 18 public \`SECURITY DEFINER\` functions executable by \`authenticated\`;
+- leaked-password protection disabled in Supabase Auth.
+
+A read-only \`pg_proc\` / \`pg_get_functiondef\` inspection of all 18 flagged functions found each uses an empty function-local \`search_path\`, denies execution to \`anon\`, references \`auth.uid()\` and reads the caller profile. Inspected definitions include explicit administrator/staff role checks, actor ownership checks and/or caller-bound row predicates. The advisor is a review warning, not automatic proof of an exploitable authorization defect. Continue function-by-function positive and negative role testing.
+
+**Do not mass-revoke or convert these functions to SECURITY INVOKER.** Several are narrow RPC boundaries for restricted PostGIS and workflow operations. Such a change without replacement could break protected functionality.
+
+No Supabase Auth setting was changed. Evaluate enabling leaked-password protection and test its effect on registration and recovery before declaring the Auth security gate closed.
+
+### Performance advisor snapshot
+
+| Advisor | Findings | Classification |
+|---|---:|---|
+| Unindexed foreign keys | 5 | INFO; inspect query plans |
+| Unused indexes | 81 | INFO; do not drop based only on a short workload window |
+| Multiple permissive RLS policies | 14 | WARN; preserve policy OR semantics when consolidating |
+| Duplicate index | 1 | WARN; confirm definitions and workload before removal |
+
+No indexes or policies were modified. Unused-index findings alone are insufficient grounds for deletion.
+
+### Migration-history reconciliation — release blocker
+
+After the profile display-name migration was applied:
+
+- Supabase migration history: **92 applied entries**.
+- Repository \`supabase/migrations/\`: **76 SQL files**.
+- Matching migration names (ignoring timestamp): **71**.
+- Database history entries with no same-name repository migration: **21**.
+- Repository SQL filenames with no same-name database history entry: **5**.
+
+This is migration-ledger drift, not permission to replay missing SQL. Some entries may be renamed, squashed or superseded; several repository migrations use different timestamps for similarly named changes. Before a clean database reset or migration promotion, reconcile each unmatched item against the live schema, function definitions and historical commits. Do not reapply remote-only migrations or mark local migrations applied merely to hide drift.
+
+**Release gate:** prove on a disposable database that the checked-in migration set reproduces the live schema without changing production data.
+
+
 **Baseline decision:** preserve the existing application and backend. Begin remediation on the professionalisation branch, starting with brand/tagline correctness, theme contrast, opening performance, reproducible build configuration and device-authentication/GIS acceptance. Do not promote Alpha 0.3 to SAMANVAY 1.0 until the gates above have evidence.
