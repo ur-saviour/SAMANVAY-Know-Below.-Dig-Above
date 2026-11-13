@@ -144,3 +144,35 @@ The original logo asset inside all three APKs has Git blob SHA `17c2db21509cfb59
 
 **What this proves:** the profile-editor source revision compiles and its APK packages are structurally intact; the original logo is preserved.  
 **What this does not prove:** actual installation, UI rendering, authenticated profile save, device compatibility, production signing or full application acceptance. These remain explicit QA gates.
+
+
+## 9. Follow-up authentication and database-security inspection
+
+### OTP delivery function
+
+The Supabase project contains an ACTIVE `samanvay-dual-channel-otp` Edge Function (version 2). It validates the Supabase Auth Hook signature before reading the event, checks E.164 phone format and six-digit OTP format, and submits the same Supabase-issued OTP to configured Twilio SMS and WhatsApp providers. It does not log or return the OTP or recipient phone number. The function requires server-side secrets for the hook signature and Twilio provider credentials, including an approved WhatsApp Content Template; India SMS DLT identifiers are supported as optional paired settings.
+
+**Not yet verified:** the Auth Hook is actually enabled and points to this function, all required secrets are present and valid, Twilio accepts both messages, or a real device receives and verifies the code. The mobile UI itself correctly states that provider delivery depends on project configuration. Therefore mobile OTP remains a release blocker, not a completed feature.
+
+### SECURITY DEFINER review — static inspection
+
+A fresh database query inspected every SECURITY DEFINER function in the exposed `public` schema that is executable by `authenticated`:
+
+- 18 functions are executable by `authenticated`;
+- none of those 18 is executable by `anon`;
+- all 18 set an empty `search_path`;
+- all 18 reference `auth.uid()` and role/identity-related logic;
+- 16 contain explicit exception rejection paths; two are boolean/data helper functions whose authorization behavior is expressed by their query predicates.
+
+Representative admin functions explicitly require `profiles.role = 'admin'`; department review/assignment functions check department role or assignment; the underground overview requires an authenticated profile with an allowed platform role and returns only generalised verified aggregates. This supports the conclusion that the advisor warning needs function-by-function grant/guard review rather than indiscriminate revocation.
+
+**Remaining:** adversarial caller tests using separate Citizen, department, coordinator, admin and unauthenticated sessions have not been run. Static presence of `auth.uid()` and role checks is not proof that every possible caller/argument combination is safe. Keep the 18 warnings open until those negative tests and grant reviews are documented.
+
+### Advisor snapshot after the profile migration
+
+Observed 13 November 2026:
+- Security: 18 authenticated SECURITY DEFINER notices; leaked-password protection disabled.
+- Performance: 5 unindexed foreign keys, 81 unused-index notices, 14 multiple-permissive-policy notices and 1 duplicate-index notice.
+- Health: no lints returned.
+
+Unused-index notices are not sufficient reason to drop indexes without workload evidence. Multiple permissive policy findings need review for both correctness and query cost. No bulk index or policy changes were made.
