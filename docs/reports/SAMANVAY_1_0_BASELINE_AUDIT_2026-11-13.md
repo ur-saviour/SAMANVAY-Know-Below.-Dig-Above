@@ -45,8 +45,8 @@ Status reflects the inspected source, static checks and dated live-inventory rep
 | Feature area | Baseline classification | Evidence / gap |
 |---|---|---|
 | Original logo and asset | Working | UI loads `assets/brand/samanvay_logo.svg`; exact SVG is present in the inspected APK |
-| Official tagline | Requires correction | Current animated copy and application title say “Towards Our Development”; the required tagline is “Know Below. Dig Above.” |
-| Opening experience | Implemented; UX/performance improvement required | Branded logo reveal, flag transition and Get Started screen exist. The staged 7.0 s + 3.0 s + 4.6 s sequence makes Get Started available at about 13.8 s; a repeating ambient controller also remains active in the root state after the auth screen is opened |
+| Official tagline | Corrected on professionalisation branch | Opening caption and application title use “Know Below. Dig Above.”; the original SVG asset is unchanged and a regression check protects the approved copy. |
+| Opening experience | Implemented; faster access patch applied | Branded logo reveal, flag transition and Get Started screen remain. The logo reveal is 2.8 s, flag transition 1.4 s and intro stage 2.2 s; Get Started becomes interactive at 82% of the intro stage (about 6.0 s after launch). Ambient animation stops when the app transitions to AuthGate. Physical-device visual review remains required. |
 | Dark/light themes | Partially implemented | Both themes exist, but hard-coded white/dark foregrounds remain in shared screens; source inspection identifies likely light-mode contrast failures that require screen-by-screen verification |
 | Email/password login | Implemented; runtime unverified | Supabase password sign-in and session checks are present |
 | Mobile registration OTP | Implemented in code; provider/account acceptance unverified | Phone signup calls Supabase Auth signup and verifies `OtpType.signup`; SMS delivery depends on live provider configuration |
@@ -94,8 +94,8 @@ Status reflects the inspected source, static checks and dated live-inventory rep
 ## 5. Priority remediation backlog
 
 ### P0 — release integrity and user-facing correctness
-1. Correct the displayed tagline to **Know Below. Dig Above.** without altering the original logo SVG.
-2. Reduce avoidable opening delay while preserving the existing requested animation sequence; stop ambient animation controllers when the opening experience exits.
+1. [x] Corrected the displayed tagline to **Know Below. Dig Above.** without altering the original logo SVG.
+2. [x] Reduced the opening sequence from approximately 13.8 s to approximately 6.0 s while retaining the logo reveal and flag transition; the ambient controller stops when entering AuthGate.
 3. Fix light-mode foreground/background combinations using semantic theme colours; remove hard-coded white-on-white/dark-on-dark text.
 4. Perform clean-install and upgrade installation tests on supported Android devices; test startup, login, profile routing, map tile loading, GPS and logout/restart.
 5. Produce a production signing plan with an owner-controlled keystore and secret handling before calling any APK a production release.
@@ -144,4 +144,14 @@ A milestone is complete only when its evidence is recorded.
 - [GIS asset ingestion and verification rules](../data-governance/GIS_ASSET_INGESTION_AND_VERIFICATION.md)
 - [Alpha 0.3 delivery record](../release/SAMANVAY_ALPHA_0_3_COIMBATORE_PILOT_DELIVERY.md)
 
-**Baseline decision:** preserve the existing application and backend. Begin remediation on the professionalisation branch, starting with brand/tagline correctness, theme contrast, opening performance, reproducible build configuration and device-authentication/GIS acceptance. Do not promote Alpha 0.3 to SAMANVAY 1.0 until the gates above have evidence.
+
+## 8. Supplemental CI and remediation evidence — 13 November 2026
+
+- The full integrated application passed Android CI run #573 at commit `154c2781e2c23fe835163c4312166f195c9d6694`; artifact ID `13989519252` contains ARM64, ARMv7 and x86_64 APK outputs. CI checked package identity, ZIP integrity, signature and alignment. No physical-device installation or launch was available.
+- The separate Beta 0.2 recovery run #610 (`43353944095`) failed at `:url_launcher_android:lintVitalAnalyzeRelease` with Android Lint's `NoSuchMethodError: JavaDocParser.parseDataItem`. Dependency installation and Dart analysis passed; the workflow stopped before APK packaging. This is not a runtime result for the integrated Alpha app.
+- The application source on the professionalisation branch already carried the approved tagline by the time of this review. The regression checks now enforce it and enforce the opening durations.
+- The opening experience retains the original logo reveal, Indian-flag transition and Get Started screen. Its three stages are shortened to 2.8 s + 1.4 s + 2.2 s; the button becomes interactive at 82% of the final stage. Total time to an interactive Get Started control is approximately 6.0 s, excluding device-specific frame scheduling. The repeating ambient controller is stopped on the transition to AuthGate.
+- Android CI is configured to build review pull requests into the professionalisation branch. The Alpha 0.3 release-publication step is skipped for pull-request events so a verification PR cannot overwrite an existing release.
+- Working branch: `feature/samanvay-1.0-experience-2026-11-13-r2`; base: `feature/samanvay-1.0-professionalisation`. This work remains a draft pending successful CI and device acceptance.
+
+**Baseline decision:** preserve the existing application and backend. The first brand and opening-performance corrections are applied on the review branch. Continue with theme contrast, deterministic dependency management, device authentication/GIS acceptance and the remaining release gates. Do not promote Alpha 0.3 to SAMANVAY 1.0 until the gates above have evidence.
