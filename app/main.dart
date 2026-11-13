@@ -1565,42 +1565,397 @@ class _NewRequestPageState extends State<NewRequestPage> {
 // MAP
 // ==========================================
 
-class MapPage extends StatelessWidget {
+class MapPage extends StatefulWidget {
   const MapPage({super.key});
+
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  final Map<String, bool> layers = {
+    'Water': true,
+    'Sewer': true,
+    'Electricity': true,
+    'Telecom': false,
+    'Gas': false,
+  };
+  bool showSection = true;
+  double depth = 1.5;
+  String area = 'Coimbatore · Demo sector';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Infrastructure Map'),
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.map_outlined,
-              size: 75,
-              color: teal,
-            ),
-            SizedBox(height: 16),
-            Text(
-              'GIS integration',
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.bold,
+        title: const Text('Infrastructure GIS'),
+        actions: [
+          IconButton(
+            tooltip: 'Map information',
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Demonstration map'),
+                content: const Text(
+                  'This is a schematic demonstration, not a live survey map. '
+                  'All utility lines and depths are synthetic DEMO DATA. '
+                  'They do not show actual underground services.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: 8),
-            Text('Geographic infrastructure mapping is planned.'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF2D9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE3B45C)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFF8A5100)),
+                SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'DEMO DATA — Not for excavation or safety decisions. '
+                    'Verified utility records are not loaded.',
+                    style: TextStyle(
+                      color: Color(0xFF714400),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 13),
+          DropdownButtonFormField<String>(
+            value: area,
+            decoration: const InputDecoration(
+              labelText: 'Map area',
+              prefixIcon: Icon(Icons.location_on_outlined),
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: 'India · National overview',
+                child: Text('India · National overview'),
+              ),
+              DropdownMenuItem(
+                value: 'Tamil Nadu · State overview',
+                child: Text('Tamil Nadu · State overview'),
+              ),
+              DropdownMenuItem(
+                value: 'Coimbatore · Demo sector',
+                child: Text('Coimbatore · Demo sector'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => area = value);
+            },
+          ),
+          const SizedBox(height: 15),
+          const Text(
+            'Utility layers',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: navy),
+          ),
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 7,
+            children: layers.keys.map((name) {
+              return FilterChip(
+                label: Text(name),
+                selected: layers[name]!,
+                onSelected: (value) => setState(() => layers[name] = value),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 9),
+          Container(
+            height: 285,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: const Color(0xFFB7C6BE)),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _SamanvayMapPainter(layers: layers),
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: const Text(
+                      'SCHEMATIC · DEMO',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: navy),
+                    ),
+                  ),
+                ),
+                const Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Icon(Icons.my_location, color: navy),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Wrap(
+            spacing: 12,
+            runSpacing: 7,
+            children: [
+              _SamanvayLegend(color: Color(0xFF1677D2), label: 'Water'),
+              _SamanvayLegend(color: Color(0xFF8A5A32), label: 'Sewer'),
+              _SamanvayLegend(color: Color(0xFFE5A000), label: 'Electricity'),
+              _SamanvayLegend(color: Color(0xFF8055B7), label: 'Telecom'),
+              _SamanvayLegend(color: Color(0xFFD34C43), label: 'Gas'),
+            ],
+          ),
+          const SizedBox(height: 17),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Underground cross-section',
+                style: TextStyle(fontWeight: FontWeight.bold, color: navy)),
+            subtitle: const Text('Illustrative layers · not surveyed'),
+            value: showSection,
+            onChanged: (value) => setState(() => showSection = value),
+          ),
+          if (showSection) ...[
+            Container(
+              height: 215,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0xFFB7C6CE)),
+              ),
+              child: CustomPaint(
+                painter: _SamanvaySectionPainter(depth: depth, layers: layers),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Illustrative depth'),
+                const Spacer(),
+                Text(depth.toStringAsFixed(1) + ' m',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: navy)),
+              ],
+            ),
+            Slider(
+              value: depth,
+              min: 0.5,
+              max: 4,
+              divisions: 7,
+              onChanged: (value) => setState(() => depth = value),
+            ),
           ],
-        ),
+          const ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.verified_outlined, color: teal),
+            title: Text('Data confidence'),
+            subtitle: Text(
+              'No verified utility geometry or depth is loaded. '
+              'Owner-authorised survey data is required before operational use.',
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ==========================================
+class _SamanvayLegend extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _SamanvayLegend({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 10, height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 12, color: navy)),
+      ],
+    );
+  }
+}
+
+class _SamanvayMapPainter extends CustomPainter {
+  final Map<String, bool> layers;
+  _SamanvayMapPainter({required this.layers});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFE7EBDD));
+    final park = Paint()..color = const Color(0xFFC5D9B5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * .04, size.height * .08, size.width * .25, size.height * .22),
+        const Radius.circular(12)),
+      park);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * .70, size.height * .68, size.width * .24, size.height * .22),
+        const Radius.circular(12)),
+      park);
+
+    final road = Paint()
+      ..color = const Color(0xFFFCFBF6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 22
+      ..strokeCap = StrokeCap.round;
+    final edge = Paint()
+      ..color = const Color(0xFFBFC5BC)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final roads = [
+      Path()..moveTo(-5, size.height * .48)..lineTo(size.width + 5, size.height * .48),
+      Path()..moveTo(size.width * .50, -5)..lineTo(size.width * .58, size.height + 5),
+      Path()..moveTo(size.width * .08, size.height * .92)..lineTo(size.width * .92, size.height * .10),
+    ];
+    for (final path in roads) {
+      canvas.drawPath(path, road);
+      canvas.drawPath(path, edge);
+    }
+
+    final building = Paint()..color = const Color(0xFFD2D8D0);
+    for (var row = 0; row < 3; row++) {
+      for (var col = 0; col < 4; col++) {
+        final rect = Rect.fromLTWH(
+          size.width * (.08 + col * .22),
+          size.height * (.12 + row * .25),
+          size.width * .10,
+          size.height * .08);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(4)), building);
+      }
+    }
+
+    void line(String key, Color color, List<Offset> points) {
+      if (layers[key] != true) return;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final path = Path()
+        ..moveTo(points.first.dx * size.width, points.first.dy * size.height);
+      for (final p in points.skip(1)) {
+        path.lineTo(p.dx * size.width, p.dy * size.height);
+      }
+      canvas.drawPath(path, paint);
+    }
+
+    line('Water', const Color(0xFF1677D2), [
+      const Offset(.04, .68), const Offset(.30, .68),
+      const Offset(.49, .48), const Offset(.96, .48)]);
+    line('Sewer', const Color(0xFF8A5A32), [
+      const Offset(.05, .82), const Offset(.32, .82),
+      const Offset(.58, .48), const Offset(.91, .17)]);
+    line('Electricity', const Color(0xFFE5A000), [
+      const Offset(.22, .05), const Offset(.22, .48),
+      const Offset(.58, .75), const Offset(.95, .75)]);
+    line('Telecom', const Color(0xFF8055B7), [
+      const Offset(.05, .25), const Offset(.48, .25),
+      const Offset(.72, .48), const Offset(.95, .48)]);
+    line('Gas', const Color(0xFFD34C43), [
+      const Offset(.12, .92), const Offset(.42, .62),
+      const Offset(.75, .62), const Offset(.92, .35)]);
+
+    final center = Offset(size.width * .58, size.height * .48);
+    canvas.drawCircle(center, 7, Paint()..color = navy);
+    canvas.drawCircle(center, 12, Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SamanvayMapPainter oldDelegate) => true;
+}
+
+class _SamanvaySectionPainter extends CustomPainter {
+  final double depth;
+  final Map<String, bool> layers;
+
+  _SamanvaySectionPainter({required this.depth, required this.layers});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFEAF0F2));
+    final top = size.height * .30;
+    canvas.drawRect(Rect.fromLTWH(0, top, size.width, size.height - top),
+        Paint()..color = const Color(0xFFD9C6A5));
+    canvas.drawRect(Rect.fromLTWH(0, top + 45, size.width, size.height - top - 45),
+        Paint()..color = const Color(0xFFC8B18C));
+    canvas.drawLine(Offset(0, top), Offset(size.width, top),
+        Paint()..color = const Color(0xFF536D46)..strokeWidth = 5);
+
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    void label(String value, Offset at) {
+      tp.text = TextSpan(text: value, style: const TextStyle(
+        color: navy, fontSize: 10, fontWeight: FontWeight.bold));
+      tp.layout(maxWidth: size.width - 12);
+      tp.paint(canvas, at);
+    }
+    label('GROUND SURFACE · ILLUSTRATIVE', const Offset(9, 8));
+    label('SOIL LAYER', Offset(9, top + 10));
+    label('DEEPER SOIL', Offset(9, top + 58));
+
+    final colors = <String, Color>{
+      'Water': const Color(0xFF1677D2),
+      'Sewer': const Color(0xFF8A5A32),
+      'Electricity': const Color(0xFFE5A000),
+      'Telecom': const Color(0xFF8055B7),
+      'Gas': const Color(0xFFD34C43),
+    };
+    var lane = 0;
+    final y = top + 30 + depth / 4 * 90;
+    for (final entry in colors.entries) {
+      if (layers[entry.key] != true) continue;
+      final laneY = y + lane * 16;
+      canvas.drawLine(Offset(size.width * .47, laneY),
+          Offset(size.width * .91, laneY),
+          Paint()..color = entry.value..strokeWidth = 6..strokeCap = StrokeCap.round);
+      label(entry.key.toUpperCase() + ' · DEMO', Offset(size.width * .49, laneY - 13));
+      lane++;
+    }
+    label('DEPTH CONTROL IS A DEMO VALUE', Offset(9, size.height - 19));
+  }
+
+  @override
+  bool shouldRepaint(covariant _SamanvaySectionPainter oldDelegate) => true;
+}
+
 // PROFILE
 // ==========================================
 
