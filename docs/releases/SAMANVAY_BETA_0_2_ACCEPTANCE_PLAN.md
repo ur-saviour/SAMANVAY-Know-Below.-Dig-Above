@@ -81,3 +81,29 @@ A previous infrastructure audit recorded zero rows in `gis.underground_assets` a
 ## Completion rule
 
 Beta 0.2 is **100% complete only when every applicable checkbox above is implemented, the Android release build succeeds, and the critical flows are verified on a device or emulator**. A source-code change or a green compilation alone is not sufficient.
+
+
+## Beta 0.2 implementation update — 2026-11-13
+
+### Implemented in `beta-0.2/recovery`
+- Database-backed role routing: Citizen (`requester` in the existing database), Department Officer, Coordinator, and Administrator.
+- Official workspaces query only the cases returned by existing Supabase RLS policies.
+- Administrator account directory uses the existing protected `admin_user_directory` RPC.
+- Administrator role changes call `admin_update_profile_role`; the UI prevents self-edit and the database enforces administrator checks, valid role values, department assignment, last-admin protection, audit logging, and notification.
+- Registration offers Citizen, Department Officer, Coordinator, and Administrator account intent. Official roles are requests only; the profile remains Citizen until an administrator approves.
+- Added `account_access_requests` with own-request and administrator-read RLS policies. Approval/rejection is performed by `admin_review_access_request`, which checks administrator identity, prevents self-review, delegates role assignment to the existing protected role RPC, and records audit/notification events.
+- Added administrator-only `admin_access_request_directory` RPC for pending application review.
+- Added Flutter CI type fix for the administrator directory loader.
+
+### Live database deployment
+The additive `account_access_requests` table, indexes, RLS policies, review RPC, and administrator directory RPC were applied to the connected Supabase project and verified by checking the table and function registrations. The same SQL is recorded in `supabase/migrations/20261113030000_account_access_requests.sql`.
+
+### Verification still outstanding
+- Latest commit requires a fresh successful analyzer + Android release build + artifact upload.
+- Email confirmation, phone SMS delivery, OTP verification, password recovery deep link, official-access request submission, approval/rejection and post-approval role routing require device-level end-to-end tests.
+- Existing production schema contains migrations not represented in the repository. Full migration-history reconciliation is still required before treating a clean database deployment as reproducible.
+- Supabase advisor reports callable SECURITY DEFINER functions and disabled leaked-password protection. Reviewed role-management RPCs contain explicit administrator checks; the wider function set still requires a complete function-by-function security review. Do not blanket-revoke functions without confirming application dependencies.
+- GIS remains a synthetic schematic. Satellite basemap, verified GIS sources, national/state/ward geospatial navigation and a true 3D view remain unimplemented.
+- Approved logo and opening animation remain unverified against source assets.
+
+**Release rule:** Beta 0.2 is not complete until all required checks above are either passed or explicitly deferred in the release scope, and the APK is installed and exercised on a real Android device.
