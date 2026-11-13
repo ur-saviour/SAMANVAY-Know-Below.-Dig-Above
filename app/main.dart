@@ -700,50 +700,328 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int selectedIndex = 0;
+  late final Future<Map<String, dynamic>> profileFuture;
 
-  final pages = const [
-    DashboardPage(),
-    RequestsPage(),
-    MapPage(),
-    ProfilePage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    final user = supabase.auth.currentUser;
+    profileFuture = user == null
+        ? Future.error('No authenticated user')
+        : supabase
+            .from('profiles')
+            .select('display_name, role, department_id')
+            .eq('id', user.id)
+            .single()
+            .then((row) => Map<String, dynamic>.from(row));
+  }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: profileFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('SAMANVAY')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_outline, size: 42, color: navy),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Your account profile could not be loaded.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Access is not being guessed from the device. '
+                      'Please sign out and try again, or contact the administrator.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () => supabase.auth.signOut(),
+                      child: const Text('SIGN OUT'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        final profile = snapshot.data!;
+        final role = (profile['role'] ?? 'requester').toString();
+        final isCitizen = role == 'requester';
+        final pages = isCitizen
+            ? <Widget>[
+                const DashboardPage(),
+                const RequestsPage(),
+                const MapPage(),
+                const ProfilePage(),
+              ]
+            : <Widget>[
+                RoleWorkspacePage(profile: profile),
+                const MapPage(),
+                const ProfilePage(),
+              ];
+        final destinations = isCitizen
+            ? const <NavigationDestination>[
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Dashboard',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.assignment_outlined),
+                  selectedIcon: Icon(Icons.assignment),
+                  label: 'Requests',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.map_outlined),
+                  selectedIcon: Icon(Icons.map),
+                  label: 'GIS Map',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ]
+            : const <NavigationDestination>[
+                NavigationDestination(
+                  icon: Icon(Icons.workspaces_outline),
+                  selectedIcon: Icon(Icons.workspaces),
+                  label: 'Workspace',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.map_outlined),
+                  selectedIcon: Icon(Icons.map),
+                  label: 'GIS Map',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ];
+
+        return Scaffold(
+          body: IndexedStack(index: selectedIndex, children: pages),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (index) =>
+                setState(() => selectedIndex = index),
+            destinations: destinations,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Official workspaces use the role already assigned in the protected
+// profiles table. The app never lets a user select or promote their own role.
+class RoleWorkspacePage extends StatefulWidget {
+  final Map<String, dynamic> profile;
+
+  const RoleWorkspacePage({super.key, required this.profile});
+
+  @override
+  State<RoleWorkspacePage> createState() => _RoleWorkspacePageState();
+}
+
+class _RoleWorkspacePageState extends State<RoleWorkspacePage> {
+  late Future<List<Map<String, dynamic>>> requestsFuture;
+
+  String get role => (widget.profile['role'] ?? '').toString();
+
+  String get roleTitle {
+    switch (role) {
+      case 'department':
+        return 'Department Officer Portal';
+      case 'coordinator':
+        return 'Coordination Portal';
+      case 'admin':
+        return 'Administrator Portal';
+      default:
+        return 'Official Workspace';
+    }
+  }
+
+  String get roleDescription {
+    switch (role) {
+      case 'department':
+        return 'Review cases visible to your assigned department and track their progress.';
+      case 'coordinator':
+        return 'Monitor authorised cross-department cases and coordination status.';
+      case 'admin':
+        return 'Monitor platform activity. Account privileges remain controlled by server-side administrator authorisation.';
+      default:
+        return 'Your account does not have an official workspace role.';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    requestsFuture = loadAuthorisedRequests();
+  }
+
+  Future<List<Map<String, dynamic>>> loadAuthorisedRequests() async {
+    final rows = await supabase
+        .from('excavation_requests')
+        .select('id, request_number, title, city, status, case_category, created_at')
+        .order('created_at', ascending: false)
+        .limit(30);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<void> refresh() async {
+    setState(() => requestsFuture = loadAuthorisedRequests());
+    await requestsFuture;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.profile['display_name']?.toString() ?? 'Official';
     return Scaffold(
-      body: IndexedStack(
-        index: selectedIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'Requests',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+      appBar: AppBar(
+        title: const Text('SAMANVAY'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh cases',
+            onPressed: refresh,
+            icon: const Icon(Icons.refresh),
           ),
         ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: refresh,
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('AUTHENTICATED WORKSPACE',
+                      style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  const SizedBox(height: 8),
+                  Text(roleTitle,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(name,
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Text(roleDescription,
+                      style: const TextStyle(color: Colors.white70)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Row(
+              children: [
+                Icon(Icons.verified_user_outlined, color: teal),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Access is enforced by Supabase Row Level Security. '
+                    'Only records authorised for this account are returned.',
+                    style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text('Authorised cases',
+                style: TextStyle(
+                    color: navy, fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: requestsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text('Cases could not be loaded: ${snapshot.error}'),
+                    ),
+                  );
+                }
+                final rows = snapshot.data ?? [];
+                if (rows.isEmpty) {
+                  return const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text('No cases are currently visible to this account.'),
+                    ),
+                  );
+                }
+                return Column(
+                  children: rows.map((item) {
+                    final number = item['request_number']?.toString() ?? '—';
+                    final title = item['title']?.toString() ?? 'Untitled case';
+                    final city = item['city']?.toString() ?? 'Location unavailable';
+                    final status = item['status']?.toString() ?? 'unknown';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 9),
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFE5F4F1),
+                          child: Icon(Icons.assignment_outlined, color: teal),
+                        ),
+                        title: Text(title,
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('Case #$number · $city'),
+                        trailing: Text(status.replaceAll('_', ' ').toUpperCase(),
+                            style: const TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+            if (role == 'admin') ...[
+              const SizedBox(height: 12),
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.admin_panel_settings, color: teal),
+                  title: Text('Secure account administration'),
+                  subtitle: Text(
+                    'Role changes are performed only through the database administrator function, which checks the caller role and writes an audit event. A self-service role switch is intentionally unavailable.',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
