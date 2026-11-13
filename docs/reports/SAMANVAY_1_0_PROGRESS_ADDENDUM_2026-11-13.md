@@ -221,3 +221,13 @@ These tests exercise PostgreSQL function guards with simulated identity claims; 
 A sampled 24-hour Supabase Edge log window for `samanvay-public-boundaries` recorded 13/13 successful responses, zero HTTP errors, p50 execution time 1,765 ms, p95 3,246.6 ms, and maximum response payload 2,911,887 bytes. This is a limited observed sample, not a universal benchmark.
 
 The Flutter map previously invoked this endpoint again when MapLibre recreated its style and the India ADM1/ADM2 sources had to be re-added. This increment adds a six-hour in-memory cache for validated public boundary payloads, keyed separately by ADM1 and ADM2. Repeated style reloads in the same app process can reuse the GeoJSON instead of downloading it again. Process restart or cache expiry still fetches from the Edge Function, which retains its own six-hour provider cache. Post-change request counts and map-render latency still need measurement.
+
+
+## 13. Live profile RLS verification
+
+A transaction-level test was run with `SET LOCAL ROLE authenticated` and a Citizen's JWT claim:
+- `UPDATE public.profiles SET display_name = display_name WHERE id = auth.uid()` returned `own_display_name_update_allowed = true`.
+- The transaction was rolled back; no profile value changed.
+- A corresponding attempt to update `role` was rejected by PostgreSQL with SQLSTATE `42501` (permission denied for table `profiles`).
+
+This verifies the active RLS/column-grant path for the display-name editor and confirms normal authenticated clients cannot update the protected role column.
