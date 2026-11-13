@@ -110,6 +110,11 @@ class _AuthPageState extends State<AuthPage> {
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
+  final _accessReasonController = TextEditingController();
+
+  late final Future<List<Map<String, dynamic>>> departmentsFuture;
+  String requestedRole = 'requester';
+  String? requestedDepartmentId;
 
   bool usePhone = false;
   bool otpSent = false;
@@ -121,12 +126,31 @@ class _AuthPageState extends State<AuthPage> {
   bool messageIsSuccess = false;
 
   @override
+  void initState() {
+    super.initState();
+    departmentsFuture = supabase
+        .from('departments')
+        .select('id, name')
+        .order('name')
+        .then((rows) => List<Map<String, dynamic>>.from(rows));
+  }
+
+  Map<String, dynamic> registrationMetadata() => {
+        'display_name': _nameController.text.trim(),
+        'requested_role': requestedRole,
+        'requested_department_id':
+            requestedRole == 'department' ? requestedDepartmentId : null,
+        'access_reason': _accessReasonController.text.trim(),
+      };
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
+    _accessReasonController.dispose();
     super.dispose();
   }
 
@@ -155,9 +179,7 @@ class _AuthPageState extends State<AuthPage> {
           await supabase.auth.signInWithOtp(
             phone: phone,
             shouldCreateUser: !isLogin,
-            data: isLogin ? null : {
-              'display_name': _nameController.text.trim(),
-            },
+            data: isLogin ? null : registrationMetadata(),
           );
           if (mounted) {
             setState(() => otpSent = true);
@@ -189,9 +211,7 @@ class _AuthPageState extends State<AuthPage> {
           email: email,
           password: _passwordController.text,
           emailRedirectTo: redirectUrl,
-          data: {
-            'display_name': _nameController.text.trim(),
-          },
+          data: registrationMetadata(),
         );
 
         if (response.session == null) {
@@ -380,6 +400,75 @@ class _AuthPageState extends State<AuthPage> {
                       },
                     ),
 
+                    const SizedBox(height: 16),
+                  ],
+
+                  if (!isLogin) ...[
+                    DropdownButtonFormField<String>(
+                      value: requestedRole,
+                      decoration: const InputDecoration(
+                        labelText: 'Account type',
+                        helperText: 'Official access is enabled only after administrator approval.',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'requester', child: Text('Citizen')),
+                        DropdownMenuItem(value: 'department', child: Text('Department Officer')),
+                        DropdownMenuItem(value: 'coordinator', child: Text('Coordinator')),
+                        DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                      ],
+                      onChanged: (value) => setState(() {
+                        requestedRole = value ?? 'requester';
+                        if (requestedRole != 'department') requestedDepartmentId = null;
+                      }),
+                    ),
+                    if (requestedRole == 'department') ...[
+                      const SizedBox(height: 14),
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: departmentsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState != ConnectionState.done) {
+                            return const LinearProgressIndicator();
+                          }
+                          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                            return const Text('Department list unavailable. You can submit a request after contacting an administrator.');
+                          }
+                          return DropdownButtonFormField<String>(
+                            value: requestedDepartmentId,
+                            decoration: const InputDecoration(
+                              labelText: 'Department',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: snapshot.data!
+                                .map((department) => DropdownMenuItem<String>(
+                                      value: department['id'].toString(),
+                                      child: Text(department['name'].toString()),
+                                    ))
+                                .toList(),
+                            onChanged: (value) => setState(() => requestedDepartmentId = value),
+                            validator: (value) => requestedRole == 'department' && value == null
+                                ? 'Select your department'
+                                : null,
+                          );
+                        },
+                      ),
+                    ],
+                    if (requestedRole != 'requester') ...[
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _accessReasonController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Official access reason',
+                          hintText: 'Enter your department or coordination responsibility',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) => requestedRole != 'requester' &&
+                                (value == null || value.trim().length < 10)
+                            ? 'Provide at least 10 characters'
+                            : null,
+                      ),
+                    ],
                     const SizedBox(height: 16),
                   ],
 
@@ -714,6 +803,34 @@ class _MainScreenState extends State<MainScreen> {
             .eq('id', user.id)
             .single()
             .then((row) => Map<String, dynamic>.from(row));
+    if (user != null) _queueOfficialAccessRequest(user);
+  }
+
+  Future<void> _queueOfficialAccessRequest(User user) async {
+    final metadata = user.userMetadata ?? <String, dynamic>{};
+    final requested = metadata['requested_role']?.toString();
+    if (!['department', 'coordinator', 'admin'].contains(requested)) return;
+    final departmentId = metadata['requested_department_id']?.toString();
+    if (requested == 'department' && (departmentId == null || departmentId.isEmpty)) return;
+    try {
+      final existing = await supabase
+          .from('account_access_requests')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .maybeSingle();
+      if (existing != null) return;
+      await supabase.from('account_access_requests').insert({
+        'user_id': user.id,
+        'requested_role': requested,
+        'department_id': requested == 'department' ? departmentId : null,
+        'reason': (metadata['access_reason']?.toString() ?? 'Official account access request').trim().length >= 10
+            ? metadata['access_reason'].toString().trim()
+            : 'Official account access request submitted during registration.',
+      });
+    } catch (_) {
+      // A failed request never grants a role. The account remains a Citizen.
+    }
   }
 
   @override
@@ -826,6 +943,146 @@ class _MainScreenState extends State<MainScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class AdminAccessRequestsPanel extends StatefulWidget {
+  const AdminAccessRequestsPanel({super.key});
+
+  @override
+  State<AdminAccessRequestsPanel> createState() => _AdminAccessRequestsPanelState();
+}
+
+class _AdminAccessRequestsPanelState extends State<AdminAccessRequestsPanel> {
+  late Future<List<Map<String, dynamic>>> requestsFuture;
+  bool working = false;
+
+  @override
+  void initState() {
+    super.initState();
+    requestsFuture = loadRequests();
+  }
+
+  Future<List<Map<String, dynamic>>> loadRequests() async {
+    final rows = await supabase.rpc('admin_access_request_directory');
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<void> refreshRequests() async {
+    setState(() => requestsFuture = loadRequests());
+    await requestsFuture;
+  }
+
+  Future<void> review(Map<String, dynamic> request, String decision) async {
+    setState(() => working = true);
+    try {
+      await supabase.rpc('admin_review_access_request', params: {
+        'p_request_id': request['request_id'],
+        'p_decision': decision,
+        'p_review_notes': null,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(decision == 'approve'
+            ? 'Official access approved.'
+            : 'Access request rejected.'),
+      ));
+      await refreshRequests();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Review failed: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 18),
+        const Text('Pending official access requests',
+            style: TextStyle(color: navy, fontSize: 19, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 6),
+        const Text('Approving a request assigns the role through the protected database function.',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: requestsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return Card(child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text('Requests unavailable: ${snapshot.error}'),
+              ));
+            }
+            final requests = snapshot.data ?? [];
+            if (requests.isEmpty) {
+              return const Card(child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text('No pending official access requests.'),
+              ));
+            }
+            return Column(
+              children: requests.map((request) {
+                final name = request['display_name']?.toString().trim().isNotEmpty == true
+                    ? request['display_name'].toString()
+                    : 'Unnamed applicant';
+                final role = request['requested_role'] == 'department'
+                    ? 'Department Officer'
+                    : request['requested_role'] == 'coordinator'
+                        ? 'Coordinator'
+                        : 'Administrator';
+                final department = request['department_name']?.toString();
+                return Card(
+                  margin: const EdgeInsets.only(top: 10),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: const TextStyle(color: navy, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(department == null ? role : '$role · $department',
+                            style: const TextStyle(fontSize: 12, color: teal, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text(request['reason']?.toString() ?? ''),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: working ? null : () => review(request, 'reject'),
+                                child: const Text('REJECT'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: working ? null : () => review(request, 'approve'),
+                                child: const Text('APPROVE'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -1256,7 +1513,10 @@ class _RoleWorkspacePageState extends State<RoleWorkspacePage> {
                 );
               },
             ),
-            if (role == 'admin') const AdminAccountsPanel(),
+            if (role == 'admin') ...[
+              const AdminAccessRequestsPanel(),
+              const AdminAccountsPanel(),
+            ],
           ],
         ),
       ),
