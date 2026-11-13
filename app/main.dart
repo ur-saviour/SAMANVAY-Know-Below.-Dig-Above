@@ -768,12 +768,12 @@ class _MainScreenState extends State<MainScreen> {
                 const DashboardPage(),
                 const RequestsPage(),
                 const MapPage(),
-                const ProfilePage(),
+                ProfilePage(profile: profile),
               ]
             : <Widget>[
                 RoleWorkspacePage(profile: profile),
                 const MapPage(),
-                const ProfilePage(),
+                ProfilePage(profile: profile),
               ];
         final destinations = isCitizen
             ? const <NavigationDestination>[
@@ -2678,7 +2678,9 @@ class _SamanvaySectionPainter extends CustomPainter {
 // ==========================================
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+  final Map<String, dynamic>? profile;
+
+  const ProfilePage({super.key, this.profile});
 
   Future<void> logout(BuildContext context) async {
     try {
@@ -2695,7 +2697,15 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
-    final name = user?.userMetadata?['display_name'] ?? 'User';
+    final name = profile?['display_name'] ??
+        user?.userMetadata?['display_name'] ?? 'User';
+    final rawRole = (profile?['role'] ?? 'requester').toString();
+    final roleLabel = switch (rawRole) {
+      'department' => 'Department Officer',
+      'coordinator' => 'Coordinator',
+      'admin' => 'Administrator',
+      _ => 'Citizen',
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -2729,7 +2739,14 @@ class ProfilePage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.blueGrey),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 14),
+          ListTile(
+            leading: const Icon(Icons.badge_outlined, color: teal),
+            title: const Text('Verified platform role'),
+            subtitle: Text(roleLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 12),
           const ListTile(
             leading: Icon(Icons.verified_user, color: teal),
             title: Text('Authentication'),
