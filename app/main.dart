@@ -7873,8 +7873,12 @@ class _DemoSubsurfacePainter extends CustomPainter {
       ..cubicTo(size.width*.3,y-3,size.width*.68,y+3,size.width*.96,y);
     canvas.drawPath(path, Paint()..color=Colors.black.withValues(alpha:.35)
       ..style=PaintingStyle.stroke..strokeWidth=width+4..strokeCap=StrokeCap.round);
-    canvas.drawPath(path, Paint()..color=color..style=PaintingStyle.stroke
-      ..strokeWidth=cable?3:width..strokeCap=StrokeCap.round);
+    final utilityStroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = cable ? 3 : width
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(path, utilityStroke);
     if (!cable) canvas.drawPath(path, Paint()..color=Colors.white.withValues(alpha:.45)
       ..style=PaintingStyle.stroke..strokeWidth=1);
     final metric=path.computeMetrics().first;
@@ -7933,7 +7937,10 @@ class _DemoSubsurfacePainter extends CustomPainter {
     _utility(canvas,size,'Sewer',h*.92,width:11);
     if(visibleLayers.contains('Borewell')) {
       final x=w*.84;
-      canvas.drawLine(Offset(x,h*.52),Offset(x,h*.96),Paint()..color=_colours['Borewell']!..strokeWidth=5);
+      final borewellPaint = Paint();
+      borewellPaint.color = _colours['Borewell']!;
+      borewellPaint.strokeWidth = 5;
+      canvas.drawLine(Offset(x,h*.52),Offset(x,h*.96),borewellPaint);
       canvas.drawCircle(Offset(x,h*.52),5,Paint()..color=_colours['Borewell']!);
       _text(canvas,'BOREWELL',Offset(x+5,h*.54),_colours['Borewell']!,size:6);
     }
