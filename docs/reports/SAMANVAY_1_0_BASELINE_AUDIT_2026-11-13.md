@@ -145,6 +145,71 @@ A milestone is complete only when its evidence is recorded.
 - [Alpha 0.3 delivery record](../release/SAMANVAY_ALPHA_0_3_COIMBATORE_PILOT_DELIVERY.md)
 
 
+## 8. Live backend and migration reconciliation — 13 November 2026
+
+The following is a read-only snapshot of the connected Supabase project `zhtotivedvkmclerdnlf` (PostgreSQL 17.11, `ap-south-1`). No production data, schema, authentication settings or permissions were changed.
+
+### Live table inventory
+
+| Relation | Rows | RLS | Interpretation |
+|---|---:|---|---|
+| `public.departments` | 11 | Enabled | Department registry populated |
+| `public.profiles` | 6 | Enabled | Six profile records; do not infer phone verification from profile count |
+| `public.excavation_requests` | 4 | Enabled | Small pilot/test queue |
+| `public.request_department_reviews` | 3 | Enabled | Department-review records exist |
+| `gis.underground_assets` | 0 | Enabled | No verified underground asset rows |
+| `gis.asset_survey_evidence` | 0 | Enabled | No registered survey evidence rows |
+| `public.case_inspections` | 0 | Enabled | No inspection records |
+| `public.road_cut_permit_records` | 0 | Enabled | No permit records |
+| `public.road_restoration_records` | 0 | Enabled | No road-restoration records |
+| `public.groundwater_station_observations` | 446,068 | Enabled | Groundwater telemetry inventory; not utility alignment data |
+| `public.building_approval_records` | 2,015 | Enabled | Building-approval source records |
+| `public.india_state_uts` | 36 | Enabled | State/UT reference set |
+| `public.india_administrative_units` | 21,705 | Enabled | Administrative reference records; not proof of complete statutory ward coverage |
+| `public.india_ulb_district_reconciliation` | 5,050 | Enabled | All rows are initially unmapped and require evidence-backed parent resolution |
+
+RLS is enabled on the 52 inspected `public` and `gis` tables. This is a positive configuration signal, not a substitute for validating each row policy with separate user sessions.
+
+### Security advisor and RPC review
+
+The Supabase security advisor snapshot reported:
+
+- 18 public `SECURITY DEFINER` functions executable by the `authenticated` role.
+- Leaked-password protection disabled in Supabase Auth.
+
+A read-only `pg_proc` / `pg_get_functiondef` inspection of all 18 flagged functions found that each has a function-local empty `search_path`, denies execution to `anon`, references `auth.uid()` and reads the caller profile. The sampled definitions include explicit administrator/staff role checks, actor ownership checks and/or caller-bound row predicates. The advisor is correctly treated as a review warning because authenticated users can invoke a definer function; it is not, by itself, proof of an exploitable authorization defect. Each function still needs a dedicated positive/negative role test and a complete body review before any permission change is considered.
+
+**Do not mass-revoke or convert these functions to SECURITY INVOKER.** Several are deliberate, narrow RPC boundaries that read restricted PostGIS rows while verifying the caller. Changing them without a function-by-function replacement could break protected GIS and workflow operations.
+
+The recommended Auth improvement is to enable leaked-password protection after reviewing the project's current password UX and expected user impact, then verify registration and password recovery. The Auth setting was not changed during this audit.
+
+### Performance advisor snapshot
+
+| Advisor | Findings | Classification |
+|---|---:|---|
+| Unindexed foreign keys | 5 | INFO; verify query plans and expected access paths |
+| Unused indexes | 81 | INFO; do not drop based only on a fresh/limited workload window |
+| Multiple permissive RLS policies | 14 | WARN; overlapping policies can add evaluation cost; policy OR semantics must be preserved |
+| Duplicate index | 1 | WARN; `case_inspections_request_inspected_idx` and `case_inspections_request_time_idx` were reported as identical |
+
+No indexes or policies were modified. The duplicate index should be confirmed using full index definitions and workload evidence before removing one. The unused-index advisor alone is insufficient to justify deletion, particularly for rarely used administrative or disaster-recovery operations.
+
+### Migration-history reconciliation — release blocker
+
+A read-only comparison found:
+
+- Supabase migration history: **91 applied entries**.
+- Repository `supabase/migrations/`: **75 SQL files**.
+- Matching migration names (ignoring timestamp): **70**.
+- Database history entries with no same-name repository migration: **21**.
+- Repository SQL filenames with no same-name database history entry: **5**.
+
+This is version/history drift, not permission to replay missing SQL. Some entries may be renamed/squashed/superseded and several repository migrations use different timestamps for similarly named changes. Before any clean database reset or migration promotion, reconcile each unmatched item against the live schema, function definitions and historical commit content. Never apply the 21 unmatched remote entries again or mark local migrations as applied merely to silence drift without an approved reconciliation record.
+
+**Release gate:** restore a reproducible migration ledger and prove that a fresh disposable database reaches the same schema as the connected project, without changing production data. Only then can clean-install/backend migration reproducibility be declared complete.
+
+
+
 ## 9. Android analyzer regression and background-animation optimisation — 13 November 2026
 
 The professionalisation branch advanced to commit 94305fe06e4db21ede0a898a544d917a34836ba7 with targeted light-mode text changes in the GIS layer sheet. Its Android workflow failed during Dart analysis, before APK compilation. The five reported Invalid constant value errors came from marking widgets/styles as const while supplying the runtime theme getter ink. The corrective branch removes only those invalid const declarations; theme-aware text remains intact.
