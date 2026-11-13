@@ -121,3 +121,21 @@ The GIS layer bottom sheet uses the theme's `panelNavy` surface, which is white 
 - Logo Git blob SHA within the built APK: `17c2db21509cfb59109cd413e8cb0f24d3f66524`, matching the original asset exactly.
 
 This remains an Alpha 0.3 package and does not replace physical-device light/dark visual acceptance.
+
+
+## 8. Opening lifecycle and tab-rendering optimisation — 13 November 2026
+
+The latest professionalisation head includes the owner-added Edit name workflow and the applied least-privilege database migration. This increment retains those changes and adds a targeted animation lifecycle improvement.
+
+- Existing branded logo reveal: 2.8 seconds.
+- Indian-flag transition: 1.4 seconds.
+- Intro stage: 2.2 seconds.
+- Get Started becomes interactive at 82% of the intro stage (approximately 6.0 seconds from launch).
+- The ambient opening controller already stops on transition to AuthGate.
+- Each Citizen page inside the existing IndexedStack is now wrapped in TickerMode. Only the selected tab ticks its animations; page state remains mounted. This prevents the GIS underground cutaway's repeating animation from continuing to tick while the Citizen uses Home, Cases, Public works or Profile.
+- Regression checks cover the timing values, CTA threshold, ambient stop and selected-tab ticker gate.
+- The Android workflow now runs on pull requests into the professionalisation branch. PR builds can produce validation artifacts but cannot publish or overwrite Alpha 0.3.
+- Superseded drafts #13, #14 and #15 were closed; PR #17 is the active rebased review for these changes.
+
+This is source-level optimisation, not a measured performance claim. Physical-device startup timing, frame pacing, memory, CPU, battery and map/network behavior still require profiling on representative Android devices. TickerMode stops animation ticks; it does not stop hidden-page realtime streams or network subscriptions.
+

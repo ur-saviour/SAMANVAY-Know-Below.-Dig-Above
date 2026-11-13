@@ -6,6 +6,19 @@ name: Build SAMANVAY Android APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - feature/samanvay-1.0-professionalisation
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - '!app/assets/brand/*.part*'
+      - 'lib/**'
+      - 'android/**'
+      - 'pubspec.yaml'
+      - 'assets/**'
+      - '.github/workflows/build-apk.yml'
   push:
     branches:
       - main
@@ -419,7 +432,7 @@ jobs:
 
       # 11. Publish/update the Alpha 0.3 prerelease on successful builds
       - name: Publish SAMANVAY Alpha 0.3
-        if: hashFiles('dist/*.apk') != ''
+        if: github.event_name != 'pull_request' && hashFiles('dist/*.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: samanvay-alpha-0.3
