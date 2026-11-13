@@ -20017,7 +20017,9 @@ class _MapPageState extends State<MapPage> {
                     onTap: _openAttribution,
                     child: Text(
                       _satellite
-                          ? '© MapTiler · © OpenStreetMap contributors'
+                          ? (_mapTilerKey.isNotEmpty
+                              ? '© MapTiler · © OpenStreetMap contributors'
+                              : 'Source: Esri, Maxar, Earthstar Geographics, USDA FSA, USGS and the GIS User Community')
                           : '© OpenFreeMap · © OpenStreetMap contributors',
                       style: const TextStyle(
                         color: Color(0xFFE1EAF1),
