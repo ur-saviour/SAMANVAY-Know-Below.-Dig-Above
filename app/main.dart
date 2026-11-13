@@ -847,13 +847,12 @@ class _AdminAccountsPanelState extends State<AdminAccountsPanel> {
   }
 
   Future<Map<String, dynamic>> loadDirectory() async {
-    final results = await Future.wait([
-      supabase.rpc('admin_user_directory'),
-      supabase.from('departments').select('id, name').order('name'),
-    ]);
+    final usersResult = await supabase.rpc('admin_user_directory');
+    final departmentsResult =
+        await supabase.from('departments').select('id, name').order('name');
     return {
-      'users': List<Map<String, dynamic>>.from(results[0] as List),
-      'departments': List<Map<String, dynamic>>.from(results[1] as List),
+      'users': List<Map<String, dynamic>>.from(usersResult as List),
+      'departments': List<Map<String, dynamic>>.from(departmentsResult),
     };
   }
 
