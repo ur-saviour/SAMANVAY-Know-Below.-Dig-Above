@@ -73,6 +73,11 @@ class AuthGate extends StatelessWidget {
             ? snapshot.data!.session
             : supabase.auth.currentSession;
 
+        if (snapshot.hasData &&
+            snapshot.data!.event == AuthChangeEvent.passwordRecovery) {
+          return const ResetPasswordPage();
+        }
+
         if (session == null) {
           return const AuthPage();
         }
@@ -579,6 +584,104 @@ class _AuthPageState extends State<AuthPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class ResetPasswordPage extends StatefulWidget {
+  const ResetPasswordPage({super.key});
+
+  @override
+  State<ResetPasswordPage> createState() => _ResetPasswordPageState();
+}
+
+class _ResetPasswordPageState extends State<ResetPasswordPage> {
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
+  bool loading = false;
+  bool hidePassword = true;
+  String? errorMessage;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> updatePassword() async {
+    final password = _passwordController.text;
+    if (password.length < 8) {
+      setState(() => errorMessage = 'Use at least 8 characters.');
+      return;
+    }
+    if (password != _confirmController.text) {
+      setState(() => errorMessage = 'The passwords do not match.');
+      return;
+    }
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      await supabase.auth.updateUser(UserAttributes(password: password));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password updated successfully.')),
+      );
+    } on AuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
+    } catch (_) {
+      if (mounted) setState(() => errorMessage = 'Unable to update password. Please try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Set a new password')),
+      body: ListView(
+        padding: const EdgeInsets.all(22),
+        children: [
+          const Text(
+            'Choose a new password for your SAMANVAY account.',
+            style: TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _passwordController,
+            obscureText: hidePassword,
+            decoration: InputDecoration(
+              labelText: 'New password',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () => setState(() => hidePassword = !hidePassword),
+                icon: Icon(hidePassword ? Icons.visibility : Icons.visibility_off),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _confirmController,
+            obscureText: hidePassword,
+            decoration: const InputDecoration(
+              labelText: 'Confirm new password',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(errorMessage!, style: const TextStyle(color: Colors.red)),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: loading ? null : updatePassword,
+            child: Text(loading ? 'UPDATING...' : 'UPDATE PASSWORD'),
+          ),
+        ],
       ),
     );
   }
