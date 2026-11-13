@@ -18935,7 +18935,7 @@ class _MapPageState extends State<MapPage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: ink,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
@@ -18977,7 +18977,7 @@ class _MapPageState extends State<MapPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'GIS LAYERS',
                       style: TextStyle(
                         color: ink,
@@ -19069,7 +19069,7 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showCoimbatoreWardBoundaries,
                       activeThumbColor: const Color(0xFF20D6C2),
-                      title: const Text(
+                      title: Text(
                         'Coimbatore-only ward reference (2024)',
                         style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                       ),
@@ -19121,7 +19121,7 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showGroundwaterTelemetry,
                       activeThumbColor: const Color(0xFFA78BFA),
-                      title: const Text(
+                      title: Text(
                         'National groundwater monitoring stations (2021–2025)',
                         style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                       ),
@@ -19209,7 +19209,7 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ),
                     const Divider(color: Color(0x334B647C)),
-                    const Text(
+                    Text(
                       'Data integrity',
                       style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                     ),
