@@ -48,6 +48,15 @@ check("PUBLIC-ADMIN-DEMO" in main and "PUBLIC-COORDINATOR-DEMO" in main
       "All four demo workspaces use separate public demo identifiers.")
 
 
+# Password recovery must route the deep-link session into an actual password update form.
+check("authState?.event == AuthChangeEvent.passwordRecovery" in main
+      and "class PasswordRecoveryPage extends StatefulWidget" in main
+      and "UserAttributes(password: _newPassword.text)" in main,
+      "Password-recovery links open a validated screen that updates the authenticated account password.")
+check("redirectTo: redirectUrl" in main
+      and "redirectTo: _samanvayAuthRedirectUrl" in main,
+      "Signed-out and signed-in password-recovery entry points share the app callback URL.")
+
 # Phone OTP verification must distinguish new-account signup from existing-account login.
 check("isPhoneSignupOtp ? OtpType.signup : OtpType.sms" in main,
       "Phone registration verifies with Supabase signup OTP type; phone login uses SMS OTP type.")
@@ -138,6 +147,12 @@ if ward_file.is_file():
         errors.append(f"Coimbatore ward GeoJSON is unreadable: {exc}")
 else:
     check(False, "Coimbatore ward GeoJSON source asset exists.")
+
+# Application identity is a fixed project requirement.
+check("SAMANVAY | Know Below. Dig Above." in main
+      and "KNOW BELOW. DIG ABOVE." in main
+      and "Towards Our Development" not in main,
+      "The application consistently uses the official SAMANVAY tagline.")
 
 # Brand asset is required by both platform build pipelines.
 logo = APP / "assets" / "brand" / "samanvay_logo.svg"
