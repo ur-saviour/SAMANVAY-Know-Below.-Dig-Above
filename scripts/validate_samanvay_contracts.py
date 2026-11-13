@@ -32,6 +32,12 @@ def source(path: Path) -> str:
 
 main = source(MAIN)
 
+# Preserve the official SAMANVAY tagline in the opening experience and app title.
+check("Know Below. Dig Above." in main,
+      "The approved SAMANVAY tagline is present in the application.")
+check("TOWARDS OUR DEVELOPMENT" not in main,
+      "The superseded opening tagline is not present in the application.")
+
 # Role labels and profile-preview isolation.
 check("'requester' => 'Citizen'" in main,
       "Internal requester role is presented as Citizen.")
