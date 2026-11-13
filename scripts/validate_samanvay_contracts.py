@@ -80,6 +80,13 @@ check("account_access_request_approve" in access_audit_migration
       and "admin_audit_events_event_type_check" in access_audit_migration,
       "Access-request review audit event types are explicitly allowed by the database migration.")
 
+# The selected Department Officer signup value must match an actual dropdown item
+# and a live departments.name value.
+check("String requestedSignupDepartment = 'Water Supply';" in main
+      and "'Water Supply'," in main
+      and "'Water Supply / PHED'" not in main,
+      "Department Officer signup starts with a valid live department dropdown value.")
+
 # Official access requested at signup is inserted only after authentication; the
 # user's database role remains requester until an administrator reviews it.
 check("account_access_requests" in main

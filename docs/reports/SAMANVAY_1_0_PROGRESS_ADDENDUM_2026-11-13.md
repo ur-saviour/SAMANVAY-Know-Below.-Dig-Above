@@ -294,3 +294,8 @@ After applying the migration, a transaction-only end-to-end test passed:
 A post-rollback check confirmed zero rows in `account_access_requests` and the original profile role counts remained unchanged (1 Administrator, 1 Coordinator, 1 Department Officer and 3 Citizens). No real account was promoted and no test request was retained.
 
 The repeatable role-regression script now also checks that Department Officers cannot access the administrator request queue or review RPC; the Administrator positive path reads the queue. Android build #627 still validates the client code from commit `c8b98d5`; the next CI run is required for the subsequent test/migration-file synchronization commit.
+
+
+### Signup default-value regression fix
+
+The department catalogue was aligned to the live `departments.name` values, and a follow-up review caught the initial dropdown value still using its previous label. The default is now `Water Supply`, which exists in both the dropdown and database catalogue. A static contract check asserts the default is a valid current option and that the obsolete label is absent.

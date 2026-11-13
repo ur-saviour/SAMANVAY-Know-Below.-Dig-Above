@@ -4497,7 +4497,7 @@ class _AuthPageState extends State<AuthPage> {
   bool otpSent = false;
   bool isPhoneSignupOtp = false;
   String requestedSignupRole = 'requester';
-  String requestedSignupDepartment = 'Water Supply / PHED';
+  String requestedSignupDepartment = 'Water Supply';
   // Values match the live departments table so a request can be linked
   // to a real department UUID after the account is authenticated.
   static const List<String> _signupDepartments = [
