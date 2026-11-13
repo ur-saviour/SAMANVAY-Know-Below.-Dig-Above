@@ -299,3 +299,12 @@ The repeatable role-regression script now also checks that Department Officers c
 ### Signup default-value regression fix
 
 The department catalogue was aligned to the live `departments.name` values, and a follow-up review caught the initial dropdown value still using its previous label. The default is now `Water Supply`, which exists in both the dropdown and database catalogue. A static contract check asserts the default is a valid current option and that the obsolete label is absent.
+
+
+### Reusable official-access workflow regression
+
+Added `scripts/test_official_access_request_workflow.sql`, a rollback-only integration test that submits three pending requests through authenticated RLS, verifies Admin queue visibility, approves Coordinator and Department Officer requests (including department assignment), rejects an Administrator request, and asserts review status, audit events and per-user notifications before rollback. It requires three existing Citizen fixtures, one Administrator and the Water Supply department.
+
+### CI contract correction
+
+Build #629 caught an overbroad source assertion that scanned the entire application for the retired department label even though the read-only demo preview intentionally retains it. The assertion is now scoped to the registration form only; it still verifies that the Officer signup default is an actual live department option.

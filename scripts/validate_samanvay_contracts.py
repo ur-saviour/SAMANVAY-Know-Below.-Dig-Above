@@ -80,11 +80,14 @@ check("account_access_request_approve" in access_audit_migration
       and "admin_audit_events_event_type_check" in access_audit_migration,
       "Access-request review audit event types are explicitly allowed by the database migration.")
 
-# The selected Department Officer signup value must match an actual dropdown item
-# and a live departments.name value.
-check("String requestedSignupDepartment = 'Water Supply';" in main
-      and "'Water Supply'," in main
-      and "'Water Supply / PHED'" not in main,
+# Scope the department-default assertion to the registration form. The
+# read-only staff demo intentionally retains its earlier illustrative labels.
+signup_start = main.find("String requestedSignupRole = 'requester';")
+signup_end = main.find("Future<void> chooseDemoWorkspace", signup_start)
+signup_section = main[signup_start:signup_end] if signup_start >= 0 and signup_end > signup_start else ""
+check("String requestedSignupDepartment = 'Water Supply';" in signup_section
+      and "'Water Supply'," in signup_section
+      and "Water Supply / PHED" not in signup_section,
       "Department Officer signup starts with a valid live department dropdown value.")
 
 # Official access requested at signup is inserted only after authentication; the
@@ -103,6 +106,14 @@ check("Pending official-access requests" in main
       and "_reviewAccessRequest(request, 'approve')" in main
       and "_reviewAccessRequest(request, 'reject')" in main,
       "Admin management UI exposes approve/reject actions for pending access requests.")
+
+official_access_workflow_test = source(ROOT / "scripts" / "test_official_access_request_workflow.sql").lower()
+check("rollback;" in official_access_workflow_test
+      and "admin_access_request_directory" in official_access_workflow_test
+      and "admin_review_access_request" in official_access_workflow_test
+      and "account_access_request_approve" in official_access_workflow_test
+      and "account_access_request_reject" in official_access_workflow_test,
+      "Official access workflow regression covers queue visibility, approval, rejection, audit and rollback.")
 
 # Password recovery must route the deep-link session into an actual password update form.
 check("authState?.event == AuthChangeEvent.passwordRecovery" in main
