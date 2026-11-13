@@ -803,7 +803,9 @@ class _MainScreenState extends State<MainScreen> {
             .eq('id', user.id)
             .single()
             .then((row) => Map<String, dynamic>.from(row));
-    if (user != null) _queueOfficialAccessRequest(user);
+    if (user != null) {
+      profileFuture.then((_) => _queueOfficialAccessRequest(user)).catchError((_) {});
+    }
   }
 
   Future<void> _queueOfficialAccessRequest(User user) async {
