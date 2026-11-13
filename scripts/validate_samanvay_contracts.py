@@ -32,6 +32,27 @@ def source(path: Path) -> str:
 
 main = source(MAIN)
 
+# Opening transition timing must remain bounded for mobile startup.
+check(re.search(
+    r"_introController\s*=\s*AnimationController\(\s*vsync:\s*this,\s*duration:\s*const Duration\(milliseconds:\s*2200\)",
+    main,
+) is not None,
+      "Opening intro duration is bounded to the revised 2.2-second stage.")
+check(re.search(
+    r"_flagController\s*=\s*AnimationController\(\s*vsync:\s*this,\s*duration:\s*const Duration\(milliseconds:\s*1400\)",
+    main,
+) is not None,
+      "Opening flag transition duration is bounded to 1.4 seconds.")
+check(re.search(
+    r"_splashController\s*=\s*AnimationController\(\s*vsync:\s*this,\s*duration:\s*const Duration\(milliseconds:\s*2800\)",
+    main,
+) is not None,
+      "Opening logo reveal duration is bounded to 2.8 seconds.")
+check("final buttonReveal = _reveal(progress, 0.64, 0.82);" in main,
+      "Get Started fades in before it becomes interactive.")
+check("_ambientController.stop();" in main,
+      "Ambient opening animation is stopped when entering the authenticated app.")
+
 # Role labels and profile-preview isolation.
 check("'requester' => 'Citizen'" in main,
       "Internal requester role is presented as Citizen.")
