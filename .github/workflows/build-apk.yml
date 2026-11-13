@@ -6,10 +6,24 @@ name: Build SAMANVAY Android APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - feature/samanvay-1.0-professionalisation
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - '!app/assets/brand/*.part*'
+      - 'lib/**'
+      - 'android/**'
+      - 'pubspec.yaml'
+      - 'assets/**'
+      - '.github/workflows/build-apk.yml'
   push:
     branches:
       - main
       - feature/alpha-03-integrated-platform
+      - feature/samanvay-1.0-experience-2026-11-13
     paths:
       - 'app/**'
       - 'scripts/**'
