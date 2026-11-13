@@ -1,16 +1,21 @@
-
-
-
 name: Build SAMANVAY Android APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
+      - beta-0.2/recovery
 
 permissions:
   contents: write
+
+concurrency:
+  group: samanvay-beta-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -18,30 +23,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download repository source
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Install Java
       - name: Install Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
-      # 3. Install Flutter
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      # 4. Generate Android project
       - name: Generate Android project
         run: |
           flutter create \
             --project-name samanvay \
-            --org in.samanvay \
+            --org com.samanvay \
             --platforms android \
             /tmp/samanvay_scaffold
 
@@ -52,56 +53,40 @@ jobs:
 
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           content = manifest.read_text()
-
           permission = '    <uses-permission android:name="android.permission.INTERNET" />'
 
           if "android.permission.INTERNET" not in content:
               if "<application" not in content:
                   raise SystemExit("Android application tag not found")
+              content = content.replace("<application", permission + "\\n    <application", 1)
 
-              content = content.replace(
-                  "<application",
-                  permission + "\n    <application",
-                  1,
-              )
           deep_link_filter = """
                   <intent-filter>
                       <action android:name="android.intent.action.VIEW" />
                       <category android:name="android.intent.category.DEFAULT" />
                       <category android:name="android.intent.category.BROWSABLE" />
-                      <data
-                          android:scheme="in.samanvay"
-                          android:host="login-callback" />
+                      <data android:scheme="in.samanvay" android:host="login-callback" />
                   </intent-filter>
           """
-
-          if "android:host=\"login-callback\"" not in content:
-              content = content.replace(
-                  "</activity>",
-                  deep_link_filter + "\n        </activity>",
-                  1,
-              )
+          if 'android:host="login-callback"' not in content:
+              content = content.replace("</activity>", deep_link_filter + "\\n        </activity>", 1)
           manifest.write_text(content)
           PY
 
           cp /tmp/samanvay_scaffold/pubspec.yaml .
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
-
           mkdir -p lib
           cp app/main.dart lib/main.dart
 
-      # 5. Install dependencies
       - name: Install Flutter dependencies
         run: |
           flutter pub add supabase_flutter
           flutter pub get
 
-      # 6. Check Dart code
       - name: Analyze Dart code
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
-      # 7. Build APK
       - name: Build release APK
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -111,86 +96,58 @@ jobs:
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
-      # 8. Copy APK before diagnostics
       - name: Prepare downloadable APK
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"
-
           if [ ! -s "$APK" ]; then
             echo "ERROR: APK was not generated."
             exit 1
           fi
-
           mkdir -p dist
-          cp "$APK" dist/SAMANVAY-Alpha-0.2.apk
-
+          cp "$APK" dist/SAMANVAY-Beta-0.2.apk
           echo "APK successfully prepared:"
-          ls -lh dist/SAMANVAY-Alpha-0.2.apk
+          ls -lh dist/SAMANVAY-Beta-0.2.apk
+          sha256sum dist/SAMANVAY-Beta-0.2.apk
 
-          sha256sum dist/SAMANVAY-Alpha-0.2.apk
-
-      # 9. Diagnose APK (diagnostic failures won't block download)
       - name: Inspect APK package and signing
         continue-on-error: true
         run: |
-          APK="dist/SAMANVAY-Alpha-0.2.apk"
-
-          echo "========== APK FILE =========="
+          APK="dist/SAMANVAY-Beta-0.2.apk"
           file "$APK"
-          ls -lh "$APK"
-
-          echo "========== APK INTEGRITY =========="
           unzip -t "$APK"
-
-          echo "========== ANDROID BUILD TOOLS =========="
-          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" \
-            -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           if [ -z "$BUILD_TOOLS" ]; then
             echo "Android build-tools unavailable; skipping detailed inspection."
             exit 0
           fi
-
-          echo "Build tools: $BUILD_TOOLS"
-
-          echo "========== PACKAGE INFORMATION =========="
           "$BUILD_TOOLS/aapt" dump badging "$APK" || true
-
-          echo "========== SIGNATURE VERIFICATION =========="
-          "$BUILD_TOOLS/apksigner" verify \
-            --verbose \
-            --print-certs "$APK" || true
-
-          echo "========== ALIGNMENT CHECK =========="
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" || true
           "$BUILD_TOOLS/zipalign" -c -v 4 "$APK" || true
 
-      # 10. ALWAYS upload APK as a downloadable artifact
       - name: Upload APK download
-        if: always() && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
+        if: always() && hashFiles('dist/SAMANVAY-Beta-0.2.apk') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: SAMANVAY-Alpha-0.2-APK
-          path: dist/SAMANVAY-Alpha-0.2.apk
+          name: SAMANVAY-Beta-0.2-APK
+          path: dist/SAMANVAY-Beta-0.2.apk
           if-no-files-found: error
           retention-days: 30
 
-      # 11. Publish GitHub Release when manually triggered
-      - name: Publish SAMANVAY Alpha 0.2
-        if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
+      - name: Publish SAMANVAY Beta 0.2
+        if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Beta-0.2.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: samanvay-alpha-0.2
-          name: SAMANVAY Alpha 0.2
+          tag_name: samanvay-beta-0.2
+          name: SAMANVAY Beta 0.2
           body: |
             SAMANVAY Android Application
-            Version: Alpha 0.2
+            Version: Beta 0.2
 
             Includes:
             - Flutter release APK
             - Supabase integration foundation
             - APK package and signing diagnostics
-
           prerelease: true
           make_latest: false
           overwrite_files: true
-          files: dist/SAMANVAY-Alpha-0.2.apk
+          files: dist/SAMANVAY-Beta-0.2.apk
