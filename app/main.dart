@@ -103,7 +103,11 @@ class _AuthPageState extends State<AuthPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _otpController = TextEditingController();
 
+  bool usePhone = false;
+  bool otpSent = false;
   bool isLogin = true;
   bool loading = false;
   bool hidePassword = true;
@@ -116,6 +120,8 @@ class _AuthPageState extends State<AuthPage> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _phoneController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -138,9 +144,32 @@ class _AuthPageState extends State<AuthPage> {
     });
 
     try {
-      final email = _emailController.text.trim();
-
-      if (isLogin) {
+      if (usePhone) {
+        final phone = _phoneController.text.trim();
+        if (!otpSent) {
+          await supabase.auth.signInWithOtp(
+            phone: phone,
+            shouldCreateUser: !isLogin,
+            data: isLogin ? null : {
+              'display_name': _nameController.text.trim(),
+            },
+          );
+          if (mounted) {
+            setState(() => otpSent = true);
+          }
+          showMessage('OTP request submitted. Enter the SMS code to continue.', success: true);
+        } else {
+          await supabase.auth.verifyOTP(
+            phone: phone,
+            token: _otpController.text.trim(),
+            type: OtpType.sms,
+          );
+          showMessage('Mobile number verified. Login successful.', success: true);
+          if (mounted) setState(() => otpSent = false);
+        }
+      } else {
+        final email = _emailController.text.trim();
+        if (isLogin) {
         await supabase.auth.signInWithPassword(
           email: email,
           password: _passwordController.text,
@@ -174,6 +203,7 @@ class _AuthPageState extends State<AuthPage> {
             success: true,
           );
         }
+        }
       }
     } on AuthException catch (error) {
       showMessage(error.message);
@@ -188,6 +218,32 @@ class _AuthPageState extends State<AuthPage> {
           loading = false;
         });
       }
+    }
+  }
+
+  Future<void> sendPasswordReset() async {
+    final email = _emailController.text.trim();
+    if (!email.contains('@') || !email.contains('.')) {
+      showMessage('Enter your registered email address first.');
+      return;
+    }
+    setState(() {
+      loading = true;
+      message = '';
+      messageIsSuccess = false;
+    });
+    try {
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: redirectUrl,
+      );
+      showMessage('Password reset instructions have been requested. Check your email.', success: true);
+    } on AuthException catch (error) {
+      showMessage(error.message);
+    } catch (_) {
+      showMessage('Unable to request password reset. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -322,61 +378,99 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 16),
                   ],
 
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType:
-                        TextInputType.emailAddress,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Email address',
-                      prefixIcon:
-                          Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: loading ? null : () {
+                        setState(() {
+                          usePhone = !usePhone;
+                          otpSent = false;
+                          message = '';
+                        });
+                      },
+                      child: Text(usePhone ? 'Use email instead' : 'Use mobile OTP instead'),
                     ),
-                    validator: (value) {
-                      if (value == null ||
-                          !value.contains('@') ||
-                          !value.contains('.')) {
-                        return 'Enter a valid email address';
-                      }
-
-                      return null;
-                    },
                   ),
 
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: hidePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon:
-                          const Icon(Icons.lock_outline),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        onPressed: () {
-                          setState(() {
-                            hidePassword = !hidePassword;
-                          });
+                  if (usePhone) ...[
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Mobile number with country code',
+                        hintText: '+91XXXXXXXXXX',
+                        prefixIcon: Icon(Icons.phone_android),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (!usePhone) return null;
+                        final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                        if (digits.length < 10 || digits.length > 15) {
+                          return 'Enter a valid mobile number with country code';
+                        }
+                        return null;
+                      },
+                    ),
+                    if (otpSent) ...[
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _otpController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 8,
+                        decoration: const InputDecoration(
+                          labelText: 'SMS verification code',
+                          prefixIcon: Icon(Icons.password),
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (usePhone && otpSent &&
+                              (value == null || value.trim().length < 4)) {
+                            return 'Enter the verification code';
+                          }
+                          return null;
                         },
-                        icon: Icon(
-                          hidePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                      ),
+                    ],
+                  ] else ...[
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Email address',
+                        prefixIcon: Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (usePhone) return null;
+                        if (value == null || !value.contains('@') || !value.contains('.')) {
+                          return 'Enter a valid email address';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: hidePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => hidePassword = !hidePassword),
+                          icon: Icon(hidePassword ? Icons.visibility : Icons.visibility_off),
                         ),
                       ),
+                      validator: (value) {
+                        if (usePhone) return null;
+                        if (value == null || value.length < 8) {
+                          return 'Password must contain at least 8 characters';
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (value) {
-                      if (value == null ||
-                          value.length < 8) {
-                        return 'Password must contain '
-                            'at least 8 characters';
-                      }
-
-                      return null;
-                    },
-                  ),
+                  ],
 
                   const SizedBox(height: 20),
 
@@ -428,13 +522,17 @@ class _AuthPageState extends State<AuthPage> {
                             ),
                           )
                         : Text(
-                            isLogin
-                                ? 'LOGIN'
-                                : 'CREATE ACCOUNT',
+                            usePhone
+                                ? (otpSent ? 'VERIFY OTP' : 'SEND OTP')
+                                : (isLogin ? 'LOGIN' : 'CREATE ACCOUNT'),
                           ),
                   ),
 
-                  if (isLogin) ...[
+                  if (isLogin && !usePhone) ...[
+                    TextButton(
+                      onPressed: loading ? null : sendPasswordReset,
+                      child: const Text('Forgot password?'),
+                    ),
                     const SizedBox(height: 8),
 
                     OutlinedButton.icon(
@@ -465,6 +563,7 @@ class _AuthPageState extends State<AuthPage> {
                         : () {
                             setState(() {
                               isLogin = !isLogin;
+                              otpSent = false;
                               message = '';
                               messageIsSuccess = false;
                             });
