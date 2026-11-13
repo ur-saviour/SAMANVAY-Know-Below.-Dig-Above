@@ -37,11 +37,20 @@ check("Know Below. Dig Above." in main,
       "The approved SAMANVAY tagline is present in the application.")
 check("TOWARDS OUR DEVELOPMENT" not in main,
       "The superseded opening tagline is not present in the application.")
-check("_introController = AnimationController(\\n      vsync: this,\\n      duration: const Duration(milliseconds: 2200)," in main,
+check(re.search(
+    r"_introController\s*=\s*AnimationController\(\s*vsync:\s*this,\s*duration:\s*const Duration\(milliseconds:\s*2200\)",
+    main,
+) is not None,
       "Opening intro duration is bounded to the revised 2.2-second stage.")
-check("_flagController = AnimationController(\\n      vsync: this,\\n      duration: const Duration(milliseconds: 1400)," in main,
+check(re.search(
+    r"_flagController\s*=\s*AnimationController\(\s*vsync:\s*this,\s*duration:\s*const Duration\(milliseconds:\s*1400\)",
+    main,
+) is not None,
       "Opening flag transition duration is bounded to 1.4 seconds.")
-check("_splashController = AnimationController(\\n      vsync: this,\\n      duration: const Duration(milliseconds: 2800)," in main,
+check(re.search(
+    r"_splashController\s*=\s*AnimationController\(\s*vsync:\s*this,\s*duration:\s*const Duration\(milliseconds:\s*2800\)",
+    main,
+) is not None,
       "Opening logo reveal duration is bounded to 2.8 seconds.")
 check("final buttonReveal = _reveal(progress, 0.64, 0.82);" in main,
       "Get Started fades in before it becomes interactive.")
