@@ -48,6 +48,29 @@ check("PUBLIC-ADMIN-DEMO" in main and "PUBLIC-COORDINATOR-DEMO" in main
       "All four demo workspaces use separate public demo identifiers.")
 
 
+# India boundary GeoJSON is cached to avoid repeat multi-MB downloads on style reload.
+boundary_start = main.find("Future<void> _loadIndiaBoundaryLevel(String level)")
+boundary_end = main.find("void _toggleIndiaStateBoundaries", boundary_start)
+boundary_loader = main[boundary_start:boundary_end] if boundary_start >= 0 and boundary_end > boundary_start else ""
+check("final Map<String, Map<String, dynamic>> _indiaBoundaryPayloadCache" in main
+      and "_indiaBoundaryPayloadCachedAt[level]" in boundary_loader
+      and "_indiaBoundaryClientCacheTtl" in boundary_loader,
+      "India ADM1/ADM2 payloads use a six-hour process-memory cache.")
+check(boundary_loader.find("_indiaBoundaryPayloadCache[level]") >= 0
+      and boundary_loader.find("_indiaBoundaryPayloadCache[level]") < boundary_loader.find("supabase.functions.invoke")
+      and "collection['type'] != 'FeatureCollection'" in boundary_loader,
+      "Boundary cache is checked before network access and fetched GeoJSON is validated.")
+
+role_rpc_tests = source(ROOT / "scripts" / "test_role_rpc_authorization.sql").lower()
+check("role='requester'" in role_rpc_tests
+      and "role='department'" in role_rpc_tests
+      and "role='coordinator'" in role_rpc_tests
+      and "role='admin'" in role_rpc_tests
+      and "admin_user_directory" in role_rpc_tests
+      and "assign_request_department" in role_rpc_tests
+      and "change_request_status" in role_rpc_tests,
+      "Repeatable SQL regression test covers all four role RPC gates.")
+
 # Password recovery must route the deep-link session into an actual password update form.
 check("authState?.event == AuthChangeEvent.passwordRecovery" in main
       and "class PasswordRecoveryPage extends StatefulWidget" in main

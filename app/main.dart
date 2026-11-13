@@ -34,6 +34,13 @@ const String supabasePublishableKey =
 
 const String _samanvayAuthRedirectUrl = 'in.samanvay://login-callback/';
 
+// Public India boundary GeoJSON is large but changes infrequently. Reuse a
+// validated payload across MapLibre style reloads for six hours per app process.
+// The Edge Function also maintains its own six-hour provider cache.
+final Map<String, Map<String, dynamic>> _indiaBoundaryPayloadCache = {};
+final Map<String, DateTime> _indiaBoundaryPayloadCachedAt = {};
+const Duration _indiaBoundaryClientCacheTtl = Duration(hours: 6);
+
 // Render the branded opening immediately. Backend startup runs in parallel,
 // so slow storage/network initialization cannot hide the opening animation.
 Future<void> _samanvayBootFuture = Future<void>.value();
@@ -17643,17 +17650,34 @@ class _MapPageState extends State<MapPage> {
         ? 'samanvay-india-adm1-lines'
         : 'samanvay-india-adm2-lines';
 
-    // The Edge Function proxies only public geoBoundaries reference data.
-    // No underground-asset data is requested or returned here.
-    final response = await supabase.functions.invoke(
-      'samanvay-public-boundaries',
-      body: {'level': level},
-    );
-    if (response.status < 200 || response.status >= 300 ||
-        response.data is! Map) {
-      throw StateError('India reference boundary fetch failed.');
+    if (level != 'ADM1' && level != 'ADM2') {
+      throw ArgumentError.value(level, 'level', 'Expected ADM1 or ADM2.');
     }
-    final payload = Map<String, dynamic>.from(response.data as Map);
+
+    final cachedPayload = _indiaBoundaryPayloadCache[level];
+    final cachedAt = _indiaBoundaryPayloadCachedAt[level];
+    final hasFreshCache = cachedPayload != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _indiaBoundaryClientCacheTtl;
+
+    final Map<String, dynamic> payload;
+    if (hasFreshCache) {
+      // MapLibre may recreate its native style; the public GeoJSON is still valid.
+      payload = cachedPayload!;
+    } else {
+      // The Edge Function proxies only public geoBoundaries reference data.
+      // No underground-asset data is requested or returned here.
+      final response = await supabase.functions.invoke(
+        'samanvay-public-boundaries',
+        body: {'level': level},
+      );
+      if (response.status < 200 || response.status >= 300 ||
+          response.data is! Map) {
+        throw StateError('India reference boundary fetch failed.');
+      }
+      payload = Map<String, dynamic>.from(response.data as Map);
+    }
+
     final metadata = payload['metadata'] is Map
         ? Map<String, dynamic>.from(payload['metadata'] as Map)
         : <String, dynamic>{};
@@ -17666,6 +17690,12 @@ class _MapPageState extends State<MapPage> {
     if (collection['type'] != 'FeatureCollection' ||
         features is! List || features.isEmpty) {
       throw const FormatException('Boundary GeoJSON is invalid or empty.');
+    }
+
+    // Cache only after the downloaded payload passes the GeoJSON checks.
+    if (!hasFreshCache) {
+      _indiaBoundaryPayloadCache[level] = payload;
+      _indiaBoundaryPayloadCachedAt[level] = DateTime.now();
     }
 
     final sourceIds = await controller.getSourceIds();

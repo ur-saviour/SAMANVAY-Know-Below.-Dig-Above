@@ -202,3 +202,22 @@ Added `scripts/audit_security_definer.sql`. It is read-only and asserts:
 - authenticated profile writes remain limited to `display_name`, never `role` or `department_id`, with no unrestricted table UPDATE grant.
 
 The script is a static catalog/privilege guard. It does **not** prove that an authenticated malicious caller is rejected for every RPC argument or resource ID. Role-specific adversarial tests remain required.
+
+
+## 11. Verified RPC authorization checks
+
+A live negative-path SQL test was run against the current Supabase project using one existing profile per role and simulated JWT claims in a controlled transaction:
+- Citizen: denied 6 protected RPC operations (admin directory, department creation, role update, assignment, overall status change and department review).
+- Department Officer: denied 3 coordinator/admin operations (admin directory, assignment and overall status change).
+- Coordinator: denied 3 administrator-only operations (admin directory, department creation and role update).
+- Administrator: successfully read the account directory through the read-only positive path.
+
+No test changed a role, department assignment, case status or department record. The repeatable script is committed at `scripts/test_role_rpc_authorization.sql`.
+
+These tests exercise PostgreSQL function guards with simulated identity claims; they do not replace API requests using separately signed role JWTs or full device journeys.
+
+## 12. GIS performance baseline and client cache
+
+A sampled 24-hour Supabase Edge log window for `samanvay-public-boundaries` recorded 13/13 successful responses, zero HTTP errors, p50 execution time 1,765 ms, p95 3,246.6 ms, and maximum response payload 2,911,887 bytes. This is a limited observed sample, not a universal benchmark.
+
+The Flutter map previously invoked this endpoint again when MapLibre recreated its style and the India ADM1/ADM2 sources had to be re-added. This increment adds a six-hour in-memory cache for validated public boundary payloads, keyed separately by ADM1 and ADM2. Repeated style reloads in the same app process can reuse the GeoJSON instead of downloading it again. Process restart or cache expiry still fetches from the Edge Function, which retains its own six-hour provider cache. Post-change request counts and map-render latency still need measurement.
