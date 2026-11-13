@@ -73,6 +73,8 @@ check("grant update (display_name)" in profile_migration
 # Phone OTP verification must distinguish new-account signup from existing-account login.
 check("isPhoneSignupOtp ? OtpType.signup : OtpType.sms" in main,
       "Phone registration verifies with Supabase signup OTP type; phone login uses SMS OTP type.")
+check("delivery is not confirmed by this response" in main,
+      "Phone signup does not claim an SMS OTP was delivered merely because Supabase accepted the request.")
 check("response.session == null || response.user == null" in main,
       "OTP verification requires Supabase to return an authenticated session and user.")
 otp_hook = source(ROOT / "supabase" / "functions" / "samanvay-dual-channel-otp" / "index.ts")

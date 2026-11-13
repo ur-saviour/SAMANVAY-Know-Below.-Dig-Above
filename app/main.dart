@@ -4817,7 +4817,7 @@ class _AuthPageState extends State<AuthPage> {
           _otpController.clear();
           setState(() => otpSent = true);
           _startOtpResendCountdown();
-          showMessage('A six-digit SMS verification code has been requested. Enter it to activate your account. An administrator must verify official-role access before it is granted.', success: true);
+          showMessage('Supabase accepted the phone-registration request. A six-digit verification code is pending, but delivery is not confirmed by this response. Check your SMS messages; delivery depends on the project Auth Hook and SMS provider configuration. An administrator must verify official-role access before it is granted.', success: true);
         } else {
           showMessage('Your account has been created and verified. Your requested official role is recorded as account metadata; an administrator must verify your identity and department before access is granted.', success: true);
         }

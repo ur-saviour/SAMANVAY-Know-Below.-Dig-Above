@@ -176,3 +176,29 @@ Observed 13 November 2026:
 - Health: no lints returned.
 
 Unused-index notices are not sufficient reason to drop indexes without workload evidence. Multiple permissive policy findings need review for both correctness and query cost. No bulk index or policy changes were made.
+
+
+## 10. OTP delivery evidence and security regression script
+
+### Phone-registration status wording
+
+The phone-signup UI now distinguishes an Auth API acceptance from confirmed delivery. It explicitly states that the six-digit code is pending and that the response does not prove it was delivered. This avoids telling a user to enter a code that may never have arrived.
+
+### Live OTP hook evidence
+
+The active `samanvay-dual-channel-otp` Edge Function is deployed (version 2), but the available 24-hour `function_edge_logs` window returned:
+- invocations: `0`;
+- successful responses: `0`;
+- error responses: `0`.
+
+The Auth logs in that same window show email/password login activity, but no evidence that the SMS hook was invoked. This does not establish whether the hook is unconfigured, unused, or awaiting a phone signup attempt. It does establish that delivery has not yet been proven. The project owner must verify the Supabase Send SMS Hook configuration, server-side hook secret, Twilio SMS sender/Messaging Service, WhatsApp approved Content Template and India DLT configuration, then perform a consented test-number flow. No OTP or provider secret was generated, exposed or sent during this audit.
+
+### Repeatable catalog guard
+
+Added `scripts/audit_security_definer.sql`. It is read-only and asserts:
+- every authenticated-executable `public` SECURITY DEFINER RPC is not executable by `anon`;
+- each inspected function has an empty `search_path`;
+- each references `auth.uid()`;
+- authenticated profile writes remain limited to `display_name`, never `role` or `department_id`, with no unrestricted table UPDATE grant.
+
+The script is a static catalog/privilege guard. It does **not** prove that an authenticated malicious caller is rejected for every RPC argument or resource ID. Role-specific adversarial tests remain required.
