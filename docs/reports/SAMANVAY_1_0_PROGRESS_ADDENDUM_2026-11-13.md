@@ -110,3 +110,45 @@ A client-side profile Save button would therefore be non-functional. Do not gran
 The latest source is improved and a new Alpha 0.3 APK is verified at the build/package level. The original integration branch remains untouched.
 
 **Do not call this SAMANVAY 1.0 yet.** The current release still lacks physical-device acceptance, verified mobile OTP/recovery, safe profile editing, operational verified underground asset coverage, full authorization review, accessibility/performance evidence and production signing. Continue from this branch and close the acceptance gates in the baseline report before declaring 1.0.
+
+
+## 8. Latest Alpha 0.3 release and SAMANVAY 1.0 review evidence — 13 November 2026
+
+### Latest successful main-branch release build
+
+- Android workflow run: [#621 / 43381818460](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43381818460)
+- Commit: \`5d453184a21fe68717044856b269d0ed4295fc19\`
+- Result: **SUCCESS** — source contracts, generated Android package validation, Flutter dependencies, Dart analysis, release compilation, APK preparation, package/signature/alignment verification, upload and Alpha 0.3 publication all passed.
+- Artifact: \`SAMANVAY-Alpha-0.3-APK\`, ID \`14017640919\`, 44,578,916 bytes.
+- Artifact ZIP SHA-256: \`3ad74e3a2433e75914bcd290841f3bccfa3cd412e1c87cd8cda88225bd1c9bb4\`.
+
+The three APKs extracted from the artifact each passed \`unzip -t\` ZIP/CRC verification:
+
+| ABI | APK size | SHA-256 |
+|---|---:|---|
+| ARM64-v8a | 33,583,252 bytes | \`80912abd77db82f82a1882073423faf3627960dc48095e23d7f3e678dcb26cdb\` |
+| armeabi-v7a | 28,524,798 bytes | \`447cca52aa40b2f01f4b1b4a125d4f4f2bdb6a15fca0c46f4ce557627675288c\` |
+| x86_64 | 35,435,001 bytes | \`222eea634edb6351aa0721e52af9168b4a1df3253483805a5d477c8bc734ea3e\` |
+
+### Original logo integrity
+
+The SAMANVAY SVG extracted directly from the ARM64 APK at \`assets/flutter_assets/assets/brand/samanvay_logo.svg\` has Git blob SHA \`17c2db21509cfb59109cd413e8cb0f24d3f66524\`, matching the current source file \`app/assets/brand/samanvay_logo.svg\` exactly (2,168 bytes). No logo redraw or replacement occurred.
+
+### Current SAMANVAY 1.0 review PR
+
+- Review PR: [#16 — GIS light-mode build fix and page-animation optimisation](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/pull/16)
+- Branch: \`feature/samanvay-1.0-runtime-efficiency-2026-11-13\`
+- Head commit at this snapshot: \`c31aba14e9eaa804f99ef824ac71763ce00621f6\`
+- Base commit: \`5d453184a21fe68717044856b269d0ed4295fc19\`
+- GitHub Actions review run: [43383213269](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43383213269)
+
+At the time of this report update, the PR review run has passed contract validation, Android project generation, package validation, dependency installation and Dart analysis. Release APK compilation is still running; package/signature verification and artifact upload have not yet completed. The review PR is intentionally still a draft and has not been merged.
+
+The Android workflow now runs on pull requests targeting the professionalisation branch. A pull-request build is allowed to generate and validate APK artifacts, but the Alpha 0.3 release-publishing step is explicitly skipped for \`pull_request\` events, preventing review builds from overwriting the published Alpha package.
+
+### Superseded review branches
+
+Draft PRs #13, #14 and #15 were closed after their useful changes and evidence were consolidated into PR #16. The separate Beta 0.2 recovery PR remains separate from the integrated SAMANVAY 1.0 product baseline.
+
+**Release boundary:** Run #621 verifies the main branch’s Alpha 0.3 artifact, not the pending PR #16 changes and not a production-signed SAMANVAY 1.0 release. No physical-device install/launch or live OTP/RLS acceptance is claimed.
+
