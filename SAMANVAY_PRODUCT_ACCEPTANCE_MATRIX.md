@@ -15,6 +15,7 @@
 ## 2. Citizen / requester mobile application
 
 - [x] Supabase authentication and role-based portal selection.
+- [x] Mobile-number registration client flow with Supabase phone sign-up, signup-specific OTP verification/resend and requested-role metadata; live SMS delivery remains unverified.
 - [x] New infrastructure request flow with location selection and case details.
 - [x] Request list, case workspace, attachments and notifications foundations.
 - [x] Requester dashboard with live case counts and case-category distribution.
@@ -112,6 +113,7 @@ Implementation note (2026-11-10): The joint-work coordination page, role-checked
 - [x] Static analysis passes with no errors on the latest map integration commit (Android and browser CI analyzers).
 - [x] Alpha 0.3 Android release APKs build and pass package/signature/alignment diagnostics (run `43299842122`; ARM64, ARMv7 and x86_64 assets published).
 - [ ] Runtime smoke tests pass on a real Android device for sign-in, GPS permissions, map load, map search, 2D/3D, layer toggles, request submission and upload.
+- [ ] Verify mobile registration OTP delivery and confirmation on a physical Android device using the configured SMS provider.
 - [ ] Role tests confirm requester, department, coordinator and admin boundaries.
 - [ ] Negative security tests prove requester/public users cannot retrieve exact underground geometries or survey evidence.
 - [ ] Empty GIS data, no-permission and offline states are tested and worded safely.
