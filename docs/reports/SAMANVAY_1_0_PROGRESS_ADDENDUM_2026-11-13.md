@@ -240,3 +240,22 @@ A separate transaction under `SET LOCAL ROLE authenticated` returned:
 - other users' profile rows visible: 0.
 
 The transaction was rolled back after the check. Together with the own-display-name update test and the denied `role` update, this confirms the current self-row profile RLS path and least-privilege column grant at the database layer.
+
+
+## 14. GIS-cache Android build #626 verification
+
+Commit `e9829d8caf5dd6d9d37f4a439a3d93be8dfe7b2e` passed GitHub Actions run #626:
+`https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43399129651`
+
+All steps completed successfully: source contract checks, Android project/package validation, Flutter dependency installation, Dart analysis, release APK build, artifact preparation, APK signature and alignment checks, and artifact publication.
+
+Published artifact:
+- Artifact ID: `14023919458`
+- Artifact SHA-256: `dc32e2b35665ec1402cf6ba2286edf11fb7335eb473e7995f4927c8f2be34c9f`
+- ARM64 APK SHA-256: `bd59aa2b525814b9f8084602c27b591d117e01806a6214f28b6d12d7eed69dd9`
+- ARMv7 APK SHA-256: `14092897dce1d0dcbb86a267e8bf0d61a28fd8984f4c96e6c8b6f1e3d9223bea`
+- x86_64 APK SHA-256: `34ae79006666bcc18959f62095f8d70d257ca81ad7c186ac97715b224cc97dbe`
+
+The downloaded artifact and all three APK archives passed ZIP CRC testing. The ARM64 APK contains the expected Flutter runtime, and its packaged `samanvay_logo.svg` Git blob hash is `17c2db21509cfb59109cd413e8cb0f24d3f66524`, matching the original logo asset exactly. The successful CI run is the evidence for Android signature and alignment checks; no local `apksigner` binary was available in the inspection container.
+
+This verifies build/package integrity, not physical-device rendering, sign-in, OTP delivery or measured post-cache latency.
