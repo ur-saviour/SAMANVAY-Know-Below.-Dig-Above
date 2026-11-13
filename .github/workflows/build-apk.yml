@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - beta-0.2-hardening
 
 permissions:
   contents: write
@@ -122,7 +123,7 @@ jobs:
           fi
 
           mkdir -p dist
-          cp "$APK" dist/SAMANVAY-Alpha-0.2.apk
+          cp "$APK" dist/SAMANVAY-Beta-0.2.apk
 
           echo "APK successfully prepared:"
           ls -lh dist/SAMANVAY-Alpha-0.2.apk
@@ -169,7 +170,7 @@ jobs:
         if: always() && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: SAMANVAY-Alpha-0.2-APK
+          name: SAMANVAY-Beta-0.2-APK
           path: dist/SAMANVAY-Alpha-0.2.apk
           if-no-files-found: error
           retention-days: 30
@@ -179,11 +180,11 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && hashFiles('dist/SAMANVAY-Alpha-0.2.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: samanvay-alpha-0.2
-          name: SAMANVAY Alpha 0.2
+          tag_name: samanvay-beta-0.2
+          name: SAMANVAY Beta 0.2
           body: |
             SAMANVAY Android Application
-            Version: Alpha 0.2
+            Version: Beta 0.2
 
             Includes:
             - Flutter release APK

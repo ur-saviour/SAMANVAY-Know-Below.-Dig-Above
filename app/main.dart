@@ -1562,41 +1562,403 @@ class _NewRequestPageState extends State<NewRequestPage> {
 
 
 // ==========================================
-// MAP
+// MAP — INTERACTIVE DEMONSTRATION VIEW
 // ==========================================
 
-class MapPage extends StatelessWidget {
+class MapPage extends StatefulWidget {
   const MapPage({super.key});
+
+  @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  bool showWater = true;
+  bool showPower = true;
+  bool showTelecom = true;
+  bool showDrainage = true;
+  bool showUnderground = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Infrastructure Map'),
+        title: const Text('Infrastructure GIS'),
       ),
-      body: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.map_outlined,
-              size: 75,
-              color: teal,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: navy,
+              borderRadius: BorderRadius.circular(16),
             ),
-            SizedBox(height: 16),
-            Text(
-              'GIS integration',
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.bold,
+            child: const Row(
+              children: [
+                Icon(Icons.public, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'India • Demonstration GIS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Illustrative map layers for the Beta 0.2 prototype',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Location search — live integration pending',
+              enabled: false,
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
             ),
-            SizedBox(height: 8),
-            Text('Geographic infrastructure mapping is planned.'),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Administrative levels • navigation integration pending',
+            style: TextStyle(color: Colors.blueGrey, fontSize: 12),
+          ),
+          const Wrap(
+            spacing: 8,
+            children: [
+              Chip(label: Text('India')),
+              Chip(label: Text('State')),
+              Chip(label: Text('District')),
+              Chip(label: Text('City / Ward')),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 300,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7EEF1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFD1DDE2)),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _SchematicMapPainter(
+                      showWater: showWater,
+                      showPower: showPower,
+                      showTelecom: showTelecom,
+                      showDrainage: showDrainage,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 12,
+                  top: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'SCHEMATIC VIEW • NOT TO SCALE',
+                      style: TextStyle(
+                        color: navy,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: IconButton.filled(
+                    tooltip: 'Toggle underground cutaway',
+                    onPressed: () => setState(
+                      () => showUnderground = !showUnderground,
+                    ),
+                    icon: Icon(
+                      showUnderground
+                          ? Icons.layers
+                          : Icons.layers_clear,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Schematic surface preview',
+            style: TextStyle(color: navy, fontWeight: FontWeight.bold),
+          ),
+          if (showUnderground) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF182B3B),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Underground corridor cutaway',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.layers_outlined,
+                        color: Colors.white70,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Conceptual separation of utility categories. '
+                    'This is not a surveyed 3D model; no alignment, depth '
+                    'or clearance is represented.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _corridorRow('Water supply', const Color(0xFF42B9F5)),
+                  _corridorRow('Electricity', const Color(0xFFFFC857)),
+                  _corridorRow('Telecommunications', const Color(0xFFB69CFF)),
+                  _corridorRow('Sewage / drainage', const Color(0xFF65C99A)),
+                  _corridorRow('Gas infrastructure', const Color(0xFFFF916E)),
+                ],
+              ),
+            ),
           ],
-        ),
+          const SizedBox(height: 14),
+          const Text(
+            'Visible layers',
+            style: TextStyle(
+              color: navy,
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 0,
+            children: [
+              FilterChip(
+                label: const Text('Water'),
+                selected: showWater,
+                onSelected: (v) => setState(() => showWater = v),
+              ),
+              FilterChip(
+                label: const Text('Electricity'),
+                selected: showPower,
+                onSelected: (v) => setState(() => showPower = v),
+              ),
+              FilterChip(
+                label: const Text('Telecom'),
+                selected: showTelecom,
+                onSelected: (v) => setState(() => showTelecom = v),
+              ),
+              FilterChip(
+                label: const Text('Drainage'),
+                selected: showDrainage,
+                onSelected: (v) => setState(() => showDrainage = v),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Data status: illustrative demonstration geometry only. '
+            'Satellite tiles, geographic navigation and verified utility '
+            'asset records are not connected in this prototype view.',
+            style: TextStyle(
+              color: Colors.blueGrey,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _corridorRow(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 7,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white),
+          ),
+          const Spacer(),
+          const Text(
+            'Conceptual',
+            style: TextStyle(color: Colors.white60, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SchematicMapPainter extends CustomPainter {
+  final bool showWater;
+  final bool showPower;
+  final bool showTelecom;
+  final bool showDrainage;
+
+  const _SchematicMapPainter({
+    required this.showWater,
+    required this.showPower,
+    required this.showTelecom,
+    required this.showDrainage,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPaint = Paint()..color = const Color(0xFFE7EEF1);
+    canvas.drawRect(Offset.zero & size, backgroundPaint);
+
+    final blockPaint = Paint()..color = const Color(0xFFD5E2D9);
+    for (var row = 0; row < 4; row++) {
+      for (var col = 0; col < 5; col++) {
+        final rect = Rect.fromLTWH(
+          12 + col * (size.width / 5),
+          48 + row * 62,
+          size.width / 5 - 12,
+          48,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(5)),
+          blockPaint,
+        );
+      }
+    }
+
+    final roadPaint = Paint()
+      ..color = const Color(0xFF9AAAB2)
+      ..strokeWidth = 15
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(0, size.height * 0.52),
+      Offset(size.width, size.height * 0.52),
+      roadPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.48, 35),
+      Offset(size.width * 0.48, size.height),
+      roadPaint,
+    );
+
+    final roadMark = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.5;
+    for (var x = 8.0; x < size.width; x += 25) {
+      canvas.drawLine(
+        Offset(x, size.height * 0.52),
+        Offset(x + 12, size.height * 0.52),
+        roadMark,
+      );
+    }
+
+    void drawUtility(Color color, double y, double width) {
+      final paint = Paint()
+        ..color = color
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      final path = Path()
+        ..moveTo(0, y)
+        ..cubicTo(
+          size.width * 0.25,
+          y - 16,
+          size.width * 0.58,
+          y + 18,
+          size.width,
+          y - 4,
+        );
+      canvas.drawPath(path, paint);
+    }
+
+    if (showWater) drawUtility(const Color(0xFF168DCE), size.height * .70, 5);
+    if (showPower) drawUtility(const Color(0xFFE0A323), size.height * .77, 4);
+    if (showTelecom) drawUtility(const Color(0xFF8062C7), size.height * .84, 4);
+    if (showDrainage) drawUtility(const Color(0xFF31966A), size.height * .91, 5);
+
+    final marker = Paint()..color = navy;
+    canvas.drawCircle(
+      Offset(size.width * .48, size.height * .52),
+      7,
+      marker,
+    );
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: 'DEMO ZONE',
+        style: TextStyle(
+          color: navy,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(
+      canvas,
+      Offset(size.width * .48 + 10, size.height * .52 - 18),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SchematicMapPainter oldDelegate) {
+    return showWater != oldDelegate.showWater ||
+        showPower != oldDelegate.showPower ||
+        showTelecom != oldDelegate.showTelecom ||
+        showDrainage != oldDelegate.showDrainage;
   }
 }
 
