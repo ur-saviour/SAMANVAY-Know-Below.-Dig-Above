@@ -318,3 +318,27 @@ The build was generated from source commit `d86124cc74379b515a8c39f6b74afc9a23f8
 Do not combine older percentage estimates in this report into a single claimed completion percentage. Earlier figures were recorded at different checkpoints and use inconsistent scopes. Until a single weighted acceptance matrix is reconciled, report milestone evidence and outstanding blockers instead of presenting an unsupported overall percentage.
 
 No production Supabase rows, policies, grants, authentication settings or utility geometry were modified during this continuation.
+
+## Authentication source review and regression-gate expansion — 13 November 2026, 15:40 IST
+
+A review of the current working-branch Flutter entrypoint (`app/main.dart`, blob `b7cbb81433d51911b329383550f6f235ff6f58c8`) confirmed that the current source now includes:
+
+- Supabase phone-number account creation with password and profile metadata.
+- Signup-specific OTP verification and resend (`OtpType.signup`).
+- Separate SMS OTP handling for existing-account login.
+- Requested role and department stored as metadata; they are not treated as granted permissions.
+- UI disclosure that administrator verification is required before official-role access is granted.
+
+The source-level contract validator was expanded to assert the mobile registration choice, Supabase phone sign-up call, role/department metadata, signup OTP verification/resend and administrator approval disclosure. These assertions were checked against the current source and passed. The validator change is committed as `26cb8d046dc2892672f24ba78d28b2c210a1973d`; the Android and browser workflows include `scripts/**` in their push triggers.
+
+The product acceptance matrix now records mobile registration as implemented in client code while keeping real SMS delivery and physical-device OTP verification unchecked.
+
+### Build evidence boundary
+
+Android run [43299842122](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43299842122) completed successfully, including release APK compilation, package/signature/alignment verification, artifact upload and publication. Its source commit was `e5dc6a24bdae20aa43bcfa8db5d4f7d4468c4a44`; inspection of that commit shows it predates the current phone-signup implementation. It is therefore not evidence that the current `app/main.dart` revision has been compiled.
+
+The separately supplied failed run [43353944095](https://github.com/ur-saviour/SAMANVAY-Know-Below.-Dig-Above/actions/runs/43353944095) failed in `:url_launcher_android:lintVitalAnalyzeRelease` with an Android Lint `NoSuchMethodError` involving `java.util.List.removeLast()`. Its job log shows Java 17.0.21 and the workflow step labels it as an Alpha/Beta 0.2 publication path. The active feature-branch Android workflow currently pins Temurin Java 21 and Flutter 3.38.0. Do not conflate that older Java-17 lint crash with the current feature-branch build configuration.
+
+A fresh workflow result for the current source revision is not yet exposed through the connected status endpoint. Until that run is confirmed, the current mobile-signup source is **implemented and statically asserted, but not newly build-verified or device-verified**.
+
+No production Supabase Auth settings, phone numbers, provider secrets, database rows or role grants were changed.
