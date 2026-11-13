@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - feature/alpha-03-integrated-platform
+      - feature/gis-digital-twin-redesign
     paths:
       - 'app/**'
       - 'scripts/**'
@@ -210,6 +211,7 @@ jobs:
           PY
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp app/main.dart lib/main.dart
+          cp app/samanvay_underground_twin_panel.dart lib/samanvay_underground_twin_panel.dart
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
