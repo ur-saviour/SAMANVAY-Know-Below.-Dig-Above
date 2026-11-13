@@ -18936,7 +18936,7 @@ class _MapPageState extends State<MapPage> {
                 Text(
                   title,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: ink,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.5,
@@ -18980,7 +18980,7 @@ class _MapPageState extends State<MapPage> {
                     const Text(
                       'GIS LAYERS',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: ink,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.4,
                         fontSize: 15,
@@ -19055,8 +19055,8 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showRequests,
                       activeThumbColor: const Color(0xFF20D6C2),
-                      title: const Text('Work request locations',
-                          style: TextStyle(color: Colors.white)),
+                      title: Text('Work request locations',
+                          style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
                       subtitle: Text(
                         '$_requestMarkerCount request marker(s) visible to your account',
                         style:  TextStyle(color: mutedInk, fontSize: 11),
@@ -19071,7 +19071,7 @@ class _MapPageState extends State<MapPage> {
                       activeThumbColor: const Color(0xFF20D6C2),
                       title: const Text(
                         'Coimbatore-only ward reference (2024)',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                       ),
                       subtitle: Text(
                         '${_coimbatoreWardCount == 0 ? 'Not loaded' : '$_coimbatoreWardCount polygons'} · OpenCity Public Domain · local reference only; not national or statutory coverage',
@@ -19088,7 +19088,7 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showIndiaStateBoundaries,
                       activeThumbColor: const Color(0xFF20D6C2),
-                      title: const Text('India State / UT boundaries', style: TextStyle(color: Colors.white)),
+                      title: Text('India State / UT boundaries', style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
                       subtitle: Text(
                         '$_indiaStateBoundaryCount areas · vintage $_indiaStateBoundaryVintage · source data updated $_indiaStateBoundarySourceUpdateDate · provider build $_indiaStateBoundaryBuildDate · $_indiaStateBoundaryAttribution · reference only',
                         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
@@ -19101,7 +19101,7 @@ class _MapPageState extends State<MapPage> {
                     SwitchListTile(
                       value: _showIndiaDistrictBoundaries,
                       activeThumbColor: const Color(0xFF20D6C2),
-                      title: const Text('India district boundaries', style: TextStyle(color: Colors.white)),
+                      title: Text('India district boundaries', style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
                       subtitle: Text(
                         '$_indiaDistrictBoundaryCount districts · vintage $_indiaDistrictBoundaryVintage · source data updated $_indiaDistrictBoundarySourceUpdateDate · provider build $_indiaDistrictBoundaryBuildDate · $_indiaDistrictBoundaryAttribution · optional detail layer',
                         style: TextStyle(color: mutedInk, fontSize: 10, height: 1.35),
@@ -19123,7 +19123,7 @@ class _MapPageState extends State<MapPage> {
                       activeThumbColor: const Color(0xFFA78BFA),
                       title: const Text(
                         'National groundwater monitoring stations (2021–2025)',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                       ),
                       subtitle: Text(
                         '$_groundwaterStationCount station point(s) in the current map extent · up to 1,000 displayed · archive-wide latest observation: $_groundwaterArchiveLatestObservation · historical data, not live telemetry · tap for the published reading and timestamp · not a borewell register or complete station inventory',
@@ -19141,8 +19141,8 @@ class _MapPageState extends State<MapPage> {
                       SwitchListTile(
                         value: _showVerifiedAssets,
                         activeThumbColor: const Color(0xFF20D6C2),
-                        title: const Text('Verified department assets',
-                            style: TextStyle(color: Colors.white)),
+                        title: Text('Verified department assets',
+                            style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
                         subtitle: Text(
                           '$_verifiedAssetCount verified asset(s) mapped · $_unverifiedAssetCount unverified withheld',
                           style:  TextStyle(color: mutedInk, fontSize: 11),
@@ -19158,7 +19158,7 @@ class _MapPageState extends State<MapPage> {
                          children: [
                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFF87171), size: 18),
                            const SizedBox(width: 8),
-                           const Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
+                           Expanded(child: Text('UTILITY PROXIMITY SCREENING', style: TextStyle(color: ink, fontWeight: FontWeight.w800, letterSpacing: 0.7, fontSize: 11))),
                            Text('$_utilityConflictCount request(s)', style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700, fontSize: 11)),
                          ],
                        ),
@@ -19174,7 +19174,7 @@ class _MapPageState extends State<MapPage> {
                            dense: true,
                            contentPadding: EdgeInsets.zero,
                            leading: const Icon(Icons.location_searching, color: Color(0xFFF87171), size: 17),
-                           title: Text('${detail['request_number']} · ${detail['candidate_count']} potential match(es)', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                           title: Text('${detail['request_number']} · ${detail['candidate_count']} potential match(es)', style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w700)),
                            subtitle: Text(summary, style:  TextStyle(color: mutedInk, fontSize: 10)),
                          );
                        }),
@@ -19187,8 +19187,8 @@ class _MapPageState extends State<MapPage> {
                        SwitchListTile(
                         value: _showUtilityZones,
                         activeThumbColor: const Color(0xFFF59E0B),
-                        title: const Text('Generalised utility coverage',
-                            style: TextStyle(color: Colors.white)),
+                        title: Text('Generalised utility coverage',
+                            style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
                         subtitle: Text(
                           '$_utilityCellCount aggregate cell(s); not individual utility routes',
                           style:  TextStyle(color: mutedInk, fontSize: 11),
@@ -19202,7 +19202,7 @@ class _MapPageState extends State<MapPage> {
                        ListTile(
                         leading: Icon(Icons.lock_outline, color: Color(0xFFF6C66B)),
                         title: Text('Utility coverage restricted',
-                            style: TextStyle(color: Colors.white)),
+                            style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
                         subtitle: Text(
                           'Only generalised public coverage is shown. Exact infrastructure records remain restricted.',
                           style: TextStyle(color: mutedInk, fontSize: 11),
@@ -19211,7 +19211,7 @@ class _MapPageState extends State<MapPage> {
                     const Divider(color: Color(0x334B647C)),
                     const Text(
                       'Data integrity',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 5),
                     Text(
