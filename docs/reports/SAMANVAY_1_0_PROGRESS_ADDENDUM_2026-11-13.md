@@ -95,6 +95,16 @@ A client-side profile Save button would therefore be non-functional. Do not gran
 9. **Release signing:** replace the temporary debug signing certificate with a persistent owner-controlled release key stored in protected CI secrets and document backup/recovery.
 10. **Operations:** exercise requests, assignment, reviews, permits, inspections, restoration, coordination, notifications and evidence integrity with controlled test accounts and records.
 
+
+
+## 7. Additional Android correction and animation lifecycle — 13 November 2026
+
+- The latest professionalisation-head build failed at Dart analysis after a light-mode GIS layer-sheet edit. The cause was five invalid constant-value usages where const widgets/styles referenced the runtime theme getter ink. The next review branch removes those const markers while retaining the dynamic theme-aware text.
+- The branded opening keeps the official logo and flag sequence, but stages are reduced to 2.8 s (logo reveal), 1.4 s (flag transition) and 2.2 s (intro), with Get Started interactive at 82% of the final stage (~6.0 s total).
+- The Citizen IndexedStack now wraps pages in TickerMode, enabling tickers only on the selected page. This preserves each page's state while preventing hidden pages' animation controllers—especially the GIS underground cutaway—from consuming frame work while the user is elsewhere.
+- Source-contract checks cover the timing values, CTA threshold, animation stop and selected-page ticker gate.
+- This is a source-level/performance implementation; frame pacing, CPU, battery and visual startup timing remain to be measured on a physical Android device.
+
 ## 6. Decision
 
 The latest source is improved and a new Alpha 0.3 APK is verified at the build/package level. The original integration branch remains untouched.
