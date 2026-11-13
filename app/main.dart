@@ -430,7 +430,7 @@ class SamanvayApp extends StatelessWidget {
             ),
           );
       return MaterialApp(
-        title: 'SAMANVAY | Towards Our Development',
+        title: 'SAMANVAY | Know Below. Dig Above.',
         debugShowCheckedModeBanner: false,
         theme: lightTheme,
         darkTheme: theme,
@@ -488,7 +488,7 @@ class _AnimatedDevelopmentTaglineState extends State<_AnimatedDevelopmentTagline
           ? const [Color(0xFF13A89E), Color(0xFF10243A), Color(0xFF3D83F6)]
           : const [Color(0xFF20D6C2), Color(0xFFB9E8FF), Color(0xFF3D83F6)],
       ).createShader(bounds),
-      child: Text('TOWARDS OUR DEVELOPMENT 📈', textAlign: widget.textAlign,
+      child: Text('Know Below. Dig Above.', textAlign: widget.textAlign,
         style: GoogleFonts.inter(fontSize: widget.fontSize, fontWeight: FontWeight.w900, letterSpacing: .45)),
     ),
   );
@@ -8129,7 +8129,7 @@ class _MainScreenState extends State<MainScreen> {
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text('SAMANVAY', style: GoogleFonts.spaceGrotesk(color: _usesLegacyLightPalette ? ink : Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
                             const SizedBox(height: 2),
-                            Text('TOWARDS OUR DEVELOPMENT 📈', style: TextStyle(color: cyanAccent, fontSize: 7.5, letterSpacing: .45, fontWeight: FontWeight.w800)),
+                            Text('Know Below. Dig Above.', style: TextStyle(color: cyanAccent, fontSize: 7.5, letterSpacing: .45, fontWeight: FontWeight.w800)),
                           ])),
                         ])
                       : const _SamanvayBrandLogo(size: 48, radius: 13),
