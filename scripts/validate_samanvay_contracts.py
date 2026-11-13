@@ -32,6 +32,22 @@ def source(path: Path) -> str:
 
 main = source(MAIN)
 
+# Brand identity and opening experience.
+check("Know Below. Dig Above." in main,
+      "The approved SAMANVAY tagline is present in the application.")
+check("TOWARDS OUR DEVELOPMENT" not in main,
+      "The superseded opening tagline is not present in the application.")
+check("_introController = AnimationController(\\n      vsync: this,\\n      duration: const Duration(milliseconds: 2200)," in main,
+      "Opening intro duration is bounded to the revised 2.2-second stage.")
+check("_flagController = AnimationController(\\n      vsync: this,\\n      duration: const Duration(milliseconds: 1400)," in main,
+      "Opening flag transition duration is bounded to 1.4 seconds.")
+check("_splashController = AnimationController(\\n      vsync: this,\\n      duration: const Duration(milliseconds: 2800)," in main,
+      "Opening logo reveal duration is bounded to 2.8 seconds.")
+check("final buttonReveal = _reveal(progress, 0.64, 0.82);" in main,
+      "Get Started fades in before it becomes interactive.")
+check("_ambientController.stop();" in main,
+      "Ambient opening animation is stopped when entering the authenticated app.")
+
 # Role labels and profile-preview isolation.
 check("'requester' => 'Citizen'" in main,
       "Internal requester role is presented as Citizen.")
