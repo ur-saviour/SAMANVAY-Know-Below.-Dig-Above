@@ -42,9 +42,6 @@ for label, content in (("Android", android), ("Web", web)):
 check(len(versions) == 2 and versions[0][1] == versions[1][1],
       "Android and Web workflows use the same Flutter SDK version.")
 
-# The current pipeline creates its package manifest in CI. Detect that dependency
-# explicitly so a future migration to a committed manifest cannot silently leave
-# one workflow using a different setup path.
 for label, content, platform in (
     ("Android", android, "android"), ("Web", web, "web")
 ):
@@ -59,13 +56,11 @@ for label, content, platform in (
 for package in ("supabase_flutter", "maplibre_gl", "crypto"):
     found = {}
     for label, content in (("Android", android), ("Web", web)):
-        match = re.search(rf"flutter pub add {re.escape(package)}:([^\\s\\\\]+)", content)
+        match = re.search(rf"flutter pub add {re.escape(package)}:([A-Za-z0-9.+-]+)", content)
         found[label] = match.group(1) if match else None
     check(found["Android"] is not None and found["Android"] == found["Web"],
           f"{package} is explicitly version-pinned identically in Android and Web workflows.")
 
-# Secret values must enter the Web build through GitHub Actions secrets and
-# compile-time defines, never through committed literals.
 check("secrets.SUPABASE_URL" in web and "secrets.SUPABASE_PUBLISHABLE_KEY" in web,
       "Web build reads Supabase public configuration from GitHub Actions secrets.")
 check("--dart-define=SUPABASE_URL" in web and "--dart-define=SUPABASE_PUBLISHABLE_KEY" in web,
