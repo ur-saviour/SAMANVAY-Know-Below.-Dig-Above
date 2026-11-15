@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - feature/alpha-03-integrated-platform
+      - feature/samanvay-2-phase-2-environment
     paths:
       - 'app/**'
       - 'scripts/**'
@@ -94,10 +95,21 @@ jobs:
           flutter pub add geolocator
           flutter pub add image_picker
           flutter pub add csv
-          flutter pub add permission_handler
+          flutter pub add permission_handler:12.0.3
           flutter pub add http
           flutter pub add crypto:3.0.8
           flutter pub add shared_preferences
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("pubspec.yaml")
+          content = path.read_text()
+          override = "dependency_overrides:" + chr(10) + "  permission_handler_android: 13.0.1"
+          if "dependency_overrides:" not in content:
+              content += chr(10) + override + chr(10)
+          elif "permission_handler_android:" not in content:
+              content += chr(10) + "  permission_handler_android: 13.0.1" + chr(10)
+          path.write_text(content)
+          PY
           # Flutter 3.50 moved Material widgets into the standalone package.
           python3 - <<'PY'
           from pathlib import Path
