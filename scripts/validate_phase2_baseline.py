@@ -38,13 +38,21 @@ for label, content, platform in (("Android", android, "android"), ("Web", web, "
           f"{label} workflow currently generates and copies a temporary pubspec.")
     check("flutter pub get" in content, f"{label} workflow resolves dependencies before compiling.")
 
-for package in ("supabase_flutter", "maplibre_gl", "crypto"):
+for package in ("supabase_flutter", "maplibre_gl", "crypto", "permission_handler"):
     found = {}
     for label, content in (("Android", android), ("Web", web)):
         match = re.search(rf"flutter pub add {re.escape(package)}:([A-Za-z0-9.+-]+)", content)
         found[label] = match.group(1) if match else None
     check(found["Android"] is not None and found["Android"] == found["Web"],
           f"{package} is explicitly version-pinned identically in Android and Web workflows.")
+
+for label, content in (("Android", android), ("Web", web)):
+    check("permission_handler_android: 13.0.1" in content,
+          f"{label} workflow applies the same Android permission-handler compatibility override.")
+
+for label, content in (("Android", android), ("Web", web)):
+    check("feature/samanvay-2-phase-2-environment" in content,
+          f"{label} build workflow runs on the Phase 2 engineering branch.")
 
 check("secrets.SUPABASE_URL" in web and "secrets.SUPABASE_PUBLISHABLE_KEY" in web,
       "Web build reads Supabase public configuration from GitHub Actions secrets.")
