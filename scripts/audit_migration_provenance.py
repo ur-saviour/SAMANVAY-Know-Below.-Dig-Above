@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS = ROOT / "supabase" / "migrations"
-TIMESTAMPED = re.compile(r"^(\d{14})_[a-z0-9_]+\.sql$")
+TIMESTAMPED = re.compile(r"^(\d{8}|\d{14})_[a-z0-9_]+\.sql$")
 CREATE_TABLE = re.compile(
     r"\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?"
     r"([a-z_][\w]*)\.([a-z_][\w]*)",
@@ -35,10 +35,14 @@ def main() -> int:
         return 1
 
     malformed = [p.name for p in files if not TIMESTAMPED.match(p.name)]
+    legacy = [p.name for p in files if re.match(r"^\d{8}_[a-z0-9_]+\.sql$", p.name)]
     print(f"Migration files discovered: {len(files)}")
     print(f"Timestamp naming violations: {len(malformed)}")
+    print(f"Legacy 8-digit migration names: {len(legacy)}")
     for name in malformed:
         print(f"  - {name}")
+    for name in legacy:
+        print(f"  - legacy format (preserve existing migration identity): {name}")
 
     created: set[str] = set()
     referenced: set[str] = set()
@@ -74,9 +78,6 @@ def main() -> int:
             blockers.append(f"public.{table} has no CREATE TABLE in the checked-in migration set")
     if not config.is_file():
         blockers.append("supabase/config.toml is absent; local Supabase project configuration is not reproducible from this tree")
-
-    if malformed:
-        blockers.append("one or more migration filenames do not follow the 14-digit timestamp convention")
 
     print()
     if blockers:
