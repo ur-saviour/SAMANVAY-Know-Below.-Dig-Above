@@ -1,0 +1,28 @@
+name: SAMANVAY Phase 2 Environment Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/samanvay-2-phase-2-environment
+    paths:
+      - 'scripts/validate_phase2_baseline.py'
+      - '.github/workflows/build-apk.yml'
+      - '.github/workflows/build-web.yml'
+      - '.github/workflows/phase2-environment-baseline.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Android and Web build assumptions
+        run: python3 scripts/validate_phase2_baseline.py
