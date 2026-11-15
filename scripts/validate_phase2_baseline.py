@@ -63,6 +63,17 @@ check("secrets.MAPTILER_API_KEY" in web and "--dart-define=MAPTILER_API_KEY" in 
 check((ROOT / "scripts/validate_samanvay_contracts.py").is_file(),
       "Existing SAMANVAY source-contract validator is present.")
 
+acceptance = ROOT / "docs/engineering/SAMANVAY_2_RUNTIME_AND_DATA_ACCEPTANCE_MATRIX.md"
+check(acceptance.is_file(), "Runtime and data acceptance matrix is committed.")
+if acceptance.is_file():
+    matrix = acceptance.read_text(encoding="utf-8")
+    for token, label in (("AUTH-01", "authentication"), ("ROLE-02", "server-side role enforcement"),
+                         ("GIS-05", "empty utility-registry semantics"), ("GIS-06", "unverified asset handling"),
+                         ("PERMIT-01", "permit prerequisites"), ("RESTORE-01", "restoration quality gate")):
+        check(token in matrix, f"Runtime acceptance matrix covers {label}.")
+    check("Current result:** Not executed" in matrix,
+          "Acceptance matrix explicitly distinguishes test specification from executed evidence.")
+
 notes.append("No root pubspec.yaml/pubspec.lock is committed; local builds still depend on CI-generated scaffolding.")
 notes.append("No isolated Supabase staging database is provisioned by this check.")
 notes.append("This script does not execute Flutter, migrations, authenticated API tests, or device tests.")
