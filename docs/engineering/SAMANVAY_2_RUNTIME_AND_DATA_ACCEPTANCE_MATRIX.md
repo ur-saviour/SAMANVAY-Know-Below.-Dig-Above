@@ -10,6 +10,20 @@ Successful Android and Web CI builds prove that source code compiles and require
 
 The repository currently has no approved isolated Supabase staging database. Therefore this matrix defines executable acceptance criteria but does not claim that database-backed tests have passed.
 
+## Migration replay prerequisite discovered during repository inspection
+
+The engineering branch contains **75 files under `supabase/migrations/`**, but the sequence is not a self-contained bootstrap for an empty database. The earliest migration already alters policies on `gis.underground_assets` and `gis.asset_survey_evidence`, and references existing application objects such as `public.excavation_requests`, `public.profiles` and `public.departments`. It also uses Supabase-managed schemas and facilities such as `storage` and `auth.uid()`.
+
+The repository tree does not contain a checked-in `supabase/config.toml` or a foundational migration that creates the core application schema and GIS tables before this sequence. Therefore:
+
+1. Do **not** run the 75 migrations against a blank vanilla Postgres/PostGIS container and interpret the expected missing-object failures as defects in each additive migration.
+2. Do **not** invent a baseline schema from the current application UI or infer that production's live schema is reproducible from this repository.
+3. First obtain an owner-approved, sanitised schema-only export (including required extensions, schemas, roles/grants, auth/storage prerequisites and relevant function definitions), or recover the original foundational SQL/migration history from its authoritative source.
+4. Review that baseline for secrets, personal data and production-specific configuration. Keep all data rows out of the export unless synthetic fixtures are deliberately created.
+5. Only then build a disposable local Supabase/PostGIS replay job and execute the 75 migrations in timestamp order. Record any intentional dependency on Supabase-managed services.
+
+**Current blocker:** foundational schema provenance is not present in this repository snapshot. No migration replay has been attempted, and no database-backed test is claimed as passed.
+
 ## Environment rules
 
 1. Never point destructive or synthetic tests at the production Supabase project.
