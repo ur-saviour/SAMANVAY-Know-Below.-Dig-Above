@@ -25,6 +25,7 @@ import 'ai_assistant_page.dart';
 import 'samanvay_ai_chat_page.dart';
 import 'coordinated_work_calendar_page.dart';
 import 'public_transparency_dashboard_page.dart';
+import 'samanvay_underground_twin_panel.dart';
 
 const String supabaseUrl =
     String.fromEnvironment('SUPABASE_URL');
@@ -18939,94 +18940,19 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  Widget _undergroundModelPanel() {
-    const layers = <({String name, String label, Color color, IconData icon})>[
-      (name: 'Water', label: 'WATER', color: Color(0xFF38BDF8), icon: Icons.water_drop_outlined),
-      (name: 'Sewer', label: 'SEWER', color: Color(0xFF9B7AE8), icon: Icons.water_outlined),
-      (name: 'Stormwater', label: 'DRAINAGE', color: Color(0xFF22C5A5), icon: Icons.grain_rounded),
-      (name: 'Electricity', label: 'POWER', color: Color(0xFFFBBF24), icon: Icons.bolt_outlined),
-      (name: 'Telecom', label: 'TELECOM', color: Color(0xFFE879B8), icon: Icons.cable_rounded),
-      (name: 'Gas', label: 'GAS', color: Color(0xFFFB884F), icon: Icons.local_fire_department_outlined),
-      (name: 'Borewell', label: 'BOREWELL', color: Color(0xFF2DD4BF), icon: Icons.sensors_outlined),
-    ];
-    final panelWidth = math.min(392.0, MediaQuery.sizeOf(context).width - 24).toDouble();
-    return Container(
-      width: panelWidth,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xF20B1B2D),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x9955D9CE)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x44000000), blurRadius: 18, offset: Offset(0, 6)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.layers_outlined, color: Color(0xFF55D9CE), size: 18),
-            const SizedBox(width: 7),
-            const Expanded(child: Text(
-              'UNDERGROUND NETWORK CUTAWAY',
-              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .7),
-            )),
-            Text(_is3D ? '3D CUTAWAY' : '2D PLAN', style: const TextStyle(color: Color(0xFF7DE9DE), fontSize: 8, fontWeight: FontWeight.w900)),
-          ]),
-          const SizedBox(height: 4),
-          const Text(
-            'SIMULATED SUBSURFACE SCHEMATIC · NOT GEO-REFERENCED',
-            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .2),
-          ),
-          const SizedBox(height: 7),
-          SizedBox(
-            height: 184,
-            width: double.infinity,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(9),
-              child: _AnimatedUndergroundCutaway(
-                viewMode: _is3D ? '3D cutaway' : '2D plan',
-                visibleLayers: _undergroundVisibleLayers,
-                isLight: _usesLegacyLightPalette,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 4,
-            runSpacing: 1,
-            children: layers.map((layer) {
-              final selected = _undergroundVisibleLayers.contains(layer.name);
-              return FilterChip(
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                avatar: Icon(layer.icon, color: layer.color, size: 12),
-                label: Text(layer.label, style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w800)),
-                selected: selected,
-                selectedColor: layer.color.withValues(alpha: .22),
-                backgroundColor: const Color(0xFF172B3D),
-                side: BorderSide(color: selected ? layer.color.withValues(alpha: .85) : const Color(0x554B647C)),
-                onSelected: (enabled) => setState(() {
-                  if (enabled) {
-                    _undergroundVisibleLayers.add(layer.name);
-                  } else {
-                    _undergroundVisibleLayers.remove(layer.name);
-                  }
-                }),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Illustrative paths only. Not measured routes or depths; never use this schematic as excavation clearance.',
-            style: TextStyle(color: Color(0xFFFFD98B), fontSize: 7.5, height: 1.25),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _undergroundModelPanel() => SamanvayUndergroundTwinPanel(
+        is3D: _is3D,
+        visibleLayers: _undergroundVisibleLayers,
+        onLayerChanged: (name, enabled) {
+          setState(() {
+            if (enabled) {
+              _undergroundVisibleLayers.add(name);
+            } else {
+              _undergroundVisibleLayers.remove(name);
+            }
+          });
+        },
+      );
 
   Widget _desktopGisMetric(String label, String value, IconData icon, Color accent) {
     return Expanded(child: Container(
