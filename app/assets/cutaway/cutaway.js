@@ -22,7 +22,7 @@ function pipe(name,x,y,z,length,radius,color,group){
  (group||root).add(m);return m;
 }
 function makeLabel(text,x,y,z,color){
- const c=document.createElement('canvas');c.width=512;c.height=96;const ctx=c.getContext('2d);ctx.fillStyle='rgba(12,34,48,.82)';ctx.fillRect(0,0,512,96);ctx.fillStyle='#fff';ctx.font='bold 34px Arial';ctx.fillText(text,18,62);
+ const c=document.createElement('canvas');c.width=512;c.height=96;const ctx=c.getContext('2d');ctx.fillStyle='rgba(12,34,48,.82)';ctx.fillRect(0,0,512,96);ctx.fillStyle='#fff';ctx.font='bold 34px Arial';ctx.fillText(text,18,62);
  const tex=new T.CanvasTexture(c);const s=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true}));s.scale.set(4.1,.78,1);s.position.set(x,y,z);root.add(s);
 }
 function build(){
