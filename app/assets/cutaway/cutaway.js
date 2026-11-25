@@ -5,7 +5,7 @@ if(!window.THREE){status.textContent='3D engine unavailable. Reload the viewer o
 const T=window.THREE;
 let scene,camera,renderer,root,raycaster,mouse,selected=null,mode='3D cutaway',light=true;
 let yaw=-0.48,pitch=0.48,distance=15,drag=null,pinch=0;
-const groups={};
+const groups={};let surfaceCover=null;
 const colours={Water:0x258ad6,Sewer:0x8b5bc7,Stormwater:0x18a6a0,Electricity:0xe1a928,Telecom:0xd65a9e,Gas:0xe47c32,Borewell:0x26b7a8,Fibre:0x9b8cf4};
 const labels={Water:'Water main · illustrative',Sewer:'Sewer line · illustrative',Stormwater:'Stormwater drain · illustrative',Electricity:'Electrical duct · illustrative',Telecom:'Telecom conduit · illustrative',Gas:'Gas pipeline · illustrative',Fibre:'Fibre-optic conduit · illustrative',Borewell:'Borewell · illustrative'};
 scene=new T.Scene();scene.background=new T.Color(0xe8f0f2);
@@ -26,17 +26,18 @@ function makeLabel(text,x,y,z,color,parent){
  const tex=new T.CanvasTexture(c);const s=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true}));s.scale.set(4.1,.78,1);s.position.set(x,y,z);(parent||root).add(s);
 }
 function build(){
- box('soil',0,-1.65,0,12,3.3,7,0xc59b70);
- box('deep earth',0,-3.65,0,12,1,7,0x98704e);
- for(let i=0;i<5;i++)box('strata',0,-2.2-i*.29,0,12,.025,7,i%2?0xb88c61:0xd0a77a);
- box('road foundation',0,.12,0,12,.28,3.2,0x9e927e);
- box('asphalt',0,.31,0,12,.13,3.25,0x354653);
- box('grass verge',0,.37,-2.25,12,.09,1.15,0x64865a);
- box('grass verge',0,.37,2.25,12,.09,1.15,0x64865a);
- for(let x=-4.5;x<=4.5;x+=1.5)box('road marking',x,.385,0,.75,.015,.045,0xf5f0d8);
+ surfaceCover=new T.Group();root.add(surfaceCover);
+ box('soil',0,-1.65,0,12,3.3,7,0xc59b70,surfaceCover);
+ box('deep earth',0,-3.65,0,12,1,7,0x98704e,surfaceCover);
+ for(let i=0;i<5;i++)box('strata',0,-2.2-i*.29,0,12,.025,7,i%2?0xb88c61:0xd0a77a,surfaceCover);
+ box('road foundation',0,.12,0,12,.28,3.2,0x9e927e,surfaceCover);
+ box('asphalt',0,.31,0,12,.13,3.25,0x354653,surfaceCover);
+ box('grass verge',0,.37,-2.25,12,.09,1.15,0x64865a,surfaceCover);
+ box('grass verge',0,.37,2.25,12,.09,1.15,0x64865a,surfaceCover);
+ for(let x=-4.5;x<=4.5;x+=1.5)box('road marking',x,.385,0,.75,.015,.045,0xf5f0d8,surfaceCover);
  for(let side of [-1,1])for(let x=-4.5;x<=4.5;x+=3){
-   box('building',x,1.05,side*3.15,1.7,1.35,1.05,side<0?0xaab8bd:0x93a8b3);
-   box('building roof',x,1.75,side*3.15,1.75,.08,1.1,0x6d818b);
+   box('building',x,1.05,side*3.15,1.7,1.35,1.05,side<0?0xaab8bd:0x93a8b3,surfaceCover);
+   box('building roof',x,1.75,side*3.15,1.75,.08,1.1,0x6d818b,surfaceCover);
  }
  const configs=[
   ['Electricity',-.75,-.72,.12,.065],['Telecom',-.75,-1.05,-.42,.055],
@@ -56,7 +57,7 @@ function cameraUpdate(){
  else{camera.up.set(0,1,0);camera.position.set(target.x+distance*Math.sin(yaw)*Math.cos(pitch),target.y+distance*Math.sin(pitch),target.z+distance*Math.cos(yaw)*Math.cos(pitch));camera.lookAt(target);}
 }
 function updateTheme(){document.body.classList.toggle('dark',!light);scene.background=new T.Color(light?0xe8f0f2:0x102332);}
-function setMode(m){mode=m;document.getElementById('plan').classList.toggle('active',m==='2D plan');document.getElementById('cut').classList.toggle('active',m!=='2D plan');cameraUpdate();}
+function setMode(m){mode=m;if(surfaceCover)surfaceCover.visible=m!=='2D plan';document.getElementById('plan').classList.toggle('active',m==='2D plan');document.getElementById('cut').classList.toggle('active',m!=='2D plan');cameraUpdate();}
 document.getElementById('plan').onclick=()=>{setMode('2D plan');if(window.Samanvay)window.Samanvay.postMessage(JSON.stringify({type:'mode',mode:'2D plan'}));};
 document.getElementById('cut').onclick=()=>setMode('3D cutaway');
 function clearSelection(){
