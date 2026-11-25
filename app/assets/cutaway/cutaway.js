@@ -59,18 +59,30 @@ function updateTheme(){document.body.classList.toggle('dark',!light);scene.backg
 function setMode(m){mode=m;document.getElementById('plan').classList.toggle('active',m==='2D plan');document.getElementById('cut').classList.toggle('active',m!=='2D plan');cameraUpdate();}
 document.getElementById('plan').onclick=()=>{setMode('2D plan');if(window.Samanvay)window.Samanvay.postMessage(JSON.stringify({type:'mode',mode:'2D plan'}));};
 document.getElementById('cut').onclick=()=>setMode('3D cutaway');
+function clearSelection(){
+ if(selected&&selected.material&&selected.material.emissive){
+  selected.material.emissive.setHex(0x000000);
+  selected.material.emissiveIntensity=0;
+ }
+ selected=null;
+}
 function update(data){
  if(!data)return;
  if(data.mode)setMode(data.mode);
  if(typeof data.light==='boolean'){light=data.light;updateTheme();}
- if(Array.isArray(data.layers)){Object.keys(groups).forEach(k=>groups[k].visible=data.layers.includes(k));}
+ if(Array.isArray(data.layers)){
+  Object.keys(groups).forEach(k=>groups[k].visible=data.layers.includes(k));
+  if(selected&&Object.keys(groups).some(k=>groups[k]===selected.parent&&!groups[k].visible))clearSelection();
+ }
 }
 window.samanvayUpdate=update;
 function selectAt(e){
  const r=renderer.domElement.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;raycaster.setFromCamera(mouse,camera);
  const candidates=[];Object.keys(groups).forEach(k=>{if(groups[k].visible)groups[k].traverse(o=>{if(o.isMesh&&o.userData.name&&o.visible)candidates.push(o);});});
  const hit=raycaster.intersectObjects(candidates,false)[0];if(!hit)return;
- selected=hit.object;const d=selected.userData;document.getElementById('assetName').textContent=d.name||'Demo asset';
+ clearSelection();selected=hit.object;
+ if(selected.material&&selected.material.emissive){selected.material.emissive.setHex(0x45d7f5);selected.material.emissiveIntensity=.72;}
+ const d=selected.userData;document.getElementById('assetName').textContent=d.name||'Demo asset';
  document.getElementById('assetMeta').textContent=(d.diameter||'Illustrative')+' · '+(d.depth||'depth not surveyed')+' · '+(d.record||'DEMO');
  if(window.Samanvay)window.Samanvay.postMessage(JSON.stringify({type:'record_selected',name:d.name||'Demo asset',record:d.record||'SYNTHETIC DEMO'}));
 }
