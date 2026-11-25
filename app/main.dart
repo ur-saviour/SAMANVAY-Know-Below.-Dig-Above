@@ -5281,7 +5281,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
   final List<Map<String, dynamic>> _demoPermits = [];
   String _demoGisViewMode = '3D cutaway';
   Set<String> _demoGisVisibleLayers = {
-    'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Gas', 'Borewell',
+    'Water', 'Sewer', 'Stormwater', 'Electricity', 'Telecom', 'Fibre', 'Gas', 'Borewell',
   };
 
   @override
