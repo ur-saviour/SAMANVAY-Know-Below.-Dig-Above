@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<title>SAMANVAY Underground Viewer</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#e8f0f2}
+#stage{position:absolute;inset:0}canvas{display:block;width:100%;height:100%;touch-action:none}
+#top{position:absolute;left:10px;right:10px;top:9px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+.pill{pointer-events:auto;background:rgba(255,255,255,.92);color:#173348;border:1px solid rgba(20,50,70,.16);border-radius:10px;padding:7px 9px;font-size:10px;font-weight:800;box-shadow:0 3px 12px #142b3a22}
+#mode{display:flex;gap:4px}button{border:0;border-radius:7px;padding:6px 9px;font-size:10px;font-weight:800;background:#e5edf1;color:#173348}button.active{background:#087e9b;color:white}
+#notice{position:absolute;left:10px;bottom:9px;max-width:55%;font-size:9px;font-weight:900;color:#813d12;background:#fff1d9;border-radius:8px;padding:6px 8px}
+#detail{position:absolute;right:10px;bottom:9px;max-width:42%;min-width:115px;background:rgba(255,255,255,.94);color:#173348;border:1px solid #c7d5dc;border-radius:10px;padding:8px 9px;font-size:9px;box-shadow:0 4px 16px #142b3a22}
+#detail strong{display:block;font-size:11px;margin-bottom:3px}#detail span{display:block;line-height:1.35;color:#526879}
+#status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#173348;color:white;padding:10px 13px;border-radius:9px;font-size:11px;font-weight:700}
+body.dark{background:#102332}body.dark .pill,body.dark #detail{background:rgba(16,35,50,.94);color:#e6f1f5;border-color:#355266}body.dark button{background:#294454;color:#e6f1f5}body.dark button.active{background:#087e9b;color:white}body.dark #detail span{color:#b5c8d2}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="top"><div class="pill">SAMANVAY · UNDERGROUND MODEL</div><div id="mode" class="pill"><button id="plan">2D PLAN</button><button id="cut" class="active">3D CUTAWAY</button></div></div>
+<div id="notice">DEMO ONLY · NOT TO SCALE · NOT FOR EXCAVATION</div>
+<div id="detail"><strong id="assetName">Select a network feature</strong><span id="assetMeta">Drag to rotate · pinch or wheel to zoom · tap a pipe to inspect</span></div>
+<div id="status">Initialising interactive 3D viewer…</div>
+<script src="three.min.js"></script>
+<script src="cutaway.js"></script>
+</body></html>
