@@ -44,7 +44,7 @@ function build(){
   ['Gas',-.75,-2.02,-.1,.09],['Stormwater',-.75,-2.42,.8,.18],['Sewer',-.75,-2.9,-.65,.2]
  ];
  configs.forEach(a=>{const g=new T.Group();root.add(g);for(let x=-4.5;x<=4.5;x+=1.5)pipe(a[0],x,a[2]+Math.sin(x*.45)*.08,a[3],1.8,a[4],colours[a[0]],g);groups[a[0]]=g;makeLabel(a[0],4.6,a[2],a[3],colours[a[0]]);});
- const bore=new T.Group();root.add(bore);const shaft=new T.Mesh(new T.CylinderGeometry(.08,.08,2.4,16),mat(colours.Borewell));shaft.position.set(4.3,-1.6,2.4);bore.add(shaft);groups.Borewell=bore;
+ const bore=new T.Group();root.add(bore);const shaft=new T.Mesh(new T.CylinderGeometry(.08,.08,2.4,16),mat(colours.Borewell));shaft.position.set(4.3,-1.6,2.4);shaft.userData={name:'Borewell',kind:'Borewell',depth:'Illustrative only',material:'Illustrative composite',diameter:'Visual only',record:'SYNTHETIC DEMO'};bore.add(shaft);groups.Borewell=bore;
  makeLabel('BOREWELL',4.3,-.5,2.4,colours.Borewell);
 }
 build();
