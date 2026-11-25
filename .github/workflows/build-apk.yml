@@ -188,7 +188,7 @@ jobs:
           cp /tmp/samanvay_scaffold/analysis_options.yaml .
           cp /tmp/samanvay_scaffold/.metadata .
 
-          mkdir -p lib assets/reference/coimbatore assets/brand
+          mkdir -p lib assets/reference/coimbatore assets/brand assets/cutaway
           if [ ! -d app/assets/reference ]; then
             echo "ERROR: Source GIS reference directory app/assets/reference is missing."
             exit 1
@@ -211,6 +211,12 @@ jobs:
           PY
           cp app/public_transparency_dashboard_page.dart lib/public_transparency_dashboard_page.dart
           cp app/main.dart lib/main.dart
+          cp app/underground_cutaway_viewer.dart lib/underground_cutaway_viewer.dart
+          cp -R app/assets/cutaway/. assets/cutaway/
+          test -s assets/cutaway/index.html
+          test -s assets/cutaway/cutaway.js
+          test -s assets/cutaway/three.min.js
+          test -s assets/cutaway/THREE_LICENSE.txt
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
@@ -261,6 +267,7 @@ jobs:
           flutter pub add http
           flutter pub add crypto:3.0.8
           flutter pub add shared_preferences
+          flutter pub add webview_flutter:4.14.1
           # Flutter 3.50 moved Material widgets into the standalone package.
           python3 - <<'PY'
           from pathlib import Path
@@ -270,6 +277,9 @@ jobs:
               content += chr(10) + "dependency_overrides:" + chr(10) + "  permission_handler_android: 13.0.1" + chr(10)
 
           asset_entry = "    - assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson"
+          cutaway_entry = "    - assets/cutaway/"
+          if cutaway_entry not in content:
+              content = content.replace("  assets:" + chr(10), "  assets:" + chr(10) + cutaway_entry + chr(10), 1)
           if asset_entry not in content:
               if chr(10) + "flutter:" + chr(10) not in content:
                   raise SystemExit("Flutter section not found in generated pubspec.yaml")
