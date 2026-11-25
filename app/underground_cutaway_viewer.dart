@@ -95,7 +95,7 @@ class _SamanvayCutawayViewerState extends State<SamanvayCutawayViewer> {
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Text(
-            '3D viewer could not initialise on this device. Check Android System WebView and network access, then reopen this panel.',
+            '3D viewer could not initialise on this device. Check Android System WebView, then reopen this panel.',
             textAlign: TextAlign.center,
           ),
         ),
