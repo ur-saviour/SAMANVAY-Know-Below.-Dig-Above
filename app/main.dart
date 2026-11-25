@@ -6993,6 +6993,7 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
       {'name': 'Stormwater', 'colour': Color(0xFF18A6A0), 'icon': Icons.grain_rounded},
       {'name': 'Electricity', 'colour': Color(0xFFE1A928), 'icon': Icons.bolt_outlined},
       {'name': 'Telecom', 'colour': Color(0xFFD65A9E), 'icon': Icons.cable_rounded},
+      {'name': 'Fibre', 'colour': Color(0xFF9B8CF4), 'icon': Icons.cable_rounded},
       {'name': 'Gas', 'colour': Color(0xFFE47C32), 'icon': Icons.local_fire_department_outlined},
       {'name': 'Borewell', 'colour': Color(0xFF26B7A8), 'icon': Icons.sensors_outlined},
     ];
