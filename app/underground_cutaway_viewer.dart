@@ -10,11 +10,13 @@ class SamanvayCutawayViewer extends StatefulWidget {
     required this.viewMode,
     required this.visibleLayers,
     required this.isLight,
+    this.onViewModeChanged,
   });
 
   final String viewMode;
   final Set<String> visibleLayers;
   final bool isLight;
+  final ValueChanged<String>? onViewModeChanged;
 
   @override
   State<SamanvayCutawayViewer> createState() => _SamanvayCutawayViewerState();
@@ -36,6 +38,12 @@ class _SamanvayCutawayViewerState extends State<SamanvayCutawayViewer> {
         onMessageReceived: (message) {
           try {
             final payload = jsonDecode(message.message);
+            if (payload is Map && payload['type'] == 'mode' && mounted) {
+              final mode = payload['mode']?.toString();
+              if (mode == '2D plan' || mode == '3D cutaway') {
+                widget.onViewModeChanged?.call(mode!);
+              }
+            }
             if (payload is Map && payload['type'] == 'record_selected' && mounted) {
               final name = payload['name']?.toString() ?? 'Infrastructure asset';
               ScaffoldMessenger.of(context).showSnackBar(
