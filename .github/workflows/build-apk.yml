@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - feature/alpha-03-integrated-platform
+      - upgrade/alpha-04-reference-driven
     paths:
       - 'app/**'
       - 'scripts/**'
@@ -345,7 +346,7 @@ jobs:
 
           for ABI in arm64-v8a armeabi-v7a x86_64; do
             SOURCE="build/app/outputs/flutter-apk/app-${ABI}-release.apk"
-            DEST="dist/SAMANVAY-Alpha-0.3-${ABI}.apk"
+            DEST="dist/SAMANVAY-Alpha-0.4-${ABI}.apk"
 
             if [ ! -s "$SOURCE" ]; then
               echo "ERROR: Expected APK not found: $SOURCE"
@@ -411,7 +412,7 @@ jobs:
         if: always() && hashFiles('dist/*.apk') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: SAMANVAY-Alpha-0.3-APK
+          name: SAMANVAY-Alpha-0.4-Reference-Driven-APK
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -421,14 +422,15 @@ jobs:
         if: hashFiles('dist/*.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: samanvay-alpha-0.3
-          name: SAMANVAY Alpha 0.3
+          tag_name: samanvay-alpha-0.4-reference-driven
+          name: SAMANVAY Alpha 0.4 — Reference-Driven Upgrade
           body: |
             SAMANVAY Android Application
-            Version: Alpha 0.3
+            Version: Alpha 0.4 (reference-driven upgrade branch)
 
             Includes:
             - ABI-specific Flutter release APKs (ARM64, ARMv7, x86_64)
+            - Built from upgrade/alpha-04-reference-driven; not a production certification
             - Coimbatore 2024 Public Domain ward-boundary reference layer (OpenCity.in)
             - 21 Coimbatore district groundwater telemetry station points from NWDP 2026–2030 snapshot
             - Verified department-owned GIS asset map layer (when owner data is registered and verified)
