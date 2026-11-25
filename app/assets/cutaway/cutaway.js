@@ -21,9 +21,9 @@ function pipe(name,x,y,z,length,radius,color,group){
  m.rotation.z=Math.PI/2;m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;m.userData={name:name,kind:name,depth:Math.abs(y).toFixed(1)+' m (visual only)',material:'Illustrative composite',diameter:(radius*200).toFixed(0)+' mm (visual only)',record:'SYNTHETIC DEMO'};
  (group||root).add(m);return m;
 }
-function makeLabel(text,x,y,z,color){
+function makeLabel(text,x,y,z,color,parent){
  const c=document.createElement('canvas');c.width=512;c.height=96;const ctx=c.getContext('2d');ctx.fillStyle='rgba(12,34,48,.82)';ctx.fillRect(0,0,512,96);ctx.fillStyle='#fff';ctx.font='bold 34px Arial';ctx.fillText(text,18,62);
- const tex=new T.CanvasTexture(c);const s=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true}));s.scale.set(4.1,.78,1);s.position.set(x,y,z);root.add(s);
+ const tex=new T.CanvasTexture(c);const s=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true}));s.scale.set(4.1,.78,1);s.position.set(x,y,z);(parent||root).add(s);
 }
 function build(){
  box('soil',0,-1.65,0,12,3.3,7,0xc59b70);
@@ -43,9 +43,9 @@ function build(){
   ['Fibre',-.75,-1.28,-.8,.045],['Water',-.75,-1.65,.58,.14],
   ['Gas',-.75,-2.02,-.1,.09],['Stormwater',-.75,-2.42,.8,.18],['Sewer',-.75,-2.9,-.65,.2]
  ];
- configs.forEach(a=>{const g=new T.Group();root.add(g);for(let x=-4.5;x<=4.5;x+=1.5)pipe(a[0],x,a[2]+Math.sin(x*.45)*.08,a[3],1.8,a[4],colours[a[0]],g);groups[a[0]]=g;makeLabel(a[0],4.6,a[2],a[3],colours[a[0]]);});
+ configs.forEach(a=>{const g=new T.Group();root.add(g);for(let x=-4.5;x<=4.5;x+=1.5)pipe(a[0],x,a[2]+Math.sin(x*.45)*.08,a[3],1.8,a[4],colours[a[0]],g);groups[a[0]]=g;makeLabel(a[0],4.6,a[2],a[3],colours[a[0]],g);});
  const bore=new T.Group();root.add(bore);const shaft=new T.Mesh(new T.CylinderGeometry(.08,.08,2.4,16),mat(colours.Borewell));shaft.position.set(4.3,-1.6,2.4);shaft.userData={name:'Borewell',kind:'Borewell',depth:'Illustrative only',material:'Illustrative composite',diameter:'Visual only',record:'SYNTHETIC DEMO'};bore.add(shaft);groups.Borewell=bore;
- makeLabel('BOREWELL',4.3,-.5,2.4,colours.Borewell);
+ makeLabel('BOREWELL',4.3,-.5,2.4,colours.Borewell,bore);
 }
 build();
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
