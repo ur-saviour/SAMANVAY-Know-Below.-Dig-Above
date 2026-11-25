@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const status=document.getElementById('status'),stage=document.getElementById('stage');
-if(!window.THREE){status.textContent='3D engine unavailable. Reopen with network access.';return;}
+if(!window.THREE){status.textContent='3D engine unavailable. Reload the viewer or check the bundled viewer assets.';return;}
 const T=window.THREE;
 let scene,camera,renderer,root,raycaster,mouse,selected=null,mode='3D cutaway',light=true;
 let yaw=-0.48,pitch=0.48,distance=15,drag=null,pinch=0;
