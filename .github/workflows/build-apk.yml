@@ -217,6 +217,7 @@ jobs:
           test -s assets/cutaway/cutaway.js
           test -s assets/cutaway/three.min.js
           test -s assets/cutaway/THREE_LICENSE.txt
+          node --check app/assets/cutaway/cutaway.js
           cp app/asset_evidence_page.dart lib/asset_evidence_page.dart
           cp app/public_excavation_tracker_page.dart lib/public_excavation_tracker_page.dart
           cp app/ai_assistant_page.dart lib/ai_assistant_page.dart
@@ -288,6 +289,9 @@ jobs:
                   chr(10) + "flutter:" + chr(10) + "  assets:" + chr(10) + asset_entry + chr(10),
                   1,
               )
+
+          if cutaway_entry not in content:
+              content = content.replace(asset_entry, cutaway_entry + chr(10) + asset_entry, 1)
 
           groundwater_entry = "    - assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson"
           brand_entries = [
