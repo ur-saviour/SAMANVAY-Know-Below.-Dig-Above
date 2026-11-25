@@ -59,7 +59,7 @@ function cameraUpdate(){
 function updateTheme(){document.body.classList.toggle('dark',!light);scene.background=new T.Color(light?0xe8f0f2:0x102332);}
 function setMode(m){mode=m;if(surfaceCover)surfaceCover.visible=m!=='2D plan';document.getElementById('plan').classList.toggle('active',m==='2D plan');document.getElementById('cut').classList.toggle('active',m!=='2D plan');cameraUpdate();}
 document.getElementById('plan').onclick=()=>{setMode('2D plan');if(window.Samanvay)window.Samanvay.postMessage(JSON.stringify({type:'mode',mode:'2D plan'}));};
-document.getElementById('cut').onclick=()=>setMode('3D cutaway');
+document.getElementById('cut').onclick=()=>{setMode('3D cutaway');if(window.Samanvay)window.Samanvay.postMessage(JSON.stringify({type:'mode',mode:'3D cutaway'}));};
 function clearSelection(){
  if(selected&&selected.material&&selected.material.emissive){
   selected.material.emissive.setHex(0x000000);
