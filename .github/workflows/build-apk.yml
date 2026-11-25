@@ -402,6 +402,10 @@ jobs:
 
             for REQUIRED_ASSET in \
               "assets/flutter_assets/assets/reference/coimbatore/coimbatore_wards_2024_public_domain.geojson" \
+              "assets/flutter_assets/assets/cutaway/index.html" \
+              "assets/flutter_assets/assets/cutaway/cutaway.js" \
+              "assets/flutter_assets/assets/cutaway/three.min.js" \
+              "assets/flutter_assets/assets/cutaway/THREE_LICENSE.txt" \
               "assets/flutter_assets/assets/reference/coimbatore/groundwater_telemetry_2026_2030.geojson" \
               "assets/flutter_assets/assets/brand/samanvay_logo.jpg" \
               "assets/flutter_assets/assets/brand/home_city_banner.jpg" \
@@ -431,8 +435,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # 11. Publish/update the Alpha 0.3 prerelease on successful builds
-      - name: Publish SAMANVAY Alpha 0.3
+      # 11. Publish/update the Alpha 0.4 prerelease on successful builds
+      - name: Publish SAMANVAY Alpha 0.4
         if: hashFiles('dist/*.apk') != ''
         uses: softprops/action-gh-release@v2
         with:
