@@ -5,73 +5,93 @@
 **Baseline commit:** `caafecb34dd6bdf6752ff1603fcdfcbf6bbaa34f`  
 **Upgrade branch:** `upgrade/alpha-04-reference-driven`
 
-## Scope and preservation rules
+## Corrected source classification
 
-This is an upgrade of the existing SAMANVAY application, not a replacement project. Preserve the existing Flutter application, Supabase project and schema, original SAMANVAY brand assets, current account records, role model, and working workflows. Do not overwrite production data, expose secrets, or weaken role-based access controls to make a demo appear functional.
+The owner has clarified that the uploaded `SAMANVAY (2).apk` is the **reference application** for the upgrade. Earlier notes that classified it as the current app were incorrect and are superseded by this report. The APK was directly inspected from `/mnt/data/SAMANVAY (2).apk`.
 
-The reference application shared by the project owner through Google Drive has not yet been inspected in this execution. The supplied `SAMANVAY (2).apk` is the existing SAMANVAY build, not the reference target. Visual matching must not be guessed; the target APK or a screen recording is still required for faithful reconstruction.
+The GitHub branch `feature/alpha-03-integrated-platform` is the source-code baseline to upgrade. The uploaded APK is the reference for the experience and specific implementation patterns, not the source branch to overwrite.
 
-## Baseline evidence
+## Reference APK — verified findings
 
-### Repository and builds
+- APK size: approximately 87 MiB.
+- Flutter Android application; contains native libraries for ARM64, ARMv7 and x86_64.
+- Includes MapLibre native libraries.
+- Bundles original SAMANVAY brand assets, including SVG/PNG/JPG logo variants and city/splash assets.
+- Includes a self-contained Three.js underground visualisation:
+  - `assets/cutaway/index.html`
+  - `assets/cutaway/cutaway.js`
+  - `assets/cutaway/three.min.js`
+- The underground view uses a Three.js WebGL renderer, perspective camera, textured road/asphalt, concrete, gravel, soil/rock strata, utility meshes and on-screen labels.
+- It supports 2D/3D mode buttons, pointer drag rotation, two-pointer pinch zoom, wheel zoom, raycast selection of utility objects, a selected-asset detail card and an “Open record” bridge callback.
+- The visualisation receives data through `window.samanvayLoad(data)`; it also has a demo sample fallback.
+- The source comments state that dimensions and depths are visually exaggerated to make the network readable on a phone. The demo site described in the source is Manaparai Bus Stand.
+- The HTML explicitly labels the sample view “Sample records · not for excavation”.
+- The cutaway is generated locally and does not load external model files. This is a presentation component, not evidence that all depicted utilities are verified or georeferenced.
 
-- Active baseline branch: `feature/alpha-03-integrated-platform`.
-- Baseline commit: `caafecb34dd6bdf6752ff1603fcdfcbf6bbaa34f`.
-- Android Actions run #637 completed successfully on the baseline commit.
-- Browser Actions run #441 completed successfully on the baseline commit.
-- These are CI build results, not physical-device acceptance results.
+### Reference experience design cues
 
-### Brand and authentication
+- Light neutral background with earthy soil and rock materials.
+- Textured asphalt road and opened ground cross-section.
+- Distinct utility colours and floating labels.
+- Compact white title card and 2D/3D segmented control at the top.
+- Interactive asset-selection information card at the bottom.
+- Direct touch affordances: drag, pinch, tap.
+- Clear demo/not-for-excavation disclosure.
 
-- The repository contains the SAMANVAY SVG logo at `app/assets/brand/samanvay_logo.svg`.
-- The Flutter entry point includes a branded opening experience.
-- Email OTP and mobile OTP client flows are present, as is password-recovery code.
-- The mobile dual-channel OTP documentation requires the Supabase Auth hook, provider secrets, approved sender/template configuration and a real-device test. Delivery must not be called verified until that test is completed.
-- The source-level role mapping presents the internal `requester` role as **Citizen**.
-- Citizen-to-staff profile switching opens local, read-only demo previews using `PUBLIC-*` identifiers. It does not change the authenticated account's role or grant access to protected production records.
+## Existing GitHub source baseline — verified comparison
 
-### GIS and underground visualisation
+- The source branch is `feature/alpha-03-integrated-platform`, commit `caafecb34dd6bdf6752ff1603fcdfcbf6bbaa34f`.
+- The current `app/main.dart` branch uses `_AnimatedUndergroundCutaway` and `_DemoSubsurfacePainter`, a Flutter `CustomPainter` schematic. It is materially different from the reference APK's Three.js WebGL scene.
+- The current source explicitly calls the painter synthetic and non-georeferenced and excludes it from GIS, excavation screening and clearance logic.
+- This establishes a concrete upgrade gap: restore/integrate a Three.js-based interactive cutaway comparable to the reference, with data passed from Flutter and selected records bridged back to Flutter.
+- The source repository contains the original SAMANVAY SVG logo at `app/assets/brand/samanvay_logo.svg`.
+- The repository contains email/mobile OTP and password-recovery client-flow foundations. Provider delivery and real-device verification remain separate acceptance requirements.
+- Role preview code uses local demo identities; it does not change authenticated permissions or grant protected staff access.
 
-- The map uses MapLibre with an OpenFreeMap vector style and an Esri World Imagery raster fallback; a MapTiler hybrid style is selected when a MapTiler key is configured.
-- The map source includes India navigation, regional extents, reference boundary layers, groundwater observations and guarded utility-overview queries.
-- The underground cutaway is implemented by `_AnimatedUndergroundCutaway` and `_DemoSubsurfacePainter` in `app/main.dart`.
-- That cutaway is a fixed-coordinate Flutter `CustomPainter` illustration with animated particles. It is explicitly documented in source as synthetic and non-georeferenced. It is not a 3D GIS scene and must not be used for spatial screening or clearance.
-- The GIS audit records zero rows in `gis.underground_assets`, zero rows in `gis.asset_survey_evidence`, and zero utility-geometry import runs at the audit snapshot.
-- Groundwater observations are historical imported observations, not live telemetry. The audit records the newest source observation as 31 December 2025.
-- National administrative and utility coverage catalogues are reference/readiness metadata, not nationwide verified underground coverage.
+## GIS and data-governance constraints
 
-## Upgrade priorities
+- The source GIS uses MapLibre. The audit records MapLibre basemap and administrative-boundary foundations, plus guarded utility overview queries.
+- The audit snapshot records zero rows in `gis.underground_assets`, zero rows in `gis.asset_survey_evidence`, and zero utility-geometry import runs.
+- Groundwater observations in the bundled/reference data are not to be represented as live telemetry unless independently verified.
+- National administrative and utility coverage catalogues are readiness/reference metadata, not nationwide verified underground coverage.
+- An empty asset registry never means no underground utilities exist and never means excavation is safe.
 
-1. **Reference reconstruction:** inspect the actual reference APK/video and document its navigation, screen hierarchy, visual system, interaction patterns and motion before implementing visual changes.
-2. **GIS workspace:** improve the map-first experience, responsive layer manager, search, legend, selected-feature details, date/status filters, source attribution, data freshness and no-data states.
-3. **Underground digital-twin presentation:** replace the fixed cutaway with a navigable 3D presentation component, while keeping illustrative geometry clearly labelled and separate from operational GIS data. Only authorised, verified, georeferenced records may appear as operational utility geometry.
-4. **Authentication and role experience:** simplify the entry flow and verify email/mobile OTP, password recovery, Citizen registration and the four role-gated workspaces. Demo switching must remain visibly demo-only.
-5. **Workflow completion:** validate citizen submissions, department assignment/review, coordinator joint-work proposals, administrator governance, evidence upload and audit history end to end.
-6. **Release quality:** run static analysis, contract checks, widget/integration tests where feasible, Android build/signature checks, and physical-device smoke tests. CI success alone is not release acceptance.
+## Alpha 0.4 upgrade priorities
 
-## Non-negotiable safety and data rules
+1. **Reference parity specification:** use the inspected APK as the design/interaction target. Document screen hierarchy, navigation, brand treatment, motion, map controls and the Three.js cutaway interactions before broad UI changes.
+2. **Underground 3D integration:** port or adapt the reference Three.js scene into the current Flutter GIS workflow. Retain WebGL performance safeguards, Android WebView compatibility checks, resize handling, reduced-motion consideration, touch gestures, raycast selection and Flutter-JavaScript bridge contracts.
+3. **Data-driven rendering:** pass only authorised asset records into the scene. Preserve asset IDs, source, owner, material, size, installation metadata, depth, confidence/accuracy and verification status. Missing/unverified geometry must remain visibly unavailable or illustrative; never silently fill gaps with fabricated routes.
+4. **GIS workspace:** improve map-first navigation, layer manager, search, legend, selected-feature details, date/status filters, source attribution, freshness and no-data states.
+5. **Authentication and role experience:** simplify entry and verify email/mobile OTP, password recovery, Citizen registration and four role-gated workspaces. Demo switching remains visibly demo-only.
+6. **Workflow completion:** validate citizen submissions, department assignment/review, coordinator joint-work proposals, administrator governance, evidence upload and audit history end to end.
+7. **Release quality:** run static analysis, contract checks, widget/integration tests where feasible, Android build/signature checks and physical-device smoke tests.
 
-- An empty asset registry never means that no underground utilities exist or that excavation is safe.
-- Never fabricate verified utility routes, depth, collisions, statutory clearance, official asset coverage or savings.
+## Non-negotiable preservation and safety rules
+
+- Preserve the original SAMANVAY logo and brand identity.
+- Use **Citizen** in visible UI; do not expose “Requester” as user-facing terminology.
+- Preserve the existing Flutter/Supabase application and account data. No destructive schema or data changes without a reviewed migration and explicit approval.
 - Demo/synthetic data must carry a visible demo/reference label and must not enter operational clearance logic.
+- Never fabricate verified utility routes, depth, collisions, statutory clearance, official asset coverage or savings.
 - Exact utility geometry remains restricted to authorised owner-side workflows.
 - AI may support triage and explanation; it must not approve permits, make statutory determinations, certify utility locations or declare a site safe.
-- Preserve the original SAMANVAY logo and the Citizen terminology in all visible UI.
 
 ## Acceptance evidence required before Alpha 0.4 release
 
-- [ ] Reference APK/video inspected and a screen-by-screen parity specification approved.
+- [ ] Screen-by-screen reference parity specification completed.
 - [ ] Original logo and approved brand assets unchanged.
+- [ ] Three.js scene integrated with Flutter and tested on target Android devices.
+- [ ] 2D/3D switching, rotation, pinch zoom, selection, detail card and record bridge tested.
+- [ ] WebView/WebGL failure and low-memory fallback tested.
 - [ ] Real-device email OTP and mobile OTP tests passed.
-- [ ] Citizen, department officer, coordinator and administrator account tests passed, including negative access tests.
-- [ ] MapLibre vector and satellite basemaps tested on-device; attribution visible.
-- [ ] GIS navigation, search, layer toggles, map selection, GPS permission and no-data states tested.
-- [ ] 3D presentation controls and layer visibility tested; illustrative and operational geometry clearly separated.
-- [ ] Verified-asset empty state explicitly says unavailable/unverified and never implies clearance.
-- [ ] Evidence upload and workflow actions tested against the connected Supabase project.
-- [ ] Android APK installs, launches, survives navigation and passes smoke tests on a physical Android device.
-- [ ] Build artifact, commit SHA, test results and known limitations recorded for the release.
+- [ ] Citizen, department officer, coordinator and administrator tests passed, including negative access tests.
+- [ ] MapLibre vector/satellite basemaps, attribution, navigation, search, layer toggles and no-data states tested.
+- [ ] Illustrative and operational geometry clearly separated.
+- [ ] Evidence upload and workflow actions tested against Supabase.
+- [ ] Empty/unverified registry state never implies clearance.
+- [ ] Android APK installs, launches, survives navigation and passes physical-device smoke tests.
+- [ ] Build artifact, commit SHA, test results and known limitations recorded.
 
 ## Current status
 
-This commit records the baseline and acceptance gates only. It does not claim that the UI upgrade, 3D rewrite, backend deployment, device testing or Alpha 0.4 release has been completed.
+The reference APK has now been inspected at asset/source level. This commit records the corrected reference classification and the specific 3D implementation gap. It does not claim that application code has yet been changed, that the Three.js scene has been integrated into the current source, or that Alpha 0.4 has been built or device-tested.
