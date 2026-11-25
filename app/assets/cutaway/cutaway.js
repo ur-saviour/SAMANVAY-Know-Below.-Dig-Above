@@ -68,7 +68,7 @@ function update(data){
 window.samanvayUpdate=update;
 function selectAt(e){
  const r=renderer.domElement.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;raycaster.setFromCamera(mouse,camera);
- const candidates=[];Object.keys(groups).forEach(k=>groups[k].traverse(o=>{if(o.isMesh&&o.userData.name)candidates.push(o);}));
+ const candidates=[];Object.keys(groups).forEach(k=>{if(groups[k].visible)groups[k].traverse(o=>{if(o.isMesh&&o.userData.name&&o.visible)candidates.push(o);});});
  const hit=raycaster.intersectObjects(candidates,false)[0];if(!hit)return;
  selected=hit.object;const d=selected.userData;document.getElementById('assetName').textContent=d.name||'Demo asset';
  document.getElementById('assetMeta').textContent=(d.diameter||'Illustrative')+' · '+(d.depth||'depth not surveyed')+' · '+(d.record||'DEMO');
@@ -102,7 +102,9 @@ function finishPointer(e){
  else if(activePointers.size===1){const p=[...activePointers.values()][0];if(drag){drag.x=p.x;drag.y=p.y;drag.moved=true;}}
 }
 renderer.domElement.addEventListener('pointerup',finishPointer);
-renderer.domElement.addEventListener('pointercancel',finishPointer);
+renderer.domElement.addEventListener('pointercancel',e=>{
+ activePointers.delete(e.pointerId);drag=null;pinchDistance=0;
+});
 renderer.domElement.addEventListener('wheel',e=>{distance=Math.max(8,Math.min(25,distance+e.deltaY*.012));cameraUpdate();},{passive:true});
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}cameraUpdate();animate();
 status.style.display='none';
