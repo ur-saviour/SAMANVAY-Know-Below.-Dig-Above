@@ -19,6 +19,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'underground_cutaway_viewer.dart';
 import 'asset_evidence_page.dart';
 import 'public_excavation_tracker_page.dart';
 import 'ai_assistant_page.dart';
@@ -7035,13 +7037,10 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                 height: 218,
                 width: double.infinity,
                 color: isLight ? const Color(0xFFE9F1F4) : const Color(0xFF0B2032),
-                child: CustomPaint(
-                  painter: _DemoSubsurfacePainter(
-                    viewMode: _demoGisViewMode,
-                    visibleLayers: _demoGisVisibleLayers,
-                    isLight: isLight,
-                  ),
-                  child: const SizedBox.expand(),
+                child: SamanvayCutawayViewer(
+                  viewMode: _demoGisViewMode,
+                  visibleLayers: _demoGisVisibleLayers,
+                  isLight: isLight,
                 ),
               ),
             ),
