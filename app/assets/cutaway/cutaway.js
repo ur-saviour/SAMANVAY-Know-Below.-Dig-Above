@@ -74,12 +74,36 @@ function selectAt(e){
  document.getElementById('assetMeta').textContent=(d.diameter||'Illustrative')+' · '+(d.depth||'depth not surveyed')+' · '+(d.record||'DEMO');
  if(window.Samanvay)window.Samanvay.postMessage(JSON.stringify({type:'record_selected',name:d.name||'Demo asset',record:d.record||'SYNTHETIC DEMO'}));
 }
-renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};renderer.domElement.setPointerCapture(e.pointerId);});
-renderer.domElement.addEventListener('pointermove',e=>{if(!drag||mode==='2D plan')return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>2)drag.moved=true;yaw-=dx*.008;pitch=Math.max(.12,Math.min(1.25,pitch+dy*.006));drag.x=e.clientX;drag.y=e.clientY;cameraUpdate();});
-renderer.domElement.addEventListener('pointerup',e=>{if(drag&&!drag.moved)selectAt(e);drag=null;});
+const activePointers=new Map();let pinchDistance=0;
+renderer.domElement.addEventListener('pointerdown',e=>{
+ activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ renderer.domElement.setPointerCapture(e.pointerId);
+ if(activePointers.size===1)drag={x:e.clientX,y:e.clientY,moved:false};
+ else if(activePointers.size===2){if(drag)drag.moved=true;const p=[...activePointers.values()];pinchDistance=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);}
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(!activePointers.has(e.pointerId))return;
+ activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(activePointers.size>=2){
+  const p=[...activePointers.values()].slice(0,2),d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+  if(drag)drag.moved=true;
+  distance=Math.max(8,Math.min(25,distance+(pinchDistance-d)*.035));pinchDistance=d;cameraUpdate();return;
+ }
+ if(!drag||mode==='2D plan')return;
+ const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+ if(Math.abs(dx)+Math.abs(dy)>2)drag.moved=true;
+ yaw-=dx*.008;pitch=Math.max(.12,Math.min(1.25,pitch+dy*.006));
+ drag.x=e.clientX;drag.y=e.clientY;cameraUpdate();
+});
+function finishPointer(e){
+ const wasLast=activePointers.size===1;
+ activePointers.delete(e.pointerId);
+ if(wasLast){if(drag&&!drag.moved)selectAt(e);drag=null;}
+ else if(activePointers.size===1){const p=[...activePointers.values()][0];if(drag){drag.x=p.x;drag.y=p.y;drag.moved=true;}}
+}
+renderer.domElement.addEventListener('pointerup',finishPointer);
+renderer.domElement.addEventListener('pointercancel',finishPointer);
 renderer.domElement.addEventListener('wheel',e=>{distance=Math.max(8,Math.min(25,distance+e.deltaY*.012));cameraUpdate();},{passive:true});
-let touchDist=0;renderer.domElement.addEventListener('touchstart',e=>{if(e.touches.length===2)touchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);},{passive:true});
-renderer.domElement.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);distance=Math.max(8,Math.min(25,distance+(touchDist-d)*.035));touchDist=d;cameraUpdate();}},{passive:true});
 function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}cameraUpdate();animate();
 status.style.display='none';
 window.samanvayUpdate({mode:'3D cutaway',layers:Object.keys(groups),light:true});
