@@ -268,7 +268,7 @@ jobs:
           flutter pub add http
           flutter pub add crypto:3.0.8
           flutter pub add shared_preferences
-          flutter pub add webview_flutter:4.14.1
+          flutter pub add webview_flutter:4.13.1
           # Flutter 3.50 moved Material widgets into the standalone package.
           python3 - <<'PY'
           from pathlib import Path
