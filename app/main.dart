@@ -7042,6 +7042,11 @@ class _StaffDemoPreviewState extends State<_StaffDemoPreview> {
                   viewMode: _demoGisViewMode,
                   visibleLayers: _demoGisVisibleLayers,
                   isLight: isLight,
+                  onViewModeChanged: (mode) {
+                    if (mounted && _demoGisViewMode != mode) {
+                      setState(() => _demoGisViewMode = mode);
+                    }
+                  },
                 ),
               ),
             ),
